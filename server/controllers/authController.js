@@ -7,6 +7,8 @@ const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP");
 const sendEmail = require("../utils/sendEmail");
 
+const EmployerProfile = require("../models/EmployerProfile.js");
+
 // Generate 6-digit OTP
 const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -532,5 +534,345 @@ module.exports.checkEmail = async (req, res) => {
     });
   } catch (error) {
     return res.status(200).json({ exists: false });
+  }
+};
+
+// authController.js me add karo
+
+
+// PendingOTP model already use ho raha hoga register ke liye
+
+// ========== FORGOT PASSWORD - SEND OTP ==========
+module.exports.forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email?.trim()) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found with this email",
+      });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 1 * 60 * 1000); // 1 minute
+
+    await PendingOTP.findOneAndUpdate(
+      { email: normalizedEmail },
+      {
+        email: normalizedEmail,
+        otp,
+        expiresAt,
+        isVerified: false,
+        purpose: "reset-password", // optional field
+      },
+      { upsert: true, new: true }
+    );
+
+    await sendEmail({
+      to: normalizedEmail,
+      subject: "Reset your CareerConnect password",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
+          <h2 style="color: #1e3a8a;">Password Reset</h2>
+          <p>Hi ${user.fullName || ""},</p>
+          <p>Use this code to reset your password:</p>
+          <div style="background:#f1f5f9;border-radius:12px;padding:20px;text-align:center;margin:24px 0;">
+            <span style="font-size:32px;font-weight:700;letter-spacing:8px;color:#0f172a;">${otp}</span>
+          </div>
+          <p style="color:#94a3b8;font-size:14px;">This code expires in <strong>1 minute</strong>.</p>
+        </div>
+      `,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent to your email",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ========== VERIFY RESET OTP ==========
+module.exports.verifyResetOTP = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: "Email and OTP are required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const record = await PendingOTP.findOne({ email: normalizedEmail });
+
+    if (!record) {
+      return res.status(400).json({ success: false, message: "No OTP found. Request a new one." });
+    }
+
+    if (record.expiresAt < new Date()) {
+      return res.status(400).json({ success: false, message: "OTP has expired. Request a new one." });
+    }
+
+    if (record.otp !== otp.trim()) {
+      return res.status(400).json({ success: false, message: "Invalid OTP" });
+    }
+
+    record.isVerified = true;
+    await record.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP verified successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ========== RESET PASSWORD ==========
+module.exports.resetPassword = async (req, res, next) => {
+  try {
+    const { email, otp, password, confirmPassword } = req.body;
+
+    if (!email || !otp || !password) {
+      return res.status(400).json({ success: false, message: "All fields are required" });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: "Password must be at least 6 characters" });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({ success: false, message: "Passwords do not match" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const record = await PendingOTP.findOne({ email: normalizedEmail });
+
+    if (!record || !record.isVerified || record.otp !== otp.trim()) {
+      return res.status(403).json({
+        success: false,
+        message: "Please verify OTP first",
+      });
+    }
+
+    if (record.expiresAt < new Date()) {
+      // verified but expired - still allow if recently verified, or force re-verify
+      // For simplicity: require valid verified record
+    }
+
+    const user = await User.findOne({ email: normalizedEmail }).select("+password");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    user.password = password; // pre-save hook will hash
+    await user.save();
+
+    // Cleanup OTP
+    await PendingOTP.deleteOne({ email: normalizedEmail });
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+module.exports.registerEmployer = async (req, res, next) => {
+  try {
+    const {
+      companyName,
+      email,
+      phone,
+      password,
+      confirmPassword,
+      contactPerson,
+      designation,
+      website,
+      companyType,
+      industry,
+      location,
+    } = req.body;
+
+    // ---------- Validation ----------
+    if (!companyName?.trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "companyName",
+        message: "Company name is required",
+      });
+    }
+
+    if (!email?.trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "email",
+        message: "Official email is required",
+      });
+    }
+
+    if (!phone?.trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "phone",
+        message: "Mobile number is required",
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        field: "password",
+        message: "Password is required",
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        field: "password",
+        message: "Password must contain at least 6 characters",
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        field: "confirmPassword",
+        message: "Passwords do not match",
+      });
+    }
+
+    if (!contactPerson?.trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "contactPerson",
+        message: "Contact person is required",
+      });
+    }
+
+    if (!designation?.trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "designation",
+        message: "Designation is required",
+      });
+    }
+
+    if (!companyType) {
+      return res.status(400).json({
+        success: false,
+        field: "companyType",
+        message: "Company type is required",
+      });
+    }
+
+    if (!industry?.trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "industry",
+        message: "Industry is required",
+      });
+    }
+
+    if (!location?.trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "location",
+        message: "Location is required",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // OTP verified?
+    const otpRecord = await PendingOTP.findOne({ email: normalizedEmail });
+    if (!otpRecord || !otpRecord.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Please verify your email first",
+      });
+    }
+
+    // Already registered?
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        field: "email",
+        message: "Email is already registered",
+      });
+    }
+
+    // ---------- Create User (role: employer) ----------
+    // Note: userType is required in your schema — use a placeholder or make it optional for employers
+    const user = await User.create({
+      fullName: contactPerson.trim(), // contact person as account name
+      email: normalizedEmail,
+      phone: phone.trim(),
+      password,
+      role: "employer",
+      userType: "professional", // schema me required hai; employer ke liye safe default
+      username: generateUsername(normalizedEmail),
+      isEmailVerified: true,
+      isProfileComplete: true,
+      profileCompletion: 80,
+    });
+
+    // ---------- Create Employer Profile ----------
+    try {
+      await EmployerProfile.create({
+        userId: user._id,
+        companyName: companyName.trim(),
+        contactPerson: contactPerson.trim(),
+        designation: designation.trim(),
+        website: website?.trim() || "",
+        companyType,
+        industry: industry.trim(),
+        location: location.trim(),
+        phone: phone.trim(),
+      });
+    } catch (profileErr) {
+      console.error("EmployerProfile creation error:", profileErr);
+      // User ban gaya, profile fail — optional: user delete kar sakte ho
+    }
+
+    // Cleanup OTP
+    await PendingOTP.deleteOne({ email: normalizedEmail });
+
+    const token = generateToken(user._id);
+    setTokenCookie(res, token);
+
+    return res.status(201).json({
+      success: true,
+      message: "Employer account created successfully",
+      token,
+      user: {
+        _id: user._id,
+        id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        phone: user.phone,
+        profileImage: user.profileImage,
+        role: user.role,
+        userType: user.userType,
+        companyName: companyName.trim(),
+      },
+    });
+  } catch (error) {
+    next(error);
   }
 };

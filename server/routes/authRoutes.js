@@ -15,4 +15,11 @@ router.post("/check-email", authControllers.checkEmail);
 router.post("/send-otp",authControllers.sendOTP);
 router.post("/verify-otp",authControllers.verifyOTP);
 
+router.post("/forgot-password", authControllers.forgotPassword);
+router.post("/verify-reset-otp", authControllers.verifyResetOTP);
+router.post("/reset-password", authControllers.resetPassword);
+
+
+router.post("/register-employer", authControllers.registerEmployer);
+
 module.exports = router

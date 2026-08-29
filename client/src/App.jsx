@@ -23,6 +23,8 @@ import FresherProfile from "./pages/fresher/FresherProfile";
 // Professional Pages
 import ProfessionalDashboard from "./pages/professional/ProfessionalDashboard";
 import ProfessionalProfile from "./pages/professional/ProfessionalProfile";
+import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
+import EmployerRegister from "./pages/auth/EmployerRegister.jsx";
 
 function App() {
   return (
@@ -33,14 +35,15 @@ function App() {
         {/* ============================= */}
         <Route path="/login" element={<Login />} />
         <Route path="/register/student" element={<Signup />} />
-        <Route path="/select-role" element={<SelectRole />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/register/employer" element={<EmployerRegister />} />
 
         {/* ============================= */}
         {/* BASE PROTECTED ROUTES         */}
         {/* ============================= */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="/home" element={<Home />} />
-        </Route>
+        {/* <Route element={<ProtectedRoute />}>
+        </Route> */}
 
         {/* ============================= */}
         {/* ROLE PROTECTED: STUDENT       */}
