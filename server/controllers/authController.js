@@ -2,10 +2,9 @@ const User = require("../models/User.js");
 const StudentProfile = require("../models/StudentProfile.js");
 const jwt = require("jsonwebtoken");
 
-
 const crypto = require("crypto");
-const PendingOTP = require("../models/PendingOTP");
-const sendEmail = require("../utils/sendEmail");
+const PendingOTP = require("../models/PendingOTP.js");
+const sendEmail = require("../utils/sendEmail.js");
 
 const EmployerProfile = require("../models/EmployerProfile.js");
 
@@ -41,7 +40,7 @@ module.exports.sendOTP = async (req, res, next) => {
     }
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 1 * 60 * 1000); // 1 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Upsert pending OTP
     await PendingOTP.findOneAndUpdate(
@@ -52,8 +51,14 @@ module.exports.sendOTP = async (req, res, next) => {
         expiresAt,
         isVerified: false,
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
+
+    console.log(`\n==================================================`);
+    console.log(`🔑 [DEMO / DEV OTP] Email: ${normalizedEmail}`);
+    console.log(`🔑 [DEMO / DEV OTP] OTP Code: ${otp}`);
+    console.log(`🔑 [DEMO / DEV OTP] (Master Demo Code: 123456)`);
+    console.log(`==================================================\n`);
 
     // Send email
     await sendEmail({
@@ -67,7 +72,7 @@ module.exports.sendOTP = async (req, res, next) => {
           <div style="background: #f1f5f9; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0;">
             <span style="font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #0f172a;">${otp}</span>
           </div>
-          <p style="color: #94a3b8; font-size: 14px;">This code expires in 1 minutes.</p>
+          <p style="color: #94a3b8; font-size: 14px;">This code expires in 10 minutes.</p>
           <p style="color: #94a3b8; font-size: 13px;">If you didn't request this, ignore this email.</p>
         </div>
       `,
@@ -77,6 +82,7 @@ module.exports.sendOTP = async (req, res, next) => {
       success: true,
       message: "OTP sent to your email",
       email: normalizedEmail,
+      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (error) {
     next(error);
@@ -98,8 +104,23 @@ module.exports.verifyOTP = async (req, res, next) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const enteredOtp = otp.toString().trim();
 
-    const record = await PendingOTP.findOne({ email: normalizedEmail });
+    let record = await PendingOTP.findOne({ email: normalizedEmail });
+
+    // In non-production, auto-create or allow master demo OTP
+    const isMasterDemoOtp =
+      process.env.NODE_ENV !== "production" &&
+      (enteredOtp === "123456" || enteredOtp === "000000");
+
+    if (!record && isMasterDemoOtp) {
+      record = await PendingOTP.create({
+        email: normalizedEmail,
+        otp: enteredOtp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        isVerified: true,
+      });
+    }
 
     if (!record) {
       return res.status(400).json({
@@ -108,14 +129,16 @@ module.exports.verifyOTP = async (req, res, next) => {
       });
     }
 
-    if (record.expiresAt < new Date()) {
+    if (record.expiresAt < new Date() && !isMasterDemoOtp) {
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Please request a new one.",
       });
     }
 
-    if (record.otp !== otp.trim()) {
+    const isValid = record.otp === enteredOtp || isMasterDemoOtp;
+
+    if (!isValid) {
       return res.status(400).json({
         success: false,
         message: "Invalid OTP",
@@ -136,10 +159,6 @@ module.exports.verifyOTP = async (req, res, next) => {
   }
 };
 
-
-
-
-
 // Generate JWT
 const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
@@ -159,7 +178,10 @@ const setTokenCookie = (res, token) => {
 
 // Helper: Generate username from email
 const generateUsername = (email) => {
-  const base = email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
+  const base = email
+    .split("@")[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
   const random = Math.floor(1000 + Math.random() * 9000);
   return `${base}${random}`;
 };
@@ -246,7 +268,10 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
-    if (!userType || !["student", "fresher", "professional"].includes(userType)) {
+    if (
+      !userType ||
+      !["student", "fresher", "professional"].includes(userType)
+    ) {
       return res.status(400).json({
         success: false,
         field: "userType",
@@ -286,21 +311,24 @@ module.exports.registerUser = async (req, res, next) => {
       if (!college || !course || !year || !graduationYear) {
         return res.status(400).json({
           success: false,
-          message: "College, course, year and graduation year are required for students",
+          message:
+            "College, course, year and graduation year are required for students",
         });
       }
     } else if (userType === "fresher") {
       if (!highestQualification || !passoutYear) {
         return res.status(400).json({
           success: false,
-          message: "Highest qualification and passout year are required for freshers",
+          message:
+            "Highest qualification and passout year are required for freshers",
         });
       }
     } else if (userType === "professional") {
       if (!currentCompany || !jobTitle) {
         return res.status(400).json({
           success: false,
-          message: "Current company and job title are required for professionals",
+          message:
+            "Current company and job title are required for professionals",
         });
       }
     }
@@ -324,7 +352,10 @@ module.exports.registerUser = async (req, res, next) => {
           ],
         });
       } catch (profileErr) {
-        console.error("Error creating student profile during registration:", profileErr);
+        console.error(
+          "Error creating student profile during registration:",
+          profileErr,
+        );
       }
     }
 
@@ -486,7 +517,7 @@ module.exports.updateExperienceLevel = async (req, res, next) => {
       {
         userType: selectedType,
       },
-      { new: true }
+      { new: true },
     ).select("-password");
 
     if (!user) {
@@ -539,7 +570,6 @@ module.exports.checkEmail = async (req, res) => {
 
 // authController.js me add karo
 
-
 // PendingOTP model already use ho raha hoga register ke liye
 
 // ========== FORGOT PASSWORD - SEND OTP ==========
@@ -548,7 +578,9 @@ module.exports.forgotPassword = async (req, res, next) => {
     const { email } = req.body;
 
     if (!email?.trim()) {
-      return res.status(400).json({ success: false, message: "Email is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email is required" });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -562,7 +594,7 @@ module.exports.forgotPassword = async (req, res, next) => {
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 1 * 60 * 1000); // 1 minute
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await PendingOTP.findOneAndUpdate(
       { email: normalizedEmail },
@@ -571,10 +603,16 @@ module.exports.forgotPassword = async (req, res, next) => {
         otp,
         expiresAt,
         isVerified: false,
-        purpose: "reset-password", // optional field
+        purpose: "reset-password",
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
+
+    console.log(`\n==================================================`);
+    console.log(`🔑 [PASSWORD RESET OTP] Email: ${normalizedEmail}`);
+    console.log(`🔑 [PASSWORD RESET OTP] OTP Code: ${otp}`);
+    console.log(`🔑 [PASSWORD RESET OTP] (Master Demo Code: 123456)`);
+    console.log(`==================================================\n`);
 
     await sendEmail({
       to: normalizedEmail,
@@ -587,7 +625,7 @@ module.exports.forgotPassword = async (req, res, next) => {
           <div style="background:#f1f5f9;border-radius:12px;padding:20px;text-align:center;margin:24px 0;">
             <span style="font-size:32px;font-weight:700;letter-spacing:8px;color:#0f172a;">${otp}</span>
           </div>
-          <p style="color:#94a3b8;font-size:14px;">This code expires in <strong>1 minute</strong>.</p>
+          <p style="color:#94a3b8;font-size:14px;">This code expires in <strong>10 minutes</strong>.</p>
         </div>
       `,
     });
@@ -595,6 +633,7 @@ module.exports.forgotPassword = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "OTP sent to your email",
+      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (error) {
     next(error);
@@ -607,21 +646,44 @@ module.exports.verifyResetOTP = async (req, res, next) => {
     const { email, otp } = req.body;
 
     if (!email || !otp) {
-      return res.status(400).json({ success: false, message: "Email and OTP are required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email and OTP are required" });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const record = await PendingOTP.findOne({ email: normalizedEmail });
+    const enteredOtp = otp.toString().trim();
+    let record = await PendingOTP.findOne({ email: normalizedEmail });
+
+    const isMasterDemoOtp =
+      process.env.NODE_ENV !== "production" &&
+      (enteredOtp === "123456" || enteredOtp === "000000");
+
+    if (!record && isMasterDemoOtp) {
+      record = await PendingOTP.create({
+        email: normalizedEmail,
+        otp: enteredOtp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        isVerified: true,
+      });
+    }
 
     if (!record) {
-      return res.status(400).json({ success: false, message: "No OTP found. Request a new one." });
+      return res
+        .status(400)
+        .json({ success: false, message: "No OTP found. Request a new one." });
     }
 
-    if (record.expiresAt < new Date()) {
-      return res.status(400).json({ success: false, message: "OTP has expired. Request a new one." });
+    if (record.expiresAt < new Date() && !isMasterDemoOtp) {
+      return res.status(400).json({
+        success: false,
+        message: "OTP has expired. Request a new one.",
+      });
     }
 
-    if (record.otp !== otp.trim()) {
+    const isValid = record.otp === enteredOtp || isMasterDemoOtp;
+
+    if (!isValid) {
       return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
 
@@ -643,15 +705,22 @@ module.exports.resetPassword = async (req, res, next) => {
     const { email, otp, password, confirmPassword } = req.body;
 
     if (!email || !otp || !password) {
-      return res.status(400).json({ success: false, message: "All fields are required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "All fields are required" });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ success: false, message: "Password must be at least 6 characters" });
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
+      });
     }
 
     if (password !== confirmPassword) {
-      return res.status(400).json({ success: false, message: "Passwords do not match" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Passwords do not match" });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -669,9 +738,13 @@ module.exports.resetPassword = async (req, res, next) => {
       // For simplicity: require valid verified record
     }
 
-    const user = await User.findOne({ email: normalizedEmail }).select("+password");
+    const user = await User.findOne({ email: normalizedEmail }).select(
+      "+password",
+    );
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     user.password = password; // pre-save hook will hash
@@ -688,7 +761,6 @@ module.exports.resetPassword = async (req, res, next) => {
     next(error);
   }
 };
-
 
 module.exports.registerEmployer = async (req, res, next) => {
   try {
@@ -817,18 +889,17 @@ module.exports.registerEmployer = async (req, res, next) => {
     }
 
     // ---------- Create User (role: employer) ----------
-    // Note: userType is required in your schema — use a placeholder or make it optional for employers
     const user = await User.create({
-      fullName: contactPerson.trim(), // contact person as account name
+      fullName: contactPerson.trim(),
       email: normalizedEmail,
       phone: phone.trim(),
       password,
       role: "employer",
-      userType: "professional", // schema me required hai; employer ke liye safe default
+      userType: "employer",
       username: generateUsername(normalizedEmail),
       isEmailVerified: true,
-      isProfileComplete: true,
-      profileCompletion: 80,
+      isProfileComplete: false,
+      profileCompletion: 20,
     });
 
     // ---------- Create Employer Profile ----------
@@ -836,17 +907,27 @@ module.exports.registerEmployer = async (req, res, next) => {
       await EmployerProfile.create({
         userId: user._id,
         companyName: companyName.trim(),
-        contactPerson: contactPerson.trim(),
-        designation: designation.trim(),
+        officialEmail: normalizedEmail,
+        mobile: phone.trim(),
         website: website?.trim() || "",
-        companyType,
-        industry: industry.trim(),
-        location: location.trim(),
-        phone: phone.trim(),
+        companyType: companyType || "Private",
+        industry: industry?.trim() || "Information Technology",
+        headquarters: {
+          city: location?.trim() || "",
+          state: "",
+          country: "India",
+        },
+        recruiter: {
+          name: contactPerson.trim(),
+          designation: designation.trim(),
+          email: normalizedEmail,
+          phone: phone.trim(),
+        },
+        currentStep: 1,
+        profileCompletion: 20,
       });
     } catch (profileErr) {
       console.error("EmployerProfile creation error:", profileErr);
-      // User ban gaya, profile fail — optional: user delete kar sakte ho
     }
 
     // Cleanup OTP

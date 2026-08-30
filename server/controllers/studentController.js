@@ -1,5 +1,9 @@
 const User = require("../models/User");
 const StudentProfile = require("../models/StudentProfile");
+const Job = require("../models/Job");
+const Application = require("../models/Application");
+const Course = require("../models/Course");
+const { isEligibleForInternship } = require("../utils/eligibility");
 
 // Skill benchmarks for target roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -141,233 +145,162 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     const readiness = calculateCareerReadiness(profile, completion);
     const skillGap = analyzeSkillGap(profile);
 
-    // Dynamic curated internship recommendations
-    const recommendedInternships = [
-      {
-        id: "int-101",
-        title: "Frontend Developer Intern",
-        company: "TechNova Labs",
-        location: "Remote / Bangalore",
-        stipend: "₹25,000 / month",
-        duration: "3 Months",
-        type: "Internship",
-        workMode: "Remote",
-        skillsRequired: ["React", "JavaScript", "Tailwind CSS"],
-        postedAt: "2 days ago",
-        deadline: "30 Aug 2026",
-      },
-      {
-        id: "int-102",
-        title: "Full Stack Engineer Intern",
-        company: "CloudScale Systems",
-        location: "Gurgaon",
-        stipend: "₹30,000 / month",
-        duration: "6 Months",
-        type: "Internship",
-        workMode: "Hybrid",
-        skillsRequired: ["Node.js", "React", "MongoDB"],
-        postedAt: "3 days ago",
-        deadline: "05 Sep 2026",
-      },
-      {
-        id: "int-103",
-        title: "Backend Development Intern",
-        company: "RazorFlow Technologies",
-        location: "Bangalore",
-        stipend: "₹28,000 / month",
-        duration: "4 Months",
-        type: "Internship",
-        workMode: "On-site",
-        skillsRequired: ["Node.js", "Express", "SQL"],
-        postedAt: "1 day ago",
-        deadline: "02 Sep 2026",
-      },
-    ];
+    // 1. Fetch Real Database Internships
+    const dbInternships = await Job.find({
+      status: "Published",
+      employmentType: "Internship",
+    })
+      .populate("employerId", "companyName logo headquarters")
+      .sort({ createdAt: -1 })
+      .lean();
 
-    // Dynamic curated job recommendations
-    const recommendedJobs = [
-      {
-        id: "job-201",
-        title: "Junior Software Engineer (Campus Hire)",
-        company: "NexGen Solutions",
-        location: "Hyderabad",
-        salary: "₹6.5 - 9.0 LPA",
-        type: "Full-Time",
-        workMode: "Hybrid",
-        skillsRequired: ["JavaScript", "Data Structures", "Node.js"],
-        postedAt: "Just now",
-      },
-      {
-        id: "job-202",
-        title: "Associate React / Web Developer",
-        company: "InnovateX Tech",
-        location: "Pune / Remote",
-        salary: "₹6.0 - 8.5 LPA",
-        type: "Full-Time",
-        workMode: "Remote",
-        skillsRequired: ["React", "Redux", "TypeScript"],
-        postedAt: "1 day ago",
-      },
-      {
-        id: "job-203",
-        title: "Graduate Engineer Trainee (GET)",
-        company: "Cognitive Works",
-        location: "Bangalore",
-        salary: "₹7.0 - 10.0 LPA",
-        type: "Full-Time",
-        workMode: "On-site",
-        skillsRequired: ["Python", "SQL", "Cloud Basics"],
-        postedAt: "3 days ago",
-      },
-    ];
+    const eligibleDbInternships = dbInternships.filter((job) =>
+      isEligibleForInternship(job, profile)
+    );
 
-    // Recommended Courses based on skill gaps
-    const recommendedCourses = [
-      {
-        id: "crs-301",
-        title: "Mastering Full-Stack MERN Development",
-        provider: "CareerConnect Academy",
-        level: "Intermediate",
-        duration: "8 Weeks",
-        rating: 4.9,
-        skillsCovered: ["React", "Node.js", "MongoDB", "Express", "Deployment"],
-        isFree: true,
-      },
-      {
-        id: "crs-302",
-        title: "Data Structures & Algorithms in JavaScript & C++",
-        provider: "AlgoPro Learning",
-        level: "Beginner to Advanced",
-        duration: "10 Weeks",
-        rating: 4.8,
-        skillsCovered: ["Trees", "Graphs", "Dynamic Programming", "Recursion"],
-        isFree: true,
-      },
-      {
-        id: "crs-303",
-        title: "Docker, Kubernetes & Microservices for Developers",
-        provider: "Cloud Native Mastery",
-        level: "Advanced",
-        duration: "6 Weeks",
-        rating: 4.9,
-        skillsCovered: ["Docker", "Kubernetes", "CI/CD", "AWS"],
-        isFree: false,
-      },
-    ];
+    const recommendedInternships = eligibleDbInternships.map((job) => {
+      const stipendStr =
+        job.salaryRange?.min > 0
+          ? `₹${job.salaryRange.min.toLocaleString()} / month`
+          : "Competitive Stipend";
 
-    // Application statistics & recent list
-    const applications = {
-      stats: {
-        applied: 8,
-        underReview: 4,
-        shortlisted: 2,
-        interview: 1,
-        selected: 1,
-        rejected: 0,
-      },
-      recent: [
-        {
-          id: "app-1",
-          title: "Frontend Intern",
-          company: "TechNova Labs",
-          appliedDate: "24 Aug 2026",
-          status: "Under Review",
-          lastUpdated: "Yesterday",
-        },
-        {
-          id: "app-2",
-          title: "Full Stack Engineer Intern",
-          company: "CloudScale Systems",
-          appliedDate: "20 Aug 2026",
-          status: "Shortlisted",
-          lastUpdated: "2 days ago",
-        },
-        {
-          id: "app-3",
-          title: "Associate React Developer",
-          company: "InnovateX Tech",
-          appliedDate: "18 Aug 2026",
-          status: "Interview",
-          lastUpdated: "3 days ago",
-        },
-      ],
+      return {
+        _id: job._id,
+        id: job._id.toString(),
+        jobId: job._id.toString(),
+        title: job.title,
+        company: job.employerId?.companyName || "Partner Employer",
+        companyId: job.employerId?._id || "",
+        location: job.location,
+        stipend: stipendStr,
+        salary: stipendStr,
+        duration: "3-6 Months",
+        type: "Internship",
+        workMode: job.workMode || "Remote",
+        skillsRequired: job.requiredSkills || [],
+        postedAt: "Active",
+        deadline: job.deadline ? new Date(job.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open until filled",
+        description: job.description,
+        responsibilities: job.responsibilities,
+      };
+    });
+
+    // 2. Fetch Real Database Full-Time / Entry-Level Jobs
+    const dbJobs = await Job.find({
+      status: "Published",
+      employmentType: { $ne: "Internship" },
+    })
+      .populate("employerId", "companyName logo headquarters")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const recommendedJobs = dbJobs.map((job) => {
+      const salaryStr =
+        job.salaryRange?.min > 0
+          ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
+          : "Best in Industry";
+
+      return {
+        _id: job._id,
+        id: job._id.toString(),
+        jobId: job._id.toString(),
+        title: job.title,
+        company: job.employerId?.companyName || "Partner Employer",
+        companyId: job.employerId?._id || "",
+        location: job.location,
+        salary: salaryStr,
+        type: job.employmentType || "Full-Time",
+        workMode: job.workMode || "Hybrid",
+        skillsRequired: job.requiredSkills || [],
+        postedAt: "Active",
+        deadline: job.deadline ? new Date(job.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
+        description: job.description,
+        responsibilities: job.responsibilities,
+      };
+    });
+
+    // 3. Fetch Real Courses from database
+    const dbCourses = await Course.find({ status: "Published" }).limit(6).lean();
+    const recommendedCourses = dbCourses.map((c) => ({
+      _id: c._id,
+      id: c._id.toString(),
+      title: c.title,
+      provider: "CareerConnect Academy",
+      level: c.level || "Intermediate",
+      duration: `${c.duration || 6} ${c.durationUnit || "Weeks"}`,
+      rating: 4.9,
+      skillsCovered: c.skills || [],
+      isFree: !c.price || c.price === 0,
+    }));
+
+    // 4. Fetch Real Applications for logged in student
+    const dbApplications = await Application.find({ candidateId: userId })
+      .populate({
+        path: "jobId",
+        select: "title department location employmentType workMode salaryRange deadline status",
+        populate: { path: "employerId", select: "companyName logo" },
+      })
+      .populate("employerId", "companyName logo")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const appStats = {
+      applied: dbApplications.filter((a) => a.status === "Applied").length,
+      underReview: dbApplications.filter((a) => ["Screening", "Under Review"].includes(a.status)).length,
+      shortlisted: dbApplications.filter((a) => a.status === "Shortlisted").length,
+      interview: dbApplications.filter((a) => ["Interview", "Final Interview", "Assessment"].includes(a.status)).length,
+      selected: dbApplications.filter((a) => ["Offer", "Hired"].includes(a.status)).length,
+      rejected: dbApplications.filter((a) => a.status === "Rejected").length,
     };
 
-    // Saved opportunities
-    const savedOpportunities = [
-      {
-        id: "save-1",
-        title: "Full Stack Engineer Intern",
-        company: "CloudScale Systems",
-        type: "Internship",
-        deadline: "05 Sep 2026",
-        savedAt: "25 Aug 2026",
-      },
-      {
-        id: "save-2",
-        title: "Junior Software Engineer (Campus Hire)",
-        company: "NexGen Solutions",
-        type: "Job",
-        deadline: "10 Sep 2026",
-        savedAt: "24 Aug 2026",
-      },
-    ];
+    const recentApps = dbApplications.map((app) => {
+      const jobTitle = app.jobId?.title || "Position";
+      const compName = app.jobId?.employerId?.companyName || app.employerId?.companyName || "Employer";
+      const appliedDateStr = new Date(app.createdAt).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
 
-    // Upcoming deadlines with urgency indicators
-    const upcomingDeadlines = [
-      {
-        id: "dl-1",
-        title: "TechNova Labs Internship Application",
-        type: "Internship",
-        date: "30 Aug 2026",
-        daysRemaining: 4,
-        urgency: "urgent", // urgent (<5 days), medium (5-10), normal (>10)
-      },
-      {
-        id: "dl-2",
-        title: "RazorFlow Tech Hiring Challenge",
-        type: "Hackathon / Job",
-        date: "02 Sep 2026",
-        daysRemaining: 7,
-        urgency: "medium",
-      },
-      {
-        id: "dl-3",
-        title: "CloudScale Systems Internship",
-        type: "Internship",
-        date: "05 Sep 2026",
-        daysRemaining: 10,
-        urgency: "normal",
-      },
-    ];
+      return {
+        _id: app._id,
+        id: app._id.toString(),
+        jobId: app.jobId?._id || "",
+        title: jobTitle,
+        company: compName,
+        appliedDate: appliedDateStr,
+        status: app.status,
+        lastUpdated: "Recently",
+      };
+    });
 
-    // Notifications
+    const applications = {
+      stats: appStats,
+      recent: recentApps,
+    };
+
+    // 5. Notifications
     const notifications = [
       {
         id: "notif-1",
-        title: "Application Shortlisted 🎉",
-        message: "CloudScale Systems has shortlisted your application for Full Stack Intern!",
-        date: "2 hours ago",
+        title: "Welcome to Geeta University CareerConnect 🎉",
+        message: "Explore live internship opportunities directly posted by verified employers.",
+        date: "Today",
         isRead: false,
         type: "application",
       },
-      {
-        id: "notif-2",
-        title: "New Internship Matching Your Skills",
-        message: "RazorFlow Technologies posted a new Node.js & SQL internship.",
-        date: "1 day ago",
-        isRead: false,
-        type: "recommendation",
-      },
-      {
-        id: "notif-3",
-        title: "Complete Your Resume",
-        message: "Add project live URLs to boost your profile readiness score by 15%.",
-        date: "2 days ago",
-        isRead: true,
-        type: "profile",
-      },
     ];
+
+    if (recentApps.length > 0) {
+      notifications.unshift({
+        id: "notif-latest-app",
+        title: `Application Status: ${recentApps[0].status}`,
+        message: `Your application for ${recentApps[0].title} at ${recentApps[0].company} is currently in '${recentApps[0].status}' status.`,
+        date: "Today",
+        isRead: false,
+        type: "application",
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -400,8 +333,15 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         recommendedJobs,
         recommendedCourses,
         applications,
-        savedOpportunities,
-        upcomingDeadlines,
+        savedOpportunities: [],
+        upcomingDeadlines: recommendedInternships.slice(0, 3).map((int, idx) => ({
+          id: `dl-${idx + 1}`,
+          title: `${int.company} Internship Application`,
+          type: "Internship",
+          date: int.deadline || "Open",
+          daysRemaining: 15,
+          urgency: "normal",
+        })),
         notifications,
       },
     });
@@ -424,8 +364,8 @@ module.exports.getStudentProfile = async (req, res, next) => {
         technicalSkills: ["JavaScript", "React", "Node.js"],
         education: [
           {
-            institution: "University / College",
-            degree: "Undergraduate Degree",
+            institution: "Geeta University",
+            degree: "B.Tech Computer Science",
             startYear: 2024,
             endYear: 2028,
             currentlyStudying: true,
@@ -496,22 +436,100 @@ module.exports.toggleSaveOpportunity = async (req, res, next) => {
 };
 
 // ==========================================
-// APPLY TO OPPORTUNITY
+// APPLY TO OPPORTUNITY (REAL DATABASE POST)
 // ==========================================
 module.exports.applyOpportunity = async (req, res, next) => {
   try {
-    const { opportunityId, title, company, type } = req.body;
-    return res.status(200).json({
+    const { opportunityId, jobId, title, company, type } = req.body;
+    const targetJobId = jobId || opportunityId;
+    const candidateId = req.user._id;
+
+    if (!targetJobId) {
+      return res.status(400).json({
+        success: false,
+        message: "Job ID is required to submit application",
+      });
+    }
+
+    const job = await Job.findById(targetJobId).populate("employerId");
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: "Job opportunity not found",
+      });
+    }
+
+    if (job.status !== "Published") {
+      return res.status(400).json({
+        success: false,
+        message: "This position is no longer accepting applications",
+      });
+    }
+
+    const existing = await Application.findOne({ jobId: targetJobId, candidateId });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: "Application already submitted for this position",
+      });
+    }
+
+    // Match calculation
+    const studentProf = await StudentProfile.findOne({ userId: candidateId }).lean();
+    const candidateSkills = studentProf?.technicalSkills || [];
+    const strongSkills = candidateSkills.filter((s) =>
+      (job.requiredSkills || []).some((reqS) => reqS.toLowerCase() === s.toLowerCase())
+    );
+    const missingSkills = (job.requiredSkills || []).filter(
+      (reqS) => !candidateSkills.some((s) => s.toLowerCase() === reqS.toLowerCase())
+    );
+
+    const matchOverall = Math.min(100, Math.max(40, Math.round(50 + (strongSkills.length * 15))));
+
+    const application = await Application.create({
+      jobId: targetJobId,
+      candidateId,
+      employerId: job.employerId?._id || job.employerId,
+      resumeUrl: studentProf?.resume?.resumeUrl || "",
+      status: "Applied",
+      stageHistory: [
+        {
+          stage: "Applied",
+          notes: "Student applied via LMS Student Dashboard",
+          changedBy: candidateId,
+          changedAt: new Date(),
+        },
+      ],
+      matchScore: {
+        overall: matchOverall,
+        skills: Math.min(100, strongSkills.length * 25),
+        experience: 75,
+        education: 90,
+      },
+      matchingDetails: {
+        strongSkills,
+        missingSkills,
+      },
+    });
+
+    job.applicantsCount += 1;
+    await job.save();
+
+    const companyName = job.employerId?.companyName || company || "Partner Employer";
+
+    return res.status(201).json({
       success: true,
-      message: "Application submitted successfully",
+      message: `✓ Application submitted successfully for "${job.title}" at ${companyName}!`,
       application: {
-        id: `app-${Date.now()}`,
-        opportunityId,
-        title,
-        company,
-        type,
+        _id: application._id,
+        id: application._id.toString(),
+        jobId: job._id.toString(),
+        title: job.title,
+        company: companyName,
+        type: job.employmentType,
         appliedDate: "Today",
         status: "Applied",
+        lastUpdated: "Just now",
       },
     });
   } catch (error) {

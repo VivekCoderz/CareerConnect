@@ -111,7 +111,7 @@ const userSchema = new mongoose.Schema(
       type: String,
 
       enum: {
-        values: ["student", "fresher", "professional"],
+        values: ["student", "fresher", "professional", "employer"],
         message: "Invalid user type",
       },
 

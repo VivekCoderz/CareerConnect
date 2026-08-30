@@ -28,6 +28,9 @@ import ApplicationTrackerCard from "../../components/student-dashboard/Applicati
 import SavedOpportunitiesCard from "../../components/student-dashboard/SavedOpportunitiesCard";
 import UpcomingDeadlinesCard from "../../components/student-dashboard/UpcomingDeadlinesCard";
 import CareerGoalCard from "../../components/student-dashboard/CareerGoalCard";
+import Internships from "./Internships";
+import InternshipDetail from "./InternshipDetail";
+import MyApplications from "./MyApplications";
 import QuickActionsCard from "../../components/student-dashboard/QuickActionsCard";
 
 const StudentDashboard = () => {
@@ -38,6 +41,10 @@ const StudentDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Internship sub-views
+  const [internshipView, setInternshipView] = useState("list"); // "list", "detail"
+  const [selectedInternshipId, setSelectedInternshipId] = useState(null);
 
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -109,11 +116,19 @@ const StudentDashboard = () => {
     }
   };
 
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
   // Handle Quick Apply
   const handleApply = async (item) => {
     try {
       const res = await applyOpportunity({
-        opportunityId: item.id,
+        opportunityId: item._id || item.id,
+        jobId: item._id || item.id,
         title: item.title,
         company: item.company,
         type: item.type,
@@ -121,7 +136,7 @@ const StudentDashboard = () => {
 
       if (res?.success && res?.application) {
         setApplicationsData((prev) => {
-          if (!prev) return prev;
+          if (!prev) return { stats: { applied: 1 }, recent: [res.application] };
           return {
             stats: {
               ...prev.stats,
@@ -130,10 +145,11 @@ const StudentDashboard = () => {
             recent: [res.application, ...(prev.recent || [])],
           };
         });
-        alert(`Application submitted successfully for "${item.title}" at ${item.company}!`);
+        showToast(res.message || `Application submitted for "${item.title}"!`, "success");
       }
     } catch (err) {
-      alert("Application could not be submitted. Please try again.");
+      const errMsg = err.response?.data?.message || err.message || "Application could not be submitted. Please try again.";
+      showToast(errMsg, "error");
     }
   };
 
@@ -225,7 +241,12 @@ const StudentDashboard = () => {
       {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={(tab) => {
+          setActiveTab(tab);
+          if (tab === "internships") {
+            setInternshipView("list");
+          }
+        }}
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
         onLogout={handleLogout}
@@ -354,12 +375,23 @@ const StudentDashboard = () => {
           )}
 
           {activeTab === "internships" && (
-            <InternshipRecommendationsCard
-              internships={filteredInternships}
-              onSave={handleSaveToggle}
-              onApply={handleApply}
-              savedIds={savedIds}
-            />
+            <div className="space-y-5 animate-fade-in bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
+              {internshipView === "list" && (
+                <Internships
+                  studentProfile={profile}
+                  onSelectInternship={(id) => {
+                    setSelectedInternshipId(id);
+                    setInternshipView("detail");
+                  }}
+                />
+              )}
+              {internshipView === "detail" && (
+                <InternshipDetail
+                  id={selectedInternshipId}
+                  onBack={() => setInternshipView("list")}
+                />
+              )}
+            </div>
           )}
 
           {activeTab === "jobs" && (
@@ -376,7 +408,9 @@ const StudentDashboard = () => {
           )}
 
           {activeTab === "applications" && (
-            <ApplicationTrackerCard applications={applicationsData} />
+            <div className="space-y-5 animate-fade-in bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
+              <MyApplications />
+            </div>
           )}
 
           {activeTab === "saved" && (
@@ -412,6 +446,20 @@ const StudentDashboard = () => {
           )}
         </main>
       </div>
+
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2.5 animate-slide-in-right ${
+            toast.type === "error"
+              ? "bg-rose-900 text-white border border-rose-700"
+              : "bg-slate-900 text-white border border-slate-700"
+          }`}
+        >
+          <span>{toast.type === "error" ? "⚠️" : "✓"}</span>
+          <span>{toast.message}</span>
+        </div>
+      )}
     </div>
   );
 };

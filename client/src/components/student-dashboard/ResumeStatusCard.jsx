@@ -59,7 +59,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
             Build your resume in 1-click using your education, skills, and project data.
           </p>
           <Link
-            to="/student/profile"
+            to="/resume-builder"
             className="inline-block px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition shadow-xs"
           >
             Build Resume Now →

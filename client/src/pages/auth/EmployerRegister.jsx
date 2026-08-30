@@ -35,8 +35,8 @@ const EmployerRegister = () => {
     contactPerson: "",
     designation: "",
     website: "",
-    companyType: "",
-    industry: "",
+    companyType: "Private",
+    industry: "Information Technology",
     location: "",
   });
 
@@ -190,7 +190,7 @@ const EmployerRegister = () => {
 
       const res = await api.post("/auth/register-employer", payload);
       dispatch(signupSuccess({ user: res.data.user, token: res.data.token }));
-      navigate("/employer/dashboard", { replace: true });
+      navigate("/employer/profile", { replace: true });
     } catch (err) {
       const message =
         err.response?.data?.message || "Registration failed. Please try again.";
@@ -217,64 +217,60 @@ const EmployerRegister = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex">
-      {/* LEFT PANEL - Step 1 */}
-      {step === 1 && (
-        <div className="hidden lg:flex w-[42%] bg-gradient-to-br from-[#92400e] via-[#b45309] to-[#78350f] text-white p-12 flex-col justify-between relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-72 h-72 bg-[#fbbf24]/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-          <div className="absolute bottom-0 left-0 w-56 h-56 bg-white/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
+      {/* LEFT PANEL */}
+      <div className="hidden lg:flex w-[42%] bg-gradient-to-br from-[#92400e] via-[#b45309] to-[#78350f] text-white p-12 flex-col justify-between relative overflow-hidden sticky top-0 h-screen">
+        <div className="absolute top-0 right-0 w-72 h-72 bg-[#fbbf24]/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-56 h-56 bg-white/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4 pointer-events-none" />
 
-          <div className="relative z-10">
-            <Link to="/" className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center font-bold text-sm">
-                GU
-              </div>
-              <div>
-                <p className="text-[15px] font-bold tracking-tight">GEETA UNIVERSITY</p>
-                <p className="text-[11px] text-[#fde68a] font-semibold">CareerConnect · Employers</p>
-              </div>
-            </Link>
-          </div>
-
-          <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[12px] font-medium text-amber-100 mb-5">
-              Employer Registration
+        <div className="relative z-10">
+          <Link to="/" className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center font-bold text-sm">
+              GU
             </div>
-            <h2 className="text-4xl font-bold leading-tight tracking-tight mb-4">
-              Hire talent from
-              <br />
-              <span className="text-[#fde68a]">Geeta University</span>
-            </h2>
-            <p className="text-amber-50/90 text-[15px] leading-relaxed max-w-sm">
-              Post internships & jobs, review applications, and connect with verified candidates.
-            </p>
-          </div>
-
-          <div className="relative z-10 text-sm text-amber-100/80">
-            Already registered?{" "}
-            <Link to="/login?type=employer" className="text-white font-semibold hover:underline">
-              Sign in
-            </Link>
-          </div>
+            <div>
+              <p className="text-[15px] font-bold tracking-tight">GEETA UNIVERSITY</p>
+              <p className="text-[11px] text-[#fde68a] font-semibold">CareerConnect · Employers</p>
+            </div>
+          </Link>
         </div>
-      )}
 
-      {/* RIGHT */}
-      <div className={`flex-1 flex items-center justify-center p-5 sm:p-8 ${step === 1 ? "" : "w-full"}`}>
-        <div className={`w-full ${step === 1 || step === "otp" ? "max-w-md" : "max-w-lg"}`}>
-          {/* Mobile logo */}
-          {(step === 1 || step === "otp") && (
-            <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
-              <div className="w-9 h-9 rounded-lg bg-[#b45309] text-white flex items-center justify-center font-bold text-xs">
-                GU
-              </div>
-              <div>
-                <p className="text-sm font-bold text-[#92400e]">GEETA UNIVERSITY</p>
-                <p className="text-[10px] text-[#f59e0b] font-semibold">Employer Portal</p>
-              </div>
+        <div className="relative z-10 py-6">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 border border-white/15 text-[12px] font-medium text-amber-100 mb-5">
+            Employer Registration
+          </div>
+          <h2 className="text-4xl font-bold leading-tight tracking-tight mb-4">
+            Hire talent from
+            <br />
+            <span className="text-[#fde68a]">Geeta University</span>
+          </h2>
+          <p className="text-amber-50/90 text-[15px] leading-relaxed max-w-sm">
+            Post internships & jobs, review applications, and connect with verified candidates.
+          </p>
+        </div>
+
+        <div className="relative z-10 text-sm text-amber-100/80">
+          Already registered?{" "}
+          <Link to="/login?type=employer" className="text-white font-semibold hover:underline">
+            Sign in
+          </Link>
+        </div>
+      </div>
+
+      {/* RIGHT PANEL */}
+      <div className="flex-1 flex items-center justify-center p-5 sm:p-8 overflow-y-auto">
+        <div className="w-full max-w-md">
+          {/* Mobile GU logo */}
+          <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
+            <div className="w-9 h-9 rounded-lg bg-[#b45309] text-white flex items-center justify-center font-bold text-xs">
+              GU
             </div>
-          )}
+            <div>
+              <p className="text-sm font-bold text-[#92400e]">GEETA UNIVERSITY</p>
+              <p className="text-[10px] text-[#f59e0b] font-semibold">Employer Portal</p>
+            </div>
+          </div>
 
-          {/* Progress */}
+          {/* Progress Indicator */}
           <div className="flex items-center gap-2 mb-9 max-w-md mx-auto">
             {[1, 2].map((s) => (
               <div key={s} className="flex items-center gap-2 flex-1 last:flex-none">
@@ -403,6 +399,7 @@ const EmployerRegister = () => {
                 </div>
 
                 <button
+                  type="button"
                   onClick={handleStep1Next}
                   disabled={checkingEmail}
                   className="w-full h-11 mt-1 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm"
@@ -420,7 +417,7 @@ const EmployerRegister = () => {
 
               <p className="text-center text-sm text-slate-500 mt-7">
                 Looking for internships/jobs?{" "}
-                <Link to="/signup" className="font-semibold text-[#1e3a8a] hover:text-[#1e40af]">
+                <Link to="/register/student" className="font-semibold text-[#1e3a8a] hover:text-[#1e40af]">
                   Candidate Sign-up
                 </Link>
               </p>
@@ -433,37 +430,34 @@ const EmployerRegister = () => {
             </div>
           )}
 
-          {/* ========== OTP ========== */}
+          {/* ========== OTP STEP ========== */}
           {step === "otp" && (
             <div key="otp" className={slideClass}>
               <button
+                type="button"
                 onClick={() => goBack(1)}
-                className="text-sm text-slate-500 hover:text-slate-700 mb-6"
+                className="text-sm text-slate-500 hover:text-slate-700 mb-6 flex items-center gap-1"
               >
                 ← Back
               </button>
 
               <div className="mb-8 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-[#fffbeb] text-[#b45309] flex items-center justify-center mx-auto mb-4">
+                <div className="w-14 h-14 rounded-2xl bg-[#fffbeb] text-[#b45309] flex items-center justify-center mx-auto mb-4 border border-amber-200">
                   <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Verify official email
+                  Verify your email
                 </h2>
-                <p className="text-sm text-slate-500 mt-2">
-                  We sent a 6-digit code to
-                  <br />
+                <p className="text-sm text-slate-500 mt-1.5">
+                  We've sent a 6-digit code to <br />
                   <span className="font-semibold text-slate-800">{formData.email}</span>
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5 text-center">
-                    Enter OTP
-                  </label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -473,18 +467,17 @@ const EmployerRegister = () => {
                       setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
                       setOtpError("");
                     }}
-                    placeholder="000000"
-                    className="w-full h-14 rounded-xl border border-slate-200 bg-white text-center text-2xl tracking-[0.4em] font-bold outline-none focus:border-[#f59e0b] focus:ring-4 focus:ring-[#f59e0b]/15 transition"
+                    placeholder="Enter 6-digit OTP"
+                    className="w-full h-12 text-center text-lg font-bold tracking-[6px] rounded-xl border border-slate-200 bg-white outline-none focus:border-[#f59e0b] focus:ring-4 focus:ring-[#f59e0b]/15"
                   />
-                  {otpError && (
-                    <p className="text-xs text-red-500 mt-2 text-center">{otpError}</p>
-                  )}
+                  {otpError && <p className="text-xs text-red-500 mt-2 text-center">{otpError}</p>}
                 </div>
 
                 <button
+                  type="button"
                   onClick={handleVerifyOTP}
                   disabled={verifyingOtp || otp.length !== 6}
-                  className="w-full h-11 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-sm font-semibold transition flex items-center justify-center gap-2"
+                  className="w-full h-11 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm"
                 >
                   {verifyingOtp ? (
                     <>
@@ -496,112 +489,95 @@ const EmployerRegister = () => {
                   )}
                 </button>
 
-                <p className="text-center text-sm text-slate-500">
-                  Didn’t receive the code?{" "}
-                  {resendCooldown > 0 ? (
-                    <span className="text-slate-400">Resend in {resendCooldown}s</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleResendOTP}
-                      disabled={checkingEmail}
-                      className="font-semibold text-[#b45309] hover:text-[#92400e]"
-                    >
-                      Resend OTP
-                    </button>
-                  )}
-                </p>
+                <div className="text-center text-xs text-slate-500 pt-2">
+                  Didn't receive the code?{" "}
+                  <button
+                    type="button"
+                    onClick={handleResendOTP}
+                    disabled={resendCooldown > 0 || checkingEmail}
+                    className="font-bold text-[#b45309] hover:underline disabled:opacity-50"
+                  >
+                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend OTP"}
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {/* ========== STEP 2: Company details ========== */}
-          {step === 2 && emailVerified && (
+          {/* ========== STEP 2 ========== */}
+          {step === 2 && (
             <div key="step2" className={slideClass}>
               <button
-                onClick={() => goBack("otp")}
-                className="text-sm text-slate-500 hover:text-slate-700 mb-6"
+                type="button"
+                onClick={() => goBack(1)}
+                className="text-sm text-slate-500 hover:text-slate-700 mb-6 flex items-center gap-1"
               >
                 ← Back
               </button>
 
-              <div className="mb-6">
+              <div className="mb-7">
                 <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Company details
+                  Contact & organization details
                 </h2>
-                <p inf className="text-sm text-slate-500 mt-1.5">
-                  Tell us more about your organization
+                <p className="text-sm text-slate-500 mt-1.5">
+                  Set up your hiring lead and headquarters
                 </p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                      Contact person
-                    </label>
-                    <input
-                      name="contactPerson"
-                      value={formData.contactPerson}
-                      onChange={handleChange}
-                      placeholder="Full name"
-                      className={inputClass("contactPerson")}
-                    />
-                    {fieldErrors.contactPerson && (
-                      <p className="text-xs text-red-500 mt-1.5">{fieldErrors.contactPerson}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                      Designation
-                    </label>
-                    <input
-                      name="designation"
-                      value={formData.designation}
-                      onChange={handleChange}
-                      placeholder="HR Manager / Recruiter"
-                      className={inputClass("designation")}
-                    />
-                    {fieldErrors.designation && (
-                      <p className="text-xs text-red-500 mt-1.5">{fieldErrors.designation}</p>
-                    )}
-                  </div>
+                <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
+                    Contact Person Name
+                  </label>
+                  <input
+                    name="contactPerson"
+                    value={formData.contactPerson}
+                    onChange={handleChange}
+                    placeholder="e.g. Rahul Sharma"
+                    className={inputClass("contactPerson")}
+                  />
+                  {fieldErrors.contactPerson && (
+                    <p className="text-xs text-red-500 mt-1">{fieldErrors.contactPerson}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                    Website <span className="text-slate-400 font-normal">(optional)</span>
+                    Designation
                   </label>
                   <input
-                    name="website"
-                    value={formData.website}
+                    name="designation"
+                    value={formData.designation}
                     onChange={handleChange}
-                    placeholder="https://company.com"
-                    className={inputClass("website")}
+                    placeholder="e.g. HR Manager / Campus Recruiter"
+                    className={inputClass("designation")}
                   />
+                  {fieldErrors.designation && (
+                    <p className="text-xs text-red-500 mt-1">{fieldErrors.designation}</p>
+                  )}
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                      Company type
+                      Company Type
                     </label>
                     <select
                       name="companyType"
                       value={formData.companyType}
                       onChange={handleChange}
-                      className={inputClass("companyType") + " bg-white"}
+                      className={inputClass("companyType")}
                     >
-                      <option value="">Select type</option>
-                      <option value="startup">Startup</option>
-                      <option value="sme">SME</option>
-                      <option value="mnc">MNC</option>
-                      <option value="government">Government</option>
-                      <option value="ngo">NGO / Non-profit</option>
-                      <option value="other">Other</option>
+                      <option value="Private">Private</option>
+                      <option value="Public">Public</option>
+                      <option value="Startup">Startup</option>
+                      <option value="NGO">NGO</option>
+                      <option value="Government">Government</option>
+                      <option value="Educational Institution">Educational</option>
+                      <option value="Other">Other</option>
                     </select>
                     {fieldErrors.companyType && (
-                      <p className="text-xs text-red-500 mt-1.5">{fieldErrors.companyType}</p>
+                      <p className="text-xs text-red-500 mt-1">{fieldErrors.companyType}</p>
                     )}
                   </div>
                   <div>
@@ -612,29 +588,42 @@ const EmployerRegister = () => {
                       name="industry"
                       value={formData.industry}
                       onChange={handleChange}
-                      placeholder="IT / Finance / Education..."
+                      placeholder="e.g. IT, FinTech"
                       className={inputClass("industry")}
                     />
                     {fieldErrors.industry && (
-                      <p className="text-xs text-red-500 mt-1.5">{fieldErrors.industry}</p>
+                      <p className="text-xs text-red-500 mt-1">{fieldErrors.industry}</p>
                     )}
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                    Location
+                    Headquarters / City
                   </label>
                   <input
                     name="location"
                     value={formData.location}
                     onChange={handleChange}
-                    placeholder="City, State"
+                    placeholder="e.g. Gurugram, Delhi NCR"
                     className={inputClass("location")}
                   />
                   {fieldErrors.location && (
-                    <p className="text-xs text-red-500 mt-1.5">{fieldErrors.location}</p>
+                    <p className="text-xs text-red-500 mt-1">{fieldErrors.location}</p>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
+                    Website <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    name="website"
+                    value={formData.website}
+                    onChange={handleChange}
+                    placeholder="https://company.com"
+                    className={inputClass("website")}
+                  />
                 </div>
 
                 <button
@@ -648,7 +637,7 @@ const EmployerRegister = () => {
                       Creating account...
                     </>
                   ) : (
-                    "Create Employer Account"
+                    "Complete Registration"
                   )}
                 </button>
               </form>

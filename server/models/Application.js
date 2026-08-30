@@ -1,74 +1,136 @@
 const mongoose = require("mongoose");
 
-// ==========================================
-// COURSE APPLICATION SCHEMA
-// ==========================================
-
-const courseApplicationSchema = new mongoose.Schema(
+const applicationSchema = new mongoose.Schema(
   {
-    // Student who applied
-    student: {
+    candidateId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "Student is required"],
+      required: true,
       index: true,
     },
 
-    // Course applied for
-    course: {
+    jobId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Course",
-      required: [true, "Course is required"],
+      ref: "Job",
+      default: null,
       index: true,
     },
 
-    // Application status
+    internshipId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Internship",
+      default: null,
+      index: true,
+    },
+
+    employerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "EmployerProfile",
+      default: null,
+      index: true,
+    },
+
+    opportunityType: {
+      type: String,
+      enum: ["Job", "Internship"],
+      required: true,
+      index: true,
+    },
+
+    opportunityTitle: {
+      type: String,
+      default: "",
+    },
+
+    companyName: {
+      type: String,
+      default: "",
+    },
+
+    coverNote: {
+      type: String,
+      default: "",
+      maxlength: 2000,
+    },
+
+    resumeUrl: {
+      type: String,
+      default: "",
+    },
+
     status: {
       type: String,
-      enum: {
-        values: ["Applied", "Enrolled", "Completed", "Rejected"],
-        message: "Invalid application status",
-      },
+      enum: [
+        "Applied",
+        "Under Review",
+        "Shortlisted",
+        "Interview",
+        "Offered",
+        "Hired",
+        "Rejected",
+        "Withdrawn",
+      ],
       default: "Applied",
       index: true,
     },
 
-    // Date of application
-    appliedAt: {
-      type: Date,
-      default: Date.now,
+    stage: {
+      type: String,
+      default: "Applied",
     },
 
-    // Course completion percentage
-    progress: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 100,
+    notes: [
+      {
+        text: String,
+        addedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    isExternal: {
+      type: Boolean,
+      default: false,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// ==========================================
-// PREVENT DUPLICATE APPLICATION
-// ==========================================
-
-courseApplicationSchema.index(
-  {
-    student: 1,
-    course: 1,
-  },
+applicationSchema.index(
+  { candidateId: 1, internshipId: 1 },
   {
     unique: true,
+    partialFilterExpression: { opportunityType: "Internship" },
   }
 );
 
-const CourseApplication = mongoose.model(
-  "CourseApplication",
-  courseApplicationSchema
+applicationSchema.index(
+  { candidateId: 1, jobId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { opportunityType: "Job" },
+  }
 );
 
-module.exports = CourseApplication;
+applicationSchema.pre("validate", function (next) {
+  if (this.opportunityType === "Internship" && !this.internshipId) {
+    return next(
+      new Error("internshipId is required for Internship applications")
+    );
+  }
+
+  if (this.opportunityType === "Job" && !this.jobId) {
+    return next(
+      new Error("jobId is required for Job applications")
+    );
+  }
+
+  next();
+});
+
+module.exports = mongoose.model("Application", applicationSchema);
