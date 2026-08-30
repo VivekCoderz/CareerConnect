@@ -5,7 +5,10 @@ const {
      getMyCourses,
       updateCourse,
       deleteCourse,
-      updateCourseStatus} = require("../controllers/courseController");
+      updateCourseStatus,
+      getRecommendedCourses,
+     getCourseDetails,
+    applyCourse} = require("../controllers/courseController");
 
 const protect = require("../middleware/authMiddleware");
 
@@ -23,6 +26,19 @@ router.post("/", protect, createCourse);
 // GET /api/courses/my-courses
 router.get("/my-courses", protect, getMyCourses);
 
+// ==========================================
+// STUDENT COURSE ROUTES
+// ==========================================
+
+// Recommended courses for logged-in student
+router.get("/recommended",protect,getRecommendedCourses);
+
+//get courses details using id
+router.get("/:id", protect, getCourseDetails);
+
+//apply for the course 
+router.post("/:id/apply", protect, applyCourse);
+
 // Update Course
 router.put("/:id", protect, updateCourse);
 
@@ -31,5 +47,7 @@ router.delete("/:id", protect, deleteCourse);
 
 //update the status of the course
 router.patch("/:id/status", protect, updateCourseStatus);
+
+
 
 module.exports = router;

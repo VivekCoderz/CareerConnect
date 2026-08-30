@@ -1,5 +1,6 @@
 const Course = require("../models/Course");
-
+const StudentProfile = require("../models/StudentProfile");
+const CourseApplication=require("../models/Application")
 // ==========================================
 // CREATE COURSE
 // POST /api/courses
@@ -335,6 +336,422 @@ const updateCourseStatus = async (req, res) => {
   }
 };
 
+// ==========================================
+// GET RECOMMENDED COURSES FOR STUDENT
+// GET /api/courses/recommended
+// ==========================================
+
+const getRecommendedCourses = async (req, res) => {
+  try {
+    const user = req.user;
+
+    // ------------------------------------------
+    // Authentication check
+    // ------------------------------------------
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    // ------------------------------------------
+    // Only students can access recommendations
+    // ------------------------------------------
+
+    if (user.role !== "user" || user.userType !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only students can access recommended courses",
+      });
+    }
+
+    // ------------------------------------------
+    // Find student's profile
+    // ------------------------------------------
+
+    const studentProfile = await StudentProfile.findOne({
+      userId: user._id,
+    });
+
+    if (!studentProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Student profile not found",
+      });
+    }
+
+    // ------------------------------------------
+    // Get all published courses
+    // ------------------------------------------
+
+    const courses = await Course.find({
+      status: "Published",
+    }).lean();
+
+    // ------------------------------------------
+    // Student profile data
+    // ------------------------------------------
+
+    const technicalSkills = (studentProfile.technicalSkills || []).map(
+      (skill) => skill.toLowerCase().trim()
+    );
+
+    const softSkills = (studentProfile.softSkills || []).map(
+      (skill) => skill.toLowerCase().trim()
+    );
+
+    const interests = (studentProfile.interests || []).map(
+      (interest) => interest.toLowerCase().trim()
+    );
+
+    const preferredRoles = (
+      studentProfile.jobPreferences?.preferredRoles || []
+    ).map((role) => role.toLowerCase().trim());
+
+    const careerGoal = (studentProfile.careerGoal || "")
+      .toLowerCase()
+      .trim();
+
+    // ------------------------------------------
+    // Education information
+    // ------------------------------------------
+
+    const education = studentProfile.education || [];
+
+    const educationDegrees = education
+      .map((edu) => edu.degree || "")
+      .filter(Boolean)
+      .map((degree) => degree.toLowerCase().trim());
+
+    const fieldsOfStudy = education
+      .map((edu) => edu.fieldOfStudy || "")
+      .filter(Boolean)
+      .map((field) => field.toLowerCase().trim());
+
+    // ------------------------------------------
+    // Calculate recommendation score
+    // ------------------------------------------
+
+    const recommendedCourses = courses.map((course) => {
+      let score = 0;
+      const matchedSkills = [];
+
+      const courseSkills = (course.skills || []).map(
+        (skill) => skill.toLowerCase().trim()
+      );
+
+      // ------------------------------------------
+      // 1. Technical Skills → +5
+      // ------------------------------------------
+
+      courseSkills.forEach((courseSkill) => {
+        if (technicalSkills.includes(courseSkill)) {
+          score += 5;
+          matchedSkills.push(courseSkill);
+        }
+      });
+
+      // ------------------------------------------
+      // 2. Soft Skills → +1
+      // ------------------------------------------
+
+      courseSkills.forEach((courseSkill) => {
+        if (softSkills.includes(courseSkill)) {
+          score += 1;
+        }
+      });
+
+      // ------------------------------------------
+      // 3. Interests → +3
+      // ------------------------------------------
+
+      interests.forEach((interest) => {
+        const interestMatch =
+          courseSkillContains(courseSkills, interest) ||
+          textContains(course.title, interest) ||
+          textContains(course.category, interest) ||
+          textContains(course.domain, interest);
+
+        if (interestMatch) {
+          score += 3;
+        }
+      });
+
+      // ------------------------------------------
+      // 4. Career Goal → +4
+      // ------------------------------------------
+
+      if (
+        careerGoal &&
+        (
+          textContains(course.title, careerGoal) ||
+          textContains(course.description, careerGoal) ||
+          textContains(course.category, careerGoal) ||
+          textContains(course.domain, careerGoal)
+        )
+      ) {
+        score += 4;
+      }
+
+      // ------------------------------------------
+      // 5. Preferred Roles → +4
+      // ------------------------------------------
+
+      preferredRoles.forEach((role) => {
+        if (
+          textContains(course.title, role) ||
+          textContains(course.description, role) ||
+          textContains(course.category, role) ||
+          textContains(course.domain, role)
+        ) {
+          score += 4;
+        }
+      });
+
+      // ------------------------------------------
+      // 6. Education Degree → +2
+      // ------------------------------------------
+
+      educationDegrees.forEach((degree) => {
+        if (
+          textContains(course.title, degree) ||
+          textContains(course.description, degree) ||
+          textContains(course.category, degree) ||
+          textContains(course.domain, degree)
+        ) {
+          score += 2;
+        }
+      });
+
+      // ------------------------------------------
+      // 7. Field of Study → +3
+      // ------------------------------------------
+
+      fieldsOfStudy.forEach((field) => {
+        if (
+          textContains(course.title, field) ||
+          textContains(course.description, field) ||
+          textContains(course.category, field) ||
+          textContains(course.domain, field)
+        ) {
+          score += 3;
+        }
+      });
+
+      // ------------------------------------------
+      // Recommendation label
+      // ------------------------------------------
+
+      let recommendation = "Other";
+
+      if (score >= 12) {
+        recommendation = "Highly Recommended";
+      } else if (score >= 6) {
+        recommendation = "Recommended";
+      } else if (score > 0) {
+        recommendation = "Related";
+      }
+
+      return {
+        ...course,
+        recommendationScore: score,
+        recommendation,
+        matchedSkills,
+      };
+    });
+
+    // ------------------------------------------
+    // Sort highest recommendation first
+    // ------------------------------------------
+
+    recommendedCourses.sort(
+      (a, b) => b.recommendationScore - a.recommendationScore
+    );
+
+    return res.status(200).json({
+      success: true,
+      count: recommendedCourses.length,
+      studentProfile: {
+        technicalSkills: studentProfile.technicalSkills || [],
+        interests: studentProfile.interests || [],
+        careerGoal: studentProfile.careerGoal || "",
+      },
+      courses: recommendedCourses,
+    });
+  } catch (error) {
+    console.error("Get Recommended Courses Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch recommended courses",
+      error: error.message,
+    });
+  }
+};
+
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+
+const textContains = (value, searchText) => {
+  if (!value || !searchText) {
+    return false;
+  }
+
+  return value.toLowerCase().includes(searchText.toLowerCase());
+};
+
+const courseSkillContains = (skills, searchText) => {
+  if (!searchText) {
+    return false;
+  }
+
+  return skills.some((skill) =>
+    skill.toLowerCase().includes(searchText.toLowerCase())
+  );
+};
+
+// ==========================================
+// GET COURSE DETAILS
+// GET /api/courses/:id
+// ==========================================
+
+const getCourseDetails = async (req, res) => {
+  try {
+    const course = await Course.findOne({
+      _id: req.params.id,
+      status: "Published",
+    }).populate(
+      "createdBy",
+      "fullName username email profileImage"
+    );
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      course,
+    });
+  } catch (error) {
+    console.error("Get Course Details Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch course details",
+      error: error.message,
+    });
+  }
+};
+
+// ==========================================
+// APPLY FOR COURSE
+// POST /api/courses/:id/apply
+// ==========================================
+
+const applyCourse = async (req, res) => {
+  try {
+    const user = req.user;
+
+    // ------------------------------------------
+    // Authentication
+    // ------------------------------------------
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    // ------------------------------------------
+    // Only students can apply
+    // ------------------------------------------
+
+    if (user.role !== "user" || user.userType !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only students can apply for courses",
+      });
+    }
+
+    // ------------------------------------------
+    // Check course
+    // ------------------------------------------
+
+    const course = await Course.findOne({
+      _id: req.params.id,
+      status: "Published",
+    });
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found or is not published",
+      });
+    }
+
+    // ------------------------------------------
+    // Check duplicate application
+    // ------------------------------------------
+
+    const existingApplication = await CourseApplication.findOne({
+      student: user._id,
+      course: course._id,
+    });
+
+    if (existingApplication) {
+      return res.status(409).json({
+        success: false,
+        message: "You have already applied for this course",
+        application: existingApplication,
+      });
+    }
+
+    // ------------------------------------------
+    // Create application
+    // ------------------------------------------
+
+    const application = await CourseApplication.create({
+      student: user._id,
+      course: course._id,
+      status: "Applied",
+      progress: 0,
+    });
+
+    // ------------------------------------------
+    // Response
+    // ------------------------------------------
+
+    return res.status(201).json({
+      success: true,
+      message: "Course application submitted successfully",
+      application,
+    });
+  } catch (error) {
+    console.error("Apply Course Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to apply for course",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
-  createCourse,getMyCourses,updateCourse,deleteCourse,updateCourseStatus
+  createCourse,
+  getMyCourses,
+  updateCourse,
+  deleteCourse,
+  updateCourseStatus,
+  getRecommendedCourses,
+  getCourseDetails,
+  applyCourse
 };

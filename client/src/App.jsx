@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import EmployeeCoursesPage from "./pages/courses/EmployeeCoursesPage";
 
 // Auth Pages
 import Login from "./pages/auth/Login";
@@ -38,6 +39,7 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/home" element={<Home />} />
         <Route path="/register/employer" element={<EmployerRegister />} />
+        <Route path="/employer/courses" element={<EmployeeCoursesPage />}/>
 
         {/* ============================= */}
         {/* BASE PROTECTED ROUTES         */}
@@ -78,5 +80,7 @@ function App() {
     </BrowserRouter>
   );
 }
+
+
 
 export default App;

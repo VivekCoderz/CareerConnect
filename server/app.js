@@ -4,6 +4,7 @@ const cookieParser = require("cookie-parser");
 const authRoutes = require("./routes/authRoutes.js");
 const studentRoutes = require("./routes/studentRoutes.js");
 const courseRoutes = require("./routes/courseRoutes.js");
+const courseContentRoutes = require("./routes/courseContentRoutes");
 const app = express();
 
 // Middlewares
@@ -44,5 +45,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/profile/student", studentRoutes);
 app.use("/api/courses", courseRoutes);
+app.use("/api/courses", courseContentRoutes);
 
 module.exports = app;
