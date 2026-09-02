@@ -1,7 +1,7 @@
 const express = require("express");
 
 const {
-  addCourseContent,
+  addCourseContent,getCourseContent,updateCourseContent,deleteCourseContent
 } = require("../controllers/courseContentController");
 
 const protect = require("../middleware/authMiddleware");
@@ -14,7 +14,14 @@ const router = express.Router();
 
 // Add content to a course
 // POST /api/courses/:courseId/content
+router.post("/:courseId", protect, addCourseContent);
+//get course content
+router.get("/:courseId", protect, getCourseContent);
+// Update course content
+router.put("/:contentId", protect, updateCourseContent);
 
-router.post("/:courseId/content", protect, addCourseContent);
+// Delete course content
+router.delete("/:contentId", protect, deleteCourseContent);
+
 
 module.exports = router;

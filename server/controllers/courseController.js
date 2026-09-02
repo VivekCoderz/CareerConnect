@@ -1,6 +1,8 @@
 const Course = require("../models/Course");
 const StudentProfile = require("../models/StudentProfile");
-const CourseApplication=require("../models/Application")
+const CourseApplication=require("../models/CourseApplication");
+const CourseProgress = require("../models/CourseProgress");
+
 // ==========================================
 // CREATE COURSE
 // POST /api/courses
@@ -659,10 +661,6 @@ const applyCourse = async (req, res) => {
   try {
     const user = req.user;
 
-    // ------------------------------------------
-    // Authentication
-    // ------------------------------------------
-
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -670,10 +668,7 @@ const applyCourse = async (req, res) => {
       });
     }
 
-    // ------------------------------------------
     // Only students can apply
-    // ------------------------------------------
-
     if (user.role !== "user" || user.userType !== "student") {
       return res.status(403).json({
         success: false,
@@ -681,10 +676,7 @@ const applyCourse = async (req, res) => {
       });
     }
 
-    // ------------------------------------------
-    // Check course
-    // ------------------------------------------
-
+    // Check published course
     const course = await Course.findOne({
       _id: req.params.id,
       status: "Published",
@@ -697,10 +689,7 @@ const applyCourse = async (req, res) => {
       });
     }
 
-    // ------------------------------------------
     // Check duplicate application
-    // ------------------------------------------
-
     const existingApplication = await CourseApplication.findOne({
       student: user._id,
       course: course._id,
@@ -714,20 +703,12 @@ const applyCourse = async (req, res) => {
       });
     }
 
-    // ------------------------------------------
     // Create application
-    // ------------------------------------------
-
     const application = await CourseApplication.create({
       student: user._id,
       course: course._id,
       status: "Applied",
-      progress: 0,
     });
-
-    // ------------------------------------------
-    // Response
-    // ------------------------------------------
 
     return res.status(201).json({
       success: true,
@@ -745,6 +726,311 @@ const applyCourse = async (req, res) => {
   }
 };
 
+// ==========================================
+// GET COURSE APPLICATIONS
+// GET /api/courses/:courseId/applications
+// Employer can view applications for own course
+// ==========================================
+
+const getCourseApplications = async (req, res) => {
+  try {
+    const user = req.user;
+
+    // ------------------------------------------
+    // Authentication check
+    // ------------------------------------------
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    // ------------------------------------------
+    // Only employers can access applications
+    // ------------------------------------------
+
+    if (user.role !== "employer") {
+      return res.status(403).json({
+        success: false,
+        message: "Only employers can view course applications",
+      });
+    }
+
+    const { courseId } = req.params;
+
+    // ------------------------------------------
+    // Find course
+    // ------------------------------------------
+
+    const course = await Course.findById(courseId);
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    // ------------------------------------------
+    // Check course ownership
+    // ------------------------------------------
+
+    if (course.createdBy.toString() !== user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to view these applications",
+      });
+    }
+
+    // ------------------------------------------
+    // Get applications
+    // ------------------------------------------
+
+    const applications = await CourseApplication.find({
+      course: courseId,
+    })
+      .populate(
+        "student",
+        "fullName username email profileImage"
+      )
+      .sort({ createdAt: -1 });
+
+    // ------------------------------------------
+    // Response
+    // ------------------------------------------
+
+    return res.status(200).json({
+      success: true,
+      count: applications.length,
+      course: {
+        _id: course._id,
+        title: course.title,
+      },
+      applications,
+    });
+  } catch (error) {
+    console.error("Get Course Applications Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch course applications",
+      error: error.message,
+    });
+  }
+};
+
+// ==========================================
+// UPDATE COURSE APPLICATION STATUS
+// PATCH /api/courses/:courseId/applications/:applicationId/status
+// Employer can approve or reject application
+// ==========================================
+
+const updateCourseApplicationStatus = async (req, res) => {
+  try {
+    const user = req.user;
+
+    // ------------------------------------------
+    // Authentication check
+    // ------------------------------------------
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    // ------------------------------------------
+    // Only employers can update applications
+    // ------------------------------------------
+
+    if (user.role !== "employer") {
+      return res.status(403).json({
+        success: false,
+        message: "Only employers can update course applications",
+      });
+    }
+
+    const { courseId, applicationId } = req.params;
+    const { status } = req.body;
+
+    // ------------------------------------------
+    // Validate status
+    // ------------------------------------------
+
+    if (!["Enrolled", "Rejected"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Status must be either Enrolled or Rejected",
+      });
+    }
+
+    // ------------------------------------------
+    // Find course
+    // ------------------------------------------
+
+    const course = await Course.findById(courseId);
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    // ------------------------------------------
+    // Check course ownership
+    // ------------------------------------------
+
+    if (course.createdBy.toString() !== user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to manage this course",
+      });
+    }
+
+    // ------------------------------------------
+    // Find application
+    // ------------------------------------------
+
+    const application = await CourseApplication.findOne({
+      _id: applicationId,
+      course: courseId,
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: "Course application not found",
+      });
+    }
+
+    // ------------------------------------------
+    // Application must be in Applied state
+    // ------------------------------------------
+
+    if (application.status !== "Applied") {
+      return res.status(400).json({
+        success: false,
+        message: `Application is already ${application.status}`,
+      });
+    }
+
+    // ------------------------------------------
+    // Update status
+    // ------------------------------------------
+
+    application.status = status;
+
+    await application.save();
+
+    // ------------------------------------------
+    // Response
+    // ------------------------------------------
+
+    return res.status(200).json({
+      success: true,
+      message: `Application ${status.toLowerCase()} successfully`,
+      application,
+    });
+  } catch (error) {
+    console.error("Update Course Application Status Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update course application status",
+      error: error.message,
+    });
+  }
+};
+
+// ==========================================
+// GET STUDENT MY COURSES
+// GET /api/student/courses
+// ==========================================
+
+const getStudentMyCourses = async (req, res) => {
+  try {
+    const user = req.user;
+
+    // ------------------------------------------
+    // Authentication check
+    // ------------------------------------------
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    // ------------------------------------------
+    // Only students
+    // ------------------------------------------
+
+    if (user.role !== "user" || user.userType !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only students can access My Courses",
+      });
+    }
+
+    // ------------------------------------------
+    // Find enrolled/completed course applications
+    // ------------------------------------------
+
+    const applications = await CourseApplication.find({
+      student: user._id,
+      status: { $in: ["Enrolled", "Completed"] },
+    })
+      .populate("course")
+      .sort({ createdAt: -1 });
+
+    // ------------------------------------------
+    // Attach progress to every course
+    // ------------------------------------------
+
+    const courses = await Promise.all(
+      applications.map(async (application) => {
+        const progressData = await CourseProgress.findOne({
+          student: user._id,
+          course: application.course._id,
+        });
+
+        return {
+          applicationId: application._id,
+          course: application.course,
+          status: application.status,
+          progress: progressData
+            ? progressData.progress
+            : application.progress || 0,
+        };
+      })
+    );
+
+    // ------------------------------------------
+    // Response
+    // ------------------------------------------
+
+    return res.status(200).json({
+      success: true,
+      count: courses.length,
+      courses,
+    });
+  } catch (error) {
+    console.error("Get Student My Courses Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch student courses",
+      error: error.message,
+    });
+  }
+};
+
+
 module.exports = {
   createCourse,
   getMyCourses,
@@ -753,5 +1039,8 @@ module.exports = {
   updateCourseStatus,
   getRecommendedCourses,
   getCourseDetails,
-  applyCourse
+  applyCourse,
+  getCourseApplications,
+  updateCourseApplicationStatus,
+  getStudentMyCourses,
 };
