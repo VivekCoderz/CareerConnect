@@ -9,6 +9,8 @@ import {
 } from "../../redux/features/authSlice";
 import api from "../../api/api";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import { getCaptchaToken } from "../../utils/captcha";
+
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -18,6 +20,8 @@ const Signup = () => {
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState("next");
   const [userType, setUserType] = useState("");
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
+
 
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
@@ -200,6 +204,8 @@ const Signup = () => {
 
     dispatch(signupStart());
     try {
+      const captchaToken = await getCaptchaToken("signup");
+
       const payload = {
         fullName: formData.fullName.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -209,7 +215,10 @@ const Signup = () => {
         linkedin: formData.linkedin.trim(),
         github: formData.github.trim(),
         userType,
+        keepSignedIn,
+        captchaToken,
       };
+
 
       if (userType === "student") {
         Object.assign(payload, {
@@ -649,6 +658,21 @@ const Signup = () => {
                     <input name="github" value={formData.github} onChange={handleChange} placeholder="github.com/username" className={inputClass("github")} />
                   </div>
                 </div>
+                {/* Keep Me Signed In */}
+                <label className="flex items-center gap-3 cursor-pointer select-none py-0.5">
+                  <input
+                    type="checkbox"
+                    checked={keepSignedIn}
+                    onChange={(e) => setKeepSignedIn(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 accent-[#1e3a8a] cursor-pointer"
+                  />
+                  <span className="text-[13px] text-slate-600">
+                    Keep me signed in
+                    <span className="ml-1 text-slate-400 text-xs">
+                      ({keepSignedIn ? "7 days" : "25 hours"})
+                    </span>
+                  </span>
+                </label>
 
                 <button
                   type="submit"
@@ -665,6 +689,7 @@ const Signup = () => {
                   )}
                 </button>
               </form>
+
             </div>
           )}
         </div>

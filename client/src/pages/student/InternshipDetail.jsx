@@ -3,16 +3,15 @@ import { useParams, Link } from "react-router-dom";
 import { getById } from "../../services/internshipService";
 import { applyToInternship } from "../../services/applicationService";
 
-export default function InternshipDetail({ id, onBack }) {
+export default function InternshipDetail({ id, onBack, embedded = false }) {
   const { id: paramId } = useParams();
   const internshipId = id || paramId;
+
   const [internship, setInternship] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [applying, setApplying] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
-
-  // Application fields
   const [coverNote, setCoverNote] = useState("");
   const [resumeUrl, setResumeUrl] = useState("");
 
@@ -22,18 +21,15 @@ export default function InternshipDetail({ id, onBack }) {
         setLoading(true);
         setError("");
         const res = await getById(internshipId);
-        if (res.success) {
-          setInternship(res.internship);
-        } else {
-          setError(res.message || "Failed to load internship details");
-        }
+        if (res.success) setInternship(res.internship);
+        else setError(res.message || "Failed to load internship details");
       } catch (err) {
         setError(err.response?.data?.message || "Failed to load internship details");
       } finally {
         setLoading(false);
       }
     };
-    fetchDetail();
+    if (internshipId) fetchDetail();
   }, [internshipId]);
 
   const handleApply = async (e) => {
@@ -42,12 +38,7 @@ export default function InternshipDetail({ id, onBack }) {
       setApplying(true);
       setError("");
       setSuccessMsg("");
-
-      const res = await applyToInternship(internshipId, {
-        coverNote,
-        resumeUrl,
-      });
-
+      const res = await applyToInternship(internshipId, { coverNote, resumeUrl });
       if (res.success) {
         setSuccessMsg(res.message || "Application submitted successfully!");
         setCoverNote("");
@@ -56,7 +47,10 @@ export default function InternshipDetail({ id, onBack }) {
         setError(res.message || "Failed to submit application");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Error submitting application. You may have already applied.");
+      setError(
+        err.response?.data?.message ||
+          "Error submitting application. You may have already applied."
+      );
     } finally {
       setApplying(false);
     }
@@ -64,28 +58,30 @@ export default function InternshipDetail({ id, onBack }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex justify-center items-center py-20">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#1e3a8a]"></div>
+      <div className={`flex flex-col items-center justify-center py-20 ${embedded ? "" : "min-h-screen bg-[#f8fafc]"}`}>
+        <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-sm font-medium text-slate-500">Loading details...</p>
       </div>
     );
   }
 
   if (error && !internship) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto text-center py-16 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          <p className="text-red-600 font-semibold mb-4">{error}</p>
+      <div className={`flex items-center justify-center px-4 py-16 ${embedded ? "" : "min-h-screen bg-[#f8fafc]"}`}>
+        <div className="max-w-md w-full text-center py-10 px-6 bg-white border border-slate-200 rounded-3xl">
+          <p className="text-sm font-semibold text-red-600 mb-4">{error}</p>
           {onBack ? (
             <button
+              type="button"
               onClick={onBack}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-bold rounded-xl text-white bg-[#1e3a8a] hover:bg-[#1e40af] transition-colors"
+              className="h-10 px-5 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold"
             >
               Back to Internships
             </button>
           ) : (
             <Link
               to="/internships"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-bold rounded-xl text-white bg-[#1e3a8a] hover:bg-[#1e40af] transition-colors"
+              className="inline-flex h-10 px-5 items-center rounded-xl bg-[#1e3a8a] text-white text-xs font-bold"
             >
               Back to Internships
             </Link>
@@ -97,235 +93,247 @@ export default function InternshipDetail({ id, onBack }) {
 
   if (!internship) return null;
 
-  return (
-    <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8">
-      {/* Back button */}
-      <div className="max-w-4xl mx-auto mb-6">
+  const body = (
+    <>
+      <div className="mb-4">
         {onBack ? (
           <button
+            type="button"
             onClick={onBack}
-            className="inline-flex items-center text-sm font-bold text-[#1e3a8a] hover:text-[#1e40af] transition-colors"
+            className="text-xs font-bold text-slate-500 hover:text-[#1e3a8a]"
           >
-            <svg className="h-5 w-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Listings
+            ← Back to listings
           </button>
         ) : (
-          <Link
-            to="/internships"
-            className="inline-flex items-center text-sm font-bold text-[#1e3a8a] hover:text-[#1e40af] transition-colors"
-          >
-            <svg className="h-5 w-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Listings
+          <Link to="/internships" className="text-xs font-bold text-slate-500 hover:text-[#1e3a8a]">
+            ← Back to listings
           </Link>
         )}
       </div>
 
-      <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Details (Col-span 2) */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-            {/* Header info */}
-            <div className="border-b border-slate-100 pb-6 mb-6">
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    internship.isExternal
-                      ? "bg-blue-50 text-blue-700 border border-blue-200"
-                      : "bg-green-50 text-green-700 border border-green-200"
-                  }`}
-                >
-                  {internship.isExternal ? "External Listing" : "Campus Exclusive"}
-                </span>
-                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                  {internship.workMode}
-                </span>
-              </div>
-
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {internship.title}
-              </h1>
-              <p className="text-lg font-semibold text-[#1e3a8a] mt-1">
-                {internship.companyName}
-              </p>
-              <p className="text-sm text-slate-500 mt-2 flex items-center">
-                <svg className="h-4 w-4 mr-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                {internship.location}
-              </p>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-6 text-slate-700 text-sm leading-relaxed">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 mb-2">Role Description</h3>
-                <p className="whitespace-pre-line">{internship.description}</p>
-              </div>
-
-              {/* Responsibilities */}
-              {internship.responsibilities && internship.responsibilities.length > 0 && (
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 mb-2">Key Responsibilities</h3>
-                  <ul className="list-disc list-inside space-y-1.5 pl-2">
-                    {internship.responsibilities.map((resp, index) => (
-                      <li key={index}>{resp}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Required Skills */}
-              {internship.requiredSkills && internship.requiredSkills.length > 0 && (
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 mb-2">Required Skills</h3>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {internship.requiredSkills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+      <div className="mb-6 rounded-3xl bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#1e3a8a] text-white p-6 sm:p-8 relative overflow-hidden shadow-md">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-[#f59e0b]/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10">
+          <div className="flex flex-wrap gap-2 mb-3">
+            {internship.isExternal ? (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/15 border border-white/20">
+                External · {internship.source || "API"}
+              </span>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400/20 border border-emerald-300/30 text-emerald-100">
+                ✓ Campus Exclusive
+              </span>
+            )}
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/10 border border-white/15">
+              {internship.workMode}
+            </span>
           </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{internship.title}</h1>
+          <p className="mt-2 text-base font-semibold text-blue-100">
+            {internship.companyName || internship.employerId?.companyName}
+          </p>
+          <p className="mt-1 text-sm text-blue-100/80">📍 {internship.location}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-5">
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-3">
+              Role description
+            </h2>
+            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+              {internship.description}
+            </p>
+          </section>
+
+          {internship.responsibilities?.length > 0 && (
+            <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-3">
+                Key responsibilities
+              </h2>
+              <ul className="space-y-2">
+                {internship.responsibilities.map((resp, i) => (
+                  <li key={i} className="flex gap-2.5 text-sm text-slate-600">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#1e3a8a] shrink-0" />
+                    {resp}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {internship.requiredSkills?.length > 0 && (
+            <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-3">
+                Required skills
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {internship.requiredSkills.map((skill, i) => (
+                  <span
+                    key={i}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
-        {/* Sidebar / Apply Form (Col-span 1) */}
-        <div className="space-y-6">
-          {/* Metadata Card */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-base font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">
-              Internship Overview
+        <div className="space-y-5 lg:sticky lg:top-20 lg:self-start">
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+            <h3 className="text-sm font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
+              Overview
             </h3>
-            <div className="space-y-4 text-xs">
+            <dl className="space-y-4">
               <div>
-                <p className="font-bold text-slate-400 uppercase tracking-wider">Stipend</p>
-                <p className="font-semibold text-sm text-slate-800 mt-0.5">
+                <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Stipend
+                </dt>
+                <dd className="text-sm font-bold text-[#1e3a8a] mt-0.5">
                   {internship.stipend || "Not disclosed"}
-                </p>
+                </dd>
               </div>
               <div>
-                <p className="font-bold text-slate-400 uppercase tracking-wider">Duration</p>
-                <p className="font-semibold text-sm text-slate-800 mt-0.5">
+                <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Duration
+                </dt>
+                <dd className="text-sm font-semibold text-slate-800 mt-0.5">
                   {internship.duration || "N/A"}
-                </p>
+                </dd>
               </div>
               <div>
-                <p className="font-bold text-slate-400 uppercase tracking-wider">Eligibility</p>
-                <p className="font-semibold text-sm text-slate-800 mt-0.5">
-                  {internship.eligibility || "Any graduate / Student"}
-                </p>
+                <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Eligibility
+                </dt>
+                <dd className="text-sm font-semibold text-slate-800 mt-0.5">
+                  {internship.eligibility || internship.education || "Open to students"}
+                </dd>
               </div>
               <div>
-                <p className="font-bold text-slate-400 uppercase tracking-wider">Application Deadline</p>
-                <p className="font-semibold text-sm text-slate-800 mt-0.5">
-                  {internship.deadline ? new Date(internship.deadline).toLocaleDateString() : "Open"}
-                </p>
+                <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Deadline
+                </dt>
+                <dd className="text-sm font-semibold text-slate-800 mt-0.5">
+                  {internship.deadline
+                    ? new Date(internship.deadline).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "Open"}
+                </dd>
               </div>
-              {internship.applicantsCount !== undefined && (
-                <div>
-                  <p className="font-bold text-slate-400 uppercase tracking-wider">Total Applicants</p>
-                  <p className="font-semibold text-sm text-slate-800 mt-0.5">
-                    {internship.applicantsCount}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
+            </dl>
+          </section>
 
-          {/* Action / Apply Form Card */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
             {successMsg && (
-              <div className="rounded-xl bg-green-50 p-4 border border-green-200 mb-4 text-center">
-                <div className="text-sm font-bold text-green-800">{successMsg}</div>
-                <Link to="/applications" className="text-xs font-bold text-[#1e3a8a] mt-2 block hover:underline">
-                  View My Applications
-                </Link>
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center mb-2">
+                <p className="text-sm font-bold text-emerald-800">{successMsg}</p>
+                {!embedded && (
+                  <Link
+                    to="/applications"
+                    className="mt-2 inline-block text-xs font-bold text-[#1e3a8a] hover:underline"
+                  >
+                    View My Applications →
+                  </Link>
+                )}
               </div>
             )}
 
             {error && (
-              <div className="rounded-xl bg-red-50 p-4 border border-red-200 mb-4">
-                <div className="text-xs font-medium text-red-800">{error}</div>
+              <div className="rounded-xl bg-red-50 border border-red-200 p-3 mb-3">
+                <p className="text-xs font-medium text-red-700">{error}</p>
               </div>
             )}
 
             {internship.isExternal ? (
               <div>
-                <p className="text-sm text-slate-600 mb-4">
-                  This opportunity is hosted externally on another platform or company board.
+                <p className="text-xs text-slate-500 mb-4">
+                  External listing — apply on the company website.
                 </p>
                 <a
-                  href={internship.applyUrl}
+                  href={internship.applyUrl || "#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center px-4 py-3 border border-transparent text-sm font-bold rounded-xl text-white bg-[#1e3a8a] hover:bg-[#1e40af] transition-colors text-center shadow-sm"
+                  className="w-full inline-flex items-center justify-center gap-1.5 h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-bold"
                 >
-                  Apply on Company Site
-                  <svg className="ml-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
+                  Apply on company site ↗
                 </a>
               </div>
             ) : (
-              // Direct Campus application form
-              <div>
-                {successMsg ? null : (
-                  <form onSubmit={handleApply} className="space-y-4">
-                    <h4 className="text-sm font-bold text-slate-800">Apply via Geeta University</h4>
-                    
-                    {/* Resume URL */}
-                    <div className="flex flex-col">
-                      <label className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                        Resume Link
-                      </label>
-                      <input
-                        type="url"
-                        placeholder="Google Drive, Dropbox, or Portfolio URL"
-                        value={resumeUrl}
-                        onChange={(e) => setResumeUrl(e.target.value)}
-                        required
-                        className="h-11 px-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/20 text-sm text-slate-800"
-                      />
-                    </div>
-
-                    {/* Cover Note */}
-                    <div className="flex flex-col">
-                      <label className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                        Cover Note (Optional)
-                      </label>
-                      <textarea
-                        rows={4}
-                        placeholder="Why do you think you are a good fit for this role?"
-                        value={coverNote}
-                        onChange={(e) => setCoverNote(e.target.value)}
-                        className="p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/20 text-sm text-slate-800 resize-none"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={applying}
-                      className="w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-bold rounded-xl text-white bg-[#1e3a8a] hover:bg-[#1e40af] transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      {applying ? "Submitting..." : "Submit Application"}
-                    </button>
-                  </form>
-                )}
-              </div>
+              !successMsg && (
+                <form onSubmit={handleApply} className="space-y-4">
+                  <h4 className="text-sm font-bold text-slate-900">Apply via CareerConnect</h4>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                      Resume link
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="Google Drive / Dropbox URL"
+                      value={resumeUrl}
+                      onChange={(e) => setResumeUrl(e.target.value)}
+                      required
+                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#1e3a8a] focus:ring-4 focus:ring-[#1e3a8a]/10"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                      Cover note (optional)
+                    </label>
+                    <textarea
+                      rows={4}
+                      placeholder="Why are you a good fit?"
+                      value={coverNote}
+                      onChange={(e) => setCoverNote(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 text-sm outline-none resize-none focus:border-[#1e3a8a] focus:ring-4 focus:ring-[#1e3a8a]/10"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={applying}
+                    className="w-full h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] disabled:opacity-60 text-white text-sm font-bold"
+                  >
+                    {applying ? "Submitting..." : "Submit application"}
+                  </button>
+                </form>
+              )
             )}
-          </div>
+          </section>
         </div>
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="w-full space-y-2">{body}</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc]">
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          <Link to="/home" className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
+              GU
+            </div>
+            <div className="leading-tight">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                Geeta University
+              </p>
+              <p className="text-sm font-bold text-slate-900">CareerConnect</p>
+            </div>
+          </Link>
+          <Link to="/applications" className="text-xs font-bold text-[#1e3a8a]">
+            My Applications →
+          </Link>
+        </div>
+      </header>
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">{body}</main>
     </div>
   );
 }

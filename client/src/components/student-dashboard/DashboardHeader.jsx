@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
+import InternshipDiscoveryMenu from "../internships/InternshipDiscoveryMenu";
 
 const DashboardHeader = ({
   user,
@@ -33,7 +34,7 @@ const DashboardHeader = ({
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Left: Mobile Hamburger + Welcome Summary */}
+        {/* Left: Mobile Hamburger + Welcome Summary + Category Discovery Menu */}
         <div className="flex items-center gap-3">
           <button
             onClick={onOpenMobileSidebar}
@@ -52,6 +53,11 @@ const DashboardHeader = ({
             <p className="text-xs text-slate-500">
               Build your profile and discover your next opportunity.
             </p>
+          </div>
+
+          {/* Internshala-style Category Discovery Menu */}
+          <div className="hidden md:block pl-2">
+            <InternshipDiscoveryMenu studentCity={profile?.location?.city || "Bangalore"} />
           </div>
         </div>
 

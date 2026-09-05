@@ -6,6 +6,7 @@ const initialState = {
   isInitialized: false, // Tracks if initial /me check has occurred
   error: null,
   success: null,
+  sessionExpired: false, // Set to true when JWT expires mid-session → shows banner on Login page
 };
 
 const authSlice = createSlice({
@@ -20,6 +21,7 @@ const authSlice = createSlice({
       state.loading = false;
       state.isInitialized = true;
       state.error = null;
+      state.sessionExpired = false;
     },
 
     setLoading: (state, action) => {
@@ -39,6 +41,12 @@ const authSlice = createSlice({
       }
     },
 
+    // ================= SESSION EXPIRED =================
+
+    setSessionExpired: (state, action) => {
+      state.sessionExpired = action.payload;
+    },
+
     // ================= LOGIN =================
 
     loginStart: (state) => {
@@ -53,6 +61,7 @@ const authSlice = createSlice({
       state.isInitialized = true;
       state.error = null;
       state.success = "Login successful";
+      state.sessionExpired = false;
     },
 
     loginFailure: (state, action) => {
@@ -95,9 +104,10 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.loading = false;
-      state.isInitialized = true;
+      state.isInitialized = true; // Still initialized — just not authenticated
       state.error = null;
       state.success = null;
+      // Do not clear sessionExpired here — Login page reads it to show the message
     },
   },
 });
@@ -107,6 +117,7 @@ export const {
   setLoading,
   setInitialized,
   updateUserProfile,
+  setSessionExpired,
 
   loginStart,
   loginSuccess,

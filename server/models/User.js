@@ -49,9 +49,38 @@ const userSchema = new mongoose.Schema(
 
     password: {
       type: String,
-      required: [true, "Password is required"],
+      required: false, // Google-only (Firebase) users do not have a MongoDB password
       select: false,
     },
+
+    // ==========================================
+    // FIREBASE INTEGRATION
+    // ==========================================
+
+    // Firebase UID — links this MongoDB user to a Firebase Authentication user.
+    // null/undefined for legacy users who registered before Firebase was added.
+    firebaseUid: {
+      type: String,
+      unique: true,
+      sparse: true, // allows multiple null values (legacy users)
+      trim: true,
+      index: true,
+    },
+
+    // Tracks which authentication providers are linked to this account.
+    // e.g. ["google"], ["email"], ["google", "email"]
+    authProviders: {
+      type: [String],
+      default: [],
+    },
+
+    // True when the user has set a password via Firebase email/password provider.
+    // Used to determine whether to show the "Set Password" page after Google sign-in.
+    hasPassword: {
+      type: Boolean,
+      default: false,
+    },
+
 
     // ==========================================
     // COMMON ACCOUNT INFORMATION

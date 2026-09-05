@@ -1,47 +1,29 @@
-import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { getCurrentUser } from "../services/authService";
-import { setUser, setInitialized } from "../redux/features/authSlice";
+import { useSelector } from "react-redux";
 import { getDashboardPath } from "../utils/dashboardRedirect";
 
 /**
- * Route protection based on userType and role.
- * Prevents students/freshers/professionals from accessing employer routes and vice versa.
- * Restores user state from backend session on refresh.
+ * RoleProtectedRoute — guards routes based on user role/type.
  *
- * @param {Array<string>} allowedRoles - e.g. ["student"], ["fresher"], ["professional"], ["employer"]
+ * Now trusts the global AuthInitializer in App.jsx for the initial session check.
+ * By the time any protected route renders, isInitialized is already true (the
+ * loading spinner in AuthInitializer has completed).
+ *
+ * Behavior:
+ *  - isInitialized = false → show loading (shouldn't happen since AuthInitializer runs first)
+ *  - user = null → redirect to /login
+ *  - user has no valid role → redirect to /select-role
+ *  - user accessing wrong role's route → redirect to their own dashboard
+ *  - everything OK → render the protected page (Outlet or children)
+ *
+ * @param {Array<string>} allowedRoles - e.g. ["student"], ["employer"]
  */
 const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
-  const dispatch = useDispatch();
   const location = useLocation();
   const { user, isInitialized } = useSelector((state) => state.auth);
-  const [checkingAuth, setCheckingAuth] = useState(!isInitialized && !user);
 
-  useEffect(() => {
-    const verifyAuth = async () => {
-      if (!user && !isInitialized) {
-        try {
-          const res = await getCurrentUser();
-          if (res?.success && res?.user) {
-            dispatch(setUser(res.user));
-          } else {
-            dispatch(setInitialized(true));
-          }
-        } catch (error) {
-          dispatch(setInitialized(true));
-        } finally {
-          setCheckingAuth(false);
-        }
-      } else {
-        setCheckingAuth(false);
-      }
-    };
-
-    verifyAuth();
-  }, [user, isInitialized, dispatch]);
-
-  if (checkingAuth) {
+  // Fallback loading (should rarely be seen since AuthInitializer handles this)
+  if (!isInitialized) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
         <div className="w-10 h-10 border-4 border-[#f59e0b] border-t-transparent rounded-full animate-spin mb-4" />
@@ -50,21 +32,20 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
     );
   }
 
-  // 1. Not authenticated -> Redirect to Login
+  // 1. Not authenticated → redirect to login, preserving current location
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 2. Determine effective user role/type
+  // 2. Determine effective role
   const effectiveRole = user.role === "employer" ? "employer" : user.userType;
 
-  // Valid account categories
   const validRoles = ["student", "fresher", "professional", "employer"];
   if (!effectiveRole || !validRoles.includes(effectiveRole)) {
     return <Navigate to="/select-role" replace />;
   }
 
-  // 3. User attempting to access another role's dashboard/route -> Redirect to their own dashboard
+  // 3. Wrong role's route → redirect to their own dashboard
   if (allowedRoles.length > 0 && !allowedRoles.includes(effectiveRole)) {
     const ownDashboard = getDashboardPath(effectiveRole, user);
     return <Navigate to={ownDashboard} replace />;

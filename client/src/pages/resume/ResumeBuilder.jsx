@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   setTemplate,
@@ -11,6 +11,8 @@ import {
   setGeneratedResume,
   setLastChangeRequest,
   clearError,
+  fetchSavedResume,
+  saveManualEdit,
 } from '../../redux/features/resumeSlice';
 import { validateRawData } from '../../utils/resumeHelpers';
 
@@ -34,6 +36,11 @@ const ResumeBuilder = () => {
   } = useSelector((state) => state.resume);
 
   const [reviewMode, setReviewMode] = useState('preview');
+
+  // Load saved resume on mount
+  useEffect(() => {
+    dispatch(fetchSavedResume());
+  }, [dispatch]);
 
   const handleSelectTemplate = (id) => {
     dispatch(setTemplate(id));
@@ -72,8 +79,10 @@ const ResumeBuilder = () => {
   };
 
   const handleManualSave = (updated) => {
-    dispatch(setGeneratedResume(updated));
-    setReviewMode('preview');
+    dispatch(saveManualEdit(updated))
+      .unwrap()
+      .then(() => setReviewMode('preview'))
+      .catch(() => {});
   };
 
   const handleFinalize = () => {

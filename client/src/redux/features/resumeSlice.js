@@ -1,6 +1,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { createEmptyRawData } from '../../utils/resumeHelpers';
-import { generateResumeAPI, updateResumeAPI } from '../../services/resumeService';
+import {
+  generateResumeAPI,
+  updateResumeAPI,
+  fetchMyResumeAPI,
+  saveManualEditAPI
+} from '../../services/resumeService';
 
 const initialState = {
   currentStep: 0,
@@ -31,6 +36,29 @@ export const updateResumeWithAI = createAsyncThunk(
       return await updateResumeAPI(currentResume, instruction);
     } catch (err) {
       return rejectWithValue(err.message || 'Failed to update resume');
+    }
+  }
+);
+
+export const fetchSavedResume = createAsyncThunk(
+  'resume/fetchSaved',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await fetchMyResumeAPI();
+    } catch (err) {
+      return rejectWithValue(err.message || 'Failed to load saved resume');
+    }
+  }
+);
+
+export const saveManualEdit = createAsyncThunk(
+  'resume/saveManual',
+  async (generatedData, { rejectWithValue }) => {
+    try {
+      const res = await saveManualEditAPI(generatedData);
+      return res.generatedData;
+    } catch (err) {
+      return rejectWithValue(err.message || 'Failed to save manual edits');
     }
   }
 );
@@ -101,6 +129,39 @@ const resumeSlice = createSlice({
         state.generatedResume = action.payload;
       })
       .addCase(updateResumeWithAI.rejected, (state, action) => {
+        state.isUpdating = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchSavedResume.pending, (state) => {
+        state.error = null;
+      })
+      .addCase(fetchSavedResume.fulfilled, (state, action) => {
+        if (action.payload) {
+          state.rawData = action.payload.rawData || state.rawData;
+          state.generatedResume = action.payload.generatedData;
+          state.selectedTemplate = action.payload.selectedTemplate;
+          if (action.payload.generatedData) {
+            state.currentStep = 2;
+          }
+        }
+      })
+      .addCase(fetchSavedResume.rejected, (state, action) => {
+        // Do not display error to user for 404/not found as it's normal for new users
+        if (action.payload && action.payload.includes("No resume found")) {
+          state.error = null;
+        } else {
+          state.error = action.payload;
+        }
+      })
+      .addCase(saveManualEdit.pending, (state) => {
+        state.isUpdating = true;
+        state.error = null;
+      })
+      .addCase(saveManualEdit.fulfilled, (state, action) => {
+        state.isUpdating = false;
+        state.generatedResume = action.payload;
+      })
+      .addCase(saveManualEdit.rejected, (state, action) => {
         state.isUpdating = false;
         state.error = action.payload;
       });

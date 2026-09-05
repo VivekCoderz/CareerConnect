@@ -8,6 +8,8 @@ import {
   clearMessages,
 } from "../../redux/features/authSlice";
 import api from "../../api/api";
+import { getCaptchaToken } from "../../utils/captcha";
+
 
 const EmployerRegister = () => {
   const navigate = useNavigate();
@@ -17,6 +19,8 @@ const EmployerRegister = () => {
   // step: 1 = basic, "otp" = verify, 2 = company details
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState("next");
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
+
 
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
@@ -173,6 +177,8 @@ const EmployerRegister = () => {
 
     dispatch(signupStart());
     try {
+      const captchaToken = await getCaptchaToken("employer_signup");
+
       const payload = {
         companyName: formData.companyName.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -186,7 +192,10 @@ const EmployerRegister = () => {
         industry: formData.industry.trim(),
         location: formData.location.trim(),
         role: "employer",
+        keepSignedIn,
+        captchaToken,
       };
+
 
       const res = await api.post("/auth/register-employer", payload);
       dispatch(signupSuccess({ user: res.data.user, token: res.data.token }));
@@ -626,6 +635,22 @@ const EmployerRegister = () => {
                   />
                 </div>
 
+                {/* Keep Me Signed In */}
+                <label className="flex items-center gap-3 cursor-pointer select-none py-0.5">
+                  <input
+                    type="checkbox"
+                    checked={keepSignedIn}
+                    onChange={(e) => setKeepSignedIn(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 accent-[#f59e0b] cursor-pointer"
+                  />
+                  <span className="text-[13px] text-slate-600">
+                    Keep me signed in
+                    <span className="ml-1 text-slate-400 text-xs">
+                      ({keepSignedIn ? "7 days" : "25 hours"})
+                    </span>
+                  </span>
+                </label>
+
                 <button
                   type="submit"
                   disabled={loading}
@@ -641,6 +666,7 @@ const EmployerRegister = () => {
                   )}
                 </button>
               </form>
+
             </div>
           )}
         </div>

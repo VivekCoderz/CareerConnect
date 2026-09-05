@@ -1,17 +1,82 @@
 const User = require("../models/User.js");
 const StudentProfile = require("../models/StudentProfile.js");
 const jwt = require("jsonwebtoken");
-
 const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP.js");
 const sendEmail = require("../utils/sendEmail.js");
-
 const EmployerProfile = require("../models/EmployerProfile.js");
+const getFirebaseAdmin = require("../config/firebaseAdmin.js");
+
+// ==========================================
+// HELPERS
+// ==========================================
 
 // Generate 6-digit OTP
 const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
+
+// Generate JWT with dynamic expiry based on "Keep Me Signed In"
+const generateToken = (userId, keepSignedIn = false) => {
+  const expiresIn = keepSignedIn ? "7d" : "25h";
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn });
+};
+
+// Set HTTP-only cookie with dynamic maxAge
+const setTokenCookie = (res, token, keepSignedIn = false) => {
+  const maxAge = keepSignedIn
+    ? 7 * 24 * 60 * 60 * 1000   // 7 days in ms
+    : 25 * 60 * 60 * 1000;       // 25 hours in ms
+
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    maxAge,
+  });
+};
+
+// Helper: Generate username from email
+const generateUsername = (email) => {
+  const base = email
+    .split("@")[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `${base}${random}`;
+};
+
+// Helper: Generate unique username (ensures no collision)
+const generateUniqueUsername = async (email) => {
+  let attempts = 0;
+  while (attempts < 10) {
+    const username = generateUsername(email);
+    const exists = await User.findOne({ username });
+    if (!exists) return username;
+    attempts++;
+  }
+  return `user${Date.now()}`;
+};
+
+// Shared user payload shape
+const userPayload = (user, extra = {}) => ({
+  _id: user._id,
+  id: user._id,
+  fullName: user.fullName,
+  username: user.username,
+  email: user.email,
+  phone: user.phone,
+  profileImage: user.profileImage,
+  role: user.role,
+  userType: user.userType,
+  profileCompletion: user.profileCompletion || 0,
+  isProfileComplete: user.isProfileComplete || false,
+  socialLinks: user.socialLinks,
+  isActive: user.isActive,
+  hasPassword: user.hasPassword,
+  authProviders: user.authProviders || [],
+  ...extra,
+});
 
 // ==========================================
 // SEND OTP (Step 1 Continue pe call hoga)
@@ -159,33 +224,6 @@ module.exports.verifyOTP = async (req, res, next) => {
   }
 };
 
-// Generate JWT
-const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
-  });
-};
-
-// Set cookie
-const setTokenCookie = (res, token) => {
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
-};
-
-// Helper: Generate username from email
-const generateUsername = (email) => {
-  const base = email
-    .split("@")[0]
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  const random = Math.floor(1000 + Math.random() * 9000);
-  return `${base}${random}`;
-};
-
 // ==========================================
 // REGISTER (Multi-step form ke hisaab se)
 // ==========================================
@@ -200,6 +238,7 @@ module.exports.registerUser = async (req, res, next) => {
       linkedin,
       github,
       userType, // student | fresher | professional
+      keepSignedIn = false,
 
       // Student fields
       college,
@@ -298,12 +337,14 @@ module.exports.registerUser = async (req, res, next) => {
       phone: phone.trim(),
       password,
       userType,
+      authProviders: ["email"],
+      hasPassword: true,
       socialLinks: {
         linkedin: linkedin?.trim() || "",
         github: github?.trim() || "",
       },
       role: "user",
-      username: generateUsername(normalizedEmail), // auto generate
+      username: await generateUniqueUsername(normalizedEmail),
     };
 
     // -------------------- Validate type-specific data --------------------
@@ -359,27 +400,14 @@ module.exports.registerUser = async (req, res, next) => {
       }
     }
 
-    const token = generateToken(user._id);
-    setTokenCookie(res, token);
+    const token = generateToken(user._id, keepSignedIn);
+    setTokenCookie(res, token, keepSignedIn);
 
     return res.status(201).json({
       success: true,
       message: "Account created successfully",
       token,
-      user: {
-        _id: user._id,
-        id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        phone: user.phone,
-        profileImage: user.profileImage,
-        role: user.role,
-        userType: user.userType,
-        profileCompletion: user.profileCompletion || 0,
-        isProfileComplete: user.isProfileComplete || false,
-        socialLinks: user.socialLinks,
-      },
+      user: userPayload(user),
     });
   } catch (error) {
     next(error);
@@ -387,11 +415,13 @@ module.exports.registerUser = async (req, res, next) => {
 };
 
 // ==========================================
-// LOGIN
+// LOGIN (Legacy — email/password via MongoDB bcrypt)
+// For existing users who registered before Firebase was introduced.
+// Firebase users use /firebase-login instead.
 // ==========================================
 module.exports.loginUser = async (req, res, next) => {
   try {
-    const { email, username, password } = req.body;
+    const { email, username, password, keepSignedIn = false } = req.body;
 
     // Frontend se emailOrUsername bhi aa sakta hai
     const loginIdentifier = email || username || req.body.emailOrUsername;
@@ -416,6 +446,15 @@ module.exports.loginUser = async (req, res, next) => {
       });
     }
 
+    // Firebase users (Google-only) with no MongoDB password should use /firebase-login
+    if (!user.password) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "This account uses Google sign-in. Please use 'Continue with Google' to sign in.",
+      });
+    }
+
     const isMatch = await user.comparePassword(password);
 
     if (!isMatch) {
@@ -429,27 +468,317 @@ module.exports.loginUser = async (req, res, next) => {
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
-    const token = generateToken(user._id);
-    setTokenCookie(res, token);
+    const token = generateToken(user._id, keepSignedIn);
+    setTokenCookie(res, token, keepSignedIn);
 
     return res.status(200).json({
       success: true,
       message: "Login successful",
       token,
-      user: {
-        _id: user._id,
-        id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        phone: user.phone,
-        profileImage: user.profileImage,
-        role: user.role,
-        userType: user.userType,
-        profileCompletion: user.profileCompletion || 0,
-        isProfileComplete: user.isProfileComplete || false,
-        socialLinks: user.socialLinks,
+      user: userPayload(user),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// FIREBASE LOGIN
+// Handles login for all Firebase-authenticated users:
+//   - Google sign-in (repeat logins)
+//   - Email+password sign-in (Firebase-managed passwords)
+//
+// Frontend signs in via Firebase SDK → gets ID Token → sends here.
+// Backend verifies the ID Token with Firebase Admin SDK → issues CareerConnect JWT.
+// ==========================================
+module.exports.firebaseLogin = async (req, res, next) => {
+  try {
+    const { idToken, keepSignedIn = false } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Firebase ID token is required",
+      });
+    }
+
+    const admin = getFirebaseAdmin();
+    if (!admin) {
+      return res.status(503).json({
+        success: false,
+        message: "Firebase authentication is not configured on this server",
+      });
+    }
+
+    // Verify Firebase ID Token
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(idToken);
+    } catch (firebaseErr) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired Firebase token. Please sign in again.",
+      });
+    }
+
+    const { uid, email } = decoded;
+
+    // Find MongoDB user by Firebase UID first, then by email (for linking)
+    let user = await User.findOne({
+      $or: [{ firebaseUid: uid }, { email: email?.toLowerCase() }],
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "No CareerConnect account found. Please sign up first or use Google sign-in.",
+      });
+    }
+
+    // Link Firebase UID if this is a legacy user logging in via Firebase for the first time
+    if (!user.firebaseUid) {
+      user.firebaseUid = uid;
+      if (!user.authProviders.includes("email")) {
+        user.authProviders.push("email");
+      }
+      user.hasPassword = true;
+    }
+
+    user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
+
+    const token = generateToken(user._id, keepSignedIn);
+    setTokenCookie(res, token, keepSignedIn);
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token,
+      user: userPayload(user),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// GOOGLE AUTH
+// Called after signInWithPopup(auth, googleProvider) on the frontend.
+// Creates a new MongoDB user for first-time Google sign-ins, or finds
+// the existing one. Returns requiresPasswordSetup=true for new users
+// so the frontend can route them to the Set Password page.
+// ==========================================
+module.exports.googleAuth = async (req, res, next) => {
+  try {
+    const { idToken, keepSignedIn = false } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Firebase ID token is required",
+      });
+    }
+
+    const admin = getFirebaseAdmin();
+    if (!admin) {
+      return res.status(503).json({
+        success: false,
+        message: "Firebase authentication is not configured on this server",
+      });
+    }
+
+    // Verify Firebase ID Token
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(idToken);
+    } catch (firebaseErr) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired Firebase token. Please try again.",
+      });
+    }
+
+    const { uid, email, name, picture } = decoded;
+    const normalizedEmail = email?.toLowerCase();
+
+    if (!normalizedEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "Email not available from Google account",
+      });
+    }
+
+    // Find existing user by Firebase UID or email
+    let user = await User.findOne({
+      $or: [{ firebaseUid: uid }, { email: normalizedEmail }],
+    });
+
+    let isNewUser = false;
+
+    if (user) {
+      // --- Existing user ---
+      if (user.firebaseUid && user.firebaseUid !== uid) {
+        // Safety check: email matched but different Firebase UID (should be rare)
+        return res.status(409).json({
+          success: false,
+          message:
+            "This email is associated with a different account. Please contact support.",
+        });
+      }
+
+      // Upgrade legacy user: link Firebase UID
+      if (!user.firebaseUid) {
+        user.firebaseUid = uid;
+      }
+
+      // Add google to providers if not present
+      if (!user.authProviders.includes("google")) {
+        user.authProviders.push("google");
+      }
+
+      // Update profile image from Google if not set
+      if (!user.profileImage && picture) {
+        user.profileImage = picture;
+      }
+    } else {
+      // --- New user: create MongoDB record ---
+      isNewUser = true;
+      const username = await generateUniqueUsername(normalizedEmail);
+
+      user = new User({
+        fullName: name || normalizedEmail.split("@")[0],
+        email: normalizedEmail,
+        firebaseUid: uid,
+        authProviders: ["google"],
+        hasPassword: false,
+        isEmailVerified: true, // Google email is always verified
+        profileImage: picture || "",
+        username,
+        role: "user",
+        userType: "student", // default; will be changed in /select-role
+        phone: "",
+      });
+
+      await user.save({ validateBeforeSave: false });
+    }
+
+    user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
+
+    const requiresPasswordSetup = !user.hasPassword;
+
+    // For users who still need to set a password, issue a short-lived token
+    // regardless of keepSignedIn. Full duration is granted after password setup.
+    const effectiveKeepSignedIn = requiresPasswordSetup ? false : keepSignedIn;
+    const token = generateToken(user._id, effectiveKeepSignedIn);
+    setTokenCookie(res, token, effectiveKeepSignedIn);
+
+    return res.status(200).json({
+      success: true,
+      message: isNewUser
+        ? "Google account connected successfully"
+        : "Login successful",
+      token,
+      user: userPayload(user),
+      requiresPasswordSetup,
+      isNewUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// COMPLETE PASSWORD SETUP
+// Called after linkWithCredential(firebaseUser, EmailAuthProvider.credential(...))
+// on the frontend. Verifies that Firebase now has the "password" provider linked,
+// then updates MongoDB to set hasPassword=true.
+//
+// This is the ONLY way a password gets "stored" — in Firebase, not MongoDB.
+// MongoDB only tracks the boolean flag.
+// ==========================================
+module.exports.completePasswordSetup = async (req, res, next) => {
+  try {
+    const { idToken, keepSignedIn = false } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Firebase ID token is required",
+      });
+    }
+
+    const admin = getFirebaseAdmin();
+    if (!admin) {
+      return res.status(503).json({
+        success: false,
+        message: "Firebase authentication is not configured on this server",
+      });
+    }
+
+    // Verify Firebase ID Token
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(idToken);
+    } catch (firebaseErr) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired Firebase token. Please sign in again.",
+      });
+    }
+
+    const { uid } = decoded;
+
+    // Double-check: verify the Firebase user now has "password" provider linked
+    let firebaseRecord;
+    try {
+      firebaseRecord = await admin.auth().getUser(uid);
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: "Could not verify Firebase user record.",
+      });
+    }
+
+    const hasPasswordProvider = firebaseRecord.providerData.some(
+      (p) => p.providerId === "password"
+    );
+
+    if (!hasPasswordProvider) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password has not been linked to your Firebase account. Please try setting the password again.",
+      });
+    }
+
+    // Update MongoDB: mark hasPassword=true, add "email" to authProviders
+    const user = await User.findOneAndUpdate(
+      { firebaseUid: uid },
+      {
+        hasPassword: true,
+        $addToSet: { authProviders: "email" },
       },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "CareerConnect account not found. Please sign in again.",
+      });
+    }
+
+    // Issue full-duration JWT now that setup is complete
+    const token = generateToken(user._id, keepSignedIn);
+    setTokenCookie(res, token, keepSignedIn);
+
+    return res.status(200).json({
+      success: true,
+      message: "Password set successfully! You can now sign in with Google or email + password.",
+      token,
+      user: userPayload(user),
     });
   } catch (error) {
     next(error);
@@ -478,21 +807,7 @@ module.exports.logoutUser = async (req, res) => {
 module.exports.getMe = async (req, res) => {
   return res.status(200).json({
     success: true,
-    user: {
-      _id: req.user._id,
-      id: req.user._id,
-      fullName: req.user.fullName,
-      username: req.user.username,
-      email: req.user.email,
-      phone: req.user.phone,
-      profileImage: req.user.profileImage,
-      role: req.user.role,
-      userType: req.user.userType,
-      profileCompletion: req.user.profileCompletion || 0,
-      isProfileComplete: req.user.isProfileComplete || false,
-      socialLinks: req.user.socialLinks,
-      isActive: req.user.isActive,
-    },
+    user: userPayload(req.user),
   });
 };
 
@@ -530,16 +845,7 @@ module.exports.updateExperienceLevel = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "User type updated successfully",
-      user: {
-        _id: user._id,
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        userType: user.userType,
-        profileCompletion: user.profileCompletion || 0,
-        isProfileComplete: user.isProfileComplete || false,
-        role: user.role,
-      },
+      user: userPayload(user),
     });
   } catch (error) {
     next(error);
@@ -568,10 +874,6 @@ module.exports.checkEmail = async (req, res) => {
   }
 };
 
-// authController.js me add karo
-
-// PendingOTP model already use ho raha hoga register ke liye
-
 // ========== FORGOT PASSWORD - SEND OTP ==========
 module.exports.forgotPassword = async (req, res, next) => {
   try {
@@ -590,6 +892,15 @@ module.exports.forgotPassword = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: "No account found with this email",
+      });
+    }
+
+    // Firebase users who haven't set a MongoDB password need to use Firebase password reset
+    if (user.firebaseUid && !user.password) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This account uses Google sign-in. Please use 'Continue with Google' or reset your password via Google.",
       });
     }
 
@@ -733,11 +1044,6 @@ module.exports.resetPassword = async (req, res, next) => {
       });
     }
 
-    if (record.expiresAt < new Date()) {
-      // verified but expired - still allow if recently verified, or force re-verify
-      // For simplicity: require valid verified record
-    }
-
     const user = await User.findOne({ email: normalizedEmail }).select(
       "+password",
     );
@@ -748,6 +1054,10 @@ module.exports.resetPassword = async (req, res, next) => {
     }
 
     user.password = password; // pre-save hook will hash
+    user.hasPassword = true;
+    if (!user.authProviders.includes("email")) {
+      user.authProviders.push("email");
+    }
     await user.save();
 
     // Cleanup OTP
@@ -762,6 +1072,9 @@ module.exports.resetPassword = async (req, res, next) => {
   }
 };
 
+// ==========================================
+// REGISTER EMPLOYER
+// ==========================================
 module.exports.registerEmployer = async (req, res, next) => {
   try {
     const {
@@ -776,6 +1089,7 @@ module.exports.registerEmployer = async (req, res, next) => {
       companyType,
       industry,
       location,
+      keepSignedIn = false,
     } = req.body;
 
     // ---------- Validation ----------
@@ -896,10 +1210,12 @@ module.exports.registerEmployer = async (req, res, next) => {
       password,
       role: "employer",
       userType: "employer",
-      username: generateUsername(normalizedEmail),
+      username: await generateUniqueUsername(normalizedEmail),
       isEmailVerified: true,
       isProfileComplete: false,
       profileCompletion: 20,
+      authProviders: ["email"],
+      hasPassword: true,
     });
 
     // ---------- Create Employer Profile ----------
@@ -933,8 +1249,8 @@ module.exports.registerEmployer = async (req, res, next) => {
     // Cleanup OTP
     await PendingOTP.deleteOne({ email: normalizedEmail });
 
-    const token = generateToken(user._id);
-    setTokenCookie(res, token);
+    const token = generateToken(user._id, keepSignedIn);
+    setTokenCookie(res, token, keepSignedIn);
 
     return res.status(201).json({
       success: true,
@@ -951,6 +1267,8 @@ module.exports.registerEmployer = async (req, res, next) => {
         role: user.role,
         userType: user.userType,
         companyName: companyName.trim(),
+        hasPassword: true,
+        authProviders: ["email"],
       },
     });
   } catch (error) {
