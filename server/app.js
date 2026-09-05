@@ -27,7 +27,6 @@ const employerLearningRoutes = require("./routes/employerLearningRoutes.js");
 const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 
 const resumeRoutes = require("./routes/resumeRoutes.js");
-const internshipRoutes = require("./routes/internshipRoutes.js");
 
 
 const app = express();
