@@ -8,7 +8,11 @@ const studentRoutes = require("./routes/studentRoutes.js");
 const fresherRoutes = require("./routes/fresherRoutes.js");
 const professionalRoutes = require("./routes/professionalRoutes.js");
 const employerRoutes = require("./routes/employerRoutes.js");
+
+// Courses related Routes
 const courseRoutes = require("./routes/courseRoutes.js");
+const courseContentRoutes = require("./routes/courseContentRoutes");
+
 
 // Employer & Jobs / Internships feature routes
 const jobRoutes = require("./routes/jobRoutes.js");
@@ -23,7 +27,7 @@ const employerLearningRoutes = require("./routes/employerLearningRoutes.js");
 const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 
 const resumeRoutes = require("./routes/resumeRoutes.js");
-const internshipRoutes = require("./routes/internshipRoutes.js");
+
 
 const app = express();
 
@@ -70,6 +74,7 @@ app.use("/api/profile/professional", professionalRoutes);
 
 // Core LMS Course Routes
 app.use("/api/courses", courseRoutes);
+app.use("/api/course-content", courseContentRoutes);
 
 // Marketplace & Discovery Routes
 app.use("/api/jobs", jobRoutes);
