@@ -58,6 +58,19 @@ const courseContentSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    // Cloudinary public ID
+  publicId: {
+  type: String,
+  trim: true,
+  default: "",
+},
+
+// Cloudinary resource type
+resourceType: {
+  type: String,
+  enum: ["video", "image", "raw"],
+  default: null,
+},
 
     // ==========================================
     // TEXT NOTES

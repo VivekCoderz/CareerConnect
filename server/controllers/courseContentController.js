@@ -2,12 +2,13 @@ const Course = require("../models/Course");
 const CourseContent = require("../models/CourseContent");
 const CourseApplication = require("../models/CourseApplication");
 const CourseProgress = require("../models/CourseProgress");
+const cloudinary = require("../config/cloudinary");
+
 
 // ==========================================
 // ADD COURSE CONTENT
 // POST /api/courses/:courseId/content
 // ==========================================
-
 const addCourseContent = async (req, res) => {
   try {
     const user = req.user;
@@ -66,7 +67,6 @@ const addCourseContent = async (req, res) => {
       type,
       title,
       description,
-      url,
       content,
       duration,
       section,
@@ -96,25 +96,67 @@ const addCourseContent = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Video / PDF require URL
+    // Notes
     // ------------------------------------------
 
-    if ((type === "video" || type === "pdf") && !url) {
-      return res.status(400).json({
-        success: false,
-        message: `${type} URL is required`,
-      });
+    if (type === "notes") {
+      if (!content) {
+        return res.status(400).json({
+          success: false,
+          message: "Notes content is required",
+        });
+      }
     }
 
     // ------------------------------------------
-    // Notes require text content
+    // Video / PDF
     // ------------------------------------------
 
-    if (type === "notes" && !content) {
-      return res.status(400).json({
-        success: false,
-        message: "Notes content is required",
+    if (type === "video" || type === "pdf") {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: `${type} file is required`,
+        });
+      }
+    }
+
+    // ------------------------------------------
+    // Cloudinary upload
+    // ------------------------------------------
+
+    let cloudinaryData = {
+      url: "",
+      publicId: "",
+      resourceType: null,
+    };
+
+    if (type === "video" || type === "pdf") {
+      const resourceType = type === "video" ? "video" : "raw";
+
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: `careerconnect/courses/${course._id}`,
+            resource_type: resourceType,
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+
+        uploadStream.end(req.file.buffer);
       });
+
+      cloudinaryData = {
+        url: result.secure_url,
+        publicId: result.public_id,
+        resourceType: result.resource_type,
+      };
     }
 
     // ------------------------------------------
@@ -126,8 +168,10 @@ const addCourseContent = async (req, res) => {
       type,
       title,
       description,
-      url,
-      content,
+      url: cloudinaryData.url,
+      publicId: cloudinaryData.publicId,
+      resourceType: cloudinaryData.resourceType,
+      content: type === "notes" ? content : "",
       duration,
       section,
       order,
@@ -153,7 +197,6 @@ const addCourseContent = async (req, res) => {
     });
   }
 };
-
 
 
 // ==========================================

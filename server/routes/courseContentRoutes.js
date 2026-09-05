@@ -1,7 +1,10 @@
 const express = require("express");
+const upload = require("../middleware/uploadMiddleware");
 
 const {
-  addCourseContent,getCourseContent,updateCourseContent,deleteCourseContent
+  addCourseContent,
+  getCourseContent,
+  updateCourseContent,deleteCourseContent
 } = require("../controllers/courseContentController");
 
 const protect = require("../middleware/authMiddleware");
@@ -14,7 +17,7 @@ const router = express.Router();
 
 // Add content to a course
 // POST /api/courses/:courseId/content
-router.post("/:courseId", protect, addCourseContent);
+router.post("/:courseId",protect,upload.single("file"),addCourseContent);
 //get course content
 router.get("/:courseId", protect, getCourseContent);
 // Update course content
