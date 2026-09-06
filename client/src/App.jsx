@@ -11,6 +11,8 @@ import Signup from "./pages/auth/Signup";
 import EmployerRegister from "./pages/auth/EmployerRegister";
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
 import SetPassword from "./pages/auth/SetPassword.jsx";
+import GoogleOnboarding from "./pages/auth/GoogleOnboarding.jsx";
+import GoogleEmployerOnboarding from "./pages/auth/GoogleEmployerOnboarding.jsx";
 
 // Guards
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
@@ -209,6 +211,15 @@ function App() {
               STUDENT + FRESHER + PROFESSIONAL
           ================================================= */}
 
+          {/* ========== GOOGLE ONBOARDING — CANDIDATES ========== */}
+          {/* Shown after set-password → select-role → profile info + resume */}
+          <Route path="/onboarding/profile" element={<GoogleOnboarding />} />
+
+          {/* ========== GOOGLE ONBOARDING — EMPLOYERS ========== */}
+          {/* Shown after set-password → company details collection */}
+          <Route path="/onboarding/employer" element={<GoogleEmployerOnboarding />} />
+
+          {/* ========== CANDIDATES: student + fresher + professional ========== */}
           <Route
             element={
               <RoleProtectedRoute
@@ -383,6 +394,7 @@ function App() {
 
         </Routes>
       </AuthInitializer>
+      
     </BrowserRouter>
   );
 }

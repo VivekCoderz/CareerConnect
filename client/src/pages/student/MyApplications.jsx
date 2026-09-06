@@ -135,41 +135,155 @@ export default function MyApplications({ embedded = false }) {
     "Withdrawn",
   ];
 
-  return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      {!embedded && (
-        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-            <Link to="/home" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
-                GU
-              </div>
+//   const listBlock = (
+//     <>
+//       <div className="mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+//         <div>
+//           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+//             My Applications
+//           </h1>
+//           <p className="text-sm text-slate-500 mt-1">
+//             Track internship & job applications
+//           </p>
+//   return (
+//     <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8">
+//       {/* Header */}
+//       <div className="max-w-5xl mx-auto mb-8">
+//         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-200 pb-5">
+//           <div>
+//             <h1 className="text-sm font-semibold tracking-wider text-slate-500 uppercase">
+//               GEETA UNIVERSITY
+//             </h1>
+//             <h2 className="text-3xl font-extrabold text-[#1e3a8a] tracking-tight">
+//               My Applications & Job Offers
+//             </h2>
+//             <p className="mt-2 text-slate-600">
+//               Track your recruitment pipeline stages and review official employment offer letters.
+//             </p>
+//           </div>
+//           <Link
+//             to="/internships"
+//             className="mt-4 sm:mt-0 inline-flex items-center text-sm font-bold text-[#1e3a8a] hover:text-[#1e40af] transition-colors"
+//           >
+//             <svg className="h-5 w-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+//               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+//             </svg>
+//             Browse Listings
+//           </Link>
+//         </div>
+//         {!embedded && (
+//           <Link to="/internships" className="text-xs font-bold text-[#1e3a8a]">
+//             Browse Internships →
+//           </Link>
+//         )}
+//       </div>
 
-              <div className="leading-tight">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Geeta University
-                </p>
+//       <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
+//         {statusTabs.map((tab) => (
+//           <button
+//             key={tab}
+//             type="button"
+//             onClick={() => setFilter(tab)}
+//             className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition ${
+//               filter === tab
+//                 ? "bg-[#1e3a8a] text-white shadow-sm"
+//                 : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+//             }`}
+//           >
+//             {tab}
+//           </button>
+//         ))}
+//       </div>
 
-                <p className="text-sm font-bold text-slate-900">
-                  CareerConnect
-                </p>
-              </div>
-            </Link>
+//       {error && (
+//         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+//           {error}
+//         </div>
+//       )}
 
-            <Link
-              to="/internships"
-              className="text-xs font-bold text-[#1e3a8a]"
-            >
-              Browse Internships →
-            </Link>
-          </div>
-        </header>
-      )}
+//       {loading ? (
+//         <div className="flex flex-col items-center py-16">
+//           <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-3" />
+//           <p className="text-sm text-slate-500">Loading applications...</p>
+//         </div>
+//       ) : filtered.length === 0 ? (
+//         <div className="text-center py-14 rounded-2xl bg-white border border-slate-200">
+//           <div className="text-3xl mb-2">📄</div>
+//           <h3 className="text-base font-bold text-slate-800">
+//             {filter === "All" ? "No applications yet" : `No “${filter}” applications`}
+//           </h3>
+//           <p className="text-sm text-slate-500 mt-1">Apply to campus internships to track them here.</p>
+//         </div>
+//       ) : (
+//         <div className="space-y-3">
+//           {filtered.map((app) => {
+//             const opportunity = app.internshipId || app.jobId;
+//             const cannotWithdraw = ["Hired", "Rejected", "Withdrawn"].includes(app.status);
+//             const internshipId = app.internshipId?._id || app.internshipId || null;
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        {!embedded && (
-          <div className="mb-8 rounded-3xl bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#1e3a8a] text-white p-6 sm:p-8 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-[#f59e0b]/15 rounded-full blur-3xl pointer-events-none" />
+//             return (
+//               <article
+//                 key={app._id}
+//                 className="bg-white border border-slate-200/80 rounded-2xl p-5 hover:border-[#1e3a8a]/25 hover:shadow-md transition-all"
+//               >
+//                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+//                   <div className="min-w-0 flex-1">
+//                     <div className="flex flex-wrap gap-2 mb-2">
+//                       <span
+//                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadgeClass(
+//                           app.status
+//                         )}`}
+//                       >
+//                         {app.status}
+//                       </span>
+//                       <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+//                         {app.opportunityType || "Internship"}
+//                       </span>
+//                     </div>
+//                     <h3 className="text-base font-bold text-slate-900">
+//                       {app.opportunityTitle || opportunity?.title || "Opportunity"}
+//                     </h3>
+//                     <p className="text-sm font-semibold text-slate-600 mt-0.5">
+//                       {app.companyName || opportunity?.companyName || "Company"}
+//                     </p>
+//                     <p className="text-xs text-slate-500 mt-2">
+//                       Applied{" "}
+//                       {new Date(app.createdAt).toLocaleDateString("en-IN", {
+//                         day: "numeric",
+//                         month: "short",
+//                         year: "numeric",
+//                       })}
+//                       {opportunity?.stipend ? ` · ${opportunity.stipend}` : ""}
+//                     </p>
+//                   </div>
+//                   <div className="flex flex-wrap gap-2">
+//                     {internshipId && !embedded && (
+//                       <Link
+//                         to={`/internships/${internshipId}`}
+//                         className="h-9 px-3.5 inline-flex items-center rounded-xl border border-slate-200 text-xs font-bold text-slate-700"
+//                       >
+//                         View role
+//                       </Link>
+//                     )}
+//                     {!cannotWithdraw && (
+//                       <button
+//                         type="button"
+//                         onClick={() => handleWithdraw(app._id)}
+//                         disabled={actionLoading}
+//                         className="h-9 px-3.5 rounded-xl border border-red-200 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
+//                       >
+//                         Withdraw
+//                       </button>
+//                     )}
+//                   </div>
+//                 </div>
+//               </article>
+//             );
+//           })}
+//         </div>
+//       )}
+//     </>
+//   );
 
             <div className="relative z-10">
               <p className="text-xs font-semibold text-blue-100 uppercase tracking-wider mb-2">

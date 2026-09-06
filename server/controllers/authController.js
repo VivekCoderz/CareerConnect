@@ -1,5 +1,7 @@
 const User = require("../models/User.js");
 const StudentProfile = require("../models/StudentProfile.js");
+const FresherProfile = require("../models/FresherProfile.js");
+const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP.js");
@@ -330,6 +332,15 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
+    // Verify OTP first (manual email registration requires verified OTP)
+    const otpRecord = await PendingOTP.findOne({ email: normalizedEmail });
+    if (!otpRecord || !otpRecord.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Please verify your email with OTP first",
+      });
+    }
+
     // -------------------- Prepare user data --------------------
     const userData = {
       fullName: fullName.trim(),
@@ -339,6 +350,7 @@ module.exports.registerUser = async (req, res, next) => {
       userType,
       authProviders: ["email"],
       hasPassword: true,
+      isEmailVerified: true,
       socialLinks: {
         linkedin: linkedin?.trim() || "",
         github: github?.trim() || "",
@@ -400,6 +412,9 @@ module.exports.registerUser = async (req, res, next) => {
       }
     }
 
+    // Cleanup OTP after successful registration
+    await PendingOTP.deleteOne({ email: normalizedEmail });
+
     const token = generateToken(user._id, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
@@ -443,6 +458,13 @@ module.exports.loginUser = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
+      });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been suspended due to excessive requests or suspicious activity. Please contact support.",
       });
     }
 
@@ -536,6 +558,13 @@ module.exports.firebaseLogin = async (req, res, next) => {
       });
     }
 
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been suspended due to excessive requests or suspicious activity. Please contact support.",
+      });
+    }
+
     // Link Firebase UID if this is a legacy user logging in via Firebase for the first time
     if (!user.firebaseUid) {
       user.firebaseUid = uid;
@@ -571,7 +600,7 @@ module.exports.firebaseLogin = async (req, res, next) => {
 // ==========================================
 module.exports.googleAuth = async (req, res, next) => {
   try {
-    const { idToken, keepSignedIn = false } = req.body;
+    const { idToken, keepSignedIn = false, role = "user" } = req.body;
 
     if (!idToken) {
       return res.status(400).json({
@@ -618,8 +647,14 @@ module.exports.googleAuth = async (req, res, next) => {
 
     if (user) {
       // --- Existing user ---
+      if (user.isActive === false) {
+        return res.status(403).json({
+          success: false,
+          message: "Your account has been suspended due to excessive requests or suspicious activity. Please contact support.",
+        });
+      }
+
       if (user.firebaseUid && user.firebaseUid !== uid) {
-        // Safety check: email matched but different Firebase UID (should be rare)
         return res.status(409).json({
           success: false,
           message:
@@ -646,6 +681,9 @@ module.exports.googleAuth = async (req, res, next) => {
       isNewUser = true;
       const username = await generateUniqueUsername(normalizedEmail);
 
+      // Determine role/userType from request (employer vs candidate)
+      const isEmployer = role === "employer";
+
       user = new User({
         fullName: name || normalizedEmail.split("@")[0],
         email: normalizedEmail,
@@ -655,8 +693,8 @@ module.exports.googleAuth = async (req, res, next) => {
         isEmailVerified: true, // Google email is always verified
         profileImage: picture || "",
         username,
-        role: "user",
-        userType: "student", // default; will be changed in /select-role
+        role: isEmployer ? "employer" : "user",
+        userType: isEmployer ? "employer" : "student", // employer stays employer; candidate will pick in /select-role
         phone: "",
       });
 
@@ -669,7 +707,6 @@ module.exports.googleAuth = async (req, res, next) => {
     const requiresPasswordSetup = !user.hasPassword;
 
     // For users who still need to set a password, issue a short-lived token
-    // regardless of keepSignedIn. Full duration is granted after password setup.
     const effectiveKeepSignedIn = requiresPasswordSetup ? false : keepSignedIn;
     const token = generateToken(user._id, effectiveKeepSignedIn);
     setTokenCookie(res, token, effectiveKeepSignedIn);
@@ -1270,6 +1307,293 @@ module.exports.registerEmployer = async (req, res, next) => {
         hasPassword: true,
         authProviders: ["email"],
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// COMPLETE GOOGLE ONBOARDING
+// Called after Google user has set password and selected a role.
+// Saves phone, role-specific details, and (optionally) a resume URL.
+// Protected — requires valid JWT cookie.
+// ==========================================
+module.exports.completeGoogleOnboarding = async (req, res, next) => {
+  try {
+    const {
+      phone,
+      linkedin,
+      github,
+      userType,
+
+      // Student fields
+      college,
+      course,
+      year,
+      graduationYear,
+
+      // Fresher fields
+      highestQualification,
+      passoutYear,
+      skills,
+
+      // Professional fields
+      currentCompany,
+      jobTitle,
+      experienceYears,
+      industry,
+
+      // Optional resume
+      resumeUrl,
+    } = req.body;
+
+    const userId = req.user.id;
+
+    // -------- Basic Validation --------
+    if (!phone?.trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "phone",
+        message: "Phone number is required",
+      });
+    }
+
+    const phoneDigits = phone.replace(/\D/g, "").slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phoneDigits)) {
+      return res.status(400).json({
+        success: false,
+        field: "phone",
+        message: "Please enter a valid 10-digit mobile number",
+      });
+    }
+
+    const allowedTypes = ["student", "fresher", "professional"];
+    if (!userType || !allowedTypes.includes(userType)) {
+      return res.status(400).json({
+        success: false,
+        field: "userType",
+        message: "Invalid user type",
+      });
+    }
+
+    // -------- Role-specific Validation --------
+    if (userType === "student") {
+      if (!college?.trim() || !course?.trim() || !year || !graduationYear) {
+        return res.status(400).json({
+          success: false,
+          message: "College, course, year and graduation year are required for students",
+        });
+      }
+    } else if (userType === "fresher") {
+      if (!highestQualification?.trim() || !passoutYear) {
+        return res.status(400).json({
+          success: false,
+          message: "Highest qualification and passout year are required",
+        });
+      }
+    } else if (userType === "professional") {
+      if (!currentCompany?.trim() || !jobTitle?.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Current company and job title are required",
+        });
+      }
+    }
+
+    // -------- Update User document --------
+    const updateData = {
+      phone: phone.trim(),
+      userType,
+      socialLinks: {
+        linkedin: linkedin?.trim() || "",
+        github: github?.trim() || "",
+      },
+      profileCompletion: 50,
+    };
+
+    const user = await User.findByIdAndUpdate(userId, updateData, { new: true });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // -------- Create role-specific profile --------
+    try {
+      if (userType === "student") {
+        // Check if profile already exists (idempotent)
+        const existing = await StudentProfile.findOne({ userId });
+        if (!existing) {
+          await StudentProfile.create({
+            userId,
+            education: [
+              {
+                institution: college.trim(),
+                degree: course.trim(),
+                startYear: Number(graduationYear) - Number(year),
+                endYear: Number(graduationYear),
+                currentlyStudying: true,
+              },
+            ],
+          });
+        } else {
+          // Update education if blank
+          if (!existing.education?.length) {
+            existing.education = [
+              {
+                institution: college.trim(),
+                degree: course.trim(),
+                startYear: Number(graduationYear) - Number(year),
+                endYear: Number(graduationYear),
+                currentlyStudying: true,
+              },
+            ];
+            await existing.save();
+          }
+        }
+      } else if (userType === "fresher") {
+        const existing = await FresherProfile.findOne({ userId });
+        if (!existing) {
+          await FresherProfile.create({
+            userId,
+            // Use the education sub-schema
+            education: [
+              {
+                degree: highestQualification.trim(),
+                institution: "Not specified",
+                graduationYear: Number(passoutYear),
+                isHighest: true,
+              },
+            ],
+          });
+        }
+      } else if (userType === "professional") {
+        const existing = await ProfessionalProfile.findOne({ userId });
+        if (!existing) {
+          await ProfessionalProfile.create({
+            userId,
+            currentEmployment: {
+              company: currentCompany.trim(),
+              jobTitle: jobTitle.trim(),
+              industry: industry?.trim() || "Information Technology",
+            },
+          });
+        }
+      }
+    } catch (profileErr) {
+      // Profile creation failure is non-fatal — user can complete later
+      console.error("[GoogleOnboarding] Profile creation error:", profileErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile setup complete",
+      user: userPayload(user),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// COMPLETE EMPLOYER GOOGLE ONBOARDING
+// Called after employer Google user has set password.
+// Collects company info and creates EmployerProfile.
+// Protected — requires valid JWT cookie.
+// ==========================================
+module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
+  try {
+    const {
+      phone,
+      companyName,
+      contactPerson,
+      designation,
+      website,
+      companyType,
+      industry,
+      location,
+    } = req.body;
+
+    const userId = req.user.id;
+
+    // -------- Validation --------
+    if (!phone?.trim()) {
+      return res.status(400).json({ success: false, field: "phone", message: "Phone number is required" });
+    }
+    const phoneDigits = phone.replace(/\D/g, "").slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phoneDigits)) {
+      return res.status(400).json({ success: false, field: "phone", message: "Please enter a valid 10-digit mobile number" });
+    }
+    if (!companyName?.trim()) {
+      return res.status(400).json({ success: false, field: "companyName", message: "Company name is required" });
+    }
+    if (!contactPerson?.trim()) {
+      return res.status(400).json({ success: false, field: "contactPerson", message: "Contact person name is required" });
+    }
+    if (!designation?.trim()) {
+      return res.status(400).json({ success: false, field: "designation", message: "Designation is required" });
+    }
+    if (!industry?.trim()) {
+      return res.status(400).json({ success: false, field: "industry", message: "Industry is required" });
+    }
+    if (!location?.trim()) {
+      return res.status(400).json({ success: false, field: "location", message: "Location is required" });
+    }
+
+    // -------- Update User --------
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        phone: phone.trim(),
+        role: "employer",
+        userType: "employer",
+        profileCompletion: 40,
+      },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // -------- Create EmployerProfile (idempotent) --------
+    try {
+      const existing = await EmployerProfile.findOne({ userId });
+      if (!existing) {
+        await EmployerProfile.create({
+          userId,
+          companyName: companyName.trim(),
+          officialEmail: user.email,
+          mobile: phone.trim(),
+          website: website?.trim() || "",
+          companyType: companyType || "Private",
+          industry: industry.trim(),
+          headquarters: {
+            city: location.trim(),
+            state: "",
+            country: "India",
+          },
+          recruiter: {
+            name: contactPerson.trim(),
+            designation: designation.trim(),
+            email: user.email,
+            phone: phone.trim(),
+          },
+          currentStep: 1,
+          profileCompletion: 40,
+        });
+      }
+    } catch (profileErr) {
+      console.error("[EmployerGoogleOnboarding] Profile creation error:", profileErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Employer profile setup complete",
+      user: userPayload(user),
     });
   } catch (error) {
     next(error);
