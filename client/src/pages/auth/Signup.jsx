@@ -33,6 +33,8 @@ const Signup = () => {
   const [otpError, setOtpError] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpSuccessMsg, setOtpSuccessMsg] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [fieldErrors, setFieldErrors] = useState({});
 
@@ -70,6 +72,7 @@ const Signup = () => {
     else if (formData.fullName.trim().length < 2) errors.fullName = "Name must be at least 2 characters";
     if (!formData.email.trim()) errors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Please enter a valid email";
+    else if (!emailVerified) errors.email = "Please verify your email address before continuing";
     if (!formData.phone.trim()) errors.phone = "Mobile number is required";
     else if (!/^[6-9]\d{9}$/.test(formData.phone.replace(/\D/g, "").slice(-10)))
       errors.phone = "Please enter a valid 10-digit mobile number";
@@ -115,19 +118,33 @@ const Signup = () => {
     setOtpError("");
   };
 
-  const handleStep1Next = async () => {
-    if (!validateStep1()) return;
+  // Send OTP inline under email input field
+  const handleSendEmailOTP = async () => {
+    const emailToVerify = formData.email.trim().toLowerCase();
+    if (!emailToVerify) {
+      setFieldErrors((prev) => ({ ...prev, email: "Please enter your email address" }));
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToVerify)) {
+      setFieldErrors((prev) => ({ ...prev, email: "Please enter a valid email" }));
+      return;
+    }
+
     try {
       setCheckingEmail(true);
-      setFieldErrors({});
-      await api.post("/auth/send-otp", {
-        email: formData.email.trim().toLowerCase(),
-        fullName: formData.fullName.trim(),
-      });
-      setOtp("");
+      setFieldErrors((prev) => ({ ...prev, email: "" }));
       setOtpError("");
+      setOtpSuccessMsg("");
+
+      await api.post("/auth/send-otp", {
+        email: emailToVerify,
+        fullName: formData.fullName.trim() || "User",
+      });
+
+      setOtpSent(true);
+      setOtp("");
+      setOtpSuccessMsg(`OTP sent to ${emailToVerify}`);
       setResendCooldown(60);
-      goNext("otp");
       const timer = setInterval(() => {
         setResendCooldown((prev) => {
           if (prev <= 1) {
@@ -140,10 +157,54 @@ const Signup = () => {
     } catch (err) {
       const msg = err.response?.data?.message || "Failed to send OTP. Try again.";
       const field = err.response?.data?.field || "email";
-      setFieldErrors({ [field]: msg });
+      setFieldErrors((prev) => ({ ...prev, [field]: msg }));
     } finally {
       setCheckingEmail(false);
     }
+  };
+
+  // Verify OTP inline
+  const handleVerifyInlineOTP = async () => {
+    const cleanOtp = otp.replace(/\D/g, "").slice(0, 6);
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      setOtpError("Please enter the 6-digit OTP");
+      return;
+    }
+    try {
+      setVerifyingOtp(true);
+      setOtpError("");
+      await api.post("/auth/verify-otp", {
+        email: formData.email.trim().toLowerCase(),
+        otp: cleanOtp,
+      });
+      setEmailVerified(true);
+      setOtpSent(false);
+      setOtp("");
+      setOtpSuccessMsg("Email verified successfully!");
+      setFieldErrors((prev) => ({ ...prev, email: "" }));
+    } catch (err) {
+      setOtpError(err.response?.data?.message || "Invalid or expired OTP");
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleStep1Next = () => {
+    if (!emailVerified) {
+      const emailToVerify = formData.email.trim().toLowerCase();
+      if (emailToVerify && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToVerify) && !otpSent) {
+        handleSendEmailOTP();
+      }
+      setFieldErrors((prev) => ({
+        ...prev,
+        email: "Please verify your email address with OTP before continuing",
+      }));
+      return;
+    }
+
+    if (!validateStep1()) return;
+
+    goNext(2);
   };
 
   const handleResendOTP = async () => {
@@ -219,8 +280,8 @@ const Signup = () => {
         captchaToken,
       });
 
-      const { user, requiresPasswordSetup, isNewUser } = response.data;
-      dispatch(loginSuccess({ user }));
+      const { user, requiresPasswordSetup, isNewUser, token } = response.data;
+      dispatch(loginSuccess({ user, token }));
 
       // Step 3: Route based on account state
       if (requiresPasswordSetup) {
@@ -314,7 +375,7 @@ const Signup = () => {
   };
 
   const slideClass = direction === "next" ? "animate-slide-in-right" : "animate-slide-in-left";
-  const progressStep = step === "otp" ? 1.5 : step;
+  const progressStep = step;
 
   const inputClass = (field) =>
     `w-full h-11 rounded-xl border bg-white px-4 text-sm outline-none transition focus:ring-4 ${
@@ -368,9 +429,9 @@ const Signup = () => {
 
       {/* RIGHT / FULL */}
       <div className={`flex-1 flex items-center justify-center p-5 sm:p-8 ${step === 1 ? "" : "w-full"}`}>
-        <div className={`w-full ${step === 1 || step === "otp" ? "max-w-md" : "max-w-2xl"}`}>
+        <div className={`w-full ${step === 1 ? "max-w-md" : "max-w-2xl"}`}>
           {/* Mobile logo */}
-          {(step === 1 || step === "otp") && (
+          {step === 1 && (
             <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
               <div className="w-9 h-9 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-xs">
                 GU
@@ -432,8 +493,157 @@ const Signup = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Email</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="john@example.com" className={inputClass("email")} />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[13px] font-semibold text-slate-700">
+                      Email Address
+                    </label>
+                    {emailVerified && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Verified
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={(e) => {
+                        handleChange(e);
+                        if (emailVerified) setEmailVerified(false);
+                        if (otpSent) setOtpSent(false);
+                      }}
+                      disabled={emailVerified}
+                      placeholder="john@example.com"
+                      className={`${inputClass("email")} ${emailVerified ? "bg-slate-50 border-emerald-400 text-slate-700 pr-10" : ""}`}
+                    />
+                    {emailVerified && (
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center text-emerald-600 pointer-events-none">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Verify button directly below Email input */}
+                  {!emailVerified && !otpSent && (
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[12px] text-slate-500">Verify email with OTP</span>
+                      <button
+                        type="button"
+                        onClick={handleSendEmailOTP}
+                        disabled={checkingEmail || !formData.email.trim()}
+                        className="h-8 px-4 rounded-lg bg-[#1e3a8a] hover:bg-[#1e40af] disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
+                      >
+                        {checkingEmail ? (
+                          <>
+                            <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                            Sending OTP...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Verify Email
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Inline OTP Input Box directly below Email */}
+                  {otpSent && !emailVerified && (
+                    <div className="mt-2.5 p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl space-y-2.5 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                          <svg className="w-4 h-4 text-[#1e3a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          Enter OTP sent to email
+                        </span>
+                        {resendCooldown > 0 ? (
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            Resend in {resendCooldown}s
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleSendEmailOTP}
+                            disabled={checkingEmail}
+                            className="text-[11px] font-bold text-[#1e3a8a] hover:underline"
+                          >
+                            Resend OTP
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={otp}
+                          onChange={(e) => {
+                            setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                            setOtpError("");
+                          }}
+                          placeholder="Enter 6-digit OTP"
+                          className="flex-1 h-10 px-3 text-center tracking-[0.25em] font-bold text-slate-800 bg-white border border-slate-300 rounded-lg text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15 transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyInlineOTP}
+                          disabled={verifyingOtp || otp.length !== 6}
+                          className="h-10 px-4 rounded-lg bg-[#1e3a8a] hover:bg-[#1e40af] disabled:bg-blue-300 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm whitespace-nowrap"
+                        >
+                          {verifyingOtp ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                              Verifying...
+                            </>
+                          ) : (
+                            "Submit OTP"
+                          )}
+                        </button>
+                      </div>
+
+                      {otpError && <p className="text-xs text-red-600 font-medium">{otpError}</p>}
+                      {otpSuccessMsg && !otpError && (
+                        <p className="text-xs text-emerald-600 font-medium">{otpSuccessMsg}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Verified State */}
+                  {emailVerified && (
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-semibold">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Email verified successfully
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmailVerified(false);
+                          setOtpSent(false);
+                          setOtp("");
+                          setOtpSuccessMsg("");
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-600 underline font-medium"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
+
                   {fieldErrors.email && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.email}</p>}
                 </div>
 
@@ -465,14 +675,16 @@ const Signup = () => {
                   {checkingEmail ? (
                     <>
                       <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      Sending OTP to Email...
+                      Sending OTP...
                     </>
+                  ) : emailVerified ? (
+                    "Continue to Next Step →"
                   ) : (
-                    "Verify Email & Continue →"
+                    "Continue →"
                   )}
                 </button>
                 <p className="text-center text-[11px] text-slate-500">
-                  🔒 We'll send a 6-digit verification code to your email
+                  {emailVerified ? "✓ Email verified. Click continue to proceed." : "🔒 Verify your email with the OTP button above before continuing"}
                 </p>
 
                 {/* OR divider */}
@@ -532,77 +744,10 @@ const Signup = () => {
             </div>
           )}
 
-          {/* ========== OTP ========== */}
-          {step === "otp" && (
-            <div key="otp" className={slideClass}>
-              <button onClick={() => goBack(1)} className="text-sm text-slate-500 hover:text-slate-700 mb-6 flex items-center gap-1">
-                ← Back
-              </button>
-
-              <div className="mb-8 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-[#eff6ff] text-[#1e3a8a] flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Verify your email</h2>
-                <p className="text-sm text-slate-500 mt-2">
-                  We sent a 6-digit code to<br />
-                  <span className="font-semibold text-slate-800">{formData.email}</span>
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5 text-center">Enter OTP</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => {
-                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
-                      setOtpError("");
-                    }}
-                    placeholder="000000"
-                    className="w-full h-14 rounded-xl border border-slate-200 bg-white text-center text-2xl tracking-[0.4em] font-bold outline-none focus:border-[#1e3a8a] focus:ring-4 focus:ring-[#1e3a8a]/10 transition"
-                  />
-                  {otpError && <p className="text-xs text-red-500 mt-2 text-center">{otpError}</p>}
-                </div>
-
-                <button
-                  onClick={handleVerifyOTP}
-                  disabled={verifyingOtp || otp.length !== 6}
-                  className="w-full h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] disabled:bg-blue-400 text-white text-sm font-semibold transition flex items-center justify-center gap-2"
-                >
-                  {verifyingOtp ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      Verifying...
-                    </>
-                  ) : (
-                    "Verify & Continue"
-                  )}
-                </button>
-
-                <p className="text-center text-sm text-slate-500">
-                  Didn’t receive the code?{" "}
-                  {resendCooldown > 0 ? (
-                    <span className="text-slate-400">Resend in {resendCooldown}s</span>
-                  ) : (
-                    <button type="button" onClick={handleResendOTP} disabled={checkingEmail} className="font-semibold text-[#1e3a8a] hover:text-[#1e40af]">
-                      Resend OTP
-                    </button>
-                  )}
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* ========== STEP 2: User Type ========== */}
           {step === 2 && emailVerified && (
             <div key="step2" className={slideClass}>
-              <button onClick={() => goBack("otp")} className="text-sm text-slate-500 hover:text-slate-700 mb-6 flex items-center gap-1">
+              <button onClick={() => goBack(1)} className="text-sm text-slate-500 hover:text-slate-700 mb-6 flex items-center gap-1">
                 ← Back
               </button>
 

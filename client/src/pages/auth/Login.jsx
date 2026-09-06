@@ -159,6 +159,7 @@ const Login = () => {
             captchaToken,
           });
           user = response.data.user;
+          token = response.data.token;
         }
       } else {
         // ── Username → always use legacy MongoDB path ────────────────────────
@@ -169,9 +170,10 @@ const Login = () => {
           captchaToken,
         });
         user = response.data.user;
+        token = response.data.token;
       }
 
-      dispatch(loginSuccess({ user }));
+      dispatch(loginSuccess({ user, token }));
 
       if (user.role === "employer") {
         navigate("/employer/dashboard");
@@ -207,8 +209,8 @@ const Login = () => {
         role: loginType === "employer" ? "employer" : "user",
       });
 
-      const { user, requiresPasswordSetup } = response.data;
-      dispatch(loginSuccess({ user }));
+      const { user, requiresPasswordSetup, token } = response.data;
+      dispatch(loginSuccess({ user, token }));
 
       // Step 3: Route based on account status
       if (requiresPasswordSetup) {

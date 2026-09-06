@@ -1,7 +1,16 @@
 import { createSlice } from "@reduxjs/toolkit";
 
+const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem("careerconnect_user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 const initialState = {
-  user: null,
+  user: getStoredUser(),
   loading: false,
   isInitialized: false, // Tracks if initial /me check has occurred
   error: null,
@@ -22,6 +31,12 @@ const authSlice = createSlice({
       state.isInitialized = true;
       state.error = null;
       state.sessionExpired = false;
+      if (action.payload) {
+        localStorage.setItem("careerconnect_user", JSON.stringify(action.payload));
+      } else {
+        localStorage.removeItem("careerconnect_user");
+        localStorage.removeItem("careerconnect_token");
+      }
     },
 
     setLoading: (state, action) => {
@@ -38,6 +53,7 @@ const authSlice = createSlice({
           ...state.user,
           ...action.payload,
         };
+        localStorage.setItem("careerconnect_user", JSON.stringify(state.user));
       }
     },
 
@@ -62,6 +78,12 @@ const authSlice = createSlice({
       state.error = null;
       state.success = "Login successful";
       state.sessionExpired = false;
+      if (action.payload.user) {
+        localStorage.setItem("careerconnect_user", JSON.stringify(action.payload.user));
+      }
+      if (action.payload.token) {
+        localStorage.setItem("careerconnect_token", action.payload.token);
+      }
     },
 
     loginFailure: (state, action) => {
@@ -84,6 +106,12 @@ const authSlice = createSlice({
       state.isInitialized = true;
       state.error = null;
       state.success = "Account created successfully";
+      if (action.payload.user) {
+        localStorage.setItem("careerconnect_user", JSON.stringify(action.payload.user));
+      }
+      if (action.payload.token) {
+        localStorage.setItem("careerconnect_token", action.payload.token);
+      }
     },
 
     signupFailure: (state, action) => {
@@ -107,6 +135,8 @@ const authSlice = createSlice({
       state.isInitialized = true; // Still initialized — just not authenticated
       state.error = null;
       state.success = null;
+      localStorage.removeItem("careerconnect_user");
+      localStorage.removeItem("careerconnect_token");
       // Do not clear sessionExpired here — Login page reads it to show the message
     },
   },

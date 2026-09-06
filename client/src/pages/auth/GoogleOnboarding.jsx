@@ -228,15 +228,23 @@ const GoogleOnboarding = () => {
       const formPayload = new FormData();
       formPayload.append("resume", resumeFile);
 
-      // Try resume upload — non-fatal if endpoint doesn't exist yet
-      await api.post("/resume/upload", formPayload, {
+      const res = await api.post("/resume/upload", formPayload, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setResumeUploaded(true);
+      if (res.data?.resumeUrl) {
+        dispatch(
+          updateUserProfile({
+            resumeUrl: res.data.resumeUrl,
+            resumeName: res.data.resumeName,
+          })
+        );
+      }
     } catch (err) {
-      // If resume upload fails, we still let the user proceed
-      console.warn("[GoogleOnboarding] Resume upload failed:", err.message);
-      setResumeUploaded(true); // Mark as handled either way
+      console.error("[GoogleOnboarding] Resume upload failed:", err);
+      setSubmitError(
+        err.response?.data?.message || "Failed to upload resume. Please try again."
+      );
     } finally {
       setResumeUploading(false);
     }
