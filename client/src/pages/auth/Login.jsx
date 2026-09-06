@@ -189,7 +189,6 @@ const Login = () => {
 
   // ─── Google Sign-In ──────────────────────────────────────────────────────────
   const handleGoogleLogin = async () => {
-    if (loginType === "employer") return; // Google login is for candidates only
     setGoogleLoading(true);
     dispatch(clearMessages());
 
@@ -200,20 +199,29 @@ const Login = () => {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
 
-      // Step 2: Send ID token to backend
+      // Step 2: Send ID token to backend with role (employer or user/candidate)
       const response = await api.post("/auth/google-auth", {
         idToken,
         keepSignedIn,
         captchaToken,
+        role: loginType === "employer" ? "employer" : "user",
       });
 
       const { user, requiresPasswordSetup } = response.data;
       dispatch(loginSuccess({ user }));
 
-      // Step 3: Route based on whether password setup is needed
+      // Step 3: Route based on account status
       if (requiresPasswordSetup) {
+        // First-time Google user → set password first, then onboarding
         navigate("/set-password", { replace: true });
+      } else if (!user.phone?.trim()) {
+        // User already has password, but hasn't completed their info!
+        navigate(
+          user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile",
+          { replace: true }
+        );
       } else {
+        // Existing user with completed info → dashboard
         navigate(getDashboardPath(user.userType, user), { replace: true });
       }
     } catch (err) {
@@ -440,39 +448,37 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Google Login — candidates only */}
-          {loginType === "student" && (
-            <>
-              <div className="my-5 flex items-center gap-3">
-                <div className="flex-1 h-px bg-slate-200" />
-                <span className="text-xs text-slate-400 font-medium">OR</span>
-                <div className="flex-1 h-px bg-slate-200" />
-              </div>
+          {/* Google Login — available for both Candidates & Employers */}
+          <>
+            <div className="my-5 flex items-center gap-3">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-xs text-slate-400 font-medium">OR</span>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
 
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                disabled={loading || googleLoading}
-                className="w-full h-11 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold transition flex items-center justify-center gap-3 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-60 shadow-sm"
-              >
-                {googleLoading ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-                    Connecting to Google...
-                  </>
-                ) : (
-                  <>
-                    <GoogleIcon />
-                    Continue with Google
-                  </>
-                )}
-              </button>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading || googleLoading}
+              className="w-full h-11 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold transition flex items-center justify-center gap-3 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-60 shadow-sm"
+            >
+              {googleLoading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                  Connecting to Google...
+                </>
+              ) : (
+                <>
+                  <GoogleIcon />
+                  Continue with Google
+                </>
+              )}
+            </button>
 
-              <p className="mt-2 text-center text-[11px] text-slate-400">
-                New to CareerConnect? Google sign-in creates your account automatically.
-              </p>
-            </>
-          )}
+            <p className="mt-2 text-center text-[11px] text-slate-400">
+              New to CareerConnect? Google sign-in sets up your account automatically.
+            </p>
+          </>
 
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
             <p className="text-sm text-slate-500 mb-3">Don't have an account?</p>
