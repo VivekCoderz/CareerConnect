@@ -77,6 +77,8 @@ const userPayload = (user, extra = {}) => ({
   isActive: user.isActive,
   hasPassword: user.hasPassword,
   authProviders: user.authProviders || [],
+  resumeUrl: user.resumeUrl || "",
+  resumeName: user.resumeName || "",
   ...extra,
 });
 

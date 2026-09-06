@@ -1,9 +1,28 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
+import { getDashboardPath } from "../utils/dashboardRedirect";
+import { logout } from "../redux/features/authSlice";
+import { logoutUser } from "../services/authService";
 
 const Home = () => {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // Ignore
+    }
+    dispatch(logout());
+    navigate("/home", { replace: true });
+  };
+
+  const dashboardUrl = user ? getDashboardPath(user.userType, user) : "/home";
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
@@ -50,24 +69,61 @@ const Home = () => {
 
             {/* Auth */}
             <div className="flex items-center gap-2 sm:gap-3">
-              <Link
-                to="/login"
-                className="hidden sm:inline-flex text-[13px] font-semibold text-slate-600 hover:text-[#1e3a8a] transition px-2"
-              >
-                Login
-              </Link>
-              <Link
-                to="/register/student"
-                className="inline-flex items-center h-9 px-4 rounded-lg bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-[13px] font-semibold transition"
-              >
-                Student Register
-              </Link>
-              <Link
-                to="/register/employer"
-                className="hidden md:inline-flex items-center h-9 px-4 rounded-lg border-2 border-[#f59e0b] text-[#b45309] hover:bg-[#fffbeb] text-[13px] font-semibold transition"
-              >
-                Employer Register
-              </Link>
+              {user ? (
+                <>
+                  <div className="hidden sm:flex items-center gap-2 pr-1">
+                    <div className="w-8 h-8 rounded-full bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-xs uppercase shadow-sm">
+                      {user.fullName?.charAt(0) || "U"}
+                    </div>
+                    <div className="text-left leading-none">
+                      <p className="text-xs font-semibold text-slate-800">
+                        {user.fullName || "User"}
+                      </p>
+                      <span className="text-[10px] text-slate-400 font-medium capitalize">
+                        {user.role === "employer" ? "Employer" : (user.userType || "Student")}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Link
+                    to={dashboardUrl}
+                    className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-[13px] font-semibold transition shadow-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                    Dashboard
+                  </Link>
+
+                  <button
+                    onClick={handleLogout}
+                    className="hidden md:inline-flex items-center h-9 px-3 rounded-lg border border-slate-200 text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 text-[12px] font-semibold transition"
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="hidden sm:inline-flex text-[13px] font-semibold text-slate-600 hover:text-[#1e3a8a] transition px-2"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    to="/register/student"
+                    className="inline-flex items-center h-9 px-4 rounded-lg bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-[13px] font-semibold transition"
+                  >
+                    Student Register
+                  </Link>
+                  <Link
+                    to="/register/employer"
+                    className="hidden md:inline-flex items-center h-9 px-4 rounded-lg border-2 border-[#f59e0b] text-[#b45309] hover:bg-[#fffbeb] text-[13px] font-semibold transition"
+                  >
+                    Employer Register
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -124,7 +180,7 @@ const Home = () => {
                     <Link
                       key={tag}
                       to={`/opportunities?type=${tag.toLowerCase()}`}
-                      className="px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-semibold text-slate-600 hover:border-[#1e3a8a] hover:text-[#1e3a8a] transition"
+                      className="px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-semibold text-slate-600 hover:border-[#1e3a8a] hover:text-[#1e40af] transition"
                     >
                       {tag}
                     </Link>
@@ -134,18 +190,40 @@ const Home = () => {
 
               {/* Dual CTA */}
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Link
-                  to="/register/student"
-                  className="inline-flex items-center justify-center h-12 px-7 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-semibold transition shadow-lg shadow-blue-900/20"
-                >
-                  I’m a Student / Fresher
-                </Link>
-                <Link
-                  to="/register/employer"
-                  className="inline-flex items-center justify-center h-12 px-7 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-sm font-semibold transition shadow-lg shadow-amber-500/25"
-                >
-                  I’m an Employer / Recruiter
-                </Link>
+                {user ? (
+                  <>
+                    <Link
+                      to={dashboardUrl}
+                      className="inline-flex items-center justify-center gap-2 h-12 px-7 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-bold transition shadow-lg shadow-blue-900/20"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                      </svg>
+                      Go to My Dashboard →
+                    </Link>
+                    <Link
+                      to="/opportunities"
+                      className="inline-flex items-center justify-center h-12 px-7 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold transition shadow-sm"
+                    >
+                      Browse Opportunities
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to="/register/student"
+                      className="inline-flex items-center justify-center h-12 px-7 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-semibold transition shadow-lg shadow-blue-900/20"
+                    >
+                      I’m a Student / Fresher
+                    </Link>
+                    <Link
+                      to="/register/employer"
+                      className="inline-flex items-center justify-center h-12 px-7 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-sm font-semibold transition shadow-lg shadow-amber-500/25"
+                    >
+                      I’m an Employer / Recruiter
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
 

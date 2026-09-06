@@ -51,6 +51,26 @@ import ResumeBuilder from "./pages/resume/ResumeBuilder";
 // Redux
 import { getCurrentUser } from "./services/authService";
 import { setUser, setInitialized } from "./redux/features/authSlice";
+import { getDashboardPath } from "./utils/dashboardRedirect";
+
+// ─── Route Guards for Public Pages ──────────────────────────────────────────
+const RootRoute = () => {
+  const { user, isInitialized } = useSelector((state) => state.auth);
+  if (!isInitialized) return null;
+  if (user && user.hasPassword !== false && user.phone?.trim()) {
+    return <Navigate to={getDashboardPath(user.userType, user)} replace />;
+  }
+  return <Navigate to="/home" replace />;
+};
+
+const PublicOnlyRoute = ({ children }) => {
+  const { user, isInitialized } = useSelector((state) => state.auth);
+  if (!isInitialized) return null;
+  if (user && user.hasPassword !== false && user.phone?.trim()) {
+    return <Navigate to={getDashboardPath(user.userType, user)} replace />;
+  }
+  return children;
+};
 
 // =====================================================
 // AUTH INITIALIZER
@@ -112,6 +132,35 @@ function App() {
     <BrowserRouter>
       <AuthInitializer>
         <Routes>
+          {/* ========== PUBLIC ========== */}
+          <Route
+            path="/login"
+            element={
+              <PublicOnlyRoute>
+                <Login />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route
+            path="/register/student"
+            element={
+              <PublicOnlyRoute>
+                <Signup />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route
+            path="/register/employer"
+            element={
+              <PublicOnlyRoute>
+                <EmployerRegister />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/select-role" element={<SelectRole />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/companies/:companyId" element={<CompanyPublicProfile />} />
 
           {/* =================================================
               PUBLIC ROUTES
@@ -392,6 +441,9 @@ function App() {
             }
           />
 
+          {/* ========== DEFAULT ========== */}
+          <Route path="/" element={<RootRoute />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </AuthInitializer>
       

@@ -98,6 +98,18 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
+    resumeUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    resumeName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     // ==========================================
     // SOCIAL LINKS
     // ==========================================
