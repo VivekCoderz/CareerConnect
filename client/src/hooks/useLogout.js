@@ -40,8 +40,8 @@ const useLogout = () => {
     // 3. Clear Redux auth state
     dispatch(logout());
 
-    // 4. Navigate to login
-    navigate("/login", { replace: true });
+    // 4. Navigate to public Home landing page
+    navigate("/", { replace: true });
   };
 
   return performLogout;

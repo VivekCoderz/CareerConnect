@@ -7,6 +7,9 @@ import EmployeeCoursesPage from "./pages/courses/EmployeeCoursesPage";
 import CreateCoursePage from "./pages/courses/CreateCoursePage";
 import EditCoursePage from "./pages/courses/EditCoursePage";
 import CourseContentPage from "./pages/courses/CourseContentPage";
+import StudentCoursesPage from "./pages/courses/StudentCoursesPage";
+import StudentMyCoursesPage from "./pages/courses/StudentMyCoursesPage";
+import CourseDetailsPage from "./pages/courses/CourseDetailsPage";
 
 // Auth
 import Login from "./pages/auth/Login";
@@ -212,6 +215,9 @@ function App() {
           >
             <Route path="/internships/:id" element={<InternshipDetail />} />
             <Route path="/applications" element={<MyApplications />} />
+            <Route path="/courses" element={<StudentCoursesPage />} />
+            <Route path="/courses/:id" element={<CourseDetailsPage />} />
+            <Route path="/my-courses" element={<StudentMyCoursesPage />} />
           </Route>
 
           {/* =================================================
@@ -240,6 +246,7 @@ function App() {
           >
             <Route path="/fresher/dashboard" element={<FresherDashboard />} />
             <Route path="/fresher/profile" element={<FresherProfile />} />
+            <Route path="/fresher/profile/setup" element={<FresherProfile />} />
           </Route>
 
           {/* =================================================
@@ -286,8 +293,8 @@ function App() {
           <Route path="/resume-builder" element={<ResumeBuilder />} />
 
           {/* ========== DEFAULT ========== */}
-          <Route path="/" element={<RootRoute />} />
-          <Route path="*" element={<Navigate to="/home" replace />} />
+          <Route path="/" element={<Home />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthInitializer>
     </BrowserRouter>

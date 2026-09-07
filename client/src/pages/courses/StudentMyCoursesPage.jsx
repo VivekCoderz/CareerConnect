@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { getDashboardPath } from "../../utils/dashboardRedirect";
 import {
   BookOpen,
   CheckCircle2,
@@ -20,6 +23,7 @@ import ContentCard from "../../components/courses/ContentCard";
  * Page displaying student's active enrolled courses and progress viewer.
  */
 const StudentMyCoursesPage = () => {
+  const { user } = useSelector((state) => state.auth);
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -112,7 +116,23 @@ const StudentMyCoursesPage = () => {
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
+        {/* Back navigation & Header */}
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            to="/courses"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+          >
+            <ArrowLeft size={14} /> Back to Catalog
+          </Link>
+
+          <Link
+            to={getDashboardPath(user?.userType || "student", user)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-[#1e3a8a] hover:bg-blue-100 transition shadow-2xs"
+          >
+            Dashboard →
+          </Link>
+        </div>
+
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
