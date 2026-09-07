@@ -5,22 +5,48 @@ const authControllers = require("../controllers/authController.js");
 const authMiddleware = require("../middleware/authMiddleware");
 const verifyCaptcha = require("../middleware/captchaMiddleware");
 const { authLimiter, otpLimiter, resetLimiter } = require("../middleware/rateLimitMiddleware");
-const { sanitizeInputs } = require("../middleware/validationMiddleware");
+const { sanitizeInputs, validateEmailMiddleware } = require("../middleware/validationMiddleware");
 
 // ==========================================
 // PUBLIC — Email / Password (legacy + bcrypt)
 // ==========================================
-router.post("/register", authLimiter, sanitizeInputs, verifyCaptcha, authControllers.registerUser);
-router.post("/login", authLimiter, sanitizeInputs, verifyCaptcha, authControllers.loginUser);
+router.post(
+  "/register",
+  authLimiter,
+  sanitizeInputs,
+  validateEmailMiddleware,
+  verifyCaptcha,
+  authControllers.registerUser
+);
+
+router.post(
+  "/login",
+  authLimiter,
+  sanitizeInputs,
+  verifyCaptcha,
+  authControllers.loginUser
+);
 
 // ==========================================
 // PUBLIC — Firebase Authentication
 // ==========================================
 // Called after signInWithEmailAndPassword / signInWithPopup on the frontend
-router.post("/firebase-login", authLimiter, sanitizeInputs, verifyCaptcha, authControllers.firebaseLogin);
+router.post(
+  "/firebase-login",
+  authLimiter,
+  sanitizeInputs,
+  verifyCaptcha,
+  authControllers.firebaseLogin
+);
 
 // Called after signInWithPopup(auth, googleProvider) — first-time or returning Google sign-ins
-router.post("/google-auth", authLimiter, sanitizeInputs, verifyCaptcha, authControllers.googleAuth);
+router.post(
+  "/google-auth",
+  authLimiter,
+  sanitizeInputs,
+  verifyCaptcha,
+  authControllers.googleAuth
+);
 
 // ==========================================
 // PROTECTED — Password Setup (Google users only)
@@ -68,26 +94,64 @@ router.get("/me", authMiddleware, authControllers.getMe);
 router.patch(
   "/update-experience-level",
   authMiddleware,
-  authControllers.updateExperienceLevel,
+  authControllers.updateExperienceLevel
 );
 
 // ==========================================
 // PUBLIC — Email checks & OTP
 // ==========================================
-router.post("/check-email", sanitizeInputs, authControllers.checkEmail);
-router.post("/send-otp", otpLimiter, sanitizeInputs, authControllers.sendOTP);
+router.post(
+  "/check-email",
+  sanitizeInputs,
+  validateEmailMiddleware,
+  authControllers.checkEmail
+);
+
+router.post(
+  "/send-otp",
+  otpLimiter,
+  sanitizeInputs,
+  validateEmailMiddleware,
+  authControllers.sendOTP
+);
+
 router.post("/verify-otp", sanitizeInputs, authControllers.verifyOTP);
 
 // ==========================================
 // PUBLIC — Forgot / Reset Password
 // ==========================================
-router.post("/forgot-password", otpLimiter, sanitizeInputs, verifyCaptcha, authControllers.forgotPassword);
-router.post("/verify-reset-otp", resetLimiter, sanitizeInputs, authControllers.verifyResetOTP);
-router.post("/reset-password", resetLimiter, sanitizeInputs, authControllers.resetPassword);
+router.post(
+  "/forgot-password",
+  otpLimiter,
+  sanitizeInputs,
+  verifyCaptcha,
+  authControllers.forgotPassword
+);
+
+router.post(
+  "/verify-reset-otp",
+  resetLimiter,
+  sanitizeInputs,
+  authControllers.verifyResetOTP
+);
+
+router.post(
+  "/reset-password",
+  resetLimiter,
+  sanitizeInputs,
+  authControllers.resetPassword
+);
 
 // ==========================================
 // PUBLIC — Employer Registration
 // ==========================================
-router.post("/register-employer", authLimiter, sanitizeInputs, verifyCaptcha, authControllers.registerEmployer);
+router.post(
+  "/register-employer",
+  authLimiter,
+  sanitizeInputs,
+  validateEmailMiddleware,
+  verifyCaptcha,
+  authControllers.registerEmployer
+);
 
 module.exports = router;

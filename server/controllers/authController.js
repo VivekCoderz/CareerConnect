@@ -8,6 +8,7 @@ const PendingOTP = require("../models/PendingOTP.js");
 const sendEmail = require("../utils/sendEmail.js");
 const EmployerProfile = require("../models/EmployerProfile.js");
 const getFirebaseAdmin = require("../config/firebaseAdmin.js");
+const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
 
 // ==========================================
 // HELPERS
@@ -96,7 +97,18 @@ module.exports.sendOTP = async (req, res, next) => {
       });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    // Comprehensive Email & Disposable Domain Protection
+    const validationResult = await validateEmail(email);
+    if (!validationResult.isValid) {
+      return res.status(400).json({
+        success: false,
+        field: "email",
+        code: validationResult.isDisposable ? "DISPOSABLE_EMAIL_REJECTED" : "INVALID_EMAIL_DOMAIN",
+        message: validationResult.reason || "Invalid email address or temporary domain.",
+      });
+    }
+
+    const normalizedEmail = validationResult.normalizedEmail || email.trim().toLowerCase();
 
     // Already registered?
     const existing = await User.findOne({ email: normalizedEmail });
