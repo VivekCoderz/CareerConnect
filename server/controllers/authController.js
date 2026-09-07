@@ -1,5 +1,7 @@
 const User = require("../models/User.js");
 const StudentProfile = require("../models/StudentProfile.js");
+const FresherProfile = require("../models/FresherProfile.js");
+const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP.js");
@@ -73,8 +75,10 @@ const userPayload = (user, extra = {}) => ({
   isProfileComplete: user.isProfileComplete || false,
   socialLinks: user.socialLinks,
   isActive: user.isActive,
-  hasPassword: user.hasPassword,
+  hasPassword: Boolean(user.hasPassword && (user.password !== undefined ? !!user.password : true)),
   authProviders: user.authProviders || [],
+  resumeUrl: user.resumeUrl || "",
+  resumeName: user.resumeName || "",
   ...extra,
 });
 
@@ -365,6 +369,15 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
+    // Verify OTP first (manual email registration requires verified OTP)
+    const otpRecord = await PendingOTP.findOne({ email: normalizedEmail });
+    if (!otpRecord || !otpRecord.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Please verify your email with OTP first",
+      });
+    }
+
     // -------------------- Prepare user data --------------------
     const userData = {
       fullName: fullName.trim(),
@@ -374,6 +387,7 @@ module.exports.registerUser = async (req, res, next) => {
       userType,
       authProviders: ["email"],
       hasPassword: true,
+      isEmailVerified: true,
       socialLinks: {
         linkedin: linkedin?.trim() || "",
         github: github?.trim() || "",
@@ -435,6 +449,9 @@ module.exports.registerUser = async (req, res, next) => {
       }
     }
 
+    // Cleanup OTP after successful registration
+    await PendingOTP.deleteOne({ email: normalizedEmail });
+
     // Initialize Redis Session
     if (req.session) {
       try {
@@ -490,21 +507,29 @@ module.exports.loginUser = async (req, res, next) => {
       });
     }
 
-    // Firebase users (Google-only) with no MongoDB password should use /firebase-login
-    if (!user.password) {
-      return res.status(401).json({
+    if (user.isActive === false) {
+      return res.status(403).json({
         success: false,
-        message:
-          "This account uses Google sign-in. Please use 'Continue with Google' to sign in.",
+        message: "Your account has been suspended due to excessive requests or suspicious activity. Please contact support.",
       });
     }
 
-    const isMatch = await user.comparePassword(password);
-
-    if (!isMatch) {
+    // If user has a password set in MongoDB, verify it
+    if (user.password) {
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid password",
+        });
+      }
+    } else {
+      // Account created via Google sign-in without a set password yet
       return res.status(401).json({
         success: false,
-        message: "Invalid password",
+        code: "PASSWORD_NOT_SET",
+        message:
+          "No password has been set for this account yet. Please sign in with 'Continue with Google' to set your password, or use 'Forgot Password'.",
       });
     }
 
@@ -547,7 +572,7 @@ module.exports.loginUser = async (req, res, next) => {
 // ==========================================
 module.exports.firebaseLogin = async (req, res, next) => {
   try {
-    const { idToken, keepSignedIn = false } = req.body;
+    const { idToken, password, keepSignedIn = false } = req.body;
 
     if (!idToken) {
       return res.status(400).json({
@@ -580,7 +605,7 @@ module.exports.firebaseLogin = async (req, res, next) => {
     // Find MongoDB user by Firebase UID first, then by email (for linking)
     let user = await User.findOne({
       $or: [{ firebaseUid: uid }, { email: email?.toLowerCase() }],
-    });
+    }).select("+password");
 
     if (!user) {
       return res.status(404).json({
@@ -590,17 +615,29 @@ module.exports.firebaseLogin = async (req, res, next) => {
       });
     }
 
-    // Link Firebase UID if this is a legacy user logging in via Firebase for the first time
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been suspended due to excessive requests or suspicious activity. Please contact support.",
+      });
+    }
+
+    // Link Firebase UID if this is a user logging in via Firebase for the first time
     if (!user.firebaseUid) {
       user.firebaseUid = uid;
-      if (!user.authProviders.includes("email")) {
-        user.authProviders.push("email");
-      }
+    }
+    if (!user.authProviders.includes("email")) {
+      user.authProviders.push("email");
+    }
+
+    // If password provided and user has no MongoDB password, sync it now
+    if (password && !user.password) {
+      user.password = password;
       user.hasPassword = true;
     }
 
     user.lastLogin = new Date();
-    await user.save({ validateBeforeSave: false });
+    await user.save();
 
     const token = generateToken(user._id, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
@@ -625,7 +662,7 @@ module.exports.firebaseLogin = async (req, res, next) => {
 // ==========================================
 module.exports.googleAuth = async (req, res, next) => {
   try {
-    const { idToken, keepSignedIn = false } = req.body;
+    const { idToken, keepSignedIn = false, role = "user" } = req.body;
 
     if (!idToken) {
       return res.status(400).json({
@@ -666,14 +703,20 @@ module.exports.googleAuth = async (req, res, next) => {
     // Find existing user by Firebase UID or email
     let user = await User.findOne({
       $or: [{ firebaseUid: uid }, { email: normalizedEmail }],
-    });
+    }).select("+password");
 
     let isNewUser = false;
 
     if (user) {
       // --- Existing user ---
+      if (user.isActive === false) {
+        return res.status(403).json({
+          success: false,
+          message: "Your account has been suspended due to excessive requests or suspicious activity. Please contact support.",
+        });
+      }
+
       if (user.firebaseUid && user.firebaseUid !== uid) {
-        // Safety check: email matched but different Firebase UID (should be rare)
         return res.status(409).json({
           success: false,
           message:
@@ -691,6 +734,11 @@ module.exports.googleAuth = async (req, res, next) => {
         user.authProviders.push("google");
       }
 
+      // If user has no MongoDB password, ensure hasPassword is false
+      if (!user.password && user.hasPassword) {
+        user.hasPassword = false;
+      }
+
       // Update profile image from Google if not set
       if (!user.profileImage && picture) {
         user.profileImage = picture;
@@ -699,6 +747,9 @@ module.exports.googleAuth = async (req, res, next) => {
       // --- New user: create MongoDB record ---
       isNewUser = true;
       const username = await generateUniqueUsername(normalizedEmail);
+
+      // Determine role/userType from request (employer vs candidate)
+      const isEmployer = role === "employer";
 
       user = new User({
         fullName: name || normalizedEmail.split("@")[0],
@@ -709,8 +760,8 @@ module.exports.googleAuth = async (req, res, next) => {
         isEmailVerified: true, // Google email is always verified
         profileImage: picture || "",
         username,
-        role: "user",
-        userType: "student", // default; will be changed in /select-role
+        role: isEmployer ? "employer" : "user",
+        userType: isEmployer ? "employer" : "student", // employer stays employer; candidate will pick in /select-role
         phone: "",
       });
 
@@ -720,10 +771,13 @@ module.exports.googleAuth = async (req, res, next) => {
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
-    const requiresPasswordSetup = !user.hasPassword;
+    const requiresPasswordSetup = !user.hasPassword || !user.password;
+    if (requiresPasswordSetup && user.hasPassword) {
+      user.hasPassword = false;
+      await user.save({ validateBeforeSave: false });
+    }
 
     // For users who still need to set a password, issue a short-lived token
-    // regardless of keepSignedIn. Full duration is granted after password setup.
     const effectiveKeepSignedIn = requiresPasswordSetup ? false : keepSignedIn;
     const token = generateToken(user._id, effectiveKeepSignedIn);
     setTokenCookie(res, token, effectiveKeepSignedIn);
@@ -745,21 +799,26 @@ module.exports.googleAuth = async (req, res, next) => {
 
 // ==========================================
 // COMPLETE PASSWORD SETUP
-// Called after linkWithCredential(firebaseUser, EmailAuthProvider.credential(...))
-// on the frontend. Verifies that Firebase now has the "password" provider linked,
-// then updates MongoDB to set hasPassword=true.
-//
-// This is the ONLY way a password gets "stored" — in Firebase, not MongoDB.
-// MongoDB only tracks the boolean flag.
+// Called after user enters password on /set-password.
+// Updates password in Firebase via Firebase Admin SDK,
+// hashes and stores password in MongoDB (user.password),
+// sets hasPassword=true, and issues full CareerConnect JWT.
 // ==========================================
 module.exports.completePasswordSetup = async (req, res, next) => {
   try {
-    const { idToken, keepSignedIn = false } = req.body;
+    const { idToken, password, keepSignedIn = false } = req.body;
 
     if (!idToken) {
       return res.status(400).json({
         success: false,
         message: "Firebase ID token is required",
+      });
+    }
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
       });
     }
 
@@ -782,40 +841,23 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       });
     }
 
-    const { uid } = decoded;
+    const { uid, email } = decoded;
 
-    // Double-check: verify the Firebase user now has "password" provider linked
-    let firebaseRecord;
+    // Update Firebase user password directly via Firebase Admin SDK
     try {
-      firebaseRecord = await admin.auth().getUser(uid);
-    } catch (err) {
-      return res.status(400).json({
-        success: false,
-        message: "Could not verify Firebase user record.",
-      });
+      await admin.auth().updateUser(uid, { password });
+    } catch (fbErr) {
+      console.warn("[completePasswordSetup] Firebase admin updateUser warning:", fbErr.message);
     }
 
-    const hasPasswordProvider = firebaseRecord.providerData.some(
-      (p) => p.providerId === "password"
-    );
-
-    if (!hasPasswordProvider) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Password has not been linked to your Firebase account. Please try setting the password again.",
-      });
-    }
-
-    // Update MongoDB: mark hasPassword=true, add "email" to authProviders
-    const user = await User.findOneAndUpdate(
-      { firebaseUid: uid },
-      {
-        hasPassword: true,
-        $addToSet: { authProviders: "email" },
-      },
-      { new: true }
-    );
+    // Find MongoDB user by firebaseUid, email, or authenticated session user
+    let user = await User.findOne({
+      $or: [
+        { firebaseUid: uid },
+        { email: email?.toLowerCase() },
+        ...(req.user?._id ? [{ _id: req.user._id }] : []),
+      ],
+    }).select("+password");
 
     if (!user) {
       return res.status(404).json({
@@ -823,6 +865,21 @@ module.exports.completePasswordSetup = async (req, res, next) => {
         message: "CareerConnect account not found. Please sign in again.",
       });
     }
+
+    // Save hashed password in MongoDB and update flags
+    user.password = password; // pre-save hook will hash with bcrypt
+    user.hasPassword = true;
+    if (!user.authProviders.includes("email")) {
+      user.authProviders.push("email");
+    }
+    if (!user.authProviders.includes("google")) {
+      user.authProviders.push("google");
+    }
+    if (!user.firebaseUid) {
+      user.firebaseUid = uid;
+    }
+
+    await user.save();
 
     // Issue full-duration JWT now that setup is complete
     const token = generateToken(user._id, keepSignedIn);
@@ -969,15 +1026,6 @@ module.exports.forgotPassword = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: "No account found with this email",
-      });
-    }
-
-    // Firebase users who haven't set a MongoDB password need to use Firebase password reset
-    if (user.firebaseUid && !user.password) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "This account uses Google sign-in. Please use 'Continue with Google' or reset your password via Google.",
       });
     }
 
@@ -1136,6 +1184,16 @@ module.exports.resetPassword = async (req, res, next) => {
       user.authProviders.push("email");
     }
     await user.save();
+
+    // Also sync updated password to Firebase if user is linked
+    const admin = getFirebaseAdmin();
+    if (admin && user.firebaseUid) {
+      try {
+        await admin.auth().updateUser(user.firebaseUid, { password });
+      } catch (fbErr) {
+        console.warn("[resetPassword] Firebase admin updateUser warning:", fbErr.message);
+      }
+    }
 
     // Cleanup OTP
     await PendingOTP.deleteOne({ email: normalizedEmail });
@@ -1356,6 +1414,293 @@ module.exports.registerEmployer = async (req, res, next) => {
         hasPassword: true,
         authProviders: ["email"],
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// COMPLETE GOOGLE ONBOARDING
+// Called after Google user has set password and selected a role.
+// Saves phone, role-specific details, and (optionally) a resume URL.
+// Protected — requires valid JWT cookie.
+// ==========================================
+module.exports.completeGoogleOnboarding = async (req, res, next) => {
+  try {
+    const {
+      phone,
+      linkedin,
+      github,
+      userType,
+
+      // Student fields
+      college,
+      course,
+      year,
+      graduationYear,
+
+      // Fresher fields
+      highestQualification,
+      passoutYear,
+      skills,
+
+      // Professional fields
+      currentCompany,
+      jobTitle,
+      experienceYears,
+      industry,
+
+      // Optional resume
+      resumeUrl,
+    } = req.body;
+
+    const userId = req.user.id;
+
+    // -------- Basic Validation --------
+    if (!phone?.trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "phone",
+        message: "Phone number is required",
+      });
+    }
+
+    const phoneDigits = phone.replace(/\D/g, "").slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phoneDigits)) {
+      return res.status(400).json({
+        success: false,
+        field: "phone",
+        message: "Please enter a valid 10-digit mobile number",
+      });
+    }
+
+    const allowedTypes = ["student", "fresher", "professional"];
+    if (!userType || !allowedTypes.includes(userType)) {
+      return res.status(400).json({
+        success: false,
+        field: "userType",
+        message: "Invalid user type",
+      });
+    }
+
+    // -------- Role-specific Validation --------
+    if (userType === "student") {
+      if (!college?.trim() || !course?.trim() || !year || !graduationYear) {
+        return res.status(400).json({
+          success: false,
+          message: "College, course, year and graduation year are required for students",
+        });
+      }
+    } else if (userType === "fresher") {
+      if (!highestQualification?.trim() || !passoutYear) {
+        return res.status(400).json({
+          success: false,
+          message: "Highest qualification and passout year are required",
+        });
+      }
+    } else if (userType === "professional") {
+      if (!currentCompany?.trim() || !jobTitle?.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Current company and job title are required",
+        });
+      }
+    }
+
+    // -------- Update User document --------
+    const updateData = {
+      phone: phone.trim(),
+      userType,
+      socialLinks: {
+        linkedin: linkedin?.trim() || "",
+        github: github?.trim() || "",
+      },
+      profileCompletion: 50,
+    };
+
+    const user = await User.findByIdAndUpdate(userId, updateData, { new: true });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // -------- Create role-specific profile --------
+    try {
+      if (userType === "student") {
+        // Check if profile already exists (idempotent)
+        const existing = await StudentProfile.findOne({ userId });
+        if (!existing) {
+          await StudentProfile.create({
+            userId,
+            education: [
+              {
+                institution: college.trim(),
+                degree: course.trim(),
+                startYear: Number(graduationYear) - Number(year),
+                endYear: Number(graduationYear),
+                currentlyStudying: true,
+              },
+            ],
+          });
+        } else {
+          // Update education if blank
+          if (!existing.education?.length) {
+            existing.education = [
+              {
+                institution: college.trim(),
+                degree: course.trim(),
+                startYear: Number(graduationYear) - Number(year),
+                endYear: Number(graduationYear),
+                currentlyStudying: true,
+              },
+            ];
+            await existing.save();
+          }
+        }
+      } else if (userType === "fresher") {
+        const existing = await FresherProfile.findOne({ userId });
+        if (!existing) {
+          await FresherProfile.create({
+            userId,
+            // Use the education sub-schema
+            education: [
+              {
+                degree: highestQualification.trim(),
+                institution: "Not specified",
+                graduationYear: Number(passoutYear),
+                isHighest: true,
+              },
+            ],
+          });
+        }
+      } else if (userType === "professional") {
+        const existing = await ProfessionalProfile.findOne({ userId });
+        if (!existing) {
+          await ProfessionalProfile.create({
+            userId,
+            currentEmployment: {
+              company: currentCompany.trim(),
+              jobTitle: jobTitle.trim(),
+              industry: industry?.trim() || "Information Technology",
+            },
+          });
+        }
+      }
+    } catch (profileErr) {
+      // Profile creation failure is non-fatal — user can complete later
+      console.error("[GoogleOnboarding] Profile creation error:", profileErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile setup complete",
+      user: userPayload(user),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// COMPLETE EMPLOYER GOOGLE ONBOARDING
+// Called after employer Google user has set password.
+// Collects company info and creates EmployerProfile.
+// Protected — requires valid JWT cookie.
+// ==========================================
+module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
+  try {
+    const {
+      phone,
+      companyName,
+      contactPerson,
+      designation,
+      website,
+      companyType,
+      industry,
+      location,
+    } = req.body;
+
+    const userId = req.user.id;
+
+    // -------- Validation --------
+    if (!phone?.trim()) {
+      return res.status(400).json({ success: false, field: "phone", message: "Phone number is required" });
+    }
+    const phoneDigits = phone.replace(/\D/g, "").slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phoneDigits)) {
+      return res.status(400).json({ success: false, field: "phone", message: "Please enter a valid 10-digit mobile number" });
+    }
+    if (!companyName?.trim()) {
+      return res.status(400).json({ success: false, field: "companyName", message: "Company name is required" });
+    }
+    if (!contactPerson?.trim()) {
+      return res.status(400).json({ success: false, field: "contactPerson", message: "Contact person name is required" });
+    }
+    if (!designation?.trim()) {
+      return res.status(400).json({ success: false, field: "designation", message: "Designation is required" });
+    }
+    if (!industry?.trim()) {
+      return res.status(400).json({ success: false, field: "industry", message: "Industry is required" });
+    }
+    if (!location?.trim()) {
+      return res.status(400).json({ success: false, field: "location", message: "Location is required" });
+    }
+
+    // -------- Update User --------
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        phone: phone.trim(),
+        role: "employer",
+        userType: "employer",
+        profileCompletion: 40,
+      },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // -------- Create EmployerProfile (idempotent) --------
+    try {
+      const existing = await EmployerProfile.findOne({ userId });
+      if (!existing) {
+        await EmployerProfile.create({
+          userId,
+          companyName: companyName.trim(),
+          officialEmail: user.email,
+          mobile: phone.trim(),
+          website: website?.trim() || "",
+          companyType: companyType || "Private",
+          industry: industry.trim(),
+          headquarters: {
+            city: location.trim(),
+            state: "",
+            country: "India",
+          },
+          recruiter: {
+            name: contactPerson.trim(),
+            designation: designation.trim(),
+            email: user.email,
+            phone: phone.trim(),
+          },
+          currentStep: 1,
+          profileCompletion: 40,
+        });
+      }
+    } catch (profileErr) {
+      console.error("[EmployerGoogleOnboarding] Profile creation error:", profileErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Employer profile setup complete",
+      user: userPayload(user),
     });
   } catch (error) {
     next(error);

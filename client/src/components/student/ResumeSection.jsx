@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { updateStudentProfile } from "../../services/studentProfileService";
 
 const ResumeSection = ({
@@ -42,9 +43,17 @@ const ResumeSection = ({
 
   return (
     <section className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-5">
-      <div className="pb-4 border-b border-slate-100">
-        <h2 className="text-lg font-bold text-slate-900">Resume & CV Links</h2>
-        <p className="text-xs text-slate-500 mt-0.5">Attach your hosted resume link (Google Drive, LinkedIn, or Cloud Storage)</p>
+      <div className="pb-4 border-b border-slate-100 flex justify-between items-center flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Resume & CV Links</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Attach your hosted resume link or build a new ATS resume</p>
+        </div>
+        <Link
+          to="/resume-builder?mode=choose"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition inline-flex items-center gap-1.5"
+        >
+          <span>+</span> Build a New Resume
+        </Link>
       </div>
 
       {resume?.resumeUrl ? (
@@ -61,14 +70,22 @@ const ResumeSection = ({
             </div>
           </div>
 
-          <a
-            href={resume.resumeUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition self-start sm:self-center"
-          >
-            View Live Resume ↗
-          </a>
+          <div className="flex items-center gap-2">
+            <a
+              href={resume.resumeUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition self-start sm:self-center"
+            >
+              View Live Resume ↗
+            </a>
+            <Link
+              to="/resume-builder?mode=choose"
+              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-xl transition self-start sm:self-center"
+            >
+              + Build New
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center">

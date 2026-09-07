@@ -80,6 +80,15 @@ const protect = async (req, res, next) => {
       });
     }
 
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        code: "ACCOUNT_SUSPENDED",
+        message:
+          "Your account has been suspended due to excessive requests or suspicious activity. Please contact support.",
+      });
+    }
+
     req.user = user;
 
     // Automatically seed Redis session if not yet active

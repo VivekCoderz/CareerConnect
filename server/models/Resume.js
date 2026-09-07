@@ -7,6 +7,11 @@ const resumeSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    title: {
+      type: String,
+      default: "My Resume",
+      trim: true,
+    },
     rawData: {
       type: Object,
       required: true,
@@ -17,14 +22,25 @@ const resumeSchema = new mongoose.Schema(
     },
     selectedTemplate: {
       type: String,
-      enum: ["professional", "modern", "minimal"],
-      default: "professional",
+      default: "classic",
+    },
+    isPrimary: {
+      type: Boolean,
+      default: false,
+    },
+    resumeUrl: {
+      type: String,
+      default: "",
     },
   },
   { timestamps: true }
 );
 
-resumeSchema.index({ user: 1 }, { unique: true });
+resumeSchema.index({ user: 1, createdAt: -1 });
 
 const Resume = mongoose.model("Resume", resumeSchema);
+
+// Safely drop old unique user_1 index if it exists in MongoDB
+Resume.collection?.dropIndex("user_1").catch(() => {});
+
 module.exports = Resume;

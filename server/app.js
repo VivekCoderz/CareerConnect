@@ -8,7 +8,11 @@ const studentRoutes = require("./routes/studentRoutes.js");
 const fresherRoutes = require("./routes/fresherRoutes.js");
 const professionalRoutes = require("./routes/professionalRoutes.js");
 const employerRoutes = require("./routes/employerRoutes.js");
+
+// Courses related Routes
 const courseRoutes = require("./routes/courseRoutes.js");
+const courseContentRoutes = require("./routes/courseContentRoutes");
+
 
 // Employer & Jobs / Internships feature routes
 const jobRoutes = require("./routes/jobRoutes.js");
@@ -24,6 +28,12 @@ const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 
 const resumeRoutes = require("./routes/resumeRoutes.js");
 const sessionMiddleware = require("./config/session.js");
+const opportunityRoutes = require("./routes/opportunityRoutes.js");
+
+const {
+  ipBlockerMiddleware,
+  globalLimiter,
+} = require("./middleware/rateLimitMiddleware.js");
 
 const app = express();
 
@@ -64,6 +74,10 @@ app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(cookieParser());
 app.use(sessionMiddleware);
 
+// Anti-DDoS & IP Abuse Blocker — blocks repetitive excessive requests
+app.use(ipBlockerMiddleware);
+app.use("/api", globalLimiter);
+
 // Base & User Profile Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
@@ -75,6 +89,7 @@ app.use("/api/profile/professional", professionalRoutes);
 
 // Core LMS Course Routes
 app.use("/api/courses", courseRoutes);
+app.use("/api/course-content", courseContentRoutes);
 
 // Marketplace & Discovery Routes
 app.use("/api/jobs", jobRoutes);
@@ -90,10 +105,16 @@ app.use("/api/assessments", assessmentRoutes);
 app.use("/api/interviews", interviewRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/organization", organizationRoutes);
-app.use("/api/internships", internshipRoutes);
-app.use("/api/applications", applicationRoutes);
 app.use("/api/resume", resumeRoutes);
-app.use("/api", employerRoutes);
+app.use("/api/api/resume", resumeRoutes); // Safety alias
+app.use("/api/opportunities", opportunityRoutes);
+app.use("/api/feed", opportunityRoutes);
+app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
+
+// Gateway Health Check Endpoint
+app.get("/health", (req, res) => {
+  return res.status(200).json({ status: "active", node: "GU Gateway Matrix Engine" });
+});
 
 // Global error handling middleware
 app.use((err, req, res, next) => {

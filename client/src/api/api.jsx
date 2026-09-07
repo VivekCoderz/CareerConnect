@@ -7,6 +7,18 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// Request interceptor — attaches Bearer token from localStorage as fallback for cookies
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("careerconnect_token");
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 /**
  * Response interceptor — handles 401 Unauthorized globally.
  *
@@ -15,20 +27,27 @@ const api = axios.create({
  *   2. sessionExpired flag is set (shows friendly message on Login page)
  *   3. Browser is redirected to /login?expired=1
  *
- * Auth pages (/login, /register) are excluded to prevent redirect loops.
+ * Public and auth pages are excluded to prevent redirect loops.
  */
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const requestUrl = error.config?.url || "";
+      const isMeCheck = requestUrl.includes("/auth/me");
       const currentPath = window.location.pathname;
-      const isAuthPage =
+
+      const isPublicOrAuthPage =
+        currentPath === "/" ||
+        currentPath.startsWith("/home") ||
         currentPath.startsWith("/login") ||
         currentPath.startsWith("/register") ||
         currentPath.startsWith("/forgot-password") ||
-        currentPath.startsWith("/set-password");
+        currentPath.startsWith("/set-password") ||
+        currentPath.startsWith("/companies") ||
+        currentPath.startsWith("/opportunities");
 
-      if (!isAuthPage) {
+      if (!isMeCheck && !isPublicOrAuthPage) {
         // Clear auth state
         store.dispatch(logout());
         store.dispatch(setSessionExpired(true));

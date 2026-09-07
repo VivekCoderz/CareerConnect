@@ -1,9 +1,48 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
+import { getDashboardPath } from "../utils/dashboardRedirect";
+import { logout } from "../redux/features/authSlice";
+import { logoutUser } from "../services/authService";
+import opportunityService from "../services/opportunityService";
 
 const Home = () => {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
   const [searchQuery, setSearchQuery] = useState("");
+  const [featuredJobs, setFeaturedJobs] = useState([]);
+  const [featuredLoading, setFeaturedLoading] = useState(true);
+
+  useEffect(() => {
+    const loadFeatured = async () => {
+      try {
+        setFeaturedLoading(true);
+        const res = await opportunityService.getOpportunities();
+        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          setFeaturedJobs(res.data.slice(0, 6));
+        }
+      } catch (e) {
+        console.warn("Featured jobs load error:", e.message);
+      } finally {
+        setFeaturedLoading(false);
+      }
+    };
+    loadFeatured();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // Ignore
+    }
+    dispatch(logout());
+    navigate("/home", { replace: true });
+  };
+
+  const dashboardUrl = user ? getDashboardPath(user.userType, user) : "/home";
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
@@ -43,31 +82,72 @@ const Home = () => {
 
             {/* Nav */}
             <nav className="hidden lg:flex items-center gap-6 text-[13px] font-semibold text-slate-600">
-              <Link to="/internships/work-from-home" className="hover:text-[#1e3a8a] transition">Remote Jobs</Link>
-              <Link to="/internships/with-job-offer" className="hover:text-[#1e3a8a] transition">PPO Internships</Link>
-              <Link to="/internships" className="hover:text-[#1e3a8a] transition">Browse All</Link>
+              <Link to="/opportunities" className="text-[#1e3a8a] font-bold flex items-center gap-1.5 hover:text-[#1e40af] transition">
+                <span>Jobs & Opportunities</span>
+                <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-extrabold tracking-wider">160+ LIVE</span>
+              </Link>
+              <Link to="/opportunities?source=campus" className="hover:text-[#1e3a8a] transition">Campus Drives</Link>
+              <Link to="/opportunities?workMode=Remote" className="hover:text-[#1e3a8a] transition">Remote Jobs</Link>
+              <Link to="/internships" className="hover:text-[#1e3a8a] transition">Internships</Link>
             </nav>
 
             {/* Auth */}
             <div className="flex items-center gap-2 sm:gap-3">
-              <Link
-                to="/login"
-                className="hidden sm:inline-flex text-[13px] font-semibold text-slate-600 hover:text-[#1e3a8a] transition px-2"
-              >
-                Login
-              </Link>
-              <Link
-                to="/register/student"
-                className="inline-flex items-center h-9 px-4 rounded-lg bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-[13px] font-semibold transition"
-              >
-                Student Register
-              </Link>
-              <Link
-                to="/register/employer"
-                className="hidden md:inline-flex items-center h-9 px-4 rounded-lg border-2 border-[#f59e0b] text-[#b45309] hover:bg-[#fffbeb] text-[13px] font-semibold transition"
-              >
-                Employer Register
-              </Link>
+              {user ? (
+                <>
+                  <div className="hidden sm:flex items-center gap-2 pr-1">
+                    <div className="w-8 h-8 rounded-full bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-xs uppercase shadow-sm">
+                      {user.fullName?.charAt(0) || "U"}
+                    </div>
+                    <div className="text-left leading-none">
+                      <p className="text-xs font-semibold text-slate-800">
+                        {user.fullName || "User"}
+                      </p>
+                      <span className="text-[10px] text-slate-400 font-medium capitalize">
+                        {user.role === "employer" ? "Employer" : (user.userType || "Student")}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Link
+                    to={dashboardUrl}
+                    className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-[13px] font-semibold transition shadow-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                    Dashboard
+                  </Link>
+
+                  <button
+                    onClick={handleLogout}
+                    className="hidden md:inline-flex items-center h-9 px-3 rounded-lg border border-slate-200 text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 text-[12px] font-semibold transition"
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="hidden sm:inline-flex text-[13px] font-semibold text-slate-600 hover:text-[#1e3a8a] transition px-2"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    to="/register/student"
+                    className="inline-flex items-center h-9 px-4 rounded-lg bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-[13px] font-semibold transition"
+                  >
+                    Student Register
+                  </Link>
+                  <Link
+                    to="/register/employer"
+                    className="hidden md:inline-flex items-center h-9 px-4 rounded-lg border-2 border-[#f59e0b] text-[#b45309] hover:bg-[#fffbeb] text-[13px] font-semibold transition"
+                  >
+                    Employer Register
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -124,7 +204,7 @@ const Home = () => {
                     <Link
                       key={tag}
                       to={`/opportunities?type=${tag.toLowerCase()}`}
-                      className="px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-semibold text-slate-600 hover:border-[#1e3a8a] hover:text-[#1e3a8a] transition"
+                      className="px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-semibold text-slate-600 hover:border-[#1e3a8a] hover:text-[#1e40af] transition"
                     >
                       {tag}
                     </Link>
@@ -134,18 +214,40 @@ const Home = () => {
 
               {/* Dual CTA */}
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Link
-                  to="/register/student"
-                  className="inline-flex items-center justify-center h-12 px-7 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-semibold transition shadow-lg shadow-blue-900/20"
-                >
-                  I’m a Student / Fresher
-                </Link>
-                <Link
-                  to="/register/employer"
-                  className="inline-flex items-center justify-center h-12 px-7 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-sm font-semibold transition shadow-lg shadow-amber-500/25"
-                >
-                  I’m an Employer / Recruiter
-                </Link>
+                {user ? (
+                  <>
+                    <Link
+                      to={dashboardUrl}
+                      className="inline-flex items-center justify-center gap-2 h-12 px-7 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-bold transition shadow-lg shadow-blue-900/20"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                      </svg>
+                      Go to My Dashboard →
+                    </Link>
+                    <Link
+                      to="/opportunities"
+                      className="inline-flex items-center justify-center h-12 px-7 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold transition shadow-sm"
+                    >
+                      Browse Opportunities
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to="/register/student"
+                      className="inline-flex items-center justify-center h-12 px-7 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-semibold transition shadow-lg shadow-blue-900/20"
+                    >
+                      I’m a Student / Fresher
+                    </Link>
+                    <Link
+                      to="/register/employer"
+                      className="inline-flex items-center justify-center h-12 px-7 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-sm font-semibold transition shadow-lg shadow-amber-500/25"
+                    >
+                      I’m an Employer / Recruiter
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
 
@@ -153,13 +255,9 @@ const Home = () => {
             <div className="relative hidden lg:block">
               <div className="absolute -top-6 -right-4 w-72 h-72 bg-[#f59e0b]/10 rounded-full blur-3xl" />
               <div className="relative space-y-4">
-                {[
-                  { title: "Frontend Intern", company: "TechNova", tag: "Internship", pay: "₹15k/mo" },
-                  { title: "Software Engineer", company: "CloudWorks", tag: "Full-time", pay: "₹6–8 LPA" },
-                  { title: "UI/UX Design Intern", company: "DesignLab", tag: "Internship", pay: "₹12k/mo" },
-                ].map((job, i) => (
+                {(featuredJobs.length > 0 ? featuredJobs.slice(0, 3) : []).map((job, i) => (
                   <div
-                    key={job.title}
+                    key={job.id || job._id || job.title || i}
                     className={`bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5 ${
                       i === 1 ? "ml-8" : i === 2 ? "ml-4" : ""
                     }`}
@@ -167,15 +265,31 @@ const Home = () => {
                     <div className="flex items-start justify-between">
                       <div>
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#eff6ff] text-[#1e3a8a]">
-                          {job.tag}
+                          {job.opportunityType || job.type || "Live Opportunity"}
                         </span>
-                        <p className="mt-2 text-[15px] font-semibold text-slate-900">{job.title}</p>
+                        <p className="mt-2 text-[15px] font-semibold text-slate-900 line-clamp-1">{job.title}</p>
                         <p className="text-sm text-slate-500">{job.company}</p>
                       </div>
-                      <p className="text-sm font-bold text-[#1e3a8a]">{job.pay}</p>
+                      <p className="text-sm font-bold text-[#1e3a8a]">{job.salary || "Verified"}</p>
                     </div>
                   </div>
                 ))}
+                {featuredJobs.length === 0 && (
+                  <>
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-5 animate-pulse ${
+                          i === 2 ? "ml-8" : i === 3 ? "ml-4" : ""
+                        }`}
+                      >
+                        <div className="h-4 bg-slate-200 rounded w-24 mb-3" />
+                        <div className="h-5 bg-slate-200 rounded w-48 mb-2" />
+                        <div className="h-4 bg-slate-100 rounded w-32" />
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -244,46 +358,73 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-end justify-between mb-8">
             <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold mb-2">
+                <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                Live Multi-Source Scraper Feed
+              </div>
               <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
                 Featured opportunities
               </h2>
-              <p className="mt-1.5 text-slate-500 text-sm">Fresh openings from top companies</p>
+              <p className="mt-1.5 text-slate-500 text-sm">
+                Real-time active openings from LinkedIn, Internshala, Remotive & GU Campus Drives
+              </p>
             </div>
-            <Link to="/opportunities" className="hidden sm:inline text-sm font-semibold text-[#1e3a8a] hover:underline">
-              See all →
+            <Link to="/opportunities" className="inline-flex items-center gap-1 text-sm font-bold text-[#1e3a8a] hover:underline">
+              View all 160+ live →
             </Link>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              { title: "Frontend Developer Intern", company: "TechNova", loc: "Bangalore · Remote", type: "Internship", pay: "₹15,000/mo" },
-              { title: "Software Engineer (Fresher)", company: "CloudWorks", loc: "Hyderabad", type: "Full-time", pay: "₹6–8 LPA" },
-              { title: "UI/UX Design Intern", company: "DesignLab", loc: "M · Hybrid", type: "Internship", pay: "₹12,000/mo" },
-              { title: "Backend Developer", company: "DataPipe", loc: "Pune", type: "Full-time", pay: "₹8–12 LPA" },
-              { title: "Digital Marketing Intern", company: "Growthify", loc: "Delhi · Remote", type: "Internship", pay: "₹10,000/mo" },
-              { title: "Data Analyst Trainee", company: "InsightAI", loc: "Chennai", type: "Trainee", pay: "₹20,000/mo" },
-            ].map((job) => (
-              <div
-                key={job.title}
-                className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-[#1e3a8a]/30 hover:shadow-md transition group cursor-pointer"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[#eff6ff] text-[#1e3a8a]">
-                      {job.type}
-                    </span>
-                    <h3 className="mt-2 text-[15px] font-bold text-slate-900 group-hover:text-[#1e3a8a] transition truncate">
+            {featuredLoading ? (
+              [...Array(6)].map((_, i) => (
+                <div key={i} className="p-5 rounded-2xl bg-white border border-slate-200 animate-pulse">
+                  <div className="h-4 bg-slate-200 rounded w-24 mb-3" />
+                  <div className="h-5 bg-slate-200 rounded w-4/5 mb-2" />
+                  <div className="h-4 bg-slate-100 rounded w-1/2 mb-4" />
+                  <div className="h-8 bg-slate-100 rounded mt-4" />
+                </div>
+              ))
+            ) : featuredJobs.length > 0 ? (
+              featuredJobs.map((job, idx) => (
+                <div
+                  key={job.id || job._id || idx}
+                  className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-[#1e3a8a]/40 hover:shadow-md transition flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                      <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[#eff6ff] text-[#1e3a8a]">
+                        {job.opportunityType || job.type || "Opportunity"}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                        {job.platformSource || "Verified"}
+                      </span>
+                    </div>
+                    <h3 className="text-[15px] font-bold text-slate-900 line-clamp-1">
                       {job.title}
                     </h3>
-                    <p className="text-sm text-slate-500 mt-0.5">{job.company}</p>
+                    <p className="text-xs font-semibold text-slate-600 mt-0.5">{job.company}</p>
+                    <p className="text-xs text-slate-400 mt-1">📍 {job.location}</p>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                    <span className="text-xs font-bold text-slate-800">{job.salary || "Competitive Pay"}</span>
+                    <a
+                      href={job.applyLink || "/opportunities"}
+                      target={job.applyLink?.startsWith("http") ? "_blank" : "_self"}
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-1.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold transition shadow-xs"
+                    >
+                      Apply Now ↗
+                    </a>
                   </div>
                 </div>
-                <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-                  <span className="text-xs text-slate-500">{job.loc}</span>
-                  <span className="text-sm font-bold text-slate-800">{job.pay}</span>
-                </div>
+              ))
+            ) : (
+              <div className="col-span-full py-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
+                <p className="text-base font-semibold text-slate-700">No live opportunities found at this moment</p>
+                <p className="text-sm mt-1">Please explore campus drives or check back shortly</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </section>
@@ -308,10 +449,12 @@ const Home = () => {
           <div className="flex overflow-hidden">
             <div className="flex animate-marquee gap-4 sm:gap-5 py-2">
               {[
-                "TechNova", "CloudWorks", "DesignLab", "DataPipe", "Growthify",
-                "InsightAI", "ByteForge", "Nexlify", "CodeNest", "PixelCraft",
-                "TechNova", "CloudWorks", "DesignLab", "DataPipe", "Growthify",
-                "InsightAI", "ByteForge", "Nexlify", "CodeNest", "PixelCraft",
+                "Google", "Microsoft", "Amazon", "Infosys", "TCS",
+                "Wipro", "HCLTech", "Accenture", "Cognizant", "Capgemini",
+                "Tech Mahindra", "IBM", "L&T Technology", "Deloitte",
+                "Google", "Microsoft", "Amazon", "Infosys", "TCS",
+                "Wipro", "HCLTech", "Accenture", "Cognizant", "Capgemini",
+                "Tech Mahindra", "IBM", "L&T Technology", "Deloitte",
               ].map((company, i) => (
                 <div
                   key={`${company}-${i}`}

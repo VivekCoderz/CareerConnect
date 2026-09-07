@@ -63,9 +63,10 @@ export const firebaseLogin = async (idToken, keepSignedIn = false, captchaToken 
  * @param {string} idToken - Fresh Firebase ID token (force-refreshed after linking)
  * @param {boolean} keepSignedIn - Session duration preference
  */
-export const completePasswordSetup = async (idToken, keepSignedIn = false) => {
+export const completePasswordSetup = async (idToken, password, keepSignedIn = false) => {
   const response = await api.post("/auth/complete-password-setup", {
     idToken,
+    password,
     keepSignedIn,
   });
   return response.data;

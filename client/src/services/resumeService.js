@@ -1,87 +1,114 @@
 /**
  * Resume Service – Frontend
- * Token cookie mein hai → credentials: "include" se automatically jayega
+ * Uses shared api instance (withCredentials + Authorization header)
  */
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
-// ↑ apna backend port daalo
+import api from "../api/api";
 
 /**
  * Generate resume from raw form data
  */
-export const generateResumeAPI = async (rawData, template) => {
-  const res = await fetch(`${API_BASE}/api/resume/generate`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include", // cookie automatically bhejega
-    body: JSON.stringify({ rawData, template }),
+export const generateResumeAPI = async (
+  rawData,
+  template,
+  syncProfile = false,
+) => {
+  const res = await api.post("/resume/generate", {
+    rawData,
+    template,
+    syncProfile,
   });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || "Failed to generate resume");
-  }
-
-  return res.json();
+  return res.data;
 };
 
 /**
  * Update resume based on user instruction
  */
 export const updateResumeAPI = async (currentResume, instruction) => {
-  const res = await fetch(`${API_BASE}/api/resume/update`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include", // cookie automatically bhejega
-    body: JSON.stringify({ currentResume, instruction }),
+  const res = await api.post("/resume/update", {
+    currentResume,
+    instruction,
   });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || "Failed to update resume");
-  }
-
-  return res.json();
+  return res.data;
 };
 
 /**
  * Fetch the current logged-in user's saved resume (if any)
  */
 export const fetchMyResumeAPI = async () => {
-  const res = await fetch(`${API_BASE}/api/resume/me`, {
-    method: "GET",
-    credentials: "include",
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || "Failed to fetch resume");
-  }
-
-  return res.json();
+  const res = await api.get("/resume/me");
+  return res.data;
 };
 
 /**
- * Save manual edits on the generated resume
+ * Save manual edits to resume
  */
 export const saveManualEditAPI = async (generatedData) => {
-  const res = await fetch(`${API_BASE}/api/resume/manual`, {
-    method: "PUT",
+  const res = await api.put("/resume/manual", { generatedData });
+  return res.data;
+};
+
+/**
+ * Fetch the current user's profile data pre-mapped into the resume rawData shape.
+ * Returns { rawData, profileFound }
+ */
+export const fetchProfileForResumeAPI = async () => {
+  const res = await api.get("/resume/profile-data");
+  return res.data;
+};
+
+/**
+ * Upload resume PDF to existing upload endpoint
+ */
+export const uploadResumeAPI = async (file) => {
+  const formData = new FormData();
+  formData.append("resume", file);
+
+  const res = await api.post("/resume/upload", formData, {
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "multipart/form-data",
     },
-    credentials: "include",
-    body: JSON.stringify({ generatedData }),
   });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || "Failed to save manual edits");
-  }
-
-  return res.json();
+  return res.data;
 };
+
+/**
+ * Fetch all saved resumes of the current user
+ */
+export const fetchAllResumesAPI = async () => {
+  const res = await api.get("/resume");
+  return res.data;
+};
+
+/**
+ * Save final resume with title and primary toggle
+ */
+export const saveFinalResumeAPI = async (payload) => {
+  const res = await api.post("/resume/save", payload);
+  return res.data;
+};
+
+/**
+ * Fetch a single resume by its ID
+ */
+export const getResumeByIdAPI = async (id) => {
+  const res = await api.get(`/resume/${id}`);
+  return res.data;
+};
+
+/**
+ * Set a resume as primary active
+ */
+export const setPrimaryResumeAPI = async (id) => {
+  const res = await api.patch(`/resume/${id}/primary`);
+  return res.data;
+};
+
+/**
+ * Delete a resume by ID
+ */
+export const deleteResumeAPI = async (id) => {
+  const res = await api.delete(`/resume/${id}`);
+  return res.data;
+};
+
