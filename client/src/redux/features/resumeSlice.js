@@ -1,11 +1,12 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { createEmptyRawData } from '../../utils/resumeHelpers';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { createEmptyRawData } from "../../utils/resumeHelpers";
 import {
   generateResumeAPI,
   updateResumeAPI,
   fetchMyResumeAPI,
-  saveManualEditAPI
-} from '../../services/resumeService';
+  saveManualEditAPI,
+  fetchProfileForResumeAPI,
+} from "../../services/resumeService";
 
 const initialState = {
   currentStep: 0,
@@ -15,56 +16,70 @@ const initialState = {
   isGenerating: false,
   isUpdating: false,
   error: null,
-  lastChangeRequest: '',
+  lastChangeRequest: "",
+  profileLoading: false, // true while fetching profile data
+  profileFound: false,   // true when the user has an existing profile
+  resumeDataLoaded: false, // true when saved resume rawData has been loaded (prevents profile data from overriding it)
 };
 
 export const generateResume = createAsyncThunk(
-  'resume/generate',
-  async ({ rawData, template }, { rejectWithValue }) => {
+  "resume/generate",
+  async ({ rawData, template, syncProfile }, { rejectWithValue }) => {
     try {
-      return await generateResumeAPI(rawData, template);
+      return await generateResumeAPI(rawData, template, syncProfile);
     } catch (err) {
-      return rejectWithValue(err.message || 'Failed to generate resume');
+      return rejectWithValue(err.message || "Failed to generate resume");
     }
-  }
+  },
 );
 
 export const updateResumeWithAI = createAsyncThunk(
-  'resume/updateWithAI',
+  "resume/updateWithAI",
   async ({ currentResume, instruction }, { rejectWithValue }) => {
     try {
       return await updateResumeAPI(currentResume, instruction);
     } catch (err) {
-      return rejectWithValue(err.message || 'Failed to update resume');
+      return rejectWithValue(err.message || "Failed to update resume");
     }
-  }
+  },
 );
 
 export const fetchSavedResume = createAsyncThunk(
-  'resume/fetchSaved',
+  "resume/fetchSaved",
   async (_, { rejectWithValue }) => {
     try {
       return await fetchMyResumeAPI();
     } catch (err) {
-      return rejectWithValue(err.message || 'Failed to load saved resume');
+      return rejectWithValue(err.message || "Failed to load saved resume");
     }
-  }
+  },
 );
 
 export const saveManualEdit = createAsyncThunk(
-  'resume/saveManual',
+  "resume/saveManual",
   async (generatedData, { rejectWithValue }) => {
     try {
       const res = await saveManualEditAPI(generatedData);
       return res.generatedData;
     } catch (err) {
-      return rejectWithValue(err.message || 'Failed to save manual edits');
+      return rejectWithValue(err.message || "Failed to save manual edits");
     }
-  }
+  },
+);
+
+export const fetchProfileForResume = createAsyncThunk(
+  "resume/fetchProfile",
+  async (_, { rejectWithValue }) => {
+    try {
+      return await fetchProfileForResumeAPI();
+    } catch (err) {
+      return rejectWithValue(err.message || "Failed to load profile data");
+    }
+  },
 );
 
 const resumeSlice = createSlice({
-  name: 'resume',
+  name: "resume",
   initialState,
   reducers: {
     setTemplate(state, action) {
@@ -137,7 +152,10 @@ const resumeSlice = createSlice({
       })
       .addCase(fetchSavedResume.fulfilled, (state, action) => {
         if (action.payload) {
-          state.rawData = action.payload.rawData || state.rawData;
+          if (action.payload.rawData) {
+            state.rawData = action.payload.rawData;
+            state.resumeDataLoaded = true; // profile fetch won't override this
+          }
           state.generatedResume = action.payload.generatedData;
           state.selectedTemplate = action.payload.selectedTemplate;
           if (action.payload.generatedData) {
@@ -164,6 +182,26 @@ const resumeSlice = createSlice({
       .addCase(saveManualEdit.rejected, (state, action) => {
         state.isUpdating = false;
         state.error = action.payload;
+      })
+      .addCase(fetchProfileForResume.pending, (state) => {
+        state.profileLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchProfileForResume.fulfilled, (state, action) => {
+        state.profileLoading = false;
+        if (action.payload?.rawData) {
+          state.profileFound = action.payload.profileFound ?? true;
+          // Only populate form with profile data if the user doesn't already
+          // have a saved resume (in that case we keep the saved resume rawData)
+          if (!state.resumeDataLoaded) {
+            state.rawData = action.payload.rawData;
+          }
+        }
+      })
+      .addCase(fetchProfileForResume.rejected, (state) => {
+        // Non-blocking: profile fetch failing just means we start with empty form
+        state.profileLoading = false;
+        state.profileFound = false;
       });
   },
 });

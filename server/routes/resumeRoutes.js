@@ -7,6 +7,7 @@ const {
   getMyResume,
   saveManualEdit,
   uploadResumeHandler,
+  getProfileForResume,
 } = require("../controllers/resumeController.js");
 
 const router = express.Router();
@@ -35,5 +36,6 @@ router.post("/generate", generateResumeHandler);
 router.post("/update", updateResumeHandler);
 router.get("/me", getMyResume);
 router.put("/manual", saveManualEdit);
+router.get("/profile-data", getProfileForResume);
 
 module.exports = router;

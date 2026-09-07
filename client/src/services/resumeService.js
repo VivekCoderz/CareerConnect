@@ -9,14 +9,18 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 /**
  * Generate resume from raw form data
  */
-export const generateResumeAPI = async (rawData, template) => {
+export const generateResumeAPI = async (
+  rawData,
+  template,
+  syncProfile = false,
+) => {
   const res = await fetch(`${API_BASE}/api/resume/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     credentials: "include", // cookie automatically bhejega
-    body: JSON.stringify({ rawData, template }),
+    body: JSON.stringify({ rawData, template, syncProfile }),
   });
 
   if (!res.ok) {
@@ -66,7 +70,7 @@ export const fetchMyResumeAPI = async () => {
 };
 
 /**
- * Save manual edits on the generated resume
+ * Fetch the current user's profile data mapped to resume rawData shape
  */
 export const saveManualEditAPI = async (generatedData) => {
   const res = await fetch(`${API_BASE}/api/resume/manual`, {
@@ -81,6 +85,45 @@ export const saveManualEditAPI = async (generatedData) => {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || "Failed to save manual edits");
+  }
+
+  return res.json();
+};
+
+/**
+ * Fetch the current user's profile data pre-mapped into the resume rawData shape.
+ * Returns { rawData, profileFound }
+ */
+export const fetchProfileForResumeAPI = async () => {
+  const res = await fetch(`${API_BASE}/api/resume/profile-data`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || "Failed to fetch profile data");
+  }
+
+  return res.json();
+};
+
+/**
+ * Upload resume PDF to existing upload endpoint
+ */
+export const uploadResumeAPI = async (file) => {
+  const formData = new FormData();
+  formData.append("resume", file);
+
+  const res = await fetch(`${API_BASE}/api/resume/upload`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || "Failed to upload resume");
   }
 
   return res.json();
