@@ -305,7 +305,7 @@ const Login = () => {
                   name="emailOrUsername"
                   value={formData.emailOrUsername}
                   onChange={handleChange}
-                  placeholder="you@example.com"
+                  placeholder="Enter your email or username"
                   required
                   className="w-full h-11 rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm outline-none transition focus:border-[#1e3a8a] focus:ring-4 focus:ring-[#1e3a8a]/10"
                 />

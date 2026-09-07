@@ -462,6 +462,10 @@ const EmployerRegister = () => {
                 </p>
               </div>
 
+              {/* Prevent browser autofill */}
+              <input type="text" name="fake_username_prevent_autofill" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="off" />
+              <input type="password" name="fake_password_prevent_autofill" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="new-password" />
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
@@ -471,7 +475,8 @@ const EmployerRegister = () => {
                     name="companyName"
                     value={formData.companyName}
                     onChange={handleChange}
-                    placeholder="Your company name"
+                    autoComplete="off"
+                    placeholder="Enter company name"
                     className={inputClass("companyName")}
                   />
                   {fieldErrors.companyName && (
@@ -505,7 +510,8 @@ const EmployerRegister = () => {
                         if (otpSent) setOtpSent(false);
                       }}
                       disabled={emailVerified}
-                      placeholder="hr@company.com"
+                      autoComplete="off"
+                      placeholder="Enter official email address"
                       className={`${inputClass("email")} ${emailVerified ? "bg-slate-50 border-emerald-400 text-slate-700 pr-10" : ""}`}
                     />
                     {emailVerified && (
@@ -614,7 +620,7 @@ const EmployerRegister = () => {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                         </svg>
-                        Official email verified successfully
+                        Email verified successfully
                       </div>
                       <button
                         type="button"
@@ -638,7 +644,7 @@ const EmployerRegister = () => {
 
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                    Mobile
+                    Official Mobile
                   </label>
                   <input
                     type="tel"
@@ -647,6 +653,7 @@ const EmployerRegister = () => {
                     pattern="[0-9]*"
                     maxLength={10}
                     value={formData.phone}
+                    autoComplete="off"
                     onChange={(e) => {
                       const numeric = e.target.value.replace(/\D/g, "").slice(0, 10);
                       setFormData((prev) => ({ ...prev, phone: numeric }));
@@ -669,7 +676,7 @@ const EmployerRegister = () => {
                       setFormData((prev) => ({ ...prev, phone: pasted }));
                       if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
                     }}
-                    placeholder="9876543210"
+                    placeholder="Enter 10-digit mobile number"
                     className={inputClass("phone")}
                   />
                   {fieldErrors.phone && (
@@ -701,7 +708,8 @@ const EmployerRegister = () => {
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
-                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        placeholder="Create a strong password"
                         className={`${inputClass("password")} pr-10`}
                       />
                       <button
@@ -739,7 +747,8 @@ const EmployerRegister = () => {
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleChange}
-                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        placeholder="Confirm your password"
                         className={`${inputClass("confirmPassword")} pr-10`}
                       />
                       <button
@@ -866,7 +875,7 @@ const EmployerRegister = () => {
                     name="contactPerson"
                     value={formData.contactPerson}
                     onChange={handleChange}
-                    placeholder="e.g. Rahul Sharma"
+                    placeholder="Enter contact person name"
                     className={inputClass("contactPerson")}
                   />
                   {fieldErrors.contactPerson && (
@@ -882,7 +891,7 @@ const EmployerRegister = () => {
                     name="designation"
                     value={formData.designation}
                     onChange={handleChange}
-                    placeholder="e.g. HR Manager / Campus Recruiter"
+                    placeholder="Enter designation (e.g. HR Manager)"
                     className={inputClass("designation")}
                   />
                   {fieldErrors.designation && (
@@ -921,7 +930,7 @@ const EmployerRegister = () => {
                       name="industry"
                       value={formData.industry}
                       onChange={handleChange}
-                      placeholder="e.g. IT, FinTech"
+                      placeholder="Enter industry (e.g. IT, FinTech)"
                       className={inputClass("industry")}
                     />
                     {fieldErrors.industry && (
@@ -938,7 +947,7 @@ const EmployerRegister = () => {
                     name="location"
                     value={formData.location}
                     onChange={handleChange}
-                    placeholder="e.g. Gurugram, Delhi NCR"
+                    placeholder="Enter city / location (e.g. Gurugram, Delhi NCR)"
                     className={inputClass("location")}
                   />
                   {fieldErrors.location && (

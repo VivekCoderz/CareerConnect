@@ -526,10 +526,21 @@ const Signup = () => {
                 </p>
               </div>
 
+              {/* Prevent browser autofill */}
+              <input type="text" name="fake_username_prevent_autofill" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="off" />
+              <input type="password" name="fake_password_prevent_autofill" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="new-password" />
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Full Name</label>
-                  <input name="fullName" value={formData.fullName} onChange={handleChange} placeholder="John Doe" className={inputClass("fullName")} />
+                  <input
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    autoComplete="off"
+                    placeholder="Enter your full name"
+                    className={inputClass("fullName")}
+                  />
                   {fieldErrors.fullName && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.fullName}</p>}
                 </div>
 
@@ -559,7 +570,8 @@ const Signup = () => {
                         if (otpSent) setOtpSent(false);
                       }}
                       disabled={emailVerified}
-                      placeholder="john@example.com"
+                      autoComplete="off"
+                      placeholder="Enter your email address"
                       className={`${inputClass("email")} ${emailVerified ? "bg-slate-50 border-emerald-400 text-slate-700 pr-10" : ""}`}
                     />
                     {emailVerified && (
@@ -697,6 +709,7 @@ const Signup = () => {
                     pattern="[0-9]*"
                     maxLength={10}
                     value={formData.phone}
+                    autoComplete="off"
                     onChange={(e) => {
                       const numeric = e.target.value.replace(/\D/g, "").slice(0, 10);
                       setFormData((prev) => ({ ...prev, phone: numeric }));
@@ -719,7 +732,7 @@ const Signup = () => {
                       setFormData((prev) => ({ ...prev, phone: pasted }));
                       if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
                     }}
-                    placeholder="9876543210"
+                    placeholder="Enter 10-digit mobile number"
                     className={inputClass("phone")}
                   />
                   {fieldErrors.phone && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>}
@@ -747,7 +760,8 @@ const Signup = () => {
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
-                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        placeholder="Create a strong password"
                         className={`${inputClass("password")} pr-10`}
                       />
                       <button
@@ -781,7 +795,8 @@ const Signup = () => {
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleChange}
-                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        placeholder="Confirm your password"
                         className={`${inputClass("confirmPassword")} pr-10`}
                       />
                       <button
@@ -951,12 +966,12 @@ const Signup = () => {
                   <>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">College / University</label>
-                      <input name="college" value={formData.college} onChange={handleChange} placeholder="Geeta University" className={inputClass("college")} />
+                      <input name="college" value={formData.college} onChange={handleChange} placeholder="Enter college / university name" className={inputClass("college")} />
                       {fieldErrors.college && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.college}</p>}
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Course</label>
-                      <input name="course" value={formData.course} onChange={handleChange} placeholder="B.Tech Computer Science" className={inputClass("course")} />
+                      <input name="course" value={formData.course} onChange={handleChange} placeholder="Enter course name (e.g. B.Tech Computer Science)" className={inputClass("course")} />
                       {fieldErrors.course && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.course}</p>}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -973,7 +988,7 @@ const Signup = () => {
                       </div>
                       <div>
                         <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Graduation Year</label>
-                        <input type="number" name="graduationYear" value={formData.graduationYear} onChange={handleChange} placeholder="2027" className={inputClass("graduationYear")} />
+                        <input type="number" name="graduationYear" value={formData.graduationYear} onChange={handleChange} placeholder="e.g. 2027" className={inputClass("graduationYear")} />
                         {fieldErrors.graduationYear && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.graduationYear}</p>}
                       </div>
                     </div>
@@ -984,17 +999,17 @@ const Signup = () => {
                   <>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Highest Qualification</label>
-                      <input name="highestQualification" value={formData.highestQualification} onChange={handleChange} placeholder="B.Tech / BCA / MCA" className={inputClass("highestQualification")} />
+                      <input name="highestQualification" value={formData.highestQualification} onChange={handleChange} placeholder="Enter qualification (e.g. B.Tech / BCA / MCA)" className={inputClass("highestQualification")} />
                       {fieldErrors.highestQualification && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.highestQualification}</p>}
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Passout Year</label>
-                      <input type="number" name="passoutYear" value={formData.passoutYear} onChange={handleChange} placeholder="2024" className={inputClass("passoutYear")} />
+                      <input type="number" name="passoutYear" value={formData.passoutYear} onChange={handleChange} placeholder="e.g. 2024" className={inputClass("passoutYear")} />
                       {fieldErrors.passoutYear && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.passoutYear}</p>}
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Key Skills</label>
-                      <input name="skills" value={formData.skills} onChange={handleChange} placeholder="React, Node.js, Python..." className={inputClass("skills")} />
+                      <input name="skills" value={formData.skills} onChange={handleChange} placeholder="Enter skills (e.g. React, Node.js, Python)" className={inputClass("skills")} />
                     </div>
                   </>
                 )}
@@ -1003,12 +1018,12 @@ const Signup = () => {
                   <>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Current Company</label>
-                      <input name="currentCompany" value={formData.currentCompany} onChange={handleChange} placeholder="Company name" className={inputClass("currentCompany")} />
+                      <input name="currentCompany" value={formData.currentCompany} onChange={handleChange} placeholder="Enter current company name" className={inputClass("currentCompany")} />
                       {fieldErrors.currentCompany && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.currentCompany}</p>}
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Job Title</label>
-                      <input name="jobTitle" value={formData.jobTitle} onChange={handleChange} placeholder="Software Engineer" className={inputClass("jobTitle")} />
+                      <input name="jobTitle" value={formData.jobTitle} onChange={handleChange} placeholder="Enter job title (e.g. Software Engineer)" className={inputClass("jobTitle")} />
                       {fieldErrors.jobTitle && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.jobTitle}</p>}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -1025,7 +1040,7 @@ const Signup = () => {
                       </div>
                       <div>
                         <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Industry</label>
-                        <input name="industry" value={formData.industry} onChange={handleChange} placeholder="IT / Finance" className={inputClass("industry")} />
+                        <input name="industry" value={formData.industry} onChange={handleChange} placeholder="Enter industry (e.g. IT, Finance)" className={inputClass("industry")} />
                       </div>
                     </div>
                   </>
@@ -1034,11 +1049,11 @@ const Signup = () => {
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">LinkedIn</label>
-                    <input name="linkedin" value={formData.linkedin} onChange={handleChange} placeholder="linkedin.com/in/..." className={inputClass("linkedin")} />
+                    <input name="linkedin" value={formData.linkedin} onChange={handleChange} placeholder="https://linkedin.com/in/yourprofile" className={inputClass("linkedin")} />
                   </div>
                   <div>
                     <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">GitHub</label>
-                    <input name="github" value={formData.github} onChange={handleChange} placeholder="github.com/username" className={inputClass("github")} />
+                    <input name="github" value={formData.github} onChange={handleChange} placeholder="https://github.com/yourusername" className={inputClass("github")} />
                   </div>
                 </div>
                 {/* Keep Me Signed In */}
