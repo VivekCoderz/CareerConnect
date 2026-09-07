@@ -1,4 +1,5 @@
 import React from "react";
+import { extractSkillsList } from "../../../utils/resumeHelpers";
 
 const TwoColumnTemplate = ({ data }) => {
   const {
@@ -11,6 +12,12 @@ const TwoColumnTemplate = ({ data }) => {
     certifications,
     achievements,
   } = data || {};
+  const skillsList = extractSkillsList(skills);
+  const hasCategorizedSkills =
+    skills?.programmingLanguages?.length > 0 ||
+    skills?.frameworks?.length > 0 ||
+    skills?.tools?.length > 0 ||
+    skills?.other?.length > 0;
 
   return (
     <div className="bg-white text-gray-900 p-8 max-w-[800px] mx-auto text-[12.5px] leading-relaxed font-serif">
@@ -64,36 +71,41 @@ const TwoColumnTemplate = ({ data }) => {
             </section>
           )}
 
-          {(skills?.programmingLanguages?.length > 0 ||
-            skills?.frameworks?.length > 0) && (
+          {skillsList.length > 0 && (
             <section>
               <h2 className="text-[11px] font-bold uppercase tracking-widest border-b border-gray-400 pb-0.5 mb-2">
                 Skills
               </h2>
               <div className="space-y-1">
-                {skills.programmingLanguages?.length > 0 && (
-                  <div>
-                    <span className="font-semibold">Languages: </span>
-                    {skills.programmingLanguages.join(", ")}
-                  </div>
-                )}
-                {skills.frameworks?.length > 0 && (
-                  <div>
-                    <span className="font-semibold">Frameworks: </span>
-                    {skills.frameworks.join(", ")}
-                  </div>
-                )}
-                {skills.tools?.length > 0 && (
-                  <div>
-                    <span className="font-semibold">Tools: </span>
-                    {skills.tools.join(", ")}
-                  </div>
-                )}
-                {skills.other?.length > 0 && (
-                  <div>
-                    <span className="font-semibold">Other: </span>
-                    {skills.other.join(", ")}
-                  </div>
+                {hasCategorizedSkills ? (
+                  <>
+                    {skills.programmingLanguages?.length > 0 && (
+                      <div>
+                        <span className="font-semibold">Languages: </span>
+                        {skills.programmingLanguages.join(", ")}
+                      </div>
+                    )}
+                    {skills.frameworks?.length > 0 && (
+                      <div>
+                        <span className="font-semibold">Frameworks: </span>
+                        {skills.frameworks.join(", ")}
+                      </div>
+                    )}
+                    {skills.tools?.length > 0 && (
+                      <div>
+                        <span className="font-semibold">Tools: </span>
+                        {skills.tools.join(", ")}
+                      </div>
+                    )}
+                    {skills.other?.length > 0 && (
+                      <div>
+                        <span className="font-semibold">Other: </span>
+                        {skills.other.join(", ")}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div>{skillsList.join(", ")}</div>
                 )}
               </div>
             </section>

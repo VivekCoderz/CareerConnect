@@ -136,41 +136,10 @@ export default function MyApplications({ embedded = false }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      {!embedded && (
-        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-            <Link to="/home" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
-                GU
-              </div>
-
-              <div className="leading-tight">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Geeta University
-                </p>
-
-                <p className="text-sm font-bold text-slate-900">
-                  CareerConnect
-                </p>
-              </div>
-            </Link>
-
-            <Link
-              to="/internships"
-              className="text-xs font-bold text-[#1e3a8a]"
-            >
-              Browse Internships →
-            </Link>
-          </div>
-        </header>
-      )}
-
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+    <div className={embedded ? "" : "min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8"}>
+      <main className={embedded ? "" : "max-w-5xl mx-auto"}>
         {!embedded && (
-          <div className="mb-8 rounded-3xl bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#1e3a8a] text-white p-6 sm:p-8 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-[#f59e0b]/15 rounded-full blur-3xl pointer-events-none" />
-
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#1e3a8a] to-blue-700 text-white p-6 sm:p-8 mb-8 shadow-sm">
             <div className="relative z-10">
               <p className="text-xs font-semibold text-blue-100 uppercase tracking-wider mb-2">
                 Application tracker

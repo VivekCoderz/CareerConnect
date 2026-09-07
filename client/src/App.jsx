@@ -14,6 +14,8 @@ import Signup from "./pages/auth/Signup";
 import EmployerRegister from "./pages/auth/EmployerRegister";
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
 import SetPassword from "./pages/auth/SetPassword.jsx";
+import GoogleOnboarding from "./pages/auth/GoogleOnboarding.jsx";
+import GoogleEmployerOnboarding from "./pages/auth/GoogleEmployerOnboarding.jsx";
 
 // Guards
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
@@ -22,6 +24,7 @@ import RoleProtectedRoute from "./components/RoleProtectedRoute";
 import SelectRole from "./pages/SelectRole";
 import Home from "./pages/Home.jsx";
 import InternshipDiscoveryPage from "./pages/internships/InternshipDiscoveryPage";
+import OpportunitiesPage from "./pages/OpportunitiesPage";
 
 // Student
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -52,6 +55,26 @@ import ResumeBuilder from "./pages/resume/ResumeBuilder";
 // Redux
 import { getCurrentUser } from "./services/authService";
 import { setUser, setInitialized } from "./redux/features/authSlice";
+import { getDashboardPath } from "./utils/dashboardRedirect";
+
+// ─── Route Guards for Public Pages ──────────────────────────────────────────
+const RootRoute = () => {
+  const { user, isInitialized } = useSelector((state) => state.auth);
+  if (!isInitialized) return null;
+  if (user && user.hasPassword !== false && user.phone?.trim()) {
+    return <Navigate to={getDashboardPath(user.userType, user)} replace />;
+  }
+  return <Navigate to="/home" replace />;
+};
+
+const PublicOnlyRoute = ({ children }) => {
+  const { user, isInitialized } = useSelector((state) => state.auth);
+  if (!isInitialized) return null;
+  if (user && user.hasPassword !== false && user.phone?.trim()) {
+    return <Navigate to={getDashboardPath(user.userType, user)} replace />;
+  }
+  return children;
+};
 
 // =====================================================
 // AUTH INITIALIZER
@@ -113,6 +136,35 @@ function App() {
     <BrowserRouter>
       <AuthInitializer>
         <Routes>
+          {/* ========== PUBLIC ========== */}
+          <Route
+            path="/login"
+            element={
+              <PublicOnlyRoute>
+                <Login />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route
+            path="/register/student"
+            element={
+              <PublicOnlyRoute>
+                <Signup />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route
+            path="/register/employer"
+            element={
+              <PublicOnlyRoute>
+                <EmployerRegister />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/select-role" element={<SelectRole />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/companies/:companyId" element={<CompanyPublicProfile />} />
 
           {/* =================================================
               PUBLIC ROUTES
@@ -157,6 +209,19 @@ function App() {
           <Route
             path="/set-password"
             element={<SetPassword />}
+          />
+
+          {/* =================================================
+              LIVE OPPORTUNITIES MATRIX & DISCOVERY
+          ================================================= */}
+
+          <Route
+            path="/opportunities"
+            element={<OpportunitiesPage />}
+          />
+          <Route
+            path="/jobs"
+            element={<OpportunitiesPage />}
           />
 
           {/* =================================================
@@ -212,6 +277,15 @@ function App() {
               STUDENT + FRESHER + PROFESSIONAL
           ================================================= */}
 
+          {/* ========== GOOGLE ONBOARDING — CANDIDATES ========== */}
+          {/* Shown after set-password → select-role → profile info + resume */}
+          <Route path="/onboarding/profile" element={<GoogleOnboarding />} />
+
+          {/* ========== GOOGLE ONBOARDING — EMPLOYERS ========== */}
+          {/* Shown after set-password → company details collection */}
+          <Route path="/onboarding/employer" element={<GoogleEmployerOnboarding />} />
+
+          {/* ========== CANDIDATES: student + fresher + professional ========== */}
           <Route
             element={
               <RoleProtectedRoute
@@ -398,8 +472,12 @@ function App() {
             }
           />
 
+          {/* ========== DEFAULT ========== */}
+          <Route path="/" element={<RootRoute />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </AuthInitializer>
+      
     </BrowserRouter>
   );
 }

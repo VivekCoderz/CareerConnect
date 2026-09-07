@@ -27,7 +27,12 @@ const employerLearningRoutes = require("./routes/employerLearningRoutes.js");
 const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 
 const resumeRoutes = require("./routes/resumeRoutes.js");
+const opportunityRoutes = require("./routes/opportunityRoutes.js");
 
+const {
+  ipBlockerMiddleware,
+  globalLimiter,
+} = require("./middleware/rateLimitMiddleware.js");
 
 const app = express();
 
@@ -63,6 +68,10 @@ app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(cookieParser());
 
+// Anti-DDoS & IP Abuse Blocker — blocks repetitive excessive requests
+app.use(ipBlockerMiddleware);
+app.use("/api", globalLimiter);
+
 // Base & User Profile Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
@@ -90,10 +99,16 @@ app.use("/api/assessments", assessmentRoutes);
 app.use("/api/interviews", interviewRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/organization", organizationRoutes);
-app.use("/api/internships", internshipRoutes);
-app.use("/api/applications", applicationRoutes);
 app.use("/api/resume", resumeRoutes);
-app.use("/api", employerRoutes);
+app.use("/api/api/resume", resumeRoutes); // Safety alias
+app.use("/api/opportunities", opportunityRoutes);
+app.use("/api/feed", opportunityRoutes);
+app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
+
+// Gateway Health Check Endpoint
+app.get("/health", (req, res) => {
+  return res.status(200).json({ status: "active", node: "GU Gateway Matrix Engine" });
+});
 
 // Global error handling middleware
 app.use((err, req, res, next) => {

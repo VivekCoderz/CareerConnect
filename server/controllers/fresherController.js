@@ -1,8 +1,10 @@
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const FresherProfile = require("../models/FresherProfile");
 const Job = require("../models/Job");
 const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
+const { getAggregatedOpportunities } = require("../services/jobScraperService");
 
 // Skill benchmarks for target roles for Job Matching & Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -402,15 +404,32 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     const readiness = calculateFresherJobReadiness(profile, completion);
 
     // Fetch Real Database Jobs for Freshers
-    const dbJobs = await Job.find({
-      status: "Published",
-      employmentType: { $ne: "Internship" },
-    })
-      .populate("employerId", "companyName logo headquarters")
-      .sort({ createdAt: -1 })
-      .lean();
+    let dbJobs = [];
+    let dbInternships = [];
+    if (mongoose.connection.readyState === 1) {
+      try {
+        [dbJobs, dbInternships] = await Promise.all([
+          Job.find({
+            status: "Published",
+            employmentType: { $ne: "Internship" },
+          })
+            .populate("employerId", "companyName logo headquarters")
+            .sort({ createdAt: -1 })
+            .lean(),
+          Job.find({
+            status: "Published",
+            employmentType: "Internship",
+          })
+            .populate("employerId", "companyName logo headquarters")
+            .sort({ createdAt: -1 })
+            .lean(),
+        ]);
+      } catch (dbErr) {
+        console.warn("MongoDB find error in fresherController:", dbErr.message);
+      }
+    }
 
-    const recommendedJobs = dbJobs.map((job) => {
+    const recommendedJobs = (dbJobs || []).map((job) => {
       const salaryStr =
         job.salaryRange?.min > 0
           ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
@@ -434,16 +453,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       };
     });
 
-    // Fetch Real Database Internships
-    const dbInternships = await Job.find({
-      status: "Published",
-      employmentType: "Internship",
-    })
-      .populate("employerId", "companyName logo headquarters")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const eligibleDbInternships = dbInternships.filter((job) =>
+    const eligibleDbInternships = (dbInternships || []).filter((job) =>
       isEligibleForInternship(job, profile)
     );
 
@@ -468,6 +478,68 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         deadline: job.deadline ? new Date(job.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
       };
     });
+
+    let finalRecommendedJobs = recommendedJobs;
+    if (finalRecommendedJobs.length === 0) {
+      try {
+        const scraped = await getAggregatedOpportunities({
+          opportunityType: "all",
+          search: profile.targetRole || "Software Developer",
+        });
+        finalRecommendedJobs = (scraped.data || []).slice(0, 25).map((job, idx) => ({
+          _id: `scraped-fresher-job-${idx}`,
+          id: `scraped-fresher-job-${idx}`,
+          jobId: `scraped-fresher-job-${idx}`,
+          title: job.title,
+          company: job.company,
+          location: job.location,
+          salary: "₹4.5 - 12.0 LPA",
+          type: job.opportunityType || "Full-Time",
+          workMode: job.workMode || "Hybrid",
+          experienceRequired: "Fresher / 0-1 Yr",
+          skillsRequired: [job.title.split(" ")[0] || "Engineering", "Problem Solving"],
+          postedAt: job.postedDate || "Recently",
+          deadline: "Open",
+          matchPercentage: calculateJobMatch(profile, [job.title.split(" ")[0] || "Development"], job.title),
+          applyLink: job.applyLink,
+          applyUrl: job.applyLink,
+          isExternal: true,
+          platformSource: job.platformSource,
+        }));
+      } catch (e) {
+        console.warn("Fresher scraped jobs fallback error:", e.message);
+      }
+    }
+
+    let finalRecommendedInternships = recommendedInternships;
+    if (finalRecommendedInternships.length === 0) {
+      try {
+        const scraped = await getAggregatedOpportunities({
+          opportunityType: "internship",
+          search: profile.targetRole || "Developer",
+        });
+        finalRecommendedInternships = (scraped.data || []).slice(0, 25).map((job, idx) => ({
+          _id: `scraped-fresher-int-${idx}`,
+          id: `scraped-fresher-int-${idx}`,
+          jobId: `scraped-fresher-int-${idx}`,
+          title: job.title,
+          company: job.company,
+          location: job.location,
+          stipend: "Competitive Stipend",
+          duration: "3-6 Months",
+          type: "Internship",
+          workMode: job.workMode || "Remote",
+          skillsRequired: [job.title.split(" ")[0] || "Engineering"],
+          deadline: "Open until filled",
+          applyLink: job.applyLink,
+          applyUrl: job.applyLink,
+          isExternal: true,
+          platformSource: job.platformSource,
+        }));
+      } catch (e) {
+        console.warn("Fresher scraped internships fallback error:", e.message);
+      }
+    }
 
     // Fetch Real Applications for fresher
     const dbApplications = await Application.find({ candidateId: userId })
@@ -525,8 +597,8 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         profile,
         profileCompletion: completion,
         jobReadiness: readiness,
-        recommendedJobs,
-        recommendedInternships,
+        recommendedJobs: finalRecommendedJobs,
+        recommendedInternships: finalRecommendedInternships,
         applications,
       },
     });

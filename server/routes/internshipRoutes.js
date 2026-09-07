@@ -4,6 +4,26 @@ const router = express.Router();
 const internshipController = require("../controllers/internshipController");
 const protect = require("../middleware/authMiddleware");
 const { requireEmployer: employerOnly } = require("../middleware/roleMiddleware");
+const { getAggregatedOpportunities } = require("../services/jobScraperService");
+
+// Live external and campus aggregated internships feed
+router.get("/live", async (req, res, next) => {
+  try {
+    const results = await getAggregatedOpportunities({
+      ...req.query,
+      opportunityType: req.query.opportunityType || "internship",
+    });
+    return res.status(200).json({
+      success: true,
+      count: results.count,
+      data: results.data,
+      internships: results.data,
+      source: results.source,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Category metadata & aggregated counts
 router.get("/categories", internshipController.getInternshipCategories);
