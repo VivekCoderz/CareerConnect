@@ -100,7 +100,7 @@ app.use("/api/offers", offerRoutes);
 app.use("/api/organization", organizationRoutes);
 app.use("/api/internships", internshipRoutes);
 app.use("/api/applications", applicationRoutes);
-app.use("/api", employerRoutes);
+app.use("/api/resume", resumeRoutes);
 
 // Global error handling middleware
 app.use((err, req, res, next) => {
