@@ -1,4 +1,5 @@
 import React from "react";
+import { extractSkillsList } from "../../../utils/resumeHelpers";
 
 const CompactTemplate = ({ data }) => {
   const {
@@ -11,6 +12,7 @@ const CompactTemplate = ({ data }) => {
     certifications,
     achievements,
   } = data || {};
+  const skillsList = extractSkillsList(skills);
 
   return (
     <div className="bg-white text-gray-900 p-6 max-w-[800px] mx-auto text-[12px] leading-snug font-sans">
@@ -38,18 +40,13 @@ const CompactTemplate = ({ data }) => {
         </section>
       )}
 
-      {(skills?.programmingLanguages?.length > 0 || skills?.frameworks?.length > 0) && (
+      {skillsList.length > 0 && (
         <section className="mb-3">
           <h2 className="text-[11px] font-bold uppercase text-teal-800 mb-1">Skills</h2>
           <div className="flex flex-wrap gap-1">
-            {[
-              ...(skills.programmingLanguages || []),
-              ...(skills.frameworks || []),
-              ...(skills.tools || []),
-              ...(skills.other || []),
-            ].map((s) => (
+            {skillsList.map((s, idx) => (
               <span
-                key={s}
+                key={idx}
                 className="bg-teal-50 text-teal-900 border border-teal-200 px-1.5 py-0.5 rounded text-[10px]"
               >
                 {s}

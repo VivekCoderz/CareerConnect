@@ -350,12 +350,21 @@ exports.getInternships = async (req, res, next) => {
 
     if (finalList.length === 0 && myPosts !== "true") {
       try {
-        const scraped = await getAggregatedOpportunities({
-          opportunityType: opportunityType || "all",
+        let scraped = await getAggregatedOpportunities({
+          opportunityType: opportunityType || "internship",
           workMode: workMode && workMode !== "All" ? workMode : "all",
           region: isInternational === "true" ? "International" : (city || "all"),
           search: search || q || category || "",
         });
+
+        if (!scraped?.data || scraped.data.length === 0) {
+          scraped = await getAggregatedOpportunities({
+            opportunityType: "internship",
+            workMode: "all",
+            region: "all",
+            search: "",
+          });
+        }
 
         const fallbackItems = (scraped.data || []).map((item, idx) => ({
           _id: `scraped-int-${idx}`,

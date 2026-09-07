@@ -17,7 +17,7 @@ export default function Internships({
     const t = setTimeout(async () => {
       try {
         setLoading(true);
-        const params = {};
+        const params = { opportunityType: "internship" };
         if (q) params.q = q;
         if (source) params.source = source;
         if (workMode) params.workMode = workMode;

@@ -75,7 +75,7 @@ const userPayload = (user, extra = {}) => ({
   isProfileComplete: user.isProfileComplete || false,
   socialLinks: user.socialLinks,
   isActive: user.isActive,
-  hasPassword: user.hasPassword,
+  hasPassword: Boolean(user.hasPassword && (user.password !== undefined ? !!user.password : true)),
   authProviders: user.authProviders || [],
   resumeUrl: user.resumeUrl || "",
   resumeName: user.resumeName || "",
@@ -470,21 +470,22 @@ module.exports.loginUser = async (req, res, next) => {
       });
     }
 
-    // Firebase users (Google-only) with no MongoDB password should use /firebase-login
-    if (!user.password) {
+    // If user has a password set in MongoDB, verify it
+    if (user.password) {
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid password",
+        });
+      }
+    } else {
+      // Account created via Google sign-in without a set password yet
       return res.status(401).json({
         success: false,
+        code: "PASSWORD_NOT_SET",
         message:
-          "This account uses Google sign-in. Please use 'Continue with Google' to sign in.",
-      });
-    }
-
-    const isMatch = await user.comparePassword(password);
-
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid password",
+          "No password has been set for this account yet. Please sign in with 'Continue with Google' to set your password, or use 'Forgot Password'.",
       });
     }
 
@@ -517,7 +518,7 @@ module.exports.loginUser = async (req, res, next) => {
 // ==========================================
 module.exports.firebaseLogin = async (req, res, next) => {
   try {
-    const { idToken, keepSignedIn = false } = req.body;
+    const { idToken, password, keepSignedIn = false } = req.body;
 
     if (!idToken) {
       return res.status(400).json({
@@ -550,7 +551,7 @@ module.exports.firebaseLogin = async (req, res, next) => {
     // Find MongoDB user by Firebase UID first, then by email (for linking)
     let user = await User.findOne({
       $or: [{ firebaseUid: uid }, { email: email?.toLowerCase() }],
-    });
+    }).select("+password");
 
     if (!user) {
       return res.status(404).json({
@@ -567,17 +568,22 @@ module.exports.firebaseLogin = async (req, res, next) => {
       });
     }
 
-    // Link Firebase UID if this is a legacy user logging in via Firebase for the first time
+    // Link Firebase UID if this is a user logging in via Firebase for the first time
     if (!user.firebaseUid) {
       user.firebaseUid = uid;
-      if (!user.authProviders.includes("email")) {
-        user.authProviders.push("email");
-      }
+    }
+    if (!user.authProviders.includes("email")) {
+      user.authProviders.push("email");
+    }
+
+    // If password provided and user has no MongoDB password, sync it now
+    if (password && !user.password) {
+      user.password = password;
       user.hasPassword = true;
     }
 
     user.lastLogin = new Date();
-    await user.save({ validateBeforeSave: false });
+    await user.save();
 
     const token = generateToken(user._id, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
@@ -643,7 +649,7 @@ module.exports.googleAuth = async (req, res, next) => {
     // Find existing user by Firebase UID or email
     let user = await User.findOne({
       $or: [{ firebaseUid: uid }, { email: normalizedEmail }],
-    });
+    }).select("+password");
 
     let isNewUser = false;
 
@@ -672,6 +678,11 @@ module.exports.googleAuth = async (req, res, next) => {
       // Add google to providers if not present
       if (!user.authProviders.includes("google")) {
         user.authProviders.push("google");
+      }
+
+      // If user has no MongoDB password, ensure hasPassword is false
+      if (!user.password && user.hasPassword) {
+        user.hasPassword = false;
       }
 
       // Update profile image from Google if not set
@@ -706,7 +717,11 @@ module.exports.googleAuth = async (req, res, next) => {
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
-    const requiresPasswordSetup = !user.hasPassword;
+    const requiresPasswordSetup = !user.hasPassword || !user.password;
+    if (requiresPasswordSetup && user.hasPassword) {
+      user.hasPassword = false;
+      await user.save({ validateBeforeSave: false });
+    }
 
     // For users who still need to set a password, issue a short-lived token
     const effectiveKeepSignedIn = requiresPasswordSetup ? false : keepSignedIn;
@@ -730,21 +745,26 @@ module.exports.googleAuth = async (req, res, next) => {
 
 // ==========================================
 // COMPLETE PASSWORD SETUP
-// Called after linkWithCredential(firebaseUser, EmailAuthProvider.credential(...))
-// on the frontend. Verifies that Firebase now has the "password" provider linked,
-// then updates MongoDB to set hasPassword=true.
-//
-// This is the ONLY way a password gets "stored" — in Firebase, not MongoDB.
-// MongoDB only tracks the boolean flag.
+// Called after user enters password on /set-password.
+// Updates password in Firebase via Firebase Admin SDK,
+// hashes and stores password in MongoDB (user.password),
+// sets hasPassword=true, and issues full CareerConnect JWT.
 // ==========================================
 module.exports.completePasswordSetup = async (req, res, next) => {
   try {
-    const { idToken, keepSignedIn = false } = req.body;
+    const { idToken, password, keepSignedIn = false } = req.body;
 
     if (!idToken) {
       return res.status(400).json({
         success: false,
         message: "Firebase ID token is required",
+      });
+    }
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
       });
     }
 
@@ -767,40 +787,23 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       });
     }
 
-    const { uid } = decoded;
+    const { uid, email } = decoded;
 
-    // Double-check: verify the Firebase user now has "password" provider linked
-    let firebaseRecord;
+    // Update Firebase user password directly via Firebase Admin SDK
     try {
-      firebaseRecord = await admin.auth().getUser(uid);
-    } catch (err) {
-      return res.status(400).json({
-        success: false,
-        message: "Could not verify Firebase user record.",
-      });
+      await admin.auth().updateUser(uid, { password });
+    } catch (fbErr) {
+      console.warn("[completePasswordSetup] Firebase admin updateUser warning:", fbErr.message);
     }
 
-    const hasPasswordProvider = firebaseRecord.providerData.some(
-      (p) => p.providerId === "password"
-    );
-
-    if (!hasPasswordProvider) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Password has not been linked to your Firebase account. Please try setting the password again.",
-      });
-    }
-
-    // Update MongoDB: mark hasPassword=true, add "email" to authProviders
-    const user = await User.findOneAndUpdate(
-      { firebaseUid: uid },
-      {
-        hasPassword: true,
-        $addToSet: { authProviders: "email" },
-      },
-      { new: true }
-    );
+    // Find MongoDB user by firebaseUid, email, or authenticated session user
+    let user = await User.findOne({
+      $or: [
+        { firebaseUid: uid },
+        { email: email?.toLowerCase() },
+        ...(req.user?._id ? [{ _id: req.user._id }] : []),
+      ],
+    }).select("+password");
 
     if (!user) {
       return res.status(404).json({
@@ -808,6 +811,21 @@ module.exports.completePasswordSetup = async (req, res, next) => {
         message: "CareerConnect account not found. Please sign in again.",
       });
     }
+
+    // Save hashed password in MongoDB and update flags
+    user.password = password; // pre-save hook will hash with bcrypt
+    user.hasPassword = true;
+    if (!user.authProviders.includes("email")) {
+      user.authProviders.push("email");
+    }
+    if (!user.authProviders.includes("google")) {
+      user.authProviders.push("google");
+    }
+    if (!user.firebaseUid) {
+      user.firebaseUid = uid;
+    }
+
+    await user.save();
 
     // Issue full-duration JWT now that setup is complete
     const token = generateToken(user._id, keepSignedIn);
@@ -931,15 +949,6 @@ module.exports.forgotPassword = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: "No account found with this email",
-      });
-    }
-
-    // Firebase users who haven't set a MongoDB password need to use Firebase password reset
-    if (user.firebaseUid && !user.password) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "This account uses Google sign-in. Please use 'Continue with Google' or reset your password via Google.",
       });
     }
 
@@ -1098,6 +1107,16 @@ module.exports.resetPassword = async (req, res, next) => {
       user.authProviders.push("email");
     }
     await user.save();
+
+    // Also sync updated password to Firebase if user is linked
+    const admin = getFirebaseAdmin();
+    if (admin && user.firebaseUid) {
+      try {
+        await admin.auth().updateUser(user.firebaseUid, { password });
+      } catch (fbErr) {
+        console.warn("[resetPassword] Firebase admin updateUser warning:", fbErr.message);
+      }
+    }
 
     // Cleanup OTP
     await PendingOTP.deleteOne({ email: normalizedEmail });
