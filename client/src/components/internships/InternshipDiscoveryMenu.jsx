@@ -68,6 +68,7 @@ const InternshipDiscoveryMenu = ({ studentCity = "" }) => {
   ];
 
   const exploreMore = [
+    { label: "Live Jobs & Matrix (LinkedIn/Remote)", path: "/opportunities", count: "Live", icon: "🚀", badge: "Matrix" },
     { label: "Latest Internships", path: "/internships/latest", count: categoryData?.totalActive, icon: "⚡" },
     { label: "Remote / Work From Home", path: "/internships/work-from-home", count: categoryData?.workFromHomeCount, icon: "🏠" },
     { label: "Paid Internships", path: "/internships/paid", count: categoryData?.paidCount, icon: "💰" },

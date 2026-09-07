@@ -8,12 +8,11 @@
  * a score of 0.9 and the backend skips verification in non-production.
  */
 
-// Google's public test keys — ONLY use for localhost/development
-const DEV_SITE_KEY = "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI";
+// Google reCAPTCHA v3 keys
 const PROD_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+const DEV_SITE_KEY = "6Lc4s6ctAAAAAOfgmjg_OvVijH4CDWoJGqWF0aD7";
 
-const isDev = import.meta.env.MODE !== "production";
-const SITE_KEY = isDev ? DEV_SITE_KEY : PROD_SITE_KEY;
+const SITE_KEY = PROD_SITE_KEY || DEV_SITE_KEY;
 
 let scriptLoaded = false;
 let scriptLoading = false;

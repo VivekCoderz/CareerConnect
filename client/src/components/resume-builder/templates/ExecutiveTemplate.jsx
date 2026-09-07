@@ -1,7 +1,9 @@
 import React from "react";
+import { extractSkillsList } from "../../../utils/resumeHelpers";
 
 const ExecutiveTemplate = ({ data }) => {
   const { personal, summary, education, skills, projects, experience, certifications, achievements } = data || {};
+  const skillsList = extractSkillsList(skills);
 
   return (
     <div className="bg-white text-gray-900 max-w-[800px] mx-auto text-[13px] leading-relaxed">
@@ -64,12 +66,10 @@ const ExecutiveTemplate = ({ data }) => {
           </section>
         )}
 
-        {(skills?.programmingLanguages?.length > 0 || skills?.frameworks?.length > 0) && (
+        {skillsList.length > 0 && (
           <section className="mb-4">
             <h2 className="text-xs font-bold uppercase text-slate-800 tracking-wider border-b border-slate-300 pb-1 mb-2">Skills</h2>
-            <p className="text-gray-700">
-              {[...(skills.programmingLanguages || []), ...(skills.frameworks || []), ...(skills.tools || []), ...(skills.other || [])].join(" • ")}
-            </p>
+            <p className="text-gray-700">{skillsList.join(" • ")}</p>
           </section>
         )}
 

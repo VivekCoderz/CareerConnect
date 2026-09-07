@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import {
-  signInWithEmailAndPassword,
-  signInWithPopup,
-} from "firebase/auth";
+import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../../config/firebase";
 import api from "../../api/api";
 import {
@@ -93,103 +90,40 @@ const Login = () => {
     if (error) dispatch(clearMessages());
   };
 
-  // ─── Email + Password Submit ─────────────────────────────────────────────────
+  // ─── Database Email / Username + Password Submit ────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     dispatch(loginStart());
 
     try {
       const captchaToken = await getCaptchaToken("login");
-      const identifier = formData.emailOrUsername.trim();
-      const isEmail = identifier.includes("@");
 
-      let user = null;
+      // Check details directly from MongoDB database (not from Firebase)
+      const response = await api.post("/auth/login", {
+        emailOrUsername: formData.emailOrUsername.trim(),
+        password: formData.password,
+        role: loginType,
+        keepSignedIn,
+        captchaToken,
+      });
 
-      if (isEmail) {
-        // ── Firebase path (try first for email identifiers) ──────────────────
-        let firebaseIdToken = null;
-        let useLegacy = false;
-
-        try {
-          const credential = await signInWithEmailAndPassword(
-            auth,
-            identifier,
-            formData.password
-          );
-          firebaseIdToken = await credential.user.getIdToken(true);
-        } catch (firebaseErr) {
-          // User not found in Firebase → fall back to legacy MongoDB check
-          if (
-            firebaseErr.code === "auth/user-not-found" ||
-            firebaseErr.code === "auth/invalid-credential" ||
-            firebaseErr.code === "auth/invalid-email"
-          ) {
-            useLegacy = true;
-          } else if (firebaseErr.code === "auth/wrong-password") {
-            dispatch(loginFailure("Invalid email or password"));
-            return;
-          } else if (firebaseErr.code === "auth/too-many-requests") {
-            dispatch(
-              loginFailure(
-                "Too many failed attempts. Please wait a moment before trying again."
-              )
-            );
-            return;
-          } else {
-            dispatch(loginFailure("Sign-in failed. Please try again."));
-            return;
-          }
-        }
-
-        if (!useLegacy && firebaseIdToken) {
-          // Firebase path: send ID token to backend
-          const response = await api.post("/auth/firebase-login", {
-            idToken: firebaseIdToken,
-            keepSignedIn,
-            captchaToken,
-            role: loginType,
-          });
-          user = response.data.user;
-        } else {
-          // Legacy path: MongoDB bcrypt check
-          const response = await api.post("/auth/login", {
-            ...formData,
-            role: loginType,
-            keepSignedIn,
-            captchaToken,
-          });
-          user = response.data.user;
-        }
-      } else {
-        // ── Username → always use legacy MongoDB path ────────────────────────
-        const response = await api.post("/auth/login", {
-          ...formData,
-          role: loginType,
-          keepSignedIn,
-          captchaToken,
-        });
-        user = response.data.user;
-      }
-
-      dispatch(loginSuccess({ user }));
+      const { user, token } = response.data;
+      dispatch(loginSuccess({ user, token }));
 
       if (user.role === "employer") {
         navigate("/employer/dashboard");
       } else {
-        navigate(getDashboardPath(user.userType, user), { replace: true });
+        navigate(getDashboardPath(user.userType, user));
       }
     } catch (err) {
-      dispatch(
-        loginFailure(
-          err.response?.data?.message || "Invalid email/username or password"
-        )
-      );
+      const data = err.response?.data;
+      const msg = data?.message || err.message || "Invalid credentials";
+      dispatch(loginFailure(msg));
     }
   };
 
   // ─── Google Sign-In ──────────────────────────────────────────────────────────
   const handleGoogleLogin = async () => {
-    if (loginType === "employer") return; // Google login is for candidates only
     setGoogleLoading(true);
     dispatch(clearMessages());
 
@@ -200,20 +134,29 @@ const Login = () => {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken(true);
 
-      // Step 2: Send ID token to backend
+      // Step 2: Send ID token to backend with role (employer or user/candidate)
       const response = await api.post("/auth/google-auth", {
         idToken,
         keepSignedIn,
         captchaToken,
+        role: loginType === "employer" ? "employer" : "user",
       });
 
-      const { user, requiresPasswordSetup } = response.data;
-      dispatch(loginSuccess({ user }));
+      const { user, requiresPasswordSetup, token } = response.data;
+      dispatch(loginSuccess({ user, token }));
 
-      // Step 3: Route based on whether password setup is needed
+      // Step 3: Route based on account status
       if (requiresPasswordSetup) {
+        // First-time Google user → set password first, then onboarding
         navigate("/set-password", { replace: true });
+      } else if (!user.phone?.trim()) {
+        // User already has password, but hasn't completed their info!
+        navigate(
+          user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile",
+          { replace: true }
+        );
       } else {
+        // Existing user with completed info → dashboard
         navigate(getDashboardPath(user.userType, user), { replace: true });
       }
     } catch (err) {
@@ -440,39 +383,37 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Google Login — candidates only */}
-          {loginType === "student" && (
-            <>
-              <div className="my-5 flex items-center gap-3">
-                <div className="flex-1 h-px bg-slate-200" />
-                <span className="text-xs text-slate-400 font-medium">OR</span>
-                <div className="flex-1 h-px bg-slate-200" />
-              </div>
+          {/* Google Login — available for both Candidates & Employers */}
+          <>
+            <div className="my-5 flex items-center gap-3">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-xs text-slate-400 font-medium">OR</span>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
 
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                disabled={loading || googleLoading}
-                className="w-full h-11 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold transition flex items-center justify-center gap-3 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-60 shadow-sm"
-              >
-                {googleLoading ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-                    Connecting to Google...
-                  </>
-                ) : (
-                  <>
-                    <GoogleIcon />
-                    Continue with Google
-                  </>
-                )}
-              </button>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading || googleLoading}
+              className="w-full h-11 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold transition flex items-center justify-center gap-3 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-60 shadow-sm"
+            >
+              {googleLoading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                  Connecting to Google...
+                </>
+              ) : (
+                <>
+                  <GoogleIcon />
+                  Continue with Google
+                </>
+              )}
+            </button>
 
-              <p className="mt-2 text-center text-[11px] text-slate-400">
-                New to CareerConnect? Google sign-in creates your account automatically.
-              </p>
-            </>
-          )}
+            <p className="mt-2 text-center text-[11px] text-slate-400">
+              New to CareerConnect? Google sign-in sets up your account automatically.
+            </p>
+          </>
 
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
             <p className="text-sm text-slate-500 mb-3">Don't have an account?</p>

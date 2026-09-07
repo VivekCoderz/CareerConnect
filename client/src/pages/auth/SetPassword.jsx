@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -30,7 +30,13 @@ const EyeIcon = ({ hidden = false }) => (
 );
 
 /**
- * SetPassword page — shown after first-time Google sign-in.
+ * SetPassword page — shown to first-time Google sign-in users.
+ *
+ * Google users initially authenticate via Firebase Google provider only.
+ * This page prompts them to set a password so that:
+ *  1. Firebase links an email+password credential to the same account.
+ *  2. Backend updates MongoDB: hasPassword = true, authProviders = ["google", "email"].
+ *  3. User can later sign in with either "Continue with Google" OR "Email + Password".
  *
  * Flow:
  *  1. User enters password + confirm password
@@ -39,17 +45,18 @@ const EyeIcon = ({ hidden = false }) => (
  *     Firebase UID does NOT change. MongoDB document does NOT change.
  *  3. POST /api/auth/complete-password-setup verifies Firebase has "password"
  *     provider linked, sets hasPassword=true in MongoDB.
- *  4. Redirect to /select-role (so user can pick their experience level).
+ *  4. Redirect to /select-role or /onboarding/employer.
  *
  * Access control:
  *  - Only accessible when user.hasPassword === false
- *  - Redirects to dashboard if user already has a password
+ *  - Redirects to dashboard if user already has a password and completed profile
  *  - Redirects to /login if not authenticated
  */
 const SetPassword = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const isSubmittingRef = useRef(false);
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -65,8 +72,18 @@ const SetPassword = () => {
       navigate("/login", { replace: true });
       return;
     }
+    // If submit is in progress, let handleSubmit perform the navigation
+    if (isSubmittingRef.current) return;
+
     if (user.hasPassword) {
-      navigate(getDashboardPath(user.userType, user), { replace: true });
+      if (!user.phone?.trim()) {
+        navigate(
+          user.role === "employer" ? "/onboarding/employer" : "/select-role",
+          { replace: true }
+        );
+      } else {
+        navigate(getDashboardPath(user.userType, user), { replace: true });
+      }
     }
   }, [user, navigate]);
 
@@ -107,7 +124,6 @@ const SetPassword = () => {
         await linkWithCredential(firebaseUser, credential);
       } catch (linkErr) {
         if (linkErr.code === "auth/provider-already-linked") {
-          // Password already linked — proceed to confirm with backend (idempotent)
           console.info("[SetPassword] Password provider already linked, confirming with backend.");
         } else if (linkErr.code === "auth/email-already-in-use") {
           setError(
@@ -120,29 +136,42 @@ const SetPassword = () => {
           setLoading(false);
           return;
         } else {
-          throw linkErr;
+          console.warn("[SetPassword] Client linkWithCredential warning:", linkErr.message);
+          // Backend Firebase Admin SDK will set password directly
         }
       }
 
       // Step 2: Get fresh Firebase ID token (force-refresh after linking)
       const newIdToken = await firebaseUser.getIdToken(true);
 
-      // Step 3: Confirm with backend — verifies Firebase has "password" provider,
-      // sets hasPassword=true in MongoDB, issues full-duration CareerConnect JWT.
+      // Step 3: Confirm with backend — verifies and saves password in MongoDB
+      // and Firebase Admin, sets hasPassword=true, issues full-duration JWT.
       const response = await api.post("/auth/complete-password-setup", {
         idToken: newIdToken,
+        password,
         keepSignedIn,
       });
 
-      const { user: updatedUser } = response.data;
+      isSubmittingRef.current = true;
+      const { user: updatedUser, token } = response.data;
+
+      if (token) {
+        localStorage.setItem("careerconnect_token", token);
+      }
 
       // Update Redux auth state with updated user (hasPassword=true)
       dispatch(setUser(updatedUser));
 
-      // Redirect to /select-role so user can choose their experience level
-      // (Google signup skips the multi-step form that collects userType)
-      navigate("/select-role", { replace: true });
+      // Route based on user role:
+      // - Employers → collect company details (/onboarding/employer)
+      // - Candidates/Students → select role (Student / Fresher / Professional) -> then collect info (/onboarding/profile)
+      if (updatedUser.role === "employer") {
+        navigate("/onboarding/employer", { replace: true });
+      } else {
+        navigate("/select-role", { replace: true });
+      }
     } catch (err) {
+      isSubmittingRef.current = false;
       const msg =
         err.response?.data?.message ||
         err.message ||
@@ -153,7 +182,7 @@ const SetPassword = () => {
     }
   };
 
-  if (!user || user.hasPassword) {
+  if (!user || (user.hasPassword && !isSubmittingRef.current)) {
     return null; // Redirect is happening
   }
 
