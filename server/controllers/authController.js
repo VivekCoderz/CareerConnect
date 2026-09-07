@@ -8,10 +8,23 @@ const PendingOTP = require("../models/PendingOTP.js");
 const sendEmail = require("../utils/sendEmail.js");
 const EmployerProfile = require("../models/EmployerProfile.js");
 const getFirebaseAdmin = require("../config/firebaseAdmin.js");
+const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
 
 // ==========================================
-// HELPERS
+// PASSWORD VALIDATION & HELPERS
 // ==========================================
+
+const validatePassword = (password) => {
+  if (!password || typeof password !== "string") return false;
+  if (password.length < 6) return false;
+  if (!/[a-zA-Z]/.test(password)) return false;
+  if (!/[0-9]/.test(password)) return false;
+  if (!/[@#$%&*!?]/.test(password) && !/[^a-zA-Z0-9]/.test(password)) return false;
+  return true;
+};
+
+const PASSWORD_VALIDATION_ERROR =
+  "Password must contain at least 6 characters, one letter, one number, and one special character.";
 
 // Generate 6-digit OTP
 const generateOTP = () => {
@@ -96,7 +109,18 @@ module.exports.sendOTP = async (req, res, next) => {
       });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    // Comprehensive Email & Disposable Domain Protection
+    const validationResult = await validateEmail(email);
+    if (!validationResult.isValid) {
+      return res.status(400).json({
+        success: false,
+        field: "email",
+        code: validationResult.isDisposable ? "DISPOSABLE_EMAIL_REJECTED" : "INVALID_EMAIL_DOMAIN",
+        message: validationResult.reason || "Invalid email address or temporary domain.",
+      });
+    }
+
+    const normalizedEmail = validationResult.normalizedEmail || email.trim().toLowerCase();
 
     // Already registered?
     const existing = await User.findOne({ email: normalizedEmail });
@@ -228,6 +252,41 @@ module.exports.verifyOTP = async (req, res, next) => {
   }
 };
 
+/**
+ * Helper to create/regenerate session in Redis
+ * Stores ONLY minimal, essential data (userId, email, role, loginTime, lastActive)
+ */
+const createSession = (req, user) => {
+  return new Promise((resolve, reject) => {
+    if (!req.session) return resolve(null);
+
+    // Regenerate session to prevent session fixation attacks
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error("Session regeneration error:", err);
+        return reject(err);
+      }
+
+      req.session.user = {
+        userId: user._id.toString(),
+        email: user.email,
+        role: user.role,
+        userType: user.userType,
+        loginTime: new Date(),
+        lastActive: new Date(),
+      };
+
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error("Session save error:", saveErr);
+          return reject(saveErr);
+        }
+        resolve(req.session.user);
+      });
+    });
+  });
+};
+
 // ==========================================
 // REGISTER (Multi-step form ke hisaab se)
 // ==========================================
@@ -279,11 +338,12 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
-    if (!phone?.trim()) {
+    const cleanPhone = phone ? phone.toString().trim().replace(/\D/g, "") : "";
+    if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
       return res.status(400).json({
         success: false,
         field: "phone",
-        message: "Phone number is required",
+        message: "Please enter a valid 10-digit mobile number containing only numeric digits (0-9)",
       });
     }
 
@@ -295,11 +355,11 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
-    if (password.length < 6) {
+    if (!validatePassword(password)) {
       return res.status(400).json({
         success: false,
         field: "password",
-        message: "Password must contain at least 6 characters",
+        message: PASSWORD_VALIDATION_ERROR,
       });
     }
 
@@ -417,6 +477,15 @@ module.exports.registerUser = async (req, res, next) => {
     // Cleanup OTP after successful registration
     await PendingOTP.deleteOne({ email: normalizedEmail });
 
+    // Initialize Redis Session
+    if (req.session) {
+      try {
+        await createSession(req, user);
+      } catch (sessErr) {
+        console.warn("Could not save registration session to Redis:", sessErr.message);
+      }
+    }
+
     const token = generateToken(user._id, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
@@ -493,6 +562,15 @@ module.exports.loginUser = async (req, res, next) => {
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
+    // Initialize Redis Session (15 min idle timeout with rolling reset)
+    if (req.session) {
+      try {
+        await createSession(req, user);
+      } catch (sessErr) {
+        console.warn("Could not save login session to Redis:", sessErr.message);
+      }
+    }
+
     const token = generateToken(user._id, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
@@ -500,6 +578,7 @@ module.exports.loginUser = async (req, res, next) => {
       success: true,
       message: "Login successful",
       token,
+      sessionExpiresInMs: req.session?.cookie?.maxAge || null,
       user: userPayload(user),
     });
   } catch (error) {
@@ -761,10 +840,11 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       });
     }
 
-    if (!password || password.length < 6) {
+    if (!password || !validatePassword(password)) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 6 characters",
+        field: "password",
+        message: PASSWORD_VALIDATION_ERROR,
       });
     }
 
@@ -846,16 +926,38 @@ module.exports.completePasswordSetup = async (req, res, next) => {
 // LOGOUT
 // ==========================================
 module.exports.logoutUser = async (req, res) => {
+  // 1. Clear token cookie
   res.clearCookie("token", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   });
 
-  return res.status(200).json({
-    success: true,
-    message: "Logout successful",
+  // 2. Clear session cookie
+  res.clearCookie("sid", {
+    path: "/",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   });
+
+  // 3. Destroy session in Redis
+  if (req.session) {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Error destroying Redis session during logout:", err);
+      }
+      return res.status(200).json({
+        success: true,
+        message: "Logout successful. Session destroyed.",
+      });
+    });
+  } else {
+    return res.status(200).json({
+      success: true,
+      message: "Logout successful",
+    });
+  }
 };
 
 // ==========================================
@@ -864,6 +966,7 @@ module.exports.logoutUser = async (req, res) => {
 module.exports.getMe = async (req, res) => {
   return res.status(200).json({
     success: true,
+    sessionExpiresInMs: req.session?.cookie?.maxAge || null,
     user: userPayload(req.user),
   });
 };
@@ -1069,17 +1172,18 @@ module.exports.resetPassword = async (req, res, next) => {
         .json({ success: false, message: "All fields are required" });
     }
 
-    if (password.length < 6) {
+    if (!validatePassword(password)) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 6 characters",
+        field: "password",
+        message: PASSWORD_VALIDATION_ERROR,
       });
     }
 
     if (password !== confirmPassword) {
       return res
         .status(400)
-        .json({ success: false, message: "Passwords do not match" });
+        .json({ success: false, field: "confirmPassword", message: "Passwords do not match" });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -1167,11 +1271,12 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     }
 
-    if (!phone?.trim()) {
+    const cleanPhone = phone ? phone.toString().trim().replace(/\D/g, "") : "";
+    if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
       return res.status(400).json({
         success: false,
         field: "phone",
-        message: "Mobile number is required",
+        message: "Please enter a valid 10-digit mobile number containing only numeric digits (0-9)",
       });
     }
 
@@ -1183,11 +1288,11 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     }
 
-    if (password.length < 6) {
+    if (!validatePassword(password)) {
       return res.status(400).json({
         success: false,
         field: "password",
-        message: "Password must contain at least 6 characters",
+        message: PASSWORD_VALIDATION_ERROR,
       });
     }
 
@@ -1306,6 +1411,15 @@ module.exports.registerEmployer = async (req, res, next) => {
 
     // Cleanup OTP
     await PendingOTP.deleteOne({ email: normalizedEmail });
+
+    // Initialize Redis Session
+    if (req.session) {
+      try {
+        await createSession(req, user);
+      } catch (sessErr) {
+        console.warn("Could not save employer session to Redis:", sessErr.message);
+      }
+    }
 
     const token = generateToken(user._id, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);

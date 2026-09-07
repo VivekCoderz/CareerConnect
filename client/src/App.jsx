@@ -136,7 +136,9 @@ function App() {
     <BrowserRouter>
       <AuthInitializer>
         <Routes>
-          {/* ========== PUBLIC ========== */}
+          {/* =================================================
+              PUBLIC ROUTES
+          ================================================= */}
           <Route
             path="/login"
             element={
@@ -167,122 +169,33 @@ function App() {
           <Route path="/companies/:companyId" element={<CompanyPublicProfile />} />
 
           {/* =================================================
-              PUBLIC ROUTES
-          ================================================= */}
-
-          <Route path="/login" element={<Login />} />
-
-          <Route
-            path="/register/student"
-            element={<Signup />}
-          />
-
-          <Route
-            path="/register/employer"
-            element={<EmployerRegister />}
-          />
-
-          <Route
-            path="/forgot-password"
-            element={<ForgotPassword />}
-          />
-
-          <Route
-            path="/select-role"
-            element={<SelectRole />}
-          />
-
-          <Route
-            path="/home"
-            element={<Home />}
-          />
-
-          <Route
-            path="/companies/:companyId"
-            element={<CompanyPublicProfile />}
-          />
-
-          {/* =================================================
               SET PASSWORD
           ================================================= */}
-
-          <Route
-            path="/set-password"
-            element={<SetPassword />}
-          />
+          <Route path="/set-password" element={<SetPassword />} />
 
           {/* =================================================
               LIVE OPPORTUNITIES MATRIX & DISCOVERY
           ================================================= */}
-
-          <Route
-            path="/opportunities"
-            element={<OpportunitiesPage />}
-          />
-          <Route
-            path="/jobs"
-            element={<OpportunitiesPage />}
-          />
+          <Route path="/opportunities" element={<OpportunitiesPage />} />
+          <Route path="/jobs" element={<OpportunitiesPage />} />
 
           {/* =================================================
               INTERNSHIP DISCOVERY
           ================================================= */}
-
-          <Route
-            path="/internships"
-            element={<InternshipDiscoveryPage />}
-          />
-
-          <Route
-            path="/internships/browse"
-            element={<Internships />}
-          />
-
-          <Route
-            path="/internships/work-from-home"
-            element={<InternshipDiscoveryPage />}
-          />
-
-          <Route
-            path="/internships/international"
-            element={<InternshipDiscoveryPage />}
-          />
-
-          <Route
-            path="/internships/latest"
-            element={<InternshipDiscoveryPage />}
-          />
-
-          <Route
-            path="/internships/paid"
-            element={<InternshipDiscoveryPage />}
-          />
-
-          <Route
-            path="/internships/with-job-offer"
-            element={<InternshipDiscoveryPage />}
-          />
-
-          <Route
-            path="/internships/in/:city"
-            element={<InternshipDiscoveryPage />}
-          />
-
-          <Route
-            path="/internships/category/:category"
-            element={<InternshipDiscoveryPage />}
-          />
+          <Route path="/internships" element={<InternshipDiscoveryPage />} />
+          <Route path="/internships/browse" element={<Internships />} />
+          <Route path="/internships/work-from-home" element={<InternshipDiscoveryPage />} />
+          <Route path="/internships/international" element={<InternshipDiscoveryPage />} />
+          <Route path="/internships/latest" element={<InternshipDiscoveryPage />} />
+          <Route path="/internships/paid" element={<InternshipDiscoveryPage />} />
+          <Route path="/internships/with-job-offer" element={<InternshipDiscoveryPage />} />
+          <Route path="/internships/in/:city" element={<InternshipDiscoveryPage />} />
+          <Route path="/internships/category/:category" element={<InternshipDiscoveryPage />} />
 
           {/* =================================================
-              STUDENT + FRESHER + PROFESSIONAL
+              GOOGLE ONBOARDING
           ================================================= */}
-
-          {/* ========== GOOGLE ONBOARDING — CANDIDATES ========== */}
-          {/* Shown after set-password → select-role → profile info + resume */}
           <Route path="/onboarding/profile" element={<GoogleOnboarding />} />
-
-          {/* ========== GOOGLE ONBOARDING — EMPLOYERS ========== */}
-          {/* Shown after set-password → company details collection */}
           <Route path="/onboarding/employer" element={<GoogleEmployerOnboarding />} />
 
           {/* ========== CANDIDATES: student + fresher + professional ========== */}
@@ -297,21 +210,13 @@ function App() {
               />
             }
           >
-            <Route
-              path="/internships/:id"
-              element={<InternshipDetail />}
-            />
-
-            <Route
-              path="/applications"
-              element={<MyApplications />}
-            />
+            <Route path="/internships/:id" element={<InternshipDetail />} />
+            <Route path="/applications" element={<MyApplications />} />
           </Route>
 
           {/* =================================================
               STUDENT ONLY
           ================================================= */}
-
           <Route
             element={
               <RoleProtectedRoute
@@ -319,21 +224,13 @@ function App() {
               />
             }
           >
-            <Route
-              path="/student/dashboard"
-              element={<StudentDashboard />}
-            />
-
-            <Route
-              path="/student/profile"
-              element={<StudentProfile />}
-            />
+            <Route path="/student/dashboard" element={<StudentDashboard />} />
+            <Route path="/student/profile" element={<StudentProfile />} />
           </Route>
 
           {/* =================================================
               FRESHER ONLY
           ================================================= */}
-
           <Route
             element={
               <RoleProtectedRoute
@@ -341,21 +238,13 @@ function App() {
               />
             }
           >
-            <Route
-              path="/fresher/dashboard"
-              element={<FresherDashboard />}
-            />
-
-            <Route
-              path="/fresher/profile"
-              element={<FresherProfile />}
-            />
+            <Route path="/fresher/dashboard" element={<FresherDashboard />} />
+            <Route path="/fresher/profile" element={<FresherProfile />} />
           </Route>
 
           {/* =================================================
               PROFESSIONAL ONLY
           ================================================= */}
-
           <Route
             element={
               <RoleProtectedRoute
@@ -363,21 +252,13 @@ function App() {
               />
             }
           >
-            <Route
-              path="/professional/dashboard"
-              element={<ProfessionalDashboard />}
-            />
-
-            <Route
-              path="/professional/profile"
-              element={<ProfessionalProfile />}
-            />
+            <Route path="/professional/dashboard" element={<ProfessionalDashboard />} />
+            <Route path="/professional/profile" element={<ProfessionalProfile />} />
           </Route>
 
           {/* =================================================
               EMPLOYER ONLY
           ================================================= */}
-
           <Route
             element={
               <RoleProtectedRoute
@@ -385,99 +266,30 @@ function App() {
               />
             }
           >
-            <Route
-              path="/employer/dashboard"
-              element={<EmployerDashboard />}
-            />
+            <Route path="/employer/dashboard" element={<EmployerDashboard />} />
+            <Route path="/employer/profile" element={<EmployerProfile />} />
+            <Route path="/employer/company" element={<CompanyPublicProfile />} />
+            <Route path="/employer/internships" element={<MyInternships />} />
+            <Route path="/employer/internships/new" element={<PostInternship />} />
+            <Route path="/employer/internships/:id/edit" element={<EditInternship />} />
 
-            <Route
-              path="/employer/profile"
-              element={<EmployerProfile />}
-            />
-
-            <Route
-              path="/employer/company"
-              element={<CompanyPublicProfile />}
-            />
-
-            <Route
-              path="/employer/internships"
-              element={<MyInternships />}
-            />
-
-            <Route
-              path="/employer/internships/new"
-              element={<PostInternship />}
-            />
-
-            <Route
-              path="/employer/internships/:id/edit"
-              element={<EditInternship />}
-            />
-
-            {/* ===============================
-                EMPLOYER COURSES
-            =============================== */}
-
-            <Route
-              path="/employer/courses"
-              element={<EmployeeCoursesPage />}
-            />
+            {/* EMPLOYER COURSES */}
+            <Route path="/employer/courses" element={<EmployeeCoursesPage />} />
+            <Route path="/employer/courses/create" element={<CreateCoursePage />} />
+            <Route path="/employer/courses/:id/edit" element={<EditCoursePage />} />
+            <Route path="/employer/courses/:id/content" element={<CourseContentPage />} />
           </Route>
-             <Route
-            path="/employer/courses/create"
-  element={<CreateCoursePage />}
-          />
-
-<Route
-  path="/employer/courses/:id/edit"
-  element={<EditCoursePage />}
-/>
-
-<Route
-  path="/employer/courses/:id/content"
-  element={<CourseContentPage />}
-/>
 
           {/* =================================================
               RESUME BUILDER
           ================================================= */}
-
-          <Route
-            path="/resume-builder"
-            element={<ResumeBuilder />}
-          />
-
-          {/* =================================================
-              DEFAULT ROUTES
-          ================================================= */}
-
-          <Route
-            path="/"
-            element={
-              <Navigate
-                to="/home"
-                replace
-              />
-            }
-          />
-
-          <Route
-            path="*"
-            element={
-              <Navigate
-                to="/home"
-                replace
-              />
-            }
-          />
+          <Route path="/resume-builder" element={<ResumeBuilder />} />
 
           {/* ========== DEFAULT ========== */}
           <Route path="/" element={<RootRoute />} />
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </AuthInitializer>
-      
     </BrowserRouter>
   );
 }

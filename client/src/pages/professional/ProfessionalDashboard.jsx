@@ -1,18 +1,108 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { logout } from "../../redux/features/authSlice";
 import { logoutUser } from "../../services/authService";
 import { getProfessionalDashboardData } from "../../services/professionalDashboardService";
+
+// Subcomponents
+import ProfessionalSidebar from "../../components/professional-dashboard/ProfessionalSidebar";
+import ProfessionalHeader from "../../components/professional-dashboard/ProfessionalHeader";
+import WelcomeSection from "../../components/professional-dashboard/WelcomeSection";
+import CareerSnapshotCard from "../../components/professional-dashboard/CareerSnapshotCard";
+import CareerDirectionCard from "../../components/professional-dashboard/CareerDirectionCard";
+import CuratedOpportunitiesCard from "../../components/professional-dashboard/CuratedOpportunitiesCard";
+import SkillFocusCard from "../../components/professional-dashboard/SkillFocusCard";
+import ExecutiveResumeCard from "../../components/professional-dashboard/ExecutiveResumeCard";
+import ConfidentialCareerModeCard from "../../components/professional-dashboard/ConfidentialCareerModeCard";
+import ApplicationPipelineCard from "../../components/professional-dashboard/ApplicationPipelineCard";
+import CareerCompanyInsights from "../../components/professional-dashboard/CareerCompanyInsights";
+import ProfessionalApplicationsView from "../../components/professional-dashboard/ProfessionalApplicationsView";
+
+// Modals & Interactive Overlays
+import CareerPathModal from "../../components/professional-dashboard/CareerPathModal";
+import OpportunityDetailModal from "../../components/professional-dashboard/OpportunityDetailModal";
+import PrivacyModal from "../../components/professional-dashboard/PrivacyModal";
+import ApplyReviewModal from "../../components/professional-dashboard/ApplyReviewModal";
+import ApplicationSuccessModal from "../../components/professional-dashboard/ApplicationSuccessModal";
+import ExternalApplicationFollowupModal from "../../components/professional-dashboard/ExternalApplicationFollowupModal";
+
+const INITIAL_APPLICATIONS = [
+  {
+    id: "app-101",
+    title: "Engineering Lead — Developer Productivity & AI",
+    company: "Microsoft",
+    appliedDate: "Sep 2, 2026",
+    status: "Under Review ⏳",
+    statusType: "review",
+    source: "direct",
+    location: "Bangalore",
+  },
+  {
+    id: "app-102",
+    title: "Staff Software Engineer — Distributed Systems",
+    company: "Stripe",
+    appliedDate: "Aug 30, 2026",
+    status: "Interview Scheduled 📅",
+    statusType: "interview",
+    source: "direct",
+    location: "Remote",
+  },
+  {
+    id: "app-103",
+    title: "Senior Backend Architect",
+    company: "Atlassian",
+    appliedDate: "Aug 28, 2026",
+    status: "Interview Scheduled 📅",
+    statusType: "interview",
+    source: "direct",
+    location: "Remote (India)",
+  },
+  {
+    id: "app-104",
+    title: "Engineering Manager (Core Banking Infrastructure)",
+    company: "Razorpay",
+    appliedDate: "Aug 26, 2026",
+    status: "Shortlisted 🎯",
+    statusType: "shortlisted",
+    source: "direct",
+    location: "Bangalore",
+  },
+];
 
 const ProfessionalDashboard = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Application Pipeline State
+  const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
+
+  // Modals state
+  const [showCareerPathModal, setShowCareerPathModal] = useState(false);
+  const [selectedOpportunity, setSelectedOpportunity] = useState(null);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
+  // Application Workflow Modals
+  const [showApplyReviewModal, setShowApplyReviewModal] = useState(false);
+  const [reviewingOpportunity, setReviewingOpportunity] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastSubmittedApplication, setLastSubmittedApplication] = useState(null);
+  const [showExternalFollowupModal, setShowExternalFollowupModal] = useState(false);
+  const [pendingExternalOpportunity, setPendingExternalOpportunity] = useState(null);
+
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const fetchDashboard = async () => {
     setLoading(true);
@@ -23,8 +113,7 @@ const ProfessionalDashboard = () => {
         setDashboardData(res.data);
       }
     } catch (err) {
-      console.error("Failed to load professional dashboard:", err);
-      setError("Unable to load workspace data. Please retry.");
+      console.error("Dashboard fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -44,341 +133,506 @@ const ProfessionalDashboard = () => {
     navigate("/login");
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-violet-600 border-t-transparent rounded-full animate-spin mb-4" />
-        <h2 className="text-base font-bold text-slate-800">Loading Executive Hub...</h2>
-        <p className="text-xs text-slate-500 mt-1">Aggregating curated executive matches and career metrics</p>
-      </div>
-    );
-  }
-
-  const profile = dashboardData?.profile || {};
-  const proName = dashboardData?.user?.fullName || user?.fullName || "Leader";
-  const completion = dashboardData?.profileCompletion ?? 85;
-  const careerStrength = dashboardData?.careerStrength || { score: 82, tips: [] };
-  const recommendedJobs = dashboardData?.recommendedJobs || [];
-  const applications = dashboardData?.applications || {
-    stats: { applied: 0, underReview: 0, shortlisted: 0, interview: 0 },
-    recent: [],
+  // Trigger Application Review Flow
+  const handleInitiateApply = (opp) => {
+    if (!opp) return;
+    const preparedOpp = {
+      ...opp,
+      company: opp.company || opp.companyName || "Technology Enterprise",
+      companyName: opp.company || opp.companyName || "Technology Enterprise",
+    };
+    setReviewingOpportunity(preparedOpp);
+    setShowApplyReviewModal(true);
   };
 
-  const currentEmp = profile?.currentEmployment || {};
-  const experienceYears = profile?.totalExperienceYears ? `${profile.totalExperienceYears}+ Years` : "4+ Years";
+  // Direct Apply via CareerConnect
+  const handleDirectSubmit = (opp, coverNote) => {
+    const compName = opp.company || opp.companyName || "Technology Enterprise";
+    const newApp = {
+      id: `app-${Date.now()}`,
+      title: opp.title,
+      company: compName,
+      appliedDate: "Today",
+      status: "Under Review ⏳",
+      statusType: "review",
+      source: "direct",
+      location: opp.location || "Remote",
+    };
 
-  const allSkills = [
-    ...(profile?.skills?.cloud || []).map((s) => s.name),
-    ...(profile?.skills?.programmingLanguages || []).map((s) => s.name),
-    ...(profile?.skills?.frameworks || []).map((s) => s.name),
-    ...(profile?.skills?.databases || []).map((s) => s.name),
-    ...(profile?.skills?.management || []).map((s) => s.name),
+    setApplicationsList((prev) => [newApp, ...prev]);
+    setShowApplyReviewModal(false);
+    setLastSubmittedApplication({
+      title: opp.title,
+      company: compName,
+    });
+    setShowSuccessModal(true);
+    showToast("✓ Application submitted successfully.", "success");
+  };
+
+  // External Application Flow
+  const handleContinueExternal = (opp) => {
+    setShowApplyReviewModal(false);
+    setPendingExternalOpportunity(opp);
+
+    // Open company career URL
+    const externalUrl = opp.url || opp.careerPageUrl || "https://careers.google.com";
+    if (externalUrl && externalUrl !== "#") {
+      window.open(externalUrl, "_blank", "noopener,noreferrer");
+    }
+
+    // Prompt follow-up verification modal
+    setTimeout(() => {
+      setShowExternalFollowupModal(true);
+    }, 400);
+  };
+
+  // Confirm External Application was submitted
+  const handleConfirmExternalApplied = (opp) => {
+    const compName = opp.company || opp.companyName || "Technology Enterprise";
+    const newApp = {
+      id: `app-${Date.now()}`,
+      title: opp.title,
+      company: compName,
+      appliedDate: "Today",
+      status: "Application Started 🌐",
+      statusType: "external",
+      source: "external",
+      location: opp.location || "External Portal",
+    };
+
+    setApplicationsList((prev) => [newApp, ...prev]);
+    showToast(`✓ External application added to your pipeline!`, "success");
+  };
+
+  const handleDownloadResume = () => {
+    showToast("Downloading Executive Resume PDF...", "success");
+  };
+
+  // Dynamic fields
+  const profile = dashboardData?.profile || {};
+  const professionalName =
+    dashboardData?.user?.fullName ||
+    user?.fullName ||
+    profile?.userId?.fullName ||
+    "Imran";
+
+  const currentRole =
+    profile?.currentEmployment?.jobTitle ||
+    profile?.professionalHeadline ||
+    "Senior Software Engineer";
+
+  const experienceYears =
+    profile?.totalExperienceYears
+      ? `${profile.totalExperienceYears}+ Years`
+      : "4+ Years";
+
+  const targetRole =
+    profile?.careerGoal?.targetRole ||
+    "Engineering Lead / Staff Engineer";
+
+  const profileStrength = dashboardData?.profileCompletion ?? 92;
+  const careerStrengthScore = dashboardData?.careerStrength?.score ?? 82;
+
+  const focusAreas = ["System Design", "Cloud Architecture", "Leadership"];
+
+  const curatedOpportunities = [
+    {
+      id: "opp-1",
+      title: "Staff Software Engineer — Distributed Systems",
+      company: "Stripe",
+      location: "Remote",
+      experience: "5+ Years",
+      salary: "₹35–50 LPA",
+      matchPercentage: 92,
+      tags: ["System Design", "AWS", "Distributed Systems"],
+    },
+    {
+      id: "opp-2",
+      title: "Engineering Lead (Platform & Architecture)",
+      company: "Razorpay",
+      location: "Bangalore (Hybrid)",
+      experience: "5+ Years",
+      salary: "₹45–60 LPA",
+      matchPercentage: 95,
+      tags: ["System Architecture", "Microservices", "Team Leadership"],
+    },
+    {
+      id: "opp-3",
+      title: "Senior Backend Architect",
+      company: "Atlassian",
+      location: "Remote (India)",
+      experience: "6+ Years",
+      salary: "₹50–70 LPA",
+      matchPercentage: 88,
+      tags: ["Microservices", "Kubernetes", "AWS"],
+    },
   ];
 
+  const skillFocusList = [
+    { name: "System Design", level: "Strong" },
+    { name: "Cloud Architecture", level: "Advanced" },
+    { name: "Engineering Leadership", level: "Developing" },
+  ];
+
+  // Dynamic application pipeline statistics
+  const applicationStats = {
+    applied: applicationsList.length,
+    underReview: applicationsList.filter(
+      (a) => a.statusType === "review" || a.status?.toLowerCase().includes("review")
+    ).length,
+    shortlisted: applicationsList.filter(
+      (a) => a.statusType === "shortlisted" || a.status?.toLowerCase().includes("shortlist")
+    ).length,
+    interview: applicationsList.filter(
+      (a) => a.statusType === "interview" || a.status?.toLowerCase().includes("interview")
+    ).length,
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
-      {/* Top Navbar */}
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center font-bold text-lg text-white shadow-md shadow-violet-600/30">
-              C
+    <div className="min-h-screen bg-slate-50/70 text-slate-800 flex flex-col font-sans">
+      {/* Top Header */}
+      <ProfessionalHeader
+        professionalName={professionalName}
+        professionalRole={currentRole}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        onToggleSidebar={() => setMobileSidebarOpen((prev) => !prev)}
+        onLogout={handleLogout}
+      />
+
+      <div className="flex-1 flex w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
+        {/* Left Side Navigation Sidebar */}
+        <ProfessionalSidebar
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          isOpen={mobileSidebarOpen}
+          onClose={() => setMobileSidebarOpen(false)}
+          onLogout={handleLogout}
+        />
+
+        {/* Main Center Content Area */}
+        <main className="flex-1 min-w-0 space-y-6">
+          {/* Main Dashboard Overview Tab */}
+          {activeTab === "dashboard" && (
+            <div className="space-y-6 animate-fade-in">
+              {/* 1. Welcome Section */}
+              <WelcomeSection
+                name={professionalName}
+                role={currentRole}
+                profileStrength={profileStrength}
+                careerStrength={careerStrengthScore}
+              />
+
+              {/* 2. Career Snapshot */}
+              <CareerSnapshotCard
+                currentRole={currentRole}
+                experience={experienceYears}
+                targetRole={targetRole}
+                onUpdateProfile={() => navigate("/professional/profile")}
+              />
+
+              {/* 3. Career Direction */}
+              <CareerDirectionCard
+                currentRole={currentRole}
+                targetRole={targetRole}
+                focusAreas={focusAreas}
+                onViewCareerPath={() => setShowCareerPathModal(true)}
+              />
+
+              {/* 4. Curated Opportunities */}
+              <CuratedOpportunitiesCard
+                opportunities={curatedOpportunities}
+                onExploreRole={(opp) => handleInitiateApply(opp)}
+                onViewAllOpportunities={() => setActiveTab("opportunities")}
+              />
+
+              {/* 5. Skill Focus */}
+              <SkillFocusCard
+                skills={skillFocusList}
+                onViewSkills={() => setActiveTab("skills")}
+              />
+
+              {/* 6. Executive Resume */}
+              <ExecutiveResumeCard
+                lastUpdated="4 days ago"
+                onViewResume={() => navigate("/professional/profile")}
+                onDownload={handleDownloadResume}
+              />
+
+              {/* 7. Confidential Career Mode */}
+              <ConfidentialCareerModeCard
+                isActive={true}
+                onManagePrivacy={() => setShowPrivacyModal(true)}
+              />
+
+              {/* 8. Application Pipeline */}
+              <ApplicationPipelineCard
+                stats={applicationStats}
+                recent={applicationsList.slice(0, 2)}
+                onViewAllApplications={() => setActiveTab("applications")}
+              />
             </div>
-            <div>
-              <span className="text-lg font-bold tracking-tight text-slate-900">CareerConnect</span>
-              <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">
-                Executive Hub
-              </span>
+          )}
+
+          {/* Opportunities Dedicated Tab */}
+          {activeTab === "opportunities" && (
+            <div className="space-y-6">
+              <CuratedOpportunitiesCard
+                opportunities={[
+                  ...curatedOpportunities,
+                  {
+                    id: "opp-4",
+                    title: "Principal Software Engineer - Azure Core",
+                    company: "Microsoft",
+                    location: "Hyderabad",
+                    experience: "6+ Years",
+                    salary: "₹55–75 LPA",
+                    matchPercentage: 94,
+                    tags: ["Distributed Systems", "Cloud", "Leadership"],
+                  },
+                  {
+                    id: "opp-5",
+                    title: "Staff Cloud Architect",
+                    company: "Amazon",
+                    location: "Bangalore",
+                    experience: "5+ Years",
+                    salary: "₹48–70 LPA",
+                    matchPercentage: 91,
+                    tags: ["AWS", "Kubernetes", "Architecture"],
+                  },
+                ]}
+                onExploreRole={(opp) => handleInitiateApply(opp)}
+                onViewAllOpportunities={() => {}}
+              />
             </div>
-          </div>
+          )}
 
-          <div className="flex items-center gap-4">
-            <Link
-              to="/professional/profile"
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl transition border border-violet-200"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              Manage Executive Profile
-            </Link>
-
-            <button
-              onClick={handleLogout}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-900 transition"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Welcome Banner */}
-        <section className="bg-gradient-to-r from-violet-800 via-purple-900 to-slate-900 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
-          <div className="absolute right-0 top-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-          <div className="relative z-10 max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-violet-200 text-xs font-medium mb-3 backdrop-blur-sm">
-              💼 Executive & Leadership Hub
+          {/* Career Growth Dedicated Tab */}
+          {activeTab === "growth" && (
+            <div className="space-y-6">
+              <CareerDirectionCard
+                currentRole={currentRole}
+                targetRole={targetRole}
+                focusAreas={focusAreas}
+                onViewCareerPath={() => setShowCareerPathModal(true)}
+              />
+              <CareerSnapshotCard
+                currentRole={currentRole}
+                experience={experienceYears}
+                targetRole={targetRole}
+                onUpdateProfile={() => navigate("/professional/profile")}
+              />
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-              Welcome, {proName}!
-            </h1>
-            <p className="text-violet-100 text-xs sm:text-sm mt-2 leading-relaxed max-w-2xl">
-              {profile?.professionalHeadline ||
-                "Accelerate your career trajectory. Discover confidential leadership transitions, track executive applications, and optimize high-scale compensation."}
-            </p>
+          )}
 
-            {/* Metrics Dual Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 max-w-2xl">
-              {/* Profile Strength */}
-              <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
-                <div className="flex justify-between items-center text-xs font-bold mb-2">
-                  <span>Profile Strength</span>
-                  <span className="text-violet-200">{completion}% Complete</span>
-                </div>
-                <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-violet-300 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${completion}%` }}
-                  />
-                </div>
+          {/* Applications Dedicated Tab */}
+          {activeTab === "applications" && (
+            <ProfessionalApplicationsView
+              applications={applicationsList}
+              stats={applicationStats}
+              onExploreOpportunities={() => setActiveTab("opportunities")}
+            />
+          )}
+
+          {/* Skills Dedicated Tab */}
+          {activeTab === "skills" && (
+            <div className="space-y-6">
+              <SkillFocusCard
+                skills={skillFocusList}
+                onViewSkills={() => navigate("/professional/profile")}
+              />
+            </div>
+          )}
+
+          {/* Resume Dedicated Tab */}
+          {activeTab === "resume" && (
+            <div className="space-y-6">
+              <ExecutiveResumeCard
+                lastUpdated="4 days ago"
+                onViewResume={() => navigate("/professional/profile")}
+                onDownload={handleDownloadResume}
+              />
+            </div>
+          )}
+
+          {/* Achievements Dedicated Tab */}
+          {activeTab === "achievements" && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
+              <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+                <h2 className="text-lg font-bold text-slate-900">Key Executive Achievements</h2>
                 <Link
                   to="/professional/profile"
-                  className="inline-block text-[11px] font-semibold text-violet-200 hover:text-white mt-2"
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 border border-purple-200 transition"
                 >
-                  {completion >= 80 ? "Profile is fully detailed →" : "Boost profile to 100% →"}
+                  Manage in Profile
                 </Link>
               </div>
-
-              {/* Career Strength Score */}
-              <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
-                <div className="flex justify-between items-center text-xs font-bold mb-2">
-                  <span>Career Strength Score</span>
-                  <span className="text-violet-200">{careerStrength.score} / 100</span>
-                </div>
-                <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-purple-300 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${careerStrength.score}%` }}
-                  />
-                </div>
-                <p className="text-[11px] text-violet-100/80 mt-2 truncate">
-                  {careerStrength.tips?.[0] || "Top-tier executive profile strength"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 2-Column Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left 2 Cols: Matched Roles & Career Snapshot */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Current Position Snapshot */}
-            <section className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-bold text-slate-900">Current Position Snapshot</h2>
-                <Link to="/professional/profile" className="text-xs font-bold text-violet-600 hover:underline">
-                  Update Role
-                </Link>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <span className="text-[11px] text-slate-400 font-bold uppercase">Role & Company</span>
-                  <h3 className="font-bold text-slate-900 text-sm mt-1">{currentEmp.jobTitle || "Lead Engineer"}</h3>
-                  <p className="text-xs font-bold text-violet-700 mt-0.5">{currentEmp.company || "Enterprise"}</p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <span className="text-[11px] text-slate-400 font-bold uppercase">Experience & Level</span>
-                  <h3 className="font-bold text-slate-900 text-sm mt-1">{experienceYears}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">{profile.currentLevel || "Senior"}</p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <span className="text-[11px] text-slate-400 font-bold uppercase">Target Promotion</span>
-                  <h3 className="font-bold text-slate-900 text-sm mt-1">{profile?.careerGoal?.targetRole || "Staff Architect"}</h3>
-                  <p className="text-xs text-emerald-700 font-bold mt-0.5">{profile?.availability?.noticePeriod || "30 Days"} Notice</p>
-                </div>
-              </div>
-            </section>
-
-            {/* Curated Executive & High-Growth Roles */}
-            <section className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-slate-900">Curated Senior & Executive Roles</h2>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-800 font-bold">
-                      Rule-Matched
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Roles filtered to match your seniority, technical competencies, and target career level
+              <div className="space-y-3">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <h3 className="text-sm font-bold text-slate-900">Distributed Microservices Latency Optimization</h3>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Redesigned core billing and authentication services, achieving a 35% latency reduction across 10M+ daily transactions.
                   </p>
                 </div>
-                <Link to="/professional/profile" className="text-xs font-bold text-violet-600 hover:underline">
-                  Filter Preferences
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <h3 className="text-sm font-bold text-slate-900">Cloud Infrastructure Cost Optimization</h3>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Architected ECS migration and Kubernetes autoscaling, reducing monthly cloud expenditure by ₹15 Lakhs.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Certifications Dedicated Tab */}
+          {activeTab === "certifications" && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
+              <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+                <h2 className="text-lg font-bold text-slate-900">Professional Certifications</h2>
+                <Link
+                  to="/professional/profile"
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 border border-purple-200 transition"
+                >
+                  Add Certification
                 </Link>
               </div>
-
-              <div className="space-y-4">
-                {recommendedJobs.map((job) => (
-                  <div
-                    key={job.id}
-                    className="p-5 rounded-2xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-violet-300 hover:shadow-md transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-slate-900 text-sm">{job.title}</h3>
-                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-violet-50 text-violet-700 border border-violet-200">
-                          {job.matchPercentage}% Match
-                        </span>
-                      </div>
-                      <p className="text-xs font-medium text-slate-600">
-                        {job.company} • 📍 {job.location} ({job.workMode})
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <span className="text-xs font-bold text-violet-800">{job.salary}</span>
-                        <span className="text-slate-300">•</span>
-                        <span className="text-[11px] text-slate-500">{job.experienceRequired}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 pt-2">
-                        {(job.skillsRequired || []).map((sk, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-0.5 rounded bg-white text-slate-700 text-[10px] font-semibold border border-slate-200"
-                          >
-                            {sk}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => alert(`Confidential inquiry submitted for ${job.title} at ${job.company}!`)}
-                      className="px-4 py-2 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 rounded-xl transition shadow-xs self-start sm:self-center whitespace-nowrap"
-                    >
-                      Express Interest
-                    </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
+                    ☁️
                   </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Applications Tracker */}
-            <section className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-slate-900">Application Pipeline</h2>
-                <span className="text-xs font-bold text-slate-500">
-                  {applications.stats.applied} Total Submissions
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-center">
-                  <span className="text-xs text-slate-400 font-semibold block">Applied</span>
-                  <span className="text-lg font-bold text-slate-800">{applications.stats.applied}</span>
-                </div>
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-center">
-                  <span className="text-xs text-slate-400 font-semibold block">Under Review</span>
-                  <span className="text-lg font-bold text-blue-600">{applications.stats.underReview}</span>
-                </div>
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-center">
-                  <span className="text-xs text-slate-400 font-semibold block">Shortlisted</span>
-                  <span className="text-lg font-bold text-purple-600">{applications.stats.shortlisted}</span>
-                </div>
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-center">
-                  <span className="text-xs text-slate-400 font-semibold block">Interview 📅</span>
-                  <span className="text-lg font-bold text-emerald-600">{applications.stats.interview}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {applications.recent.map((app) => (
-                  <div
-                    key={app.id}
-                    className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <span className="font-bold text-slate-900">{app.title}</span>
-                      <span className="text-slate-500 ml-2">@ {app.company}</span>
-                    </div>
-                    <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
-                      {app.status}
-                    </span>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">AWS Certified Solutions Architect - Professional</h3>
+                    <p className="text-[11px] text-slate-500">Amazon Web Services · Verified</p>
                   </div>
-                ))}
-              </div>
-            </section>
-          </div>
-
-          {/* Right Column: Competencies & Resume */}
-          <div className="space-y-8">
-            {/* Core Competencies */}
-            <section className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold text-slate-900">Technical Competencies</h2>
-                <Link to="/professional/profile" className="text-xs font-semibold text-violet-600 hover:underline">
-                  Update
-                </Link>
-              </div>
-
-              {allSkills.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {allSkills.slice(0, 12).map((sk, idx) => (
-                    <span
-                      key={idx}
-                      className="px-2.5 py-1 text-xs font-semibold bg-violet-50 text-violet-800 rounded-lg border border-violet-100"
-                    >
-                      {sk}
-                    </span>
-                  ))}
                 </div>
-              ) : (
-                <p className="text-xs text-slate-400">No skills added yet.</p>
-              )}
-            </section>
-
-            {/* ATS Resume Quick Card */}
-            <section className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto text-xl font-bold">
-                📄
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
+                    ☸️
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">Certified Kubernetes Administrator (CKA)</h3>
+                    <p className="text-[11px] text-slate-500">Cloud Native Computing Foundation · Verified</p>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-sm font-bold text-slate-900">Executive ATS Resume</h3>
-              <p className="text-xs text-slate-500">
-                Your ATS-optimized executive resume is continuously compiled from your latest deliverables and achievements.
-              </p>
-              <Link
-                to="/professional/profile"
-                className="inline-block w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold transition shadow-xs"
-              >
-                View & Download Resume →
-              </Link>
-            </section>
+            </div>
+          )}
 
-            {/* Recruiter Confidential Mode */}
-            <section className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <h3 className="text-sm font-bold text-slate-900">Confidential Career Mode</h3>
+          {/* Career & Company Insights Dedicated Tab */}
+          {activeTab === "insights" && (
+            <CareerCompanyInsights
+              initialTargetRole={targetRole}
+              onApplyOpportunity={(job) => handleInitiateApply(job)}
+            />
+          )}
+
+          {/* Settings Dedicated Tab */}
+          {activeTab === "settings" && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-6">
+              <h2 className="text-lg font-bold text-slate-900">Professional Preferences & Settings</h2>
+              <div className="space-y-4 max-w-xl">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">Confidential Recruiter Mode</h3>
+                    <p className="text-[11px] text-slate-500">Visible only to verified tech recruiters</p>
+                  </div>
+                  <button
+                    onClick={() => setShowPrivacyModal(true)}
+                    className="px-3.5 py-1.5 rounded-xl border border-purple-200 bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition"
+                  >
+                    Configure
+                  </button>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">Profile Details & Experience</h3>
+                    <p className="text-[11px] text-slate-500">Update company, skills, compensation, and target role</p>
+                  </div>
+                  <Link
+                    to="/professional/profile"
+                    className="px-3.5 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 transition shadow-xs"
+                  >
+                    Edit Profile
+                  </Link>
+                </div>
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Your current compensation is protected. Only verified enterprise recruiters can reach out about matching leadership roles.
-              </p>
-              <Link
-                to="/professional/profile"
-                className="inline-block text-xs font-bold text-violet-600 hover:underline"
-              >
-                Configure Privacy & Outreach →
-              </Link>
-            </section>
-          </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Career Trajectory Modal */}
+      <CareerPathModal
+        isOpen={showCareerPathModal}
+        onClose={() => setShowCareerPathModal(false)}
+        currentRole={currentRole}
+        targetRole={targetRole}
+        focusAreas={focusAreas}
+      />
+
+      {/* Opportunity Detail Modal */}
+      <OpportunityDetailModal
+        isOpen={!!selectedOpportunity}
+        onClose={() => setSelectedOpportunity(null)}
+        opportunity={selectedOpportunity}
+        onApply={(opp) => {
+          setSelectedOpportunity(null);
+          handleInitiateApply(opp);
+        }}
+      />
+
+      {/* Step 1: Apply Review Modal (Direct vs External) */}
+      <ApplyReviewModal
+        isOpen={showApplyReviewModal}
+        onClose={() => setShowApplyReviewModal(false)}
+        opportunity={reviewingOpportunity}
+        user={user}
+        profile={profile}
+        onSubmitDirect={handleDirectSubmit}
+        onContinueExternal={handleContinueExternal}
+      />
+
+      {/* Step 2A: Direct Application Success Modal */}
+      <ApplicationSuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        application={lastSubmittedApplication}
+        onViewApplications={() => {
+          setShowSuccessModal(false);
+          setActiveTab("applications");
+        }}
+      />
+
+      {/* Step 2B: External Application Follow-up Modal ("Did you apply?") */}
+      <ExternalApplicationFollowupModal
+        isOpen={showExternalFollowupModal}
+        onClose={() => setShowExternalFollowupModal(false)}
+        opportunity={pendingExternalOpportunity}
+        onConfirmApplied={handleConfirmExternalApplied}
+      />
+
+      {/* Confidential Privacy Settings Modal */}
+      <PrivacyModal
+        isOpen={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+        onSave={() => showToast("Privacy preferences saved successfully!", "success")}
+      />
+
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2.5 animate-slide-in-right ${
+            toast.type === "error"
+              ? "bg-rose-900 text-white border border-rose-700"
+              : "bg-slate-900 text-white border border-slate-700"
+          }`}
+        >
+          <span>{toast.type === "error" ? "⚠️" : "✓"}</span>
+          <span>{toast.message}</span>
         </div>
-      </main>
+      )}
     </div>
   );
 };
