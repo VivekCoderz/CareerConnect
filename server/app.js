@@ -99,12 +99,11 @@ app.use("/api/assessments", assessmentRoutes);
 app.use("/api/interviews", interviewRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/organization", organizationRoutes);
-app.use("/api/internships", internshipRoutes);
-app.use("/api/applications", applicationRoutes);
 app.use("/api/resume", resumeRoutes);
+app.use("/api/api/resume", resumeRoutes); // Safety alias
 app.use("/api/opportunities", opportunityRoutes);
 app.use("/api/feed", opportunityRoutes);
-app.use("/api", employerRoutes);
+app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
 
 // Gateway Health Check Endpoint
 app.get("/health", (req, res) => {

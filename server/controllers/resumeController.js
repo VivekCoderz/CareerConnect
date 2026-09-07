@@ -8,6 +8,7 @@ const StudentProfile = require("../models/StudentProfile.js");
 const FresherProfile = require("../models/FresherProfile.js");
 const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const { uploadResumeToCloudinary } = require("../config/cloudinary.js");
+const { generateResumePdfBuffer } = require("../utils/generateResumePdf.js");
 
 /**
  * POST /api/resume/generate
@@ -128,8 +129,42 @@ const updateResumeHandler = async (req, res) => {
   }
 };
 
+const syncPrimaryResumeWithProfile = async (userId, resume) => {
+  try {
+    const resumeName = resume.title || "CareerConnect Resume";
+    const userUpdates = { resumeName };
+    if (resume.resumeUrl) {
+      userUpdates.resumeUrl = resume.resumeUrl;
+    }
+    await User.findByIdAndUpdate(userId, userUpdates);
+
+    const profileUpdates = {
+      "resume.resumeName": resumeName,
+      "resume.updatedAt": new Date(),
+    };
+    if (resume.resumeUrl) {
+      profileUpdates["resume.resumeUrl"] = resume.resumeUrl;
+    }
+
+    await StudentProfile.findOneAndUpdate(
+      { userId },
+      { $set: profileUpdates }
+    );
+    await FresherProfile.findOneAndUpdate(
+      { userId },
+      { $set: profileUpdates }
+    );
+    await ProfessionalProfile.findOneAndUpdate(
+      { userId },
+      { $set: profileUpdates }
+    );
+  } catch (err) {
+    console.warn("syncPrimaryResumeWithProfile error:", err.message);
+  }
+};
+
 /**
- * GET /api/resume/me
+ * GET /api/resume/me (Active / Primary or Latest resume)
  */
 const getMyResume = async (req, res) => {
   try {
@@ -140,7 +175,7 @@ const getMyResume = async (req, res) => {
       });
     }
 
-    const resume = await Resume.findOne({ user: req.user._id });
+    const resume = await Resume.findOne({ user: req.user._id }).sort({ isPrimary: -1, updatedAt: -1 });
 
     if (!resume) {
       return res.status(404).json({
@@ -161,12 +196,241 @@ const getMyResume = async (req, res) => {
 };
 
 /**
+ * GET /api/resume (Get all resumes saved by user)
+ */
+const getAllResumes = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const resumes = await Resume.find({ user: req.user._id })
+      .sort({ isPrimary: -1, updatedAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: resumes.length,
+      resumes,
+    });
+  } catch (error) {
+    console.error("getAllResumes error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch resumes",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * GET /api/resume/:id (Get single resume by id)
+ */
+const getResumeById = async (req, res) => {
+  try {
+    const resume = await Resume.findOne({ _id: req.params.id, user: req.user._id });
+    if (!resume) {
+      return res.status(404).json({ success: false, message: "Resume not found" });
+    }
+    return res.status(200).json({ success: true, resume });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * POST /api/resume/save (Save Final Resume with title & primary option)
+ */
+const saveFinalResume = async (req, res) => {
+  try {
+    const { title, template, rawData, generatedData, isPrimary, resumeId } = req.body;
+
+    if (!generatedData) {
+      return res.status(400).json({
+        success: false,
+        message: "generatedData is required to save final resume",
+      });
+    }
+
+    const resumeTitle = (title || "").trim() || `${generatedData.personal?.fullName || "My"} Resume`;
+    const selectedTemplate = template || "classic";
+
+    // 1. Generate PDF buffer and upload directly to Cloudinary
+    let cloudinaryUrl = "";
+    try {
+      const pdfBuffer = await generateResumePdfBuffer(
+        generatedData,
+        selectedTemplate,
+        resumeTitle
+      );
+      const cleanFileName = `${resumeTitle.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+      const uploadResult = await uploadResumeToCloudinary(
+        pdfBuffer,
+        cleanFileName,
+        req.user._id.toString()
+      );
+      if (uploadResult?.secure_url) {
+        cloudinaryUrl = uploadResult.secure_url;
+      }
+    } catch (uploadErr) {
+      console.warn("Cloudinary resume upload warning:", uploadErr.message);
+    }
+
+    let resume = null;
+    if (resumeId) {
+      resume = await Resume.findOne({ _id: resumeId, user: req.user._id });
+      if (resume) {
+        resume.title = resumeTitle;
+        resume.selectedTemplate = selectedTemplate;
+        if (rawData) resume.rawData = rawData;
+        resume.generatedData = generatedData;
+        if (cloudinaryUrl) resume.resumeUrl = cloudinaryUrl;
+        if (isPrimary !== undefined) resume.isPrimary = isPrimary;
+        await resume.save();
+      }
+    }
+
+    if (!resume) {
+      const existingCount = await Resume.countDocuments({ user: req.user._id });
+      const makePrimary = isPrimary !== undefined ? isPrimary : existingCount === 0;
+
+      if (makePrimary) {
+        await Resume.updateMany({ user: req.user._id }, { isPrimary: false });
+      }
+
+      resume = await Resume.create({
+        user: req.user._id,
+        title: resumeTitle,
+        selectedTemplate,
+        rawData: rawData || {},
+        generatedData,
+        resumeUrl: cloudinaryUrl,
+        isPrimary: makePrimary,
+      });
+    } else if (isPrimary) {
+      await Resume.updateMany(
+        { user: req.user._id, _id: { $ne: resume._id } },
+        { isPrimary: false }
+      );
+    }
+
+    if (resume.isPrimary) {
+      await syncPrimaryResumeWithProfile(req.user._id, resume);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Resume "${resume.title}" saved & uploaded to Cloudinary successfully!`,
+      resume,
+      resumeUrl: resume.resumeUrl,
+    });
+  } catch (error) {
+    console.error("saveFinalResume error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to save resume",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * PATCH /api/resume/:id/primary (Set a resume as primary)
+ */
+const setPrimaryResume = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Resume.updateMany({ user: req.user._id }, { isPrimary: false });
+
+    let resume = await Resume.findOneAndUpdate(
+      { _id: id, user: req.user._id },
+      { isPrimary: true },
+      { new: true }
+    );
+
+    if (!resume) {
+      return res.status(404).json({ success: false, message: "Resume not found" });
+    }
+
+    // If resume does not have Cloudinary URL yet, compile and upload now
+    if (!resume.resumeUrl && resume.generatedData) {
+      try {
+        const pdfBuffer = await generateResumePdfBuffer(
+          resume.generatedData,
+          resume.selectedTemplate || "classic",
+          resume.title
+        );
+        const cleanFileName = `${(resume.title || "Resume").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+        const uploadResult = await uploadResumeToCloudinary(
+          pdfBuffer,
+          cleanFileName,
+          req.user._id.toString()
+        );
+        if (uploadResult?.secure_url) {
+          resume.resumeUrl = uploadResult.secure_url;
+          await resume.save();
+        }
+      } catch (uploadErr) {
+        console.warn("Cloudinary upload on setPrimary warning:", uploadErr.message);
+      }
+    }
+
+    await syncPrimaryResumeWithProfile(req.user._id, resume);
+
+    return res.status(200).json({
+      success: true,
+      message: `"${resume.title}" set as your primary resume!`,
+      resume,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * DELETE /api/resume/:id (Delete a saved resume)
+ */
+const deleteResume = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await Resume.findOneAndDelete({ _id: id, user: req.user._id });
+
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: "Resume not found" });
+    }
+
+    if (deleted.isPrimary) {
+      const nextResume = await Resume.findOne({ user: req.user._id }).sort({ updatedAt: -1 });
+      if (nextResume) {
+        nextResume.isPrimary = true;
+        await nextResume.save();
+        await syncPrimaryResumeWithProfile(req.user._id, nextResume);
+      } else {
+        await User.findByIdAndUpdate(req.user._id, { resumeName: "" });
+        await StudentProfile.findOneAndUpdate(
+          { userId: req.user._id },
+          { $set: { "resume.resumeName": "" } }
+        );
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Resume "${deleted.title}" deleted successfully`,
+      deletedId: id,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * PUT /api/resume/manual
- * Body: { generatedData }
+ * Body: { generatedData, resumeId }
  */
 const saveManualEdit = async (req, res) => {
   try {
-    const { generatedData } = req.body;
+    const { generatedData, resumeId } = req.body;
 
     if (!generatedData) {
       return res.status(400).json({
@@ -182,11 +446,22 @@ const saveManualEdit = async (req, res) => {
       });
     }
 
-    const resume = await Resume.findOneAndUpdate(
-      { user: req.user._id },
-      { generatedData },
-      { new: true },
-    );
+    let resume;
+    if (resumeId) {
+      resume = await Resume.findOneAndUpdate(
+        { _id: resumeId, user: req.user._id },
+        { generatedData },
+        { new: true }
+      );
+    }
+
+    if (!resume) {
+      resume = await Resume.findOneAndUpdate(
+        { user: req.user._id },
+        { generatedData },
+        { new: true, sort: { isPrimary: -1, updatedAt: -1 } }
+      );
+    }
 
     if (!resume) {
       return res.status(404).json({
@@ -767,6 +1042,11 @@ module.exports = {
   generateResumeHandler,
   updateResumeHandler,
   getMyResume,
+  getAllResumes,
+  saveFinalResume,
+  getResumeById,
+  setPrimaryResume,
+  deleteResume,
   saveManualEdit,
   uploadResumeHandler,
   getProfileForResume,

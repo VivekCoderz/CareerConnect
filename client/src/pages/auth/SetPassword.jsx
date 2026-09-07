@@ -124,7 +124,6 @@ const SetPassword = () => {
         await linkWithCredential(firebaseUser, credential);
       } catch (linkErr) {
         if (linkErr.code === "auth/provider-already-linked") {
-          // Password already linked — proceed to confirm with backend (idempotent)
           console.info("[SetPassword] Password provider already linked, confirming with backend.");
         } else if (linkErr.code === "auth/email-already-in-use") {
           setError(
@@ -137,22 +136,28 @@ const SetPassword = () => {
           setLoading(false);
           return;
         } else {
-          throw linkErr;
+          console.warn("[SetPassword] Client linkWithCredential warning:", linkErr.message);
+          // Backend Firebase Admin SDK will set password directly
         }
       }
 
       // Step 2: Get fresh Firebase ID token (force-refresh after linking)
       const newIdToken = await firebaseUser.getIdToken(true);
 
-      // Step 3: Confirm with backend — verifies Firebase has "password" provider,
-      // sets hasPassword=true in MongoDB, issues full-duration CareerConnect JWT.
+      // Step 3: Confirm with backend — verifies and saves password in MongoDB
+      // and Firebase Admin, sets hasPassword=true, issues full-duration JWT.
       const response = await api.post("/auth/complete-password-setup", {
         idToken: newIdToken,
+        password,
         keepSignedIn,
       });
 
       isSubmittingRef.current = true;
-      const { user: updatedUser } = response.data;
+      const { user: updatedUser, token } = response.data;
+
+      if (token) {
+        localStorage.setItem("careerconnect_token", token);
+      }
 
       // Update Redux auth state with updated user (hasPassword=true)
       dispatch(setUser(updatedUser));

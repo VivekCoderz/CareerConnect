@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import {
-  signInWithEmailAndPassword,
-  signInWithPopup,
-} from "firebase/auth";
+import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../../config/firebase";
 import api from "../../api/api";
 import {
@@ -93,99 +90,35 @@ const Login = () => {
     if (error) dispatch(clearMessages());
   };
 
-  // ─── Email + Password Submit ─────────────────────────────────────────────────
+  // ─── Database Email / Username + Password Submit ────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     dispatch(loginStart());
 
     try {
       const captchaToken = await getCaptchaToken("login");
-      const identifier = formData.emailOrUsername.trim();
-      const isEmail = identifier.includes("@");
 
-      let user = null;
+      // Check details directly from MongoDB database (not from Firebase)
+      const response = await api.post("/auth/login", {
+        emailOrUsername: formData.emailOrUsername.trim(),
+        password: formData.password,
+        role: loginType,
+        keepSignedIn,
+        captchaToken,
+      });
 
-      if (isEmail) {
-        // ── Firebase path (try first for email identifiers) ──────────────────
-        let firebaseIdToken = null;
-        let useLegacy = false;
-
-        try {
-          const credential = await signInWithEmailAndPassword(
-            auth,
-            identifier,
-            formData.password
-          );
-          firebaseIdToken = await credential.user.getIdToken();
-        } catch (firebaseErr) {
-          // User not found in Firebase → fall back to legacy MongoDB check
-          if (
-            firebaseErr.code === "auth/user-not-found" ||
-            firebaseErr.code === "auth/invalid-credential" ||
-            firebaseErr.code === "auth/invalid-email"
-          ) {
-            useLegacy = true;
-          } else if (firebaseErr.code === "auth/wrong-password") {
-            dispatch(loginFailure("Invalid email or password"));
-            return;
-          } else if (firebaseErr.code === "auth/too-many-requests") {
-            dispatch(
-              loginFailure(
-                "Too many failed attempts. Please wait a moment before trying again."
-              )
-            );
-            return;
-          } else {
-            dispatch(loginFailure("Sign-in failed. Please try again."));
-            return;
-          }
-        }
-
-        if (!useLegacy && firebaseIdToken) {
-          // Firebase path: send ID token to backend
-          const response = await api.post("/auth/firebase-login", {
-            idToken: firebaseIdToken,
-            keepSignedIn,
-            captchaToken,
-            role: loginType,
-          });
-          user = response.data.user;
-        } else {
-          // Legacy path: MongoDB bcrypt check
-          const response = await api.post("/auth/login", {
-            ...formData,
-            role: loginType,
-            keepSignedIn,
-            captchaToken,
-          });
-          user = response.data.user;
-          token = response.data.token;
-        }
-      } else {
-        // ── Username → always use legacy MongoDB path ────────────────────────
-        const response = await api.post("/auth/login", {
-          ...formData,
-          role: loginType,
-          keepSignedIn,
-          captchaToken,
-        });
-        user = response.data.user;
-        token = response.data.token;
-      }
-
+      const { user, token } = response.data;
       dispatch(loginSuccess({ user, token }));
 
       if (user.role === "employer") {
         navigate("/employer/dashboard");
       } else {
-        navigate(getDashboardPath(user.userType, user), { replace: true });
+        navigate(getDashboardPath(user.userType, user));
       }
     } catch (err) {
-      dispatch(
-        loginFailure(
-          err.response?.data?.message || "Invalid email/username or password"
-        )
-      );
+      const data = err.response?.data;
+      const msg = data?.message || err.message || "Invalid credentials";
+      dispatch(loginFailure(msg));
     }
   };
 

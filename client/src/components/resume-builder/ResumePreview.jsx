@@ -14,20 +14,33 @@ const ResumePreview = ({ data, templateId }) => {
     );
   }
 
-  switch (templateId) {
+  const tid = (templateId || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  switch (tid) {
     case "executive":
+    case "corporate":
       return <ExecutiveTemplate data={data} />;
     case "sidebar":
+    case "leftsidebar":
       return <SidebarTemplate data={data} />;
     case "twocolumn":
+    case "2column":
       return <TwoColumnTemplate data={data} />;
     case "compact":
+    case "compacttech":
+    case "tech":
+    case "developer":
       return <CompactTemplate data={data} />;
     case "elegant":
+    case "minimal":
       return <ElegantTemplate data={data} />;
     case "bold":
+    case "boldheader":
+    case "modern":
       return <BoldTemplate data={data} />;
     case "classic":
+    case "professional":
+    case "traditional":
     default:
       return <ClassicTemplate data={data} />;
   }

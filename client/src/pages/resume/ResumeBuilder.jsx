@@ -11,12 +11,20 @@ import {
   setLastChangeRequest,
   clearError,
   fetchSavedResume,
+  fetchAllSavedResumes,
+  saveFinalResume,
+  setPrimaryResume,
+  deleteSavedResume,
+  loadSpecificResume,
+  setResumeTitle,
+  setActiveResumeId,
   fetchProfileForResume,
   saveManualEdit,
 } from "../../redux/features/resumeSlice";
 import { updateUserProfile } from "../../redux/features/authSlice";
 import { uploadResumeAPI } from "../../services/resumeService";
-import { validateRawData } from "../../utils/resumeHelpers";
+import { validateRawData, extractSkillsList } from "../../utils/resumeHelpers";
+import { RESUME_TEMPLATES } from "../../data/templates";
 
 import TemplateSelector from "../../components/resume-builder/TemplateSelector";
 import MultiStepForm from "../../components/resume-builder/MultiStepForm";
@@ -139,6 +147,9 @@ const ResumeBuilder = () => {
     error,
     profileLoading,
     profileFound,
+    savedResumes,
+    activeResumeId,
+    resumeTitle,
   } = useSelector((state) => state.resume);
 
   // View modes: 'existing' | 'choose' | 'upload' | 'ai'
@@ -155,10 +166,11 @@ const ResumeBuilder = () => {
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Initial data load: fetch saved resume & profile
+  // Initial data load: fetch saved resume, all saved resumes & profile
   useEffect(() => {
     dispatch(fetchProfileForResume());
     dispatch(fetchSavedResume());
+    dispatch(fetchAllSavedResumes());
   }, [dispatch]);
 
   // Determine initial view mode once loading concludes or from URL parameter
@@ -180,13 +192,13 @@ const ResumeBuilder = () => {
     }
 
     if (!profileLoading) {
-      if (generatedResume || user?.resumeUrl) {
+      if (generatedResume || user?.resumeUrl || (savedResumes && savedResumes.length > 0)) {
         setViewMode("existing");
       } else {
         setViewMode("choose");
       }
     }
-  }, [profileLoading, generatedResume, user?.resumeUrl, dispatch]);
+  }, [profileLoading, generatedResume, user?.resumeUrl, savedResumes?.length, dispatch]);
 
   // Show profile banner in AI mode once profile data is ready
   useEffect(() => {
@@ -238,6 +250,53 @@ const ResumeBuilder = () => {
       .unwrap()
       .then(() => setReviewMode("preview"))
       .catch(() => {});
+  };
+
+  const handleSaveFinal = async ({ title, isPrimary }) => {
+    try {
+      const res = await dispatch(
+        saveFinalResume({
+          title: title || resumeTitle || "My Resume",
+          template: selectedTemplate || "classic",
+          rawData,
+          generatedData: generatedResume,
+          isPrimary,
+          resumeId: activeResumeId,
+        }),
+      ).unwrap();
+      dispatch(fetchAllSavedResumes());
+      return { success: true, resume: res };
+    } catch (err) {
+      alert(err || "Failed to save resume");
+      return { success: false };
+    }
+  };
+
+  const handleSelectResume = (resume, targetMode = "preview") => {
+    dispatch(loadSpecificResume(resume));
+    setReviewMode(targetMode);
+    setViewMode("ai");
+    dispatch(setStep(2));
+  };
+
+  const handleMakePrimary = async (resumeId) => {
+    try {
+      await dispatch(setPrimaryResume(resumeId)).unwrap();
+      dispatch(fetchAllSavedResumes());
+    } catch (err) {
+      alert(err || "Failed to set as primary resume");
+    }
+  };
+
+  const handleDeleteResume = async (resumeId, title) => {
+    if (window.confirm(`Are you sure you want to delete "${title || "this resume"}"?`)) {
+      try {
+        await dispatch(deleteSavedResume(resumeId)).unwrap();
+        dispatch(fetchAllSavedResumes());
+      } catch (err) {
+        alert(err || "Failed to delete resume");
+      }
+    }
   };
 
   const handleFinalize = () => {
@@ -324,11 +383,18 @@ const ResumeBuilder = () => {
             {/* Header with Title & "Build a New Resume" button */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200 no-print">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
-                  My Resume
-                </h1>
+                <div className="flex items-center gap-2.5">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
+                    My Saved Resumes
+                  </h1>
+                  {savedResumes && savedResumes.length > 0 && (
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                      {savedResumes.length} {savedResumes.length === 1 ? "Resume" : "Resumes"}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  View, edit, or download your current active resume
+                  Create and manage multiple tailored versions of your resume for different job profiles & roles
                 </p>
               </div>
               <button
@@ -345,109 +411,216 @@ const ResumeBuilder = () => {
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
-                Build a New Resume
+                + Build a New Resume
               </button>
             </div>
 
-            {/* Quick Actions Bar */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-xl font-bold shrink-0">
-                  📄
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900 truncate">
-                    {generatedResume?.personal?.fullName
-                      ? `${generatedResume.personal.fullName}'s Professional Resume`
-                      : user?.resumeName || "My Active Resume"}
-                  </h2>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Active
-                    </span>
-                    {selectedTemplate && (
-                      <span className="text-xs text-slate-500 capitalize">
-                        Template: {selectedTemplate}
-                      </span>
-                    )}
+            {/* Multiple Saved Resumes Cards Grid */}
+            {savedResumes && savedResumes.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 no-print">
+                {savedResumes.map((resItem) => {
+                  const isCurrentActive = activeResumeId === resItem._id;
+                  const candidateName =
+                    resItem.generatedData?.personal?.fullName ||
+                    resItem.generatedData?.personalInfo?.fullName ||
+                    resItem.rawData?.personal?.fullName ||
+                    "Candidate";
+                  const allSkills = extractSkillsList(
+                    resItem.generatedData?.skills || resItem.rawData?.skills
+                  );
+                  const skills = allSkills.slice(0, 5);
+                  const updatedDate = new Date(resItem.updatedAt || resItem.createdAt).toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  });
+                  const itemTemplateId = (
+                    resItem.selectedTemplate ||
+                    resItem.template ||
+                    resItem.generatedData?.template ||
+                    "classic"
+                  ).toLowerCase();
+                  const matchedTemplate =
+                    RESUME_TEMPLATES.find((t) => t.id.toLowerCase() === itemTemplateId) ||
+                    { name: resItem.selectedTemplate || "Classic", previewColor: "#1e3a5f" };
+
+                  return (
+                    <div
+                      key={resItem._id}
+                      className={`p-5 rounded-2xl border transition-all duration-200 bg-white flex flex-col justify-between shadow-xs ${
+                        isCurrentActive
+                          ? "border-blue-500 ring-2 ring-blue-500/20 shadow-md"
+                          : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
+                      }`}
+                    >
+                      <div>
+                        {/* Top: Title & Badges */}
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="min-w-0">
+                            <h3 className="text-base font-bold text-slate-900 truncate">
+                              {resItem.title || "My Resume"}
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {candidateName} · Updated on {updatedDate}
+                            </p>
+                          </div>
+
+                          <div className="shrink-0 flex flex-col items-end gap-1.5">
+                            {resItem.isPrimary ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                                  <span>⭐</span> Primary Active
+                                </span>
+                                {resItem.resumeUrl && (
+                                  <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                                    <span>☁️</span> Profile Synced
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleMakePrimary(resItem._id)}
+                                className="text-[11px] font-semibold text-slate-500 hover:text-blue-600 transition cursor-pointer"
+                                title="Click to make this the primary resume used when applying"
+                              >
+                                Set as Primary
+                              </button>
+                            )}
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md border"
+                              style={{
+                                borderColor: `${matchedTemplate.previewColor}40`,
+                                backgroundColor: `${matchedTemplate.previewColor}12`,
+                                color: matchedTemplate.previewColor,
+                              }}
+                            >
+                              <span
+                                className="w-1.5 h-1.5 rounded-full inline-block"
+                                style={{ backgroundColor: matchedTemplate.previewColor }}
+                              />
+                              {matchedTemplate.name}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Skills preview */}
+                        {skills.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-3 mb-4">
+                            {skills.map((sk, sIdx) => (
+                              <span
+                                key={sIdx}
+                                className="px-2 py-0.5 rounded bg-slate-50 text-slate-600 text-[10px] font-medium border border-slate-200/80"
+                              >
+                                {sk}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions toolbar */}
+                      <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectResume(resItem, "preview")}
+                            className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold transition cursor-pointer"
+                          >
+                            👁️ Preview
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectResume(resItem, "manual")}
+                            className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold transition cursor-pointer"
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectResume(resItem, "askAI")}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold transition cursor-pointer"
+                          >
+                            🤖 AI Refine
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {resItem.resumeUrl && (
+                            <a
+                              href={resItem.resumeUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-[11px] transition flex items-center gap-1 cursor-pointer"
+                              title="Open Cloudinary hosted PDF in new tab"
+                            >
+                              <span>☁️</span> PDF ↗
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              dispatch(loadSpecificResume(resItem));
+                              setTimeout(() => handleFinalize(), 200);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition cursor-pointer"
+                            title="Download / Print PDF"
+                          >
+                            🖨️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteResume(resItem._id, resItem.title)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Delete this resume"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Uploaded PDF Resume fallback banner if user has one */}
+            {user?.resumeUrl && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex items-center justify-between gap-4 no-print">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0">
+                    📎
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">
+                      {user.resumeName || "Uploaded PDF Resume"}
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Uploaded file hosted in Cloudinary
+                    </p>
                   </div>
                 </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={user.resumeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                  >
+                    View PDF ↗
+                  </a>
+                </div>
               </div>
+            )}
 
-              {/* Action Buttons: Preview / Update Resume / Download PDF */}
-              <div className="flex flex-wrap items-center gap-2 sm:self-center">
-                {generatedResume ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const el = document.getElementById("resume-print-area");
-                        el?.scrollIntoView({ behavior: "smooth" });
-                      }}
-                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer"
-                    >
-                      Preview
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setViewMode("ai");
-                        dispatch(setStep(0));
-                      }}
-                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer"
-                    >
-                      Update Resume
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleFinalize}
-                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition cursor-pointer"
-                    >
-                      Download PDF
-                    </button>
-                  </>
-                ) : user?.resumeUrl ? (
-                  <>
-                    <a
-                      href={user.resumeUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition inline-flex items-center gap-1"
-                    >
-                      Preview ↗
-                    </a>
-                    <a
-                      href={user.resumeUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      download
-                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition"
-                    >
-                      Download PDF
-                    </a>
-                  </>
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={() => setViewMode("choose")}
-                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-xs transition cursor-pointer"
-                >
-                  + Build a New Resume
-                </button>
-              </div>
-            </div>
-
-            {/* ────────────────────────────────────────────────────────
-                Distinct, Visible "+ Build a New Resume" Banner/Card
-                ──────────────────────────────────────────────────────── */}
+            {/* Build New Resume Card */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs no-print">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>✨</span> Build a New Resume
+                  <span>✨</span> Build Another Resume with AI
                 </h3>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Create another ATS resume using AI from your profile or upload an existing PDF file.
+                  Target another role (e.g. Backend Developer, Data Analyst) by creating a distinct resume.
                 </p>
               </div>
               <button
@@ -455,15 +628,50 @@ const ResumeBuilder = () => {
                 onClick={() => setViewMode("choose")}
                 className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition shrink-0 inline-flex items-center gap-1.5 cursor-pointer"
               >
-                <span>+</span> Build a New Resume
+                <span>+</span> Build New Resume
               </button>
             </div>
 
-            {/* Resume Display Area */}
+            {/* Resume Display / Editing Area */}
             {generatedResume ? (
               <div className="space-y-6">
                 {reviewMode === "preview" && (
                   <>
+                    {/* Live Theme Matcher Bar */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-3 shadow-xs flex flex-wrap items-center justify-between gap-3 no-print">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                          <span>🎨</span> Match Theme:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {RESUME_TEMPLATES.map((tpl) => {
+                            const isActive = (selectedTemplate || "classic").toLowerCase() === tpl.id.toLowerCase();
+                            return (
+                              <button
+                                key={tpl.id}
+                                type="button"
+                                onClick={() => dispatch(setTemplate(tpl.id))}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  isActive
+                                    ? "bg-slate-900 text-white shadow-xs scale-102"
+                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                                }`}
+                              >
+                                <span
+                                  className="w-2 h-2 rounded-full inline-block"
+                                  style={{ backgroundColor: tpl.previewColor }}
+                                />
+                                {tpl.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                        Click any theme to preview live
+                      </span>
+                    </div>
+
                     <div id="resume-print-area" className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                       <ResumePreview
                         data={generatedResume}
@@ -476,7 +684,14 @@ const ResumeBuilder = () => {
                       onAskAI={handleAskAI}
                       onEditManually={handleEditManually}
                       onBuildNew={() => setViewMode("choose")}
+                      onSaveFinal={handleSaveFinal}
+                      onChangeTemplate={() => {
+                        setViewMode("ai");
+                        dispatch(setStep(1));
+                      }}
                       isUpdating={isUpdating}
+                      initialTitle={resumeTitle}
+                      selectedTemplate={selectedTemplate}
                     />
                   </>
                 )}
@@ -837,22 +1052,33 @@ const ResumeBuilder = () => {
                   selected={selectedTemplate}
                   onSelect={handleSelectTemplate}
                 />
-                <div className="flex justify-between mt-8 max-w-5xl mx-auto no-print">
+                <div className="flex flex-wrap justify-between items-center gap-4 mt-8 max-w-5xl mx-auto no-print">
                   <button
                     type="button"
                     onClick={() => dispatch(prevStep())}
-                    className="px-5 py-2.5 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-100 font-medium text-sm transition"
+                    className="px-5 py-2.5 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-100 font-medium text-sm transition cursor-pointer"
                   >
                     ← Back to Info
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleTemplateNext}
-                    disabled={isGenerating}
-                    className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs transition"
-                  >
-                    {isGenerating ? "Generating…" : "Generate Resume →"}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {generatedResume && (
+                      <button
+                        type="button"
+                        onClick={() => dispatch(setStep(2))}
+                        className="px-6 py-2.5 bg-slate-800 text-white rounded-xl font-semibold text-sm hover:bg-slate-900 shadow-xs transition cursor-pointer"
+                      >
+                        Apply Theme to Current Resume →
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleTemplateNext}
+                      disabled={isGenerating}
+                      className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs transition cursor-pointer"
+                    >
+                      {isGenerating ? "Generating…" : "Generate Resume with AI →"}
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -888,6 +1114,41 @@ const ResumeBuilder = () => {
                       </button>
                     </div>
 
+                    {/* Live Theme Matcher Bar */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-3 shadow-xs flex flex-wrap items-center justify-between gap-3 no-print">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                          <span>🎨</span> Match Theme:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {RESUME_TEMPLATES.map((tpl) => {
+                            const isActive = (selectedTemplate || "classic").toLowerCase() === tpl.id.toLowerCase();
+                            return (
+                              <button
+                                key={tpl.id}
+                                type="button"
+                                onClick={() => dispatch(setTemplate(tpl.id))}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  isActive
+                                    ? "bg-slate-900 text-white shadow-xs scale-102"
+                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                                }`}
+                              >
+                                <span
+                                  className="w-2 h-2 rounded-full inline-block"
+                                  style={{ backgroundColor: tpl.previewColor }}
+                                />
+                                {tpl.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                        Click any theme to preview live
+                      </span>
+                    </div>
+
                     <div id="resume-print-area" className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                       <ResumePreview
                         data={generatedResume}
@@ -900,7 +1161,11 @@ const ResumeBuilder = () => {
                       onAskAI={handleAskAI}
                       onEditManually={handleEditManually}
                       onBuildNew={() => setViewMode("choose")}
+                      onSaveFinal={handleSaveFinal}
+                      onChangeTemplate={() => dispatch(setStep(1))}
                       isUpdating={isUpdating}
+                      initialTitle={resumeTitle}
+                      selectedTemplate={selectedTemplate}
                     />
                   </>
                 )}
