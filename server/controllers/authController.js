@@ -11,8 +11,20 @@ const getFirebaseAdmin = require("../config/firebaseAdmin.js");
 const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
 
 // ==========================================
-// HELPERS
+// PASSWORD VALIDATION & HELPERS
 // ==========================================
+
+const validatePassword = (password) => {
+  if (!password || typeof password !== "string") return false;
+  if (password.length < 6) return false;
+  if (!/[a-zA-Z]/.test(password)) return false;
+  if (!/[0-9]/.test(password)) return false;
+  if (!/[@#$%&*!?]/.test(password) && !/[^a-zA-Z0-9]/.test(password)) return false;
+  return true;
+};
+
+const PASSWORD_VALIDATION_ERROR =
+  "Password must contain at least 6 characters, one letter, one number, and one special character.";
 
 // Generate 6-digit OTP
 const generateOTP = () => {
@@ -343,11 +355,11 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
-    if (password.length < 6) {
+    if (!validatePassword(password)) {
       return res.status(400).json({
         success: false,
         field: "password",
-        message: "Password must contain at least 6 characters",
+        message: PASSWORD_VALIDATION_ERROR,
       });
     }
 
@@ -828,10 +840,11 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       });
     }
 
-    if (!password || password.length < 6) {
+    if (!password || !validatePassword(password)) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 6 characters",
+        field: "password",
+        message: PASSWORD_VALIDATION_ERROR,
       });
     }
 
@@ -1159,17 +1172,18 @@ module.exports.resetPassword = async (req, res, next) => {
         .json({ success: false, message: "All fields are required" });
     }
 
-    if (password.length < 6) {
+    if (!validatePassword(password)) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 6 characters",
+        field: "password",
+        message: PASSWORD_VALIDATION_ERROR,
       });
     }
 
     if (password !== confirmPassword) {
       return res
         .status(400)
-        .json({ success: false, message: "Passwords do not match" });
+        .json({ success: false, field: "confirmPassword", message: "Passwords do not match" });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -1274,11 +1288,11 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     }
 
-    if (password.length < 6) {
+    if (!validatePassword(password)) {
       return res.status(400).json({
         success: false,
         field: "password",
-        message: "Password must contain at least 6 characters",
+        message: PASSWORD_VALIDATION_ERROR,
       });
     }
 

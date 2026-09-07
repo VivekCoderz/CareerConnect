@@ -14,7 +14,8 @@ import api from "../../api/api";
 import { getCaptchaToken } from "../../utils/captcha";
 import {
   generateStrongPassword,
-  calculatePasswordStrength,
+  validatePassword,
+  PASSWORD_VALIDATION_ERROR,
 } from "../../utils/passwordGenerator";
 
 // Eye icon toggle component
@@ -63,7 +64,7 @@ const EmployerRegister = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleGeneratePassword = () => {
-    const generated = generateStrongPassword(14);
+    const generated = generateStrongPassword();
     setFormData((prev) => ({
       ...prev,
       password: generated,
@@ -110,12 +111,16 @@ const EmployerRegister = () => {
     if (!formData.phone.trim()) errors.phone = "Mobile number is required";
     else if (!/^[6-9]\d{9}$/.test(formData.phone.replace(/\D/g, "").slice(-10)))
       errors.phone = "Please enter a valid 10-digit mobile number";
-    if (!formData.password) errors.password = "Password is required";
-    else if (formData.password.length < 6)
-      errors.password = "Password must be at least 6 characters";
-    if (!formData.confirmPassword) errors.confirmPassword = "Please confirm password";
-    else if (formData.password !== formData.confirmPassword)
+    if (!formData.password) {
+      errors.password = "Password is required";
+    } else if (!validatePassword(formData.password)) {
+      errors.password = PASSWORD_VALIDATION_ERROR;
+    }
+    if (!formData.confirmPassword) {
+      errors.confirmPassword = "Please confirm password";
+    } else if (formData.password !== formData.confirmPassword) {
       errors.confirmPassword = "Passwords do not match";
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -722,14 +727,6 @@ const EmployerRegister = () => {
                         <EyeIcon hidden={showPassword} />
                       </button>
                     </div>
-                    {formData.password && (
-                      <div className="mt-1 flex items-center justify-between text-[10.5px]">
-                        <span className="text-slate-400">Strength:</span>
-                        <span className={`font-bold ${calculatePasswordStrength(formData.password).color}`}>
-                          {calculatePasswordStrength(formData.password).label}
-                        </span>
-                      </div>
-                    )}
                     {fieldErrors.password && (
                       <p className="text-xs text-red-500 mt-1.5">{fieldErrors.password}</p>
                     )}
