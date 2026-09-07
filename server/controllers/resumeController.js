@@ -180,9 +180,101 @@ const saveManualEdit = async (req, res) => {
   }
 };
 
+const { uploadResumeToCloudinary } = require("../config/cloudinary.js");
+const User = require("../models/User.js");
+const StudentProfile = require("../models/StudentProfile.js");
+const FresherProfile = require("../models/FresherProfile.js");
+const ProfessionalProfile = require("../models/ProfessionalProfile.js");
+
+/**
+ * POST /api/resume/upload
+ * Uploads resume PDF to Cloudinary and saves URL in User and profile collections
+ */
+const uploadResumeHandler = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No resume file provided. Please upload a PDF file.",
+      });
+    }
+
+    if (
+      req.file.mimetype !== "application/pdf" &&
+      !req.file.originalname.toLowerCase().endsWith(".pdf")
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Only PDF files are allowed for resume upload.",
+      });
+    }
+
+    const userId = req.user._id;
+
+    // 1. Upload to Cloudinary
+    const uploadResult = await uploadResumeToCloudinary(
+      req.file.buffer,
+      req.file.originalname,
+      userId.toString()
+    );
+
+    const resumeUrl = uploadResult.secure_url;
+    const resumeName = req.file.originalname;
+
+    // 2. Save in User collection
+    await User.findByIdAndUpdate(userId, {
+      resumeUrl,
+      resumeName,
+    });
+
+    // 3. Save in role-specific profile collection
+    const resumeData = {
+      resumeUrl,
+      resumeName,
+      uploadedAt: new Date(),
+    };
+
+    if (req.user.userType === "student") {
+      await StudentProfile.findOneAndUpdate(
+        { userId },
+        { resume: resumeData },
+        { new: true }
+      );
+    } else if (req.user.userType === "fresher") {
+      await FresherProfile.findOneAndUpdate(
+        { userId },
+        { resume: resumeData },
+        { new: true }
+      );
+    } else if (req.user.userType === "professional") {
+      await ProfessionalProfile.findOneAndUpdate(
+        { userId },
+        { resume: resumeData },
+        { new: true }
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Resume uploaded successfully to Cloudinary",
+      resumeUrl,
+      resumeName,
+      publicId: uploadResult.public_id,
+    });
+  } catch (error) {
+    console.error("uploadResumeHandler error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload resume to Cloudinary",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   generateResumeHandler,
   updateResumeHandler,
   getMyResume,
   saveManualEdit,
+  uploadResumeHandler,
 };
