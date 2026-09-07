@@ -4,6 +4,9 @@ import { useDispatch, useSelector } from "react-redux";
 
 // Courses
 import EmployeeCoursesPage from "./pages/courses/EmployeeCoursesPage";
+import CreateCoursePage from "./pages/courses/CreateCoursePage";
+import EditCoursePage from "./pages/courses/EditCoursePage";
+import CourseContentPage from "./pages/courses/CourseContentPage";
 
 // Auth
 import Login from "./pages/auth/Login";
@@ -347,6 +350,20 @@ function App() {
               element={<EmployeeCoursesPage />}
             />
           </Route>
+             <Route
+            path="/employer/courses/create"
+  element={<CreateCoursePage />}
+          />
+
+<Route
+  path="/employer/courses/:id/edit"
+  element={<EditCoursePage />}
+/>
+
+<Route
+  path="/employer/courses/:id/content"
+  element={<CourseContentPage />}
+/>
 
           {/* =================================================
               RESUME BUILDER
