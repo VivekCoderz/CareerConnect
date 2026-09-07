@@ -17,8 +17,7 @@ const resumeSchema = new mongoose.Schema(
     },
     selectedTemplate: {
       type: String,
-      enum: ["professional", "modern", "minimal"],
-      default: "professional",
+      default: "classic",
     },
   },
   { timestamps: true }

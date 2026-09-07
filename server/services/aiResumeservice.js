@@ -325,13 +325,19 @@ Rules (MUST follow):
 
 async function callGemini(systemPrompt, userContent) {
   const prompt = `${systemPrompt}\n\nUSER DATA:\n${userContent}`;
-  const result = await geminiModel.generateContent(prompt);
-  console.log(result)
-  const text = result.response.text() || "{}";
 
-  // Clean possible markdown fences
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  return JSON.parse(cleaned);
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Gemini API call timed out")), 12000)
+  );
+
+  const apiPromise = (async () => {
+    const result = await geminiModel.generateContent(prompt);
+    const text = result.response.text() || "{}";
+    const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+    return JSON.parse(cleaned);
+  })();
+
+  return await Promise.race([apiPromise, timeoutPromise]);
 }
 
 // ---------- Public API ----------

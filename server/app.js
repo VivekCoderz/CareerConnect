@@ -101,7 +101,6 @@ app.use("/api/organization", organizationRoutes);
 app.use("/api/internships", internshipRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/resume", resumeRoutes);
-app.use("/api", employerRoutes);
 
 // Global error handling middleware
 app.use((err, req, res, next) => {
