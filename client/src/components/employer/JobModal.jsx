@@ -3,23 +3,30 @@ import React, { useState, useEffect } from "react";
 const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
   const [formData, setFormData] = useState({
     title: "",
+    category: "Web Development",
+    subCategory: "Frontend Development",
     department: "Engineering",
-    employmentType: "Full-time",
-    workMode: "Hybrid",
-    location: "Gurugram / Delhi NCR",
-    salaryMin: "",
-    salaryMax: "",
+    employmentType: "Internship",
+    workMode: "Remote",
+    location: "Bangalore",
+    city: "Bangalore",
+    country: "India",
+    isPaid: true,
+    hasJobOffer: true,
+    isInternational: false,
+    salaryMin: "25000",
+    salaryMax: "25000",
     currency: "INR",
     experienceLevel: "Fresher / Entry-Level",
     minYears: 0,
-    maxYears: 2,
+    maxYears: 1,
     education: "B.Tech / BCA / MCA / Any Graduate",
     description: "",
     responsibilities: "",
-    requiredSkills: "",
-    preferredSkills: "",
-    bonusSkills: "",
-    openings: 1,
+    requiredSkills: "React, JavaScript, Tailwind CSS",
+    preferredSkills: "Redux, TypeScript",
+    bonusSkills: "Next.js, Git",
+    openings: 2,
     deadline: "",
     status: "Published",
   });
@@ -31,16 +38,23 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
     if (jobToEdit) {
       setFormData({
         title: jobToEdit.title || "",
+        category: jobToEdit.category || "Web Development",
+        subCategory: jobToEdit.subCategory || "Frontend Development",
         department: jobToEdit.department || "Engineering",
-        employmentType: jobToEdit.employmentType || "Full-time",
-        workMode: jobToEdit.workMode || "Hybrid",
-        location: jobToEdit.location || "Gurugram / Delhi NCR",
+        employmentType: jobToEdit.employmentType || "Internship",
+        workMode: jobToEdit.workMode || "Remote",
+        location: jobToEdit.location || "Bangalore",
+        city: jobToEdit.city || "Bangalore",
+        country: jobToEdit.country || "India",
+        isPaid: jobToEdit.isPaid !== false,
+        hasJobOffer: !!jobToEdit.hasJobOffer,
+        isInternational: !!jobToEdit.isInternational,
         salaryMin: jobToEdit.salaryRange?.min || "",
         salaryMax: jobToEdit.salaryRange?.max || "",
         currency: jobToEdit.salaryRange?.currency || "INR",
         experienceLevel: jobToEdit.experience?.level || "Fresher / Entry-Level",
         minYears: jobToEdit.experience?.minYears || 0,
-        maxYears: jobToEdit.experience?.maxYears || 2,
+        maxYears: jobToEdit.experience?.maxYears || 1,
         education: jobToEdit.education || "B.Tech / BCA / MCA",
         description: jobToEdit.description || "",
         responsibilities: (jobToEdit.responsibilities || []).join("\n"),
@@ -54,22 +68,29 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
     } else {
       setFormData({
         title: "",
+        category: "Web Development",
+        subCategory: "Frontend Development",
         department: "Engineering",
-        employmentType: "Full-time",
-        workMode: "Hybrid",
-        location: "Gurugram / Delhi NCR",
-        salaryMin: "",
-        salaryMax: "",
+        employmentType: "Internship",
+        workMode: "Remote",
+        location: "Bangalore",
+        city: "Bangalore",
+        country: "India",
+        isPaid: true,
+        hasJobOffer: true,
+        isInternational: false,
+        salaryMin: "25000",
+        salaryMax: "25000",
         currency: "INR",
         experienceLevel: "Fresher / Entry-Level",
         minYears: 0,
-        maxYears: 2,
+        maxYears: 1,
         education: "B.Tech / BCA / MCA / Any Graduate",
         description: "",
         responsibilities: "",
-        requiredSkills: "React.js, JavaScript, TailwindCSS",
-        preferredSkills: "Node.js, MongoDB",
-        bonusSkills: "TypeScript, Git",
+        requiredSkills: "React, JavaScript, Tailwind CSS",
+        preferredSkills: "Redux, TypeScript",
+        bonusSkills: "Next.js, Git",
         openings: 2,
         deadline: "",
         status: "Published",
@@ -81,8 +102,11 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
   if (!isOpen) return null;
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -98,10 +122,17 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
 
       const payload = {
         title: formData.title.trim(),
+        category: formData.category,
+        subCategory: formData.subCategory,
         department: formData.department,
         employmentType: formData.employmentType,
         workMode: formData.workMode,
         location: formData.location.trim(),
+        city: formData.city.trim(),
+        country: formData.country.trim(),
+        isPaid: formData.isPaid,
+        hasJobOffer: formData.hasJobOffer,
+        isInternational: formData.isInternational,
         salaryRange: {
           min: Number(formData.salaryMin) || 0,
           max: Number(formData.salaryMax) || 0,
@@ -148,10 +179,10 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div>
             <h3 className="text-base font-bold text-slate-900">
-              {jobToEdit ? "Edit Job Opportunity" : "Post New Job / Internship"}
+              {jobToEdit ? "Edit Opportunity" : "Post Job / Internship Opportunity"}
             </h3>
             <p className="text-xs text-slate-500">
-              Visible to verified Geeta University students & alumni
+              Auto-discoverable in Category & City Discovery Hubs
             </p>
           </div>
           <button
@@ -174,49 +205,56 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
           <div className="grid sm:grid-cols-2 gap-3.5">
             <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Job Title *
+                Opportunity Title *
               </label>
               <input
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
-                placeholder="e.g. Frontend Engineer Intern / Associate Developer"
+                placeholder="e.g. React Developer Intern / Associate Software Engineer"
                 className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15"
                 required
               />
             </div>
 
+            {/* Category Dropdown */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Department
+                Primary Category *
               </label>
               <select
-                name="department"
-                value={formData.department}
+                name="category"
+                value={formData.category}
                 onChange={handleChange}
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
               >
-                <option value="Engineering">Engineering / IT</option>
-                <option value="Product & Design">Product & UI/UX Design</option>
-                <option value="Marketing & Growth">Marketing & Growth</option>
-                <option value="Human Resources">Human Resources (HR)</option>
-                <option value="Finance & Operations">Finance & Operations</option>
-                <option value="Sales & Business Dev">Sales & BD</option>
+                <option value="Web Development">Web Development</option>
+                <option value="App Development">App Development (Mobile)</option>
+                <option value="Software Development">Software Development</option>
+                <option value="Data Science">Data Science & AI</option>
+                <option value="Machine Learning">Machine Learning / Deep Learning</option>
+                <option value="UI/UX Design">UI/UX Design & Product</option>
+                <option value="Digital Marketing">Digital Marketing & SEO</option>
+                <option value="Content Writing">Content Writing & Copy</option>
+                <option value="Graphic Design">Graphic Design</option>
+                <option value="HR">Human Resources (HR)</option>
+                <option value="Finance">Finance & Accounting</option>
+                <option value="Sales">Sales & Business Development</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Employment Type
+                Opportunity Type
               </label>
               <select
                 name="employmentType"
                 value={formData.employmentType}
                 onChange={handleChange}
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
               >
-                <option value="Full-time">Full-time Job</option>
                 <option value="Internship">Internship</option>
+                <option value="Full-time">Full-time Job</option>
                 <option value="Part-time">Part-time</option>
                 <option value="Contract">Contract</option>
               </select>
@@ -230,79 +268,111 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                 name="workMode"
                 value={formData.workMode}
                 onChange={handleChange}
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
               >
+                <option value="Remote">Work From Home (Remote)</option>
                 <option value="Hybrid">Hybrid</option>
                 <option value="On-site">On-site</option>
-                <option value="Remote">Remote</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Location *
+                Primary City *
+              </label>
+              <select
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+              >
+                <option value="Bangalore">Bangalore</option>
+                <option value="Delhi">Delhi / NCR</option>
+                <option value="Gurugram">Gurugram</option>
+                <option value="Hyderabad">Hyderabad</option>
+                <option value="Mumbai">Mumbai</option>
+                <option value="Pune">Pune</option>
+                <option value="Chennai">Chennai</option>
+                <option value="Kolkata">Kolkata</option>
+                <option value="Jaipur">Jaipur</option>
+                <option value="Panipat">Panipat</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Full Location String *
               </label>
               <input
                 name="location"
                 value={formData.location}
                 onChange={handleChange}
-                placeholder="e.g. Gurugram / Panipat"
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15"
+                placeholder="e.g. Bangalore / Remote"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-medium outline-none focus:border-[#f59e0b]"
                 required
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Salary Min (LPA / Stipend)
+                Stipend / Salary Min (₹)
               </label>
               <input
                 type="number"
                 name="salaryMin"
                 value={formData.salaryMin}
                 onChange={handleChange}
-                placeholder="e.g. 400000"
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15"
+                placeholder="25000"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-medium outline-none focus:border-[#f59e0b]"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Salary Max (LPA / Stipend)
+            {/* Special Badges (Paid, Job Offer) */}
+            <div className="sm:col-span-2 flex items-center gap-6 pt-1 pb-1">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  name="isPaid"
+                  checked={formData.isPaid}
+                  onChange={handleChange}
+                  className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                />
+                <span>💰 Paid Stipend</span>
               </label>
-              <input
-                type="number"
-                name="salaryMax"
-                value={formData.salaryMax}
-                onChange={handleChange}
-                placeholder="e.g. 800000"
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15"
-              />
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  name="hasJobOffer"
+                  checked={formData.hasJobOffer}
+                  onChange={handleChange}
+                  className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                />
+                <span>🎯 Pre-Placement Job Offer (PPO)</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  name="isInternational"
+                  checked={formData.isInternational}
+                  onChange={handleChange}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                />
+                <span>🌍 International</span>
+              </label>
             </div>
 
             <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Required Skills (Comma separated - Used for smart matching) *
+                Required Skills (Comma separated - tags categories automatically) *
               </label>
               <input
                 name="requiredSkills"
                 value={formData.requiredSkills}
                 onChange={handleChange}
-                placeholder="React.js, Node.js, SQL, TailwindCSS"
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Preferred Skills
-              </label>
-              <input
-                name="preferredSkills"
-                value={formData.preferredSkills}
-                onChange={handleChange}
-                placeholder="Next.js, Docker, AWS"
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15"
+                placeholder="React, JavaScript, Tailwind CSS, Node.js"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-medium outline-none focus:border-[#f59e0b]"
               />
             </div>
 
@@ -340,22 +410,8 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                 value={formData.description}
                 onChange={handleChange}
                 placeholder="Describe the opportunity, role summary and what the candidate will work on..."
-                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15 resize-none"
+                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium outline-none focus:border-[#f59e0b] resize-none"
                 required
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Responsibilities (One per line)
-              </label>
-              <textarea
-                name="responsibilities"
-                rows={2}
-                value={formData.responsibilities}
-                onChange={handleChange}
-                placeholder="Develop user-facing features&#10;Collaborate with cross-functional teams&#10;Write clean and tested code"
-                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium outline-none focus:border-[#f59e0b] focus:ring-3 focus:ring-[#f59e0b]/15 resize-none"
               />
             </div>
           </div>
@@ -380,7 +436,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                   Saving...
                 </>
               ) : (
-                jobToEdit ? "Update Job" : "Publish Job"
+                jobToEdit ? "Update Opportunity" : "Publish Opportunity"
               )}
             </button>
           </div>

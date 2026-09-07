@@ -48,6 +48,16 @@ export const getInterviews = async (params = {}) => {
   return res.data;
 };
 
+export const getInterviewStats = async () => {
+  const res = await api.get("/interviews/stats");
+  return res.data;
+};
+
+export const getCandidateInterviewHistory = async (candidateId) => {
+  const res = await api.get(`/interviews/candidate/${candidateId}`);
+  return res.data;
+};
+
 export const scheduleInterview = async (data) => {
   const res = await api.post("/interviews", data);
   return res.data;
@@ -58,19 +68,64 @@ export const submitInterviewFeedback = async (id, data) => {
   return res.data;
 };
 
+export const rescheduleInterview = async (id, data) => {
+  const res = await api.patch(`/interviews/${id}/reschedule`, data);
+  return res.data;
+};
+
+export const cancelInterview = async (id, data) => {
+  const res = await api.patch(`/interviews/${id}/cancel`, data);
+  return res.data;
+};
+
 export const updateInterviewStatus = async (id, data) => {
   const res = await api.patch(`/interviews/${id}/status`, data);
   return res.data;
 };
 
 // Offers
-export const getOffers = async () => {
-  const res = await api.get("/offers");
+export const getOffers = async (params = {}) => {
+  const res = await api.get("/offers", { params });
+  return res.data;
+};
+
+export const getOfferStats = async () => {
+  const res = await api.get("/offers/stats");
+  return res.data;
+};
+
+export const getOfferById = async (id) => {
+  const res = await api.get(`/offers/${id}`);
   return res.data;
 };
 
 export const createOffer = async (data) => {
   const res = await api.post("/offers", data);
+  return res.data;
+};
+
+export const updateOffer = async (id, data) => {
+  const res = await api.put(`/offers/${id}`, data);
+  return res.data;
+};
+
+export const submitOfferForApproval = async (id, data = {}) => {
+  const res = await api.patch(`/offers/${id}/submit-approval`, data);
+  return res.data;
+};
+
+export const approveOffer = async (id, data = {}) => {
+  const res = await api.patch(`/offers/${id}/approve`, data);
+  return res.data;
+};
+
+export const sendOffer = async (id, data = {}) => {
+  const res = await api.patch(`/offers/${id}/send`, data);
+  return res.data;
+};
+
+export const withdrawOffer = async (id, data = {}) => {
+  const res = await api.patch(`/offers/${id}/withdraw`, data);
   return res.data;
 };
 
@@ -95,11 +150,24 @@ export default {
   getAssessmentResults,
   deleteAssessment,
   getInterviews,
+  getInterviewStats,
+  getCandidateInterviewHistory,
   scheduleInterview,
   submitInterviewFeedback,
+  rescheduleInterview,
+  cancelInterview,
   updateInterviewStatus,
   getOffers,
+  getOfferStats,
+  getOfferById,
   createOffer,
+  updateOffer,
+  submitOfferForApproval,
+  approveOffer,
+  sendOffer,
+  withdrawOffer,
   respondToOffer,
   getEmployerAnalytics,
 };
+
+

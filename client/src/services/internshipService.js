@@ -5,10 +5,17 @@ export const getInternships = async (params = {}) => {
   return data;
 };
 
-export const getById = async (id) => {
+export const getInternshipCategories = async () => {
+  const { data } = await api.get("/internships/categories");
+  return data;
+};
+
+export const getInternshipById = async (id) => {
   const { data } = await api.get(`/internships/${id}`);
   return data;
 };
+
+export const getById = getInternshipById;
 
 export const create = async (payload) => {
   const { data } = await api.post("/internships", payload);
@@ -39,3 +46,18 @@ export const syncExternal = async () => {
   const { data } = await api.post("/internships/sync/external");
   return data;
 };
+
+const internshipService = {
+  getInternships,
+  getInternshipCategories,
+  getInternshipById,
+  getById,
+  create,
+  getMyPosts,
+  update,
+  updateStatus,
+  remove,
+  syncExternal,
+};
+
+export default internshipService;

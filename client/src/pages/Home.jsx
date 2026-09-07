@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
 
 const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -11,34 +12,40 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-[68px]">
             {/* Logo - Geeta University */}
-            <Link to="/" className="flex items-center gap-2.5">
-              <img
-                src="/geeta-university-logo.png"
-                alt="Geeta University"
-                className="h-10 w-auto object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                  e.currentTarget.nextSibling.style.display = "flex";
-                }}
-              />
-              {/* Fallback if image not loaded */}
-              <div className="hidden items-center gap-2">
-                <div className="w-10 h--10 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-sm">
-                  GU
+            <div className="flex items-center gap-4">
+              <Link to="/" className="flex items-center gap-2.5">
+                <img
+                  src="/geeta-university-logo.png"
+                  alt="Geeta University"
+                  className="h-10 w-auto object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                    e.currentTarget.nextSibling.style.display = "flex";
+                  }}
+                />
+                {/* Fallback if image not loaded */}
+                <div className="hidden items-center gap-2">
+                  <div className="w-10 h--10 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-sm">
+                    GU
+                  </div>
+                  <div className="leading-tight">
+                    <p className="text-sm font-bold text-[#1e3a8a]">GEETA</p>
+                    <p className="text-[10px] font-semibold text-[#f59e0b] tracking-wide">UNIVERSITY</p>
+                  </div>
                 </div>
-                <div className="leading-tight">
-                  <p className="text-sm font-bold text-[#1e3a8a]">GEETA</p>
-                  <p className="text-[10px] font-semibold text-[#f59e0b] tracking-wide">UNIVERSITY</p>
-                </div>
+              </Link>
+
+              {/* Discovery Menu Dropdown */}
+              <div className="hidden md:block">
+                <InternshipDiscoveryMenu />
               </div>
-            </Link>
+            </div>
 
             {/* Nav */}
-            <nav className="hidden lg:flex items-center gap-8 text-[13px] font-semibold text-slate-600">
-              <a href="#internships" className="hover:text-[#1e3a8a] transition">Internships</a>
-              <a href="#jobs" className="hover:text-[#1e3a8a] transition">Jobs</a>
-              <a href="#companies" className="hover:text-[#1e3a8a] transition">Companies</a>
-              <a href="#how-it-works" className="hover:text-[#1e3a8a] transition">How it works</a>
+            <nav className="hidden lg:flex items-center gap-6 text-[13px] font-semibold text-slate-600">
+              <Link to="/internships/work-from-home" className="hover:text-[#1e3a8a] transition">Remote Jobs</Link>
+              <Link to="/internships/with-job-offer" className="hover:text-[#1e3a8a] transition">PPO Internships</Link>
+              <Link to="/internships" className="hover:text-[#1e3a8a] transition">Browse All</Link>
             </nav>
 
             {/* Auth */}

@@ -9,9 +9,10 @@ import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
 // Guards
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
 
-// General
+// General & Discovery Pages
 import SelectRole from "./pages/SelectRole";
 import Home from "./pages/Home.jsx";
+import InternshipDiscoveryPage from "./pages/internships/InternshipDiscoveryPage";
 
 // Student
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -45,7 +46,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ========== PUBLIC ========== */}
+        {/* ========== PUBLIC & DISCOVERY ROUTES ========== */}
         <Route path="/login" element={<Login />} />
         <Route path="/register/student" element={<Signup />} />
         <Route path="/register/employer" element={<EmployerRegister />} />
@@ -54,8 +55,18 @@ function App() {
         <Route path="/home" element={<Home />} />
         <Route path="/companies/:companyId" element={<CompanyPublicProfile />} />
 
+        {/* Category-Based Internship Discovery Routes */}
+        <Route path="/internships" element={<InternshipDiscoveryPage />} />
+        <Route path="/internships/browse" element={<Internships />} />
+        <Route path="/internships/work-from-home" element={<InternshipDiscoveryPage />} />
+        <Route path="/internships/international" element={<InternshipDiscoveryPage />} />
+        <Route path="/internships/latest" element={<InternshipDiscoveryPage />} />
+        <Route path="/internships/paid" element={<InternshipDiscoveryPage />} />
+        <Route path="/internships/with-job-offer" element={<InternshipDiscoveryPage />} />
+        <Route path="/internships/in/:city" element={<InternshipDiscoveryPage />} />
+        <Route path="/internships/category/:category" element={<InternshipDiscoveryPage />} />
+
         {/* ========== CANDIDATES: student + fresher + professional ========== */}
-        {/* Internships & applications shared */}
         <Route
           element={
             <RoleProtectedRoute
@@ -63,7 +74,6 @@ function App() {
             />
           }
         >
-          <Route path="/internships" element={<Internships />} />
           <Route path="/internships/:id" element={<InternshipDetail />} />
           <Route path="/applications" element={<MyApplications />} />
         </Route>

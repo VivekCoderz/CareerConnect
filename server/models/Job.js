@@ -28,6 +28,17 @@ const jobSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    category: {
+      type: String,
+      trim: true,
+      default: "Web Development",
+      index: true,
+    },
+    subCategory: {
+      type: String,
+      trim: true,
+      default: "Full Stack Development",
+    },
     department: {
       type: String,
       trim: true,
@@ -35,7 +46,7 @@ const jobSchema = new mongoose.Schema(
     },
     employmentType: {
       type: String,
-      enum: ["Full-time", "Part-time", "Contract", "Internship", "Trainee"],
+      enum: ["Full-time", "Part-time", "Contract", "Internship", "Freelance", "Trainee"],
       default: "Full-time",
       index: true,
     },
@@ -43,11 +54,49 @@ const jobSchema = new mongoose.Schema(
       type: String,
       enum: ["On-site", "Hybrid", "Remote"],
       default: "Hybrid",
+      index: true,
     },
     location: {
       type: String,
       required: [true, "Job location is required"],
       trim: true,
+    },
+    city: {
+      type: String,
+      trim: true,
+      default: "Bangalore",
+      index: true,
+    },
+    state: {
+      type: String,
+      trim: true,
+      default: "Karnataka",
+    },
+    country: {
+      type: String,
+      trim: true,
+      default: "India",
+      index: true,
+    },
+    isInternational: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isPaid: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    hasJobOffer: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isFeatured: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
 
     // ---------- Compensation ----------
@@ -171,6 +220,9 @@ const jobSchema = new mongoose.Schema(
 
 // ---------- Indexes (no duplicates) ----------
 jobSchema.index({ employerId: 1, status: 1 });
+jobSchema.index({ category: 1, status: 1 });
+jobSchema.index({ city: 1, status: 1 });
+jobSchema.index({ workMode: 1, status: 1 });
 jobSchema.index({ employmentType: 1, status: 1 });
 jobSchema.index({ requiredSkills: 1 });
 jobSchema.index({ isExternal: 1, employmentType: 1, status: 1 });
