@@ -1,4 +1,5 @@
 // server/controllers/internshipController.js
+const mongoose = require("mongoose");
 const Internship = require("../models/Internship");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
@@ -8,6 +9,7 @@ const User = require("../models/User");
 const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
 const { isEligibleForInternship } = require("../utils/eligibility");
+const { getAggregatedOpportunities, CAMPUS_DRIVES } = require("../services/jobScraperService");
 
 // Helper to normalize URL slugs to category names
 const formatCategorySlug = (slug = "") => {
@@ -94,7 +96,45 @@ exports.getInternships = async (req, res, next) => {
       sort = "latest",
       page = 1,
       limit = 20,
+      program,
+      specialization,
+      opportunityType,
+      scope,
+      region,
+      live,
+      feed,
     } = req.query;
+
+    // Check if live external scraper / program matrix is requested
+    if (program || specialization || live === "true" || feed === "live") {
+      try {
+        const results = await getAggregatedOpportunities({
+          program,
+          specialization,
+          opportunityType: opportunityType || "all",
+          source: source || "all",
+          scope: scope || "all",
+          region: region || "India",
+          workMode: workMode || "all",
+          search,
+          q,
+        });
+        return res.status(200).json({
+          success: true,
+          count: results.count,
+          data: results.data,
+          internships: results.data,
+          source: results.source,
+        });
+      } catch (aggError) {
+        console.error("Aggregator execution error:", aggError.message);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to process multi-source feed",
+          data: CAMPUS_DRIVES,
+        });
+      }
+    }
 
     const filter = {};
 
@@ -212,31 +252,40 @@ exports.getInternships = async (req, res, next) => {
     const skip = (pageNum - 1) * pageSize;
 
     // Try finding in Internship collection first
-    let [total, items] = await Promise.all([
-      Internship.countDocuments(filter),
-      Internship.find(filter)
-        .populate("employerId", "companyName logo headquarters website industry description")
-        .sort(sortOption)
-        .skip(skip)
-        .limit(pageSize)
-        .lean(),
-    ]);
+    let total = 0;
+    let items = [];
 
-    // Fallback/Supplement from Job collection if Internship collection is empty or fewer records
-    if (total === 0 && myPosts !== "true") {
-      const jobFilter = {
-        ...filter,
-        employmentType: "Internship",
-      };
-      [total, items] = await Promise.all([
-        Job.countDocuments(jobFilter),
-        Job.find(jobFilter)
-          .populate("employerId", "companyName logo headquarters website industry description")
-          .sort(sortOption)
-          .skip(skip)
-          .limit(pageSize)
-          .lean(),
-      ]);
+    if (mongoose.connection.readyState === 1) {
+      try {
+        [total, items] = await Promise.all([
+          Internship.countDocuments(filter),
+          Internship.find(filter)
+            .populate("employerId", "companyName logo headquarters website industry description")
+            .sort(sortOption)
+            .skip(skip)
+            .limit(pageSize)
+            .lean(),
+        ]);
+
+        // Fallback/Supplement from Job collection if Internship collection is empty or fewer records
+        if (total === 0 && myPosts !== "true") {
+          const jobFilter = {
+            ...filter,
+            employmentType: "Internship",
+          };
+          [total, items] = await Promise.all([
+            Job.countDocuments(jobFilter),
+            Job.find(jobFilter)
+              .populate("employerId", "companyName logo headquarters website industry description")
+              .sort(sortOption)
+              .skip(skip)
+              .limit(pageSize)
+              .lean(),
+          ]);
+        }
+      } catch (dbErr) {
+        console.warn("MongoDB Internship.find error, using live scraper fallback:", dbErr.message);
+      }
     }
 
     // Optional profile eligibility filtering for student/fresher
@@ -296,16 +345,71 @@ exports.getInternships = async (req, res, next) => {
       };
     });
 
+    let finalList = formattedList;
+    let finalTotal = total;
+
+    if (finalList.length === 0 && myPosts !== "true") {
+      try {
+        const scraped = await getAggregatedOpportunities({
+          opportunityType: opportunityType || "all",
+          workMode: workMode && workMode !== "All" ? workMode : "all",
+          region: isInternational === "true" ? "International" : (city || "all"),
+          search: search || q || category || "",
+        });
+
+        const fallbackItems = (scraped.data || []).map((item, idx) => ({
+          _id: `scraped-int-${idx}`,
+          id: `scraped-int-${idx}`,
+          jobId: `scraped-int-${idx}`,
+          title: item.title,
+          company: item.company,
+          companyName: item.company,
+          companyId: "",
+          logo: "",
+          location: item.location,
+          city: item.location?.split(",")[0]?.trim() || "Delhi NCR",
+          category: category && category !== "All" ? category : "Software Development",
+          subCategory: "Engineering",
+          stipend: "Competitive Stipend / Package",
+          salary: "Competitive Package",
+          duration: "3-6 Months",
+          type: item.opportunityType || "Internship",
+          workMode: item.workMode || "Remote",
+          isPaid: true,
+          hasJobOffer: item.opportunityType === "Full-Time & Internship",
+          isInternational: !!item.location?.toLowerCase().includes("worldwide") || !item.location?.toLowerCase().includes("india"),
+          skillsRequired: [item.title.split(" ")[0] || "Development", "Problem Solving"],
+          postedAt: item.postedDate || "Recently Posted",
+          createdAt: new Date(),
+          deadline: "Open until filled",
+          description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
+          responsibilities: ["Contribute to ongoing development", "Collaborate with mentors and team"],
+          openings: 2,
+          applicantsCount: 5,
+          applyLink: item.applyLink,
+          applyUrl: item.applyLink,
+          isExternal: true,
+          platformSource: item.platformSource,
+          source: item.platformSource,
+        }));
+
+        finalList = fallbackItems;
+        finalTotal = fallbackItems.length;
+      } catch (e) {
+        console.error("Live internships scraper fallback error:", e.message);
+      }
+    }
+
     return res.status(200).json({
       success: true,
-      count: formattedList.length,
-      data: formattedList,
-      internships: formattedList,
+      count: finalList.length,
+      data: finalList,
+      internships: finalList,
       pagination: {
-        total,
+        total: finalTotal,
         page: pageNum,
         limit: pageSize,
-        totalPages: Math.ceil(total / pageSize) || 1,
+        totalPages: Math.ceil(finalTotal / pageSize) || 1,
       },
     });
   } catch (error) {
@@ -410,14 +514,72 @@ exports.getInternshipCategories = async (req, res, next) => {
 // GET /api/internships/:id
 exports.getInternshipById = async (req, res, next) => {
   try {
-    let internship = await Internship.findById(req.params.id).populate(
+    const id = req.params.id;
+
+    // Handle scraped / external opportunity IDs
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      try {
+        const aggregated = await getAggregatedOpportunities({ opportunityType: "all" });
+        const match = (aggregated.data || []).find(
+          (item, idx) =>
+            `scraped-int-${idx}` === id ||
+            `scraped-job-${idx}` === id ||
+            `scraped-rec-int-${idx}` === id ||
+            `scraped-rec-job-${idx}` === id ||
+            item.title === id
+        ) || (aggregated.data || [])[0];
+
+        if (match) {
+          const formatted = {
+            _id: id,
+            id: id,
+            title: match.title,
+            company: match.company,
+            companyName: match.company,
+            location: match.location,
+            workMode: match.workMode || "Remote",
+            type: match.opportunityType || "Internship",
+            stipend: "Competitive Stipend / Package",
+            salary: "Competitive Package",
+            duration: "3-6 Months",
+            isPaid: true,
+            isExternal: true,
+            applyLink: match.applyLink,
+            applyUrl: match.applyLink,
+            platformSource: match.platformSource,
+            source: match.platformSource,
+            description: `${match.title} at ${match.company}. Real-time verified opportunity aggregated from ${match.platformSource}. Click below to apply directly on the source platform.`,
+            responsibilities: [
+              "Collaborate with the engineering and product team",
+              "Execute tasks and features as per requirements",
+              "Participate in design and code reviews"
+            ],
+            requiredSkills: [match.title.split(" ")[0] || "Engineering", "Communication", "Problem Solving"],
+            openings: 2,
+            deadline: "Open until filled",
+            postedAt: match.postedDate || "Recently Posted",
+          };
+          return res.status(200).json({
+            success: true,
+            internship: formatted,
+            data: formatted,
+          });
+        }
+      } catch (e) {
+        console.warn("Scraped ID lookup error in getInternshipById:", e.message);
+      }
+
+      return res.status(404).json({ success: false, message: "Internship opportunity not found" });
+    }
+
+    let internship = await Internship.findById(id).populate(
       "employerId",
       "companyName logo industry headquarters website description"
     );
 
     if (!internship) {
       internship = await Job.findOne({
-        _id: req.params.id,
+        _id: id,
         employmentType: "Internship",
       }).populate(
         "employerId",

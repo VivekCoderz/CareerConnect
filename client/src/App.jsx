@@ -21,6 +21,7 @@ import RoleProtectedRoute from "./components/RoleProtectedRoute";
 import SelectRole from "./pages/SelectRole";
 import Home from "./pages/Home.jsx";
 import InternshipDiscoveryPage from "./pages/internships/InternshipDiscoveryPage";
+import OpportunitiesPage from "./pages/OpportunitiesPage";
 
 // Student
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -205,6 +206,19 @@ function App() {
           <Route
             path="/set-password"
             element={<SetPassword />}
+          />
+
+          {/* =================================================
+              LIVE OPPORTUNITIES MATRIX & DISCOVERY
+          ================================================= */}
+
+          <Route
+            path="/opportunities"
+            element={<OpportunitiesPage />}
+          />
+          <Route
+            path="/jobs"
+            element={<OpportunitiesPage />}
           />
 
           {/* =================================================

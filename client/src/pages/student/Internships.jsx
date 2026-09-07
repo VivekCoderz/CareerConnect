@@ -184,7 +184,16 @@ export default function Internships({
                 </div>
 
                 <div className="flex sm:flex-col items-stretch gap-2 shrink-0">
-                  {onSelectInternship ? (
+                  {item.applyLink ? (
+                    <a
+                      href={item.applyLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center h-10 px-5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-sm transition"
+                    >
+                      Apply Online ↗
+                    </a>
+                  ) : onSelectInternship ? (
                     <button
                       type="button"
                       onClick={() => openDetail(item._id)}
