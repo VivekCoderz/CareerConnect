@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 const CourseRecommendationsCard = ({ courses = [] }) => {
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs">
@@ -5,12 +7,18 @@ const CourseRecommendationsCard = ({ courses = [] }) => {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-slate-900">Recommended Courses</h2>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-800">
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800">
               {courses.length} Courses
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">High-impact modules to bridge your skill gaps</p>
         </div>
+        <Link
+          to="/courses"
+          className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline"
+        >
+          Explore All Courses &rarr;
+        </Link>
       </div>
 
       {courses && courses.length > 0 ? (
@@ -18,7 +26,7 @@ const CourseRecommendationsCard = ({ courses = [] }) => {
           {courses.map((crs) => (
             <div
               key={crs.id}
-              className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between hover:border-violet-300 hover:shadow-xs transition"
+              className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between hover:border-blue-300 hover:shadow-xs transition"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -30,7 +38,7 @@ const CourseRecommendationsCard = ({ courses = [] }) => {
                       FREE
                     </span>
                   ) : (
-                    <span className="text-[10px] font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-100">
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
                       PREMIUM
                     </span>
                   )}
@@ -57,12 +65,12 @@ const CourseRecommendationsCard = ({ courses = [] }) => {
                 <span className="text-xs font-bold text-amber-600 flex items-center gap-1">
                   ★ {crs.rating}
                 </span>
-                <button
-                  onClick={() => alert(`Enrolling in ${crs.title}`)}
-                  className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-xl transition"
+                <Link
+                  to={crs.id ? `/courses/${crs.id}` : "/courses"}
+                  className="px-3 py-1.5 bg-[#1e3a8a] hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition shadow-xs"
                 >
                   View Course
-                </button>
+                </Link>
               </div>
             </div>
           ))}

@@ -51,7 +51,10 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
   }
 
   // 2. Determine effective role
-  const effectiveRole = user.role === "employer" ? "employer" : user.userType;
+  const effectiveRole =
+    user.role === "employer"
+      ? "employer"
+      : user.userType || (user.role && user.role !== "user" ? user.role : null);
 
   const validRoles = ["student", "fresher", "professional", "employer"];
   if (!effectiveRole || !validRoles.includes(effectiveRole)) {

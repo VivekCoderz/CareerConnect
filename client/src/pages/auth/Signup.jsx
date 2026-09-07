@@ -412,7 +412,11 @@ const Signup = () => {
 
       const res = await api.post("/auth/register", payload);
       dispatch(signupSuccess({ user: res.data.user, token: res.data.token }));
-      navigate(getDashboardPath(res.data.user?.userType || userType), { replace: true });
+      const dest =
+        userType === "fresher"
+          ? "/fresher/profile"
+          : getDashboardPath(res.data.user?.userType || userType, res.data.user);
+      navigate(dest, { replace: true });
     } catch (err) {
       const message = err.response?.data?.message || "Registration failed. Please try again.";
       dispatch(signupFailure(message));

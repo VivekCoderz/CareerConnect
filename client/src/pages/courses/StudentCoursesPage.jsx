@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { getDashboardPath } from "../../utils/dashboardRedirect";
 import {
   Search,
   Filter,
@@ -11,6 +14,7 @@ import {
   AlertCircle,
   Tag,
   ArrowRight,
+  ArrowLeft,
 } from "lucide-react";
 import api from "../../api/api";
 
@@ -19,6 +23,8 @@ import api from "../../api/api";
  * Student course catalog & AI recommendations page.
  */
 const StudentCoursesPage = ({ onViewDetails }) => {
+  const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -99,7 +105,23 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Banner */}
+        {/* Back navigation & Banner */}
+        <div className="flex items-center justify-between">
+          <Link
+            to={getDashboardPath(user?.userType || "student", user)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+          >
+            <ArrowLeft size={14} /> Back to Dashboard
+          </Link>
+
+          <Link
+            to="/my-courses"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-[#1e3a8a] hover:bg-blue-100 transition shadow-2xs"
+          >
+            <BookOpen size={14} /> My Enrolled Courses
+          </Link>
+        </div>
+
         <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-indigo-900 text-white shadow-md relative overflow-hidden">
           <div className="relative z-10 max-w-2xl space-y-2">
             <span className="px-3 py-1 rounded-full bg-white/20 text-[11px] font-bold text-amber-300 uppercase tracking-wider border border-white/20">
@@ -256,15 +278,16 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                       </span>
 
                       <div className="flex items-center gap-2">
-                        {onViewDetails && (
-                          <button
-                            type="button"
-                            onClick={() => onViewDetails(course._id)}
-                            className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
-                          >
-                            Details
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onViewDetails) onViewDetails(course._id);
+                            else navigate(`/courses/${course._id}`);
+                          }}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
+                        >
+                          Details
+                        </button>
 
                         <button
                           type="button"
