@@ -256,10 +256,10 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
                   External listing — apply on the company website.
                 </p>
                 <a
-                  href={internship.applyUrl || "#"}
+                  href={internship.applyUrl || internship.applyLink || "#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center gap-1.5 h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-bold"
+                  className="w-full inline-flex items-center justify-center gap-1.5 h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-bold shadow-xs transition"
                 >
                   Apply on company site ↗
                 </a>

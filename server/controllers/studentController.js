@@ -4,6 +4,8 @@ const Job = require("../models/Job");
 const Application = require("../models/Application");
 const Course = require("../models/Course");
 const { isEligibleForInternship } = require("../utils/eligibility");
+const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const mongoose = require("mongoose")
 
 // Skill benchmarks for target roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -145,16 +147,33 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     const readiness = calculateCareerReadiness(profile, completion);
     const skillGap = analyzeSkillGap(profile);
 
-    // 1. Fetch Real Database Internships
-    const dbInternships = await Job.find({
-      status: "Published",
-      employmentType: "Internship",
-    })
-      .populate("employerId", "companyName logo headquarters")
-      .sort({ createdAt: -1 })
-      .lean();
+    // 1. Fetch Real Database Opportunities
+    let dbInternships = [];
+    let dbJobs = [];
+    if (mongoose.connection.readyState === 1) {
+      try {
+        [dbInternships, dbJobs] = await Promise.all([
+          Job.find({
+            status: "Published",
+            employmentType: "Internship",
+          })
+            .populate("employerId", "companyName logo headquarters")
+            .sort({ createdAt: -1 })
+            .lean(),
+          Job.find({
+            status: "Published",
+            employmentType: { $ne: "Internship" },
+          })
+            .populate("employerId", "companyName logo headquarters")
+            .sort({ createdAt: -1 })
+            .lean(),
+        ]);
+      } catch (dbErr) {
+        console.warn("MongoDB find error in studentController:", dbErr.message);
+      }
+    }
 
-    const eligibleDbInternships = dbInternships.filter((job) =>
+    const eligibleDbInternships = (dbInternships || []).filter((job) =>
       isEligibleForInternship(job, profile)
     );
 
@@ -185,20 +204,11 @@ module.exports.getStudentDashboard = async (req, res, next) => {
       };
     });
 
-    // 2. Fetch Real Database Full-Time / Entry-Level Jobs
-    const dbJobs = await Job.find({
-      status: "Published",
-      employmentType: { $ne: "Internship" },
-    })
-      .populate("employerId", "companyName logo headquarters")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const recommendedJobs = dbJobs.map((job) => {
+    const recommendedJobs = (dbJobs || []).map((job) => {
       const salaryStr =
         job.salaryRange?.min > 0
           ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Best in Industry";
+          : "Competitive Package";
 
       return {
         _id: job._id,
@@ -210,7 +220,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         location: job.location,
         salary: salaryStr,
         type: job.employmentType || "Full-Time",
-        workMode: job.workMode || "Hybrid",
+        workMode: job.workMode || "On-Site",
         skillsRequired: job.requiredSkills || [],
         postedAt: "Active",
         deadline: job.deadline ? new Date(job.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
@@ -218,6 +228,72 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         responsibilities: job.responsibilities,
       };
     });
+
+    let finalRecommendedInternships = recommendedInternships;
+    if (finalRecommendedInternships.length === 0) {
+      try {
+        const scrapedInt = await getAggregatedOpportunities({
+          opportunityType: "internship",
+          search: profile.careerGoal || "",
+        });
+        finalRecommendedInternships = (scrapedInt.data || []).slice(0, 25).map((job, idx) => ({
+          _id: `scraped-rec-int-${idx}`,
+          id: `scraped-rec-int-${idx}`,
+          jobId: `scraped-rec-int-${idx}`,
+          title: job.title,
+          company: job.company,
+          companyId: "",
+          location: job.location,
+          stipend: "Competitive Stipend",
+          salary: "Competitive Stipend",
+          duration: "3-6 Months",
+          type: "Internship",
+          workMode: job.workMode || "Remote",
+          skillsRequired: [job.title.split(" ")[0] || "Development", "Teamwork"],
+          postedAt: job.postedDate || "Recently",
+          deadline: "Open until filled",
+          description: `${job.title} at ${job.company}. Apply directly at ${job.applyLink}`,
+          applyLink: job.applyLink,
+          applyUrl: job.applyLink,
+          isExternal: true,
+          platformSource: job.platformSource,
+        }));
+      } catch (e) {
+        console.warn("Aggregated internships fallback error:", e.message);
+      }
+    }
+
+    let finalRecommendedJobs = recommendedJobs;
+    if (finalRecommendedJobs.length === 0) {
+      try {
+        const scrapedJobs = await getAggregatedOpportunities({
+          opportunityType: "all",
+          search: profile.careerGoal || "",
+        });
+        finalRecommendedJobs = (scrapedJobs.data || []).slice(0, 25).map((job, idx) => ({
+          _id: `scraped-rec-job-${idx}`,
+          id: `scraped-rec-job-${idx}`,
+          jobId: `scraped-rec-job-${idx}`,
+          title: job.title,
+          company: job.company,
+          companyId: "",
+          location: job.location,
+          salary: "₹4.5 - 12.0 LPA",
+          type: job.opportunityType || "Full-Time",
+          workMode: job.workMode || "On-Site",
+          skillsRequired: [job.title.split(" ")[0] || "Engineering", "Problem Solving"],
+          postedAt: job.postedDate || "Recently",
+          deadline: "Open",
+          description: `${job.title} at ${job.company}. Apply directly at ${job.applyLink}`,
+          applyLink: job.applyLink,
+          applyUrl: job.applyLink,
+          isExternal: true,
+          platformSource: job.platformSource,
+        }));
+      } catch (e) {
+        console.warn("Aggregated jobs fallback error:", e.message);
+      }
+    }
 
     // 3. Fetch Real Courses from database
     const dbCourses = await Course.find({ status: "Published" }).limit(6).lean();
@@ -329,12 +405,12 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         resume: profile.resume || {},
         careerGoal: profile.careerGoal || "Full Stack Developer",
         jobPreferences: profile.jobPreferences || {},
-        recommendedInternships,
-        recommendedJobs,
+        recommendedInternships: finalRecommendedInternships,
+        recommendedJobs: finalRecommendedJobs,
         recommendedCourses,
         applications,
         savedOpportunities: [],
-        upcomingDeadlines: recommendedInternships.slice(0, 3).map((int, idx) => ({
+        upcomingDeadlines: finalRecommendedInternships.slice(0, 3).map((int, idx) => ({
           id: `dl-${idx + 1}`,
           title: `${int.company} Internship Application`,
           type: "Internship",

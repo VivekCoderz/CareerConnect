@@ -27,6 +27,7 @@ const employerLearningRoutes = require("./routes/employerLearningRoutes.js");
 const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 
 const resumeRoutes = require("./routes/resumeRoutes.js");
+const opportunityRoutes = require("./routes/opportunityRoutes.js");
 
 const {
   ipBlockerMiddleware,
@@ -101,6 +102,14 @@ app.use("/api/organization", organizationRoutes);
 app.use("/api/internships", internshipRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/resume", resumeRoutes);
+app.use("/api/opportunities", opportunityRoutes);
+app.use("/api/feed", opportunityRoutes);
+app.use("/api", employerRoutes);
+
+// Gateway Health Check Endpoint
+app.get("/health", (req, res) => {
+  return res.status(200).json({ status: "active", node: "GU Gateway Matrix Engine" });
+});
 
 // Global error handling middleware
 app.use((err, req, res, next) => {

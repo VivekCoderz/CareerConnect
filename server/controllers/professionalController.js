@@ -1,5 +1,8 @@
 const User = require("../models/User");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
+const Job = require("../models/Job");
+const Application = require("../models/Application");
+const { getAggregatedOpportunities } = require("../services/jobScraperService");
 
 // Skill benchmarks for target senior/executive roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -513,105 +516,141 @@ module.exports.getProfessionalDashboard = async (req, res, next) => {
     const completion = calculateProfessionalProfileCompletion(profile, req.user);
     const careerStrength = calculateCareerStrengthScore(profile, completion);
 
-    // Curated high-growth executive & senior roles
-    const rawJobs = [
-      {
-        id: "pjob-301",
-        title: "Staff Software Engineer - Distributed Systems",
-        company: "Stripe",
-        location: "Bangalore (Remote / Hybrid)",
-        salary: "₹45 - 65 LPA + Equity",
-        type: "Full-Time",
-        workMode: "Hybrid",
-        experienceRequired: "4-7 Years",
-        skillsRequired: ["System Design", "Node.js", "AWS", "Microservices", "Kafka"],
-        postedAt: "Just now",
-        isConfidential: false,
-      },
-      {
-        id: "pjob-302",
-        title: "Engineering Lead (Full Stack & Cloud)",
-        company: "Razorpay",
-        location: "Bangalore",
-        salary: "₹50 - 75 LPA",
-        type: "Full-Time",
-        workMode: "Hybrid",
-        experienceRequired: "5+ Years",
-        skillsRequired: ["React", "Node.js", "Team Leadership", "System Architecture", "PostgreSQL"],
-        postedAt: "1 day ago",
-        isConfidential: false,
-      },
-      {
-        id: "pjob-303",
-        title: "Senior Backend Architect",
-        company: "Atlassian",
-        location: "Remote (India)",
-        salary: "₹55 - 80 LPA",
-        type: "Full-Time",
-        workMode: "Remote",
-        experienceRequired: "5+ Years",
-        skillsRequired: ["Microservices", "Docker", "Kubernetes", "AWS", "System Design"],
-        postedAt: "2 days ago",
-        isConfidential: false,
-      },
-      {
-        id: "pjob-304",
-        title: "Principal Cloud Engineer / Tech Lead",
-        company: "Innovaccer (Healthcare Cloud)",
-        location: "Noida / Remote",
-        salary: "₹48 - 70 LPA",
-        type: "Full-Time",
-        workMode: "Remote",
-        experienceRequired: "6+ Years",
-        skillsRequired: ["AWS", "Kubernetes", "Python", "CI/CD", "Distributed Systems"],
-        postedAt: "3 days ago",
-        isConfidential: false,
-      },
-    ];
+    // Fetch live Published Jobs for Professionals
+    let dbJobs = [];
+    try {
+      dbJobs = await Job.find({ status: "Published" })
+        .populate("employerId", "companyName logo headquarters")
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean();
+    } catch (dbErr) {
+      console.warn("MongoDB find error in professionalController:", dbErr.message);
+    }
 
-    const recommendedJobs = rawJobs.map((job) => ({
-      ...job,
-      matchPercentage: calculateJobMatch(profile, job.skillsRequired, job.title),
-    }));
+    let recommendedJobs = (dbJobs || []).map((job) => {
+      const salaryStr =
+        job.salaryRange?.min > 0
+          ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
+          : "Competitive Package";
 
-    // Applications tracking stats
-    const applications = {
-      stats: {
-        applied: 4,
-        underReview: 2,
-        shortlisted: 1,
-        interview: 1,
-        selected: 0,
-      },
-      recent: [
-        {
-          id: "papp-1",
-          title: "Staff Software Engineer",
-          company: "Stripe",
-          appliedDate: "26 Aug 2026",
-          status: "Interview Scheduled 📅",
-        },
-        {
-          id: "papp-2",
-          title: "Engineering Lead",
-          company: "Razorpay",
-          appliedDate: "20 Aug 2026",
-          status: "Under Review",
-        },
-      ],
+      return {
+        _id: job._id,
+        id: job._id.toString(),
+        jobId: job._id.toString(),
+        title: job.title,
+        company: job.employerId?.companyName || "Partner Employer",
+        location: job.location,
+        salary: salaryStr,
+        type: job.employmentType || "Full-Time",
+        workMode: job.workMode || "Hybrid",
+        experienceRequired: job.experience?.level || "3+ Years",
+        skillsRequired: job.requiredSkills || [],
+        postedAt: "Active",
+        deadline: job.deadline
+          ? new Date(job.deadline).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "Open",
+        matchPercentage: calculateJobMatch(
+          profile,
+          job.requiredSkills || [],
+          job.title
+        ),
+      };
+    });
+
+    if (recommendedJobs.length === 0) {
+      try {
+        const targetSearch =
+          profile?.careerGoal?.targetRole ||
+          profile?.jobPreferences?.preferredRoles?.[0] ||
+          "Senior Developer";
+        const scraped = await getAggregatedOpportunities({
+          opportunityType: "job",
+          search: targetSearch,
+        });
+
+        recommendedJobs = (scraped.data || []).slice(0, 20).map((job, idx) => ({
+          _id: `scraped-prof-job-${idx}`,
+          id: `scraped-prof-job-${idx}`,
+          jobId: `scraped-prof-job-${idx}`,
+          title: job.title,
+          company: job.company,
+          location: job.location,
+          salary: job.salary || "Competitive LPA",
+          type: job.opportunityType || "Full-Time",
+          workMode: job.workMode || "Remote",
+          experienceRequired: "3+ Years",
+          skillsRequired: [job.title.split(" ")[0] || "Engineering", "Architecture"],
+          postedAt: job.postedDate || "Recently",
+          deadline: "Open",
+          matchPercentage: calculateJobMatch(
+            profile,
+            [job.title.split(" ")[0] || "Engineering"],
+            job.title
+          ),
+          applyLink: job.applyLink,
+          isExternal: true,
+          platformSource: job.platformSource,
+        }));
+      } catch (scrapErr) {
+        console.warn("Professional scraped jobs fallback error:", scrapErr.message);
+      }
+    }
+
+    // Fetch Real Applications for the professional user
+    let dbApplications = [];
+    try {
+      dbApplications = await Application.find({ candidateId: req.user._id })
+        .populate({
+          path: "jobId",
+          select: "title department location employmentType workMode salaryRange deadline status",
+          populate: { path: "employerId", select: "companyName logo" },
+        })
+        .sort({ createdAt: -1 })
+        .lean();
+    } catch (appErr) {
+      console.warn("Application query error in professionalController:", appErr.message);
+    }
+
+    const appStats = {
+      applied: dbApplications.length,
+      underReview: dbApplications.filter(
+        (a) => a.status === "Under Review" || a.status === "Applied"
+      ).length,
+      shortlisted: dbApplications.filter((a) => a.status === "Shortlisted").length,
+      interview: dbApplications.filter(
+        (a) => a.status === "Interview" || a.status === "Interview Scheduled"
+      ).length,
+      selected: dbApplications.filter(
+        (a) => a.status === "Hired" || a.status === "Selected"
+      ).length,
     };
 
-    // Saved opportunities
-    const savedOpportunities = [
-      {
-        id: "psave-1",
-        title: "Senior Backend Architect",
-        company: "Atlassian",
-        salary: "₹55 - 80 LPA",
-        location: "Remote",
-        savedAt: "Yesterday",
-      },
-    ];
+    const recentApps = dbApplications.slice(0, 5).map((app) => ({
+      _id: app._id,
+      id: app._id.toString(),
+      jobId: app.jobId?._id || "",
+      title: app.jobId?.title || "Position",
+      company: app.jobId?.employerId?.companyName || "Partner Employer",
+      appliedDate: new Date(app.createdAt).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }),
+      status: app.status || "Applied",
+    }));
+
+    const applications = {
+      stats: appStats,
+      recent: recentApps,
+    };
+
+    // Real Saved opportunities (defaults to empty unless bookmarked)
+    const savedOpportunities = [];
 
     return res.status(200).json({
       success: true,
