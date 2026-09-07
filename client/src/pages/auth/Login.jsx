@@ -116,7 +116,7 @@ const Login = () => {
             identifier,
             formData.password
           );
-          firebaseIdToken = await credential.user.getIdToken();
+          firebaseIdToken = await credential.user.getIdToken(true);
         } catch (firebaseErr) {
           // User not found in Firebase → fall back to legacy MongoDB check
           if (
@@ -198,7 +198,7 @@ const Login = () => {
 
       // Step 1: Firebase Google popup
       const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
+      const idToken = await result.user.getIdToken(true);
 
       // Step 2: Send ID token to backend
       const response = await api.post("/auth/google-auth", {
