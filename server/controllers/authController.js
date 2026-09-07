@@ -326,11 +326,12 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
-    if (!phone?.trim()) {
+    const cleanPhone = phone ? phone.toString().trim().replace(/\D/g, "") : "";
+    if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
       return res.status(400).json({
         success: false,
         field: "phone",
-        message: "Phone number is required",
+        message: "Please enter a valid 10-digit mobile number containing only numeric digits (0-9)",
       });
     }
 
@@ -1256,11 +1257,12 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     }
 
-    if (!phone?.trim()) {
+    const cleanPhone = phone ? phone.toString().trim().replace(/\D/g, "") : "";
+    if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
       return res.status(400).json({
         success: false,
         field: "phone",
-        message: "Mobile number is required",
+        message: "Please enter a valid 10-digit mobile number containing only numeric digits (0-9)",
       });
     }
 
