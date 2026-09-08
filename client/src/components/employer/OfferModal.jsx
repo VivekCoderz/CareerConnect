@@ -78,11 +78,21 @@ const OfferModal = ({
         signatoryOrganization: offerToEdit.signatoryOrganization || "Geeta University Placement & Career Center",
       });
     } else if (application) {
+      const candidateId =
+        application.candidateId?._id ||
+        application.candidateId ||
+        application.candidate?._id ||
+        application.candidate ||
+        (application.fullName ? application._id : "");
+      const jobId = application.jobId?._id || application.jobId || "";
+      const internshipId = application.internshipId?._id || application.internshipId || "";
+      const designation = application.jobId?.title || application.internshipId?.title || "";
       setFormData((prev) => ({
         ...prev,
-        candidateId: application.candidateId?._id || application.candidateId || "",
-        jobId: application.jobId?._id || application.jobId || "",
-        designation: application.jobId?.title || prev.designation,
+        candidateId,
+        jobId,
+        internshipId,
+        designation: designation || prev.designation,
         department: application.jobId?.department || prev.department,
       }));
     } else if (jobs.length > 0 && !formData.jobId) {
@@ -95,6 +105,8 @@ const OfferModal = ({
   const candName =
     offerToEdit?.candidateId?.fullName ||
     application?.candidateId?.fullName ||
+    application?.candidate?.fullName ||
+    application?.fullName ||
     "Selected Candidate";
 
   const handleChange = (e) => {

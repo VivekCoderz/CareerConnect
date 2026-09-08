@@ -216,12 +216,24 @@ const EmployerDashboard = () => {
     }
   };
 
-  // ATS Stage Action
+  // ATS Stage / Status Action
   const handleUpdateAppStage = async (appId, newStage) => {
-    const res = await recruitmentService.updateApplicationStage(appId, newStage);
-    if (res?.success) {
-      setApplications((prev) => prev.map((a) => (a._id === appId ? res.application : a)));
-      showToast(`Applicant moved to ${newStage}`);
+    try {
+      const res = await recruitmentService.updateApplicationStatus(appId, newStage);
+      if (res?.success) {
+        setApplications((prev) =>
+          prev.map((a) =>
+            a._id === appId
+              ? { ...a, ...res.application, status: newStage, stage: newStage }
+              : a
+          )
+        );
+        showToast(`Application marked as ${newStage}`);
+      } else {
+        showToast(res?.message || "Failed to update application", "error");
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to update application", "error");
     }
   };
 

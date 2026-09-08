@@ -160,14 +160,14 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             .lean(),
           Job.find({
             status: "Published",
-            employmentType: "Internship",
+            employmentType: { $regex: /^internship$/i },
           })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .lean(),
           Job.find({
             status: "Published",
-            employmentType: { $ne: "Internship" },
+            employmentType: { $not: /^internship$/i },
           })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
@@ -180,14 +180,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
       }
     }
 
-    let eligibleDbInternships = (dbInternships || []).filter((job) =>
-      isEligibleForInternship(job, profile)
-    );
-    if (eligibleDbInternships.length === 0 && dbInternships.length > 0) {
-      eligibleDbInternships = dbInternships;
-    }
-
-    const recommendedInternships = eligibleDbInternships.map((job) => {
+    const recommendedInternships = (dbInternships || []).map((job) => {
       const stipendStr =
         job.stipend ||
         (job.salaryRange?.min > 0
@@ -208,10 +201,13 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         salary: stipendStr,
         duration: job.duration || "3-6 Months",
         type: "Internship",
+        opportunityType: "Internship",
         workMode: job.workMode || "Remote",
-        skillsRequired: job.requiredSkills || [],
+        skillsRequired: job.requiredSkills || job.skillsRequired || [],
         postedAt: "Active",
-        deadline: job.deadline ? new Date(job.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open until filled",
+        deadline: job.deadline || job.applicationDeadline
+          ? new Date(job.deadline || job.applicationDeadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+          : "Open until filled",
         description: job.description,
         responsibilities: job.responsibilities,
       };
@@ -219,7 +215,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
 
     const recommendedJobs = (dbJobs || []).map((job) => {
       const salaryStr =
-        job.salaryRange?.min > 0
+        job.salaryRange?.max > 0
           ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
           : "Competitive Package";
 
@@ -233,8 +229,9 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         location: job.location,
         salary: salaryStr,
         type: job.employmentType || "Full-Time",
+        opportunityType: job.employmentType || "Full-Time",
         workMode: job.workMode || "On-Site",
-        skillsRequired: job.requiredSkills || [],
+        skillsRequired: job.requiredSkills || job.skillsRequired || [],
         postedAt: "Active",
         deadline: job.deadline ? new Date(job.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
         description: job.description,
@@ -244,94 +241,6 @@ module.exports.getStudentDashboard = async (req, res, next) => {
 
     let finalRecommendedInternships = recommendedInternships;
     let finalRecommendedJobs = recommendedJobs;
-
-    if (finalRecommendedInternships.length === 0 || finalRecommendedJobs.length === 0) {
-      const searchTarget = profile?.careerGoal || "Full Stack Developer";
-      try {
-        const [scrapedInt, scrapedJobs] = await Promise.all([
-          finalRecommendedInternships.length === 0
-            ? getAggregatedOpportunities({
-                opportunityType: "internship",
-                search: searchTarget,
-              })
-            : Promise.resolve({ data: [] }),
-          finalRecommendedJobs.length === 0
-            ? getAggregatedOpportunities({
-                opportunityType: "all",
-                search: searchTarget,
-              })
-            : Promise.resolve({ data: [] }),
-        ]);
-
-        if (finalRecommendedInternships.length === 0) {
-          let intList = scrapedInt?.data || [];
-          if (intList.length === 0) {
-            const backupInt = await getAggregatedOpportunities({
-              opportunityType: "internship",
-              search: "",
-            });
-            intList = backupInt?.data || [];
-          }
-
-          finalRecommendedInternships = intList.slice(0, 30).map((job, idx) => ({
-            _id: `scraped-rec-int-${idx}`,
-            id: `scraped-rec-int-${idx}`,
-            jobId: `scraped-rec-int-${idx}`,
-            title: job.title,
-            company: job.company,
-            companyId: "",
-            location: job.location,
-            stipend: job.stipend || "Competitive Stipend",
-            salary: job.stipend || "Competitive Stipend",
-            duration: job.duration || "3-6 Months",
-            type: "Internship",
-            workMode: job.workMode || "Remote",
-            skillsRequired: [job.title.split(" ")[0] || "Development", "Teamwork"],
-            postedAt: job.postedDate || "Recently",
-            deadline: "Open until filled",
-            description: `${job.title} at ${job.company}. Apply directly at ${job.applyLink}`,
-            applyLink: job.applyLink,
-            applyUrl: job.applyLink,
-            isExternal: true,
-            platformSource: job.platformSource,
-          }));
-        }
-
-        if (finalRecommendedJobs.length === 0) {
-          let jobList = scrapedJobs?.data || [];
-          if (jobList.length === 0) {
-            const backupJobs = await getAggregatedOpportunities({
-              opportunityType: "all",
-              search: "",
-            });
-            jobList = backupJobs?.data || [];
-          }
-
-          finalRecommendedJobs = jobList.slice(0, 30).map((job, idx) => ({
-            _id: `scraped-rec-job-${idx}`,
-            id: `scraped-rec-job-${idx}`,
-            jobId: `scraped-rec-job-${idx}`,
-            title: job.title,
-            company: job.company,
-            companyId: "",
-            location: job.location,
-            salary: "₹4.5 - 12.0 LPA",
-            type: job.opportunityType || "Full-Time",
-            workMode: job.workMode || "On-Site",
-            skillsRequired: [job.title.split(" ")[0] || "Engineering", "Problem Solving"],
-            postedAt: job.postedDate || "Recently",
-            deadline: "Open",
-            description: `${job.title} at ${job.company}. Apply directly at ${job.applyLink}`,
-            applyLink: job.applyLink,
-            applyUrl: job.applyLink,
-            isExternal: true,
-            platformSource: job.platformSource,
-          }));
-        }
-      } catch (e) {
-        console.warn("Aggregated opportunities fallback error:", e.message);
-      }
-    }
 
     // 3. Fetch Real Courses from database
     const dbCourses = await Course.find({ status: "Published" }).limit(6).lean();
@@ -354,23 +263,40 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         select: "title department location employmentType workMode salaryRange deadline status",
         populate: { path: "employerId", select: "companyName logo" },
       })
+      .populate({
+        path: "internshipId",
+        select: "title department location workMode stipend duration deadline status companyName",
+        populate: { path: "employerId", select: "companyName logo" },
+      })
       .populate("employerId", "companyName logo")
       .sort({ createdAt: -1 })
       .lean();
 
     const appStats = {
       applied: dbApplications.filter((a) => a.status === "Applied").length,
+      approved: dbApplications.filter((a) => a.status === "Approved").length,
       underReview: dbApplications.filter((a) => ["Screening", "Under Review"].includes(a.status)).length,
       shortlisted: dbApplications.filter((a) => a.status === "Shortlisted").length,
       interview: dbApplications.filter((a) => ["Interview", "Final Interview", "Assessment"].includes(a.status)).length,
-      selected: dbApplications.filter((a) => ["Offer", "Hired"].includes(a.status)).length,
+      selected: dbApplications.filter((a) => ["Offer", "Hired", "Approved"].includes(a.status)).length,
       rejected: dbApplications.filter((a) => a.status === "Rejected").length,
     };
 
     const recentApps = dbApplications.map((app) => {
-      const jobTitle = app.jobId?.title || "Position";
-      const compName = app.jobId?.employerId?.companyName || app.employerId?.companyName || "Employer";
-      const appliedDateStr = new Date(app.createdAt).toLocaleDateString("en-GB", {
+      const oppTitle =
+        app.opportunityTitle ||
+        app.internshipId?.title ||
+        app.jobId?.title ||
+        "Position";
+      const compName =
+        app.companyName ||
+        app.internshipId?.companyName ||
+        app.internshipId?.employerId?.companyName ||
+        app.jobId?.companyName ||
+        app.jobId?.employerId?.companyName ||
+        app.employerId?.companyName ||
+        "Employer";
+      const appliedDateStr = new Date(app.createdAt || app.appliedAt || Date.now()).toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
         year: "numeric",
@@ -380,7 +306,9 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         _id: app._id,
         id: app._id.toString(),
         jobId: app.jobId?._id || "",
-        title: jobTitle,
+        internshipId: app.internshipId?._id || "",
+        opportunityType: app.opportunityType || (app.internshipId ? "Internship" : "Job"),
+        title: oppTitle,
         company: compName,
         appliedDate: appliedDateStr,
         status: app.status,
@@ -615,58 +543,128 @@ module.exports.applyOpportunity = async (req, res, next) => {
     }
 
     const Internship = require("../models/Internship");
+    const EmployerProfile = require("../models/EmployerProfile");
+
     let job = null;
+    let isInternship = false;
     if (mongoose.Types.ObjectId.isValid(targetJobId)) {
       job = await Job.findById(targetJobId).populate("employerId");
       if (!job) {
         job = await Internship.findById(targetJobId).populate("employerId");
+        if (job) isInternship = true;
       }
     }
 
     if (!job) {
       return res.status(404).json({
         success: false,
-        message: "Job opportunity not found",
+        message: "Opportunity not found",
       });
     }
 
-    if (job.status !== "Published") {
+    if (job.status !== "Published" && job.status !== "Active") {
       return res.status(400).json({
         success: false,
         message: "This position is no longer accepting applications",
       });
     }
 
-    const existing = await Application.findOne({ jobId: targetJobId, candidateId });
+    // Check duplicate
+    const existing = await Application.findOne({
+      candidateId,
+      $or: [{ jobId: targetJobId }, { internshipId: targetJobId }],
+    });
     if (existing) {
       return res.status(409).json({
         success: false,
-        message: "Application already submitted for this position",
+        message: "You have already applied for this position.",
       });
     }
 
-    // Match calculation
+    // Determine target employerId
+    let resolvedEmployerId = job.employerId?._id || job.employerId;
+    if (!resolvedEmployerId && job.createdBy) {
+      const empProfile = await EmployerProfile.findOne({ userId: job.createdBy });
+      resolvedEmployerId = empProfile ? empProfile._id : job.createdBy;
+    }
+
+    // Extract exact submitted data from request
+    const {
+      fullName,
+      studentName,
+      email,
+      studentEmail,
+      phone,
+      studentPhone,
+      education,
+      skills,
+      experience,
+      portfolioUrl,
+      resumeUrl,
+      coverLetter,
+      coverNote,
+      applicationData: rawAppData,
+    } = req.body;
+
     const studentProf = await StudentProfile.findOne({ userId: candidateId }).lean();
-    const candidateSkills = studentProf?.technicalSkills || [];
+
+    const finalName = fullName || studentName || studentProf?.fullName || req.user.name || "Student Applicant";
+    const finalEmail = email || studentEmail || studentProf?.email || req.user.email;
+    const finalPhone = phone || studentPhone || studentProf?.phone || "";
+    const finalResume = resumeUrl || req.body.resume || studentProf?.resume?.resumeUrl || "";
+    const finalCover = coverLetter || coverNote || "";
+    const finalEdu = education || (studentProf?.education?.[0] ? `${studentProf.education[0].degree} at ${studentProf.education[0].institution}` : "");
+    const finalSkills = Array.isArray(skills)
+      ? skills
+      : typeof skills === "string" && skills.trim()
+      ? skills.split(",").map((s) => s.trim())
+      : studentProf?.technicalSkills || [];
+    const finalExp = experience || "";
+    const finalPortfolio = portfolioUrl || studentProf?.links?.portfolio || "";
+
+    const fullApplicationData = {
+      fullName: finalName,
+      email: finalEmail,
+      phone: finalPhone,
+      education: finalEdu,
+      skills: finalSkills,
+      experience: finalExp,
+      portfolioUrl: finalPortfolio,
+      resumeUrl: finalResume,
+      coverLetter: finalCover,
+      ...(rawAppData || {}),
+    };
+
+    // Match calculation
+    const candidateSkills = studentProf?.technicalSkills || finalSkills || [];
     const strongSkills = candidateSkills.filter((s) =>
       (job.requiredSkills || []).some((reqS) => reqS.toLowerCase() === s.toLowerCase())
     );
     const missingSkills = (job.requiredSkills || []).filter(
       (reqS) => !candidateSkills.some((s) => s.toLowerCase() === reqS.toLowerCase())
     );
-
     const matchOverall = Math.min(100, Math.max(40, Math.round(50 + (strongSkills.length * 15))));
 
-    const application = await Application.create({
-      jobId: targetJobId,
+    const applicationPayload = {
       candidateId,
-      employerId: job.employerId?._id || job.employerId,
-      resumeUrl: studentProf?.resume?.resumeUrl || "",
+      employerId: resolvedEmployerId,
+      opportunityType: isInternship ? "Internship" : "Job",
       status: "Applied",
+      appliedAt: new Date(),
+      resumeUrl: finalResume,
+      studentName: finalName,
+      studentEmail: finalEmail,
+      studentPhone: finalPhone,
+      education: typeof finalEdu === "object" ? JSON.stringify(finalEdu) : finalEdu,
+      skills: finalSkills,
+      experience: finalExp,
+      portfolioUrl: finalPortfolio,
+      coverLetter: finalCover,
+      applicationData: fullApplicationData,
       stageHistory: [
         {
           stage: "Applied",
-          notes: "Student applied via LMS Student Dashboard",
+          notes: "Student applied via CareerConnect Portal",
           changedBy: candidateId,
           changedAt: new Date(),
         },
@@ -681,12 +679,27 @@ module.exports.applyOpportunity = async (req, res, next) => {
         strongSkills,
         missingSkills,
       },
-    });
+    };
 
-    job.applicantsCount += 1;
-    await job.save();
+    if (isInternship) {
+      applicationPayload.internshipId = targetJobId;
+    } else {
+      applicationPayload.jobId = targetJobId;
+    }
 
-    const companyName = job.employerId?.companyName || company || "Partner Employer";
+    const application = await Application.create(applicationPayload);
+
+    if (typeof job.applicantsCount === "number") {
+      job.applicantsCount += 1;
+      await job.save();
+    }
+
+    const companyName =
+      job.employerId?.companyName ||
+      job.companyName ||
+      job.company ||
+      company ||
+      "Partner Employer";
 
     return res.status(201).json({
       success: true,
@@ -697,13 +710,20 @@ module.exports.applyOpportunity = async (req, res, next) => {
         jobId: job._id.toString(),
         title: job.title,
         company: companyName,
-        type: job.employmentType,
+        type: job.employmentType || "Internship",
         appliedDate: "Today",
         status: "Applied",
         lastUpdated: "Just now",
+        applicationData: fullApplicationData,
       },
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "You have already applied for this position.",
+      });
+    }
     next(error);
   }
 };

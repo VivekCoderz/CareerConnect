@@ -34,11 +34,14 @@ import QuickActionsCard from "../../components/student-dashboard/QuickActionsCar
 import Internships from "./Internships";
 import InternshipDetail from "./InternshipDetail";
 import MyApplications from "./MyApplications";
+import Jobs from "./Jobs";
 
 // Courses module (embedded)
 import StudentCoursesPage from "../courses/StudentCoursesPage";
 import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
 import CourseDetailsPage from "../courses/CourseDetailsPage";
+
+import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -348,6 +351,7 @@ const StudentDashboard = () => {
                 onSave={handleSaveToggle}
                 onApply={handleApply}
                 savedIds={savedIds}
+                onViewAll={() => handleSelectTab("jobs")}
               />
 
               <CourseRecommendationsCard
@@ -439,14 +443,17 @@ const StudentDashboard = () => {
             </div>
           )}
 
-          {/* ================= JOBS ================= */}
+          {/* ================= JOBS (full module) ================= */}
           {activeTab === "jobs" && (
-            <JobRecommendationsCard
-              jobs={filteredJobs}
-              onSave={handleSaveToggle}
-              onApply={handleApply}
-              savedIds={savedIds}
-            />
+            <div className="animate-fade-in">
+              <Jobs
+                embedded
+                studentProfile={profile}
+                onApply={handleApply}
+                onSave={handleSaveToggle}
+                savedIds={savedIds}
+              />
+            </div>
           )}
 
           {/* ================= COURSES (full module) ================= */}
@@ -485,6 +492,13 @@ const StudentDashboard = () => {
           {activeTab === "applications" && (
             <div className="animate-fade-in">
               <MyApplications embedded />
+            </div>
+          )}
+
+          {/* ================= INTERVIEWS ================= */}
+          {activeTab === "interviews" && (
+            <div className="animate-fade-in">
+              <CandidateInterviewsView />
             </div>
           )}
 

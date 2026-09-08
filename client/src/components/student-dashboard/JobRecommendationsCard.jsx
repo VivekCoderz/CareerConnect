@@ -1,4 +1,4 @@
-const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [] }) => {
+const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], onViewAll }) => {
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs">
       <div className="flex justify-between items-center mb-5">
@@ -11,6 +11,15 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [] }) =
           </div>
           <p className="text-xs text-slate-500 mt-0.5">Entry-level & campus hiring opportunities</p>
         </div>
+        {onViewAll && (
+          <button
+            type="button"
+            onClick={onViewAll}
+            className="text-xs font-bold text-[#1e3a8a] hover:text-[#1e40af] transition"
+          >
+            View All Jobs →
+          </button>
+        )}
       </div>
 
       {jobs && jobs.length > 0 ? (
