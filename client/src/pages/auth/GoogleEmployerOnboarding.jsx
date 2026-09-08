@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import api from "../../api/api";
 import { updateUserProfile } from "../../redux/features/authSlice";
+import PhoneInput from "../../components/common/PhoneInput";
 
 const inputCls = (err) =>
   `w-full h-11 rounded-xl border bg-white px-4 text-sm outline-none transition focus:ring-4 ${
@@ -28,6 +29,7 @@ const GoogleEmployerOnboarding = () => {
   const [submitError, setSubmitError] = useState("");
 
   const [formData, setFormData] = useState({
+    countryCode: "+91",
     phone: "",
     companyName: "",
     contactPerson: user?.fullName || "",
@@ -67,10 +69,16 @@ const GoogleEmployerOnboarding = () => {
   const validate = () => {
     const errors = {};
     if (!formData.phone.trim()) {
-      errors.phone = "Phone number is required";
+      errors.phone = "Mobile number is required";
     } else {
-      const digits = formData.phone.replace(/\D/g, "").slice(-10);
-      if (!/^[6-9]\d{9}$/.test(digits)) errors.phone = "Please enter a valid 10-digit mobile number";
+      const digits = formData.phone.replace(/\D/g, "");
+      if (formData.countryCode === "+91") {
+        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+          errors.phone = "Please enter a valid 10-digit mobile number";
+        }
+      } else if (digits.length < 6 || digits.length > 15) {
+        errors.phone = "Please enter a valid mobile number (6-15 digits)";
+      }
     }
     if (!formData.companyName.trim()) errors.companyName = "Company name is required";
     if (!formData.contactPerson.trim()) errors.contactPerson = "Contact person is required";
@@ -87,7 +95,26 @@ const GoogleEmployerOnboarding = () => {
     setSubmitError("");
 
     try {
+      // Check duplicate phone
+      try {
+        const checkRes = await api.post("/auth/check-phone", {
+          phone: formData.phone.trim(),
+          countryCode: formData.countryCode || "+91",
+        });
+        if (checkRes.data?.exists) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            phone: "This mobile number is already registered with another account",
+          }));
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("Phone check warning:", err.message);
+      }
+
       const res = await api.post("/auth/complete-employer-google-onboarding", {
+        countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         companyName: formData.companyName.trim(),
         contactPerson: formData.contactPerson.trim(),
@@ -211,17 +238,17 @@ const GoogleEmployerOnboarding = () => {
               <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
                 Mobile Number <span className="text-red-500">*</span>
               </label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                placeholder="+91 98765 43210"
-                className={inputCls(fieldErrors.phone)}
+              <PhoneInput
+                countryCode={formData.countryCode}
+                onCountryCodeChange={(code) => setFormData((prev) => ({ ...prev, countryCode: code }))}
+                phone={formData.phone}
+                onPhoneChange={(val) => {
+                  setFormData((prev) => ({ ...prev, phone: val }));
+                  if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                }}
+                error={fieldErrors.phone}
+                theme="amber"
               />
-              {fieldErrors.phone && (
-                <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>
-              )}
             </div>
 
             {/* Company Name */}

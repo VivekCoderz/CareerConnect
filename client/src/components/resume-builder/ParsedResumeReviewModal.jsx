@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 export default function ParsedResumeReviewModal({
   isOpen,
   initialData,
   parsedData,
+  existingProfile,
   resumeUrl,
   resumeName,
   onConfirm,
@@ -12,7 +13,8 @@ export default function ParsedResumeReviewModal({
   isSaving = false,
   title,
 }) {
-  const [activeTab, setActiveTab] = useState("personal");
+  const [activeTab, setActiveTab] = useState("skills");
+  const [viewMode, setViewMode] = useState("diff"); // 'diff' | 'edit'
 
   const buildInitialForm = (rawSource) => {
     const raw = rawSource || {};
@@ -26,6 +28,7 @@ export default function ParsedResumeReviewModal({
         github: raw.personal?.github || raw.github || "",
         portfolio: raw.personal?.portfolio || raw.portfolio || "",
       },
+      summary: raw.summary || "",
       education: Array.isArray(raw.education) && raw.education.length
         ? raw.education.map((e) => ({
             college: e.college || e.institution || e.school || "",
@@ -35,27 +38,7 @@ export default function ParsedResumeReviewModal({
             startYear: String(e.startYear || e.start_year || ""),
             endYear: String(e.endYear || e.end_year || e.graduationYear || ""),
           }))
-        : typeof raw.education === "object" && raw.education !== null && (raw.education.degree || raw.education.institution)
-        ? [
-            {
-              college: raw.education.institution || raw.education.college || "",
-              degree: raw.education.degree || "",
-              branch: raw.education.branch || raw.education.fieldOfStudy || "",
-              cgpa: raw.education.cgpa || raw.education.grade || "",
-              startYear: String(raw.education.startYear || raw.education.start_year || ""),
-              endYear: String(raw.education.endYear || raw.education.end_year || ""),
-            },
-          ]
-        : [
-            {
-              college: "",
-              degree: "",
-              branch: "",
-              cgpa: "",
-              startYear: "",
-              endYear: "",
-            },
-          ],
+        : [],
       skills: {
         programmingLanguages: Array.isArray(raw.skills?.programmingLanguages)
           ? raw.skills.programmingLanguages.join(", ")
@@ -104,11 +87,17 @@ export default function ParsedResumeReviewModal({
             description: a.description || "",
           }))
         : [],
+      codingProfiles: {
+        leetcode: raw.codingProfiles?.leetcode || "",
+        hackerrank: raw.codingProfiles?.hackerrank || "",
+        codechef: raw.codingProfiles?.codechef || "",
+        codeforces: raw.codingProfiles?.codeforces || "",
+        github: raw.codingProfiles?.github || "",
+      },
     };
   };
 
   const incomingSource = parsedData || initialData;
-
   const [formData, setFormData] = useState(() => buildInitialForm(incomingSource));
 
   // Sync state whenever new parsed data arrives
@@ -118,9 +107,34 @@ export default function ParsedResumeReviewModal({
     }
   }, [incomingSource]);
 
+  // Compute existing vs new stats
+  const existingSkillsList = useMemo(() => {
+    if (!existingProfile?.skills) return [];
+    const p = existingProfile.skills;
+    const all = [
+      p.programmingLanguages,
+      p.frameworks,
+      p.tools,
+      p.other,
+    ].filter(Boolean).join(", ");
+    return all.split(/[\n,]/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+  }, [existingProfile]);
+
+  const extractedSkillsList = useMemo(() => {
+    const s = formData.skills;
+    const all = [s.programmingLanguages, s.frameworks, s.tools, s.other].filter(Boolean).join(", ");
+    return all.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+  }, [formData.skills]);
+
+  const newSkills = useMemo(() => {
+    return extractedSkillsList.filter(
+      (skill) => !existingSkillsList.includes(skill.toLowerCase())
+    );
+  }, [extractedSkillsList, existingSkillsList]);
+
   if (!isOpen) return null;
 
-  // Personal Info Handlers
+  // Handlers
   const handlePersonalChange = (field, value) => {
     setFormData((prev) => ({
       ...prev,
@@ -128,7 +142,13 @@ export default function ParsedResumeReviewModal({
     }));
   };
 
-  // Education Handlers
+  const handleCodingChange = (field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      codingProfiles: { ...prev.codingProfiles, [field]: value },
+    }));
+  };
+
   const handleEduChange = (idx, field, value) => {
     setFormData((prev) => {
       const list = [...prev.education];
@@ -154,7 +174,6 @@ export default function ParsedResumeReviewModal({
     }));
   };
 
-  // Skills Handlers
   const handleSkillChange = (category, value) => {
     setFormData((prev) => ({
       ...prev,
@@ -162,7 +181,6 @@ export default function ParsedResumeReviewModal({
     }));
   };
 
-  // Projects Handlers
   const handleProjectChange = (idx, field, value) => {
     setFormData((prev) => {
       const list = [...prev.projects];
@@ -188,7 +206,6 @@ export default function ParsedResumeReviewModal({
     }));
   };
 
-  // Experience Handlers
   const handleExpChange = (idx, field, value) => {
     setFormData((prev) => {
       const list = [...prev.experience];
@@ -214,7 +231,6 @@ export default function ParsedResumeReviewModal({
     }));
   };
 
-  // Certifications Handlers
   const handleCertChange = (idx, field, value) => {
     setFormData((prev) => {
       const list = [...prev.certifications];
@@ -237,8 +253,29 @@ export default function ParsedResumeReviewModal({
     }));
   };
 
+  const handleAchChange = (idx, field, value) => {
+    setFormData((prev) => {
+      const list = [...prev.achievements];
+      list[idx] = { ...list[idx], [field]: value };
+      return { ...prev, achievements: list };
+    });
+  };
+
+  const addAch = () => {
+    setFormData((prev) => ({
+      ...prev,
+      achievements: [...prev.achievements, { title: "", description: "" }],
+    }));
+  };
+
+  const removeAch = (idx) => {
+    setFormData((prev) => ({
+      ...prev,
+      achievements: prev.achievements.filter((_, i) => i !== idx),
+    }));
+  };
+
   const handleSave = () => {
-    // Clean up arrays into arrays of strings for skills
     const cleaned = {
       ...formData,
       skills: {
@@ -264,12 +301,14 @@ export default function ParsedResumeReviewModal({
   };
 
   const TABS = [
-    { id: "personal", label: "👤 Personal Info" },
+    { id: "skills", label: "⚡ Skills", count: extractedSkillsList.length, newCount: newSkills.length },
+    { id: "personal", label: "👤 Personal & Social" },
+    { id: "summary", label: "📝 Summary / Bio" },
     { id: "education", label: "🎓 Education", count: formData.education.length },
-    { id: "skills", label: "⚡ Skills" },
     { id: "projects", label: "💻 Projects", count: formData.projects.length },
     { id: "experience", label: "💼 Experience", count: formData.experience.length },
     { id: "certifications", label: "📜 Certifications", count: formData.certifications.length },
+    { id: "achievements", label: "🏆 Achievements", count: formData.achievements.length },
   ];
 
   return (
@@ -300,6 +339,47 @@ export default function ParsedResumeReviewModal({
           )}
         </div>
 
+        {/* Highlight Summary Banner */}
+        <div className="bg-blue-50/80 px-5 sm:px-6 py-2.5 border-b border-blue-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 text-blue-950 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>
+              Extracted <strong>{extractedSkillsList.length} skills</strong>
+              {newSkills.length > 0 ? (
+                <span className="text-emerald-700 font-bold ml-1">
+                  ({newSkills.length} new to profile)
+                </span>
+              ) : null}
+              , <strong>{formData.projects.length} projects</strong>, <strong>{formData.education.length} education</strong> entries.
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-0.5 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setViewMode("diff")}
+              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer ${
+                viewMode === "diff"
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              🔍 Profile Comparison
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("edit")}
+              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer ${
+                viewMode === "edit"
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              ✏️ Edit Fields
+            </button>
+          </div>
+        </div>
+
         {/* Navigation Tabs */}
         <div className="flex border-b border-slate-200 px-5 sm:px-6 bg-slate-50 gap-2 overflow-x-auto shrink-0 scrollbar-none">
           {TABS.map((tab) => (
@@ -314,7 +394,7 @@ export default function ParsedResumeReviewModal({
               }`}
             >
               {tab.label}
-              {typeof tab.count === "number" && (
+              {typeof tab.count === "number" && tab.count > 0 && (
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                     activeTab === tab.id ? "bg-blue-100 text-[#1e3a8a]" : "bg-slate-200 text-slate-600"
@@ -323,76 +403,319 @@ export default function ParsedResumeReviewModal({
                   {tab.count}
                 </span>
               )}
+              {tab.newCount > 0 && (
+                <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-emerald-100 text-emerald-800">
+                  +{tab.newCount} new
+                </span>
+              )}
             </button>
           ))}
         </div>
 
         {/* Tab Content Body */}
         <div className="p-5 sm:p-7 overflow-y-auto flex-1 space-y-6">
-          {/* TAB 1: PERSONAL */}
-          {activeTab === "personal" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Full Name</label>
-                <input
-                  type="text"
-                  value={formData.personal.fullName}
-                  onChange={(e) => handlePersonalChange("fullName", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Email Address</label>
-                <input
-                  type="email"
-                  value={formData.personal.email}
-                  onChange={(e) => handlePersonalChange("email", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Phone Number</label>
-                <input
-                  type="text"
-                  value={formData.personal.phone}
-                  onChange={(e) => handlePersonalChange("phone", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Location</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Bangalore, Karnataka"
-                  value={formData.personal.location}
-                  onChange={(e) => handlePersonalChange("location", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">LinkedIn Profile</label>
-                <input
-                  type="url"
-                  placeholder="https://linkedin.com/in/username"
-                  value={formData.personal.linkedin}
-                  onChange={(e) => handlePersonalChange("linkedin", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">GitHub Profile</label>
-                <input
-                  type="url"
-                  placeholder="https://github.com/username"
-                  value={formData.personal.github}
-                  onChange={(e) => handlePersonalChange("github", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
+          {/* TAB 1: SKILLS */}
+          {activeTab === "skills" && (
+            <div className="space-y-6">
+              {/* Diff View Comparison */}
+              {viewMode === "diff" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                        📋 Existing in Profile
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-semibold">
+                        {existingSkillsList.length} skills
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-3 rounded-xl bg-white border border-slate-200">
+                      {existingSkillsList.length > 0 ? (
+                        existingSkillsList.map((skill, i) => (
+                          <span
+                            key={i}
+                            className="px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 capitalize"
+                          >
+                            {skill}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">No skills currently saved in profile.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-blue-900 uppercase tracking-wide">
+                        ✨ Extracted from Resume
+                      </span>
+                      <span className="text-[11px] text-emerald-700 font-bold">
+                        {newSkills.length} new will be added
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-3 rounded-xl bg-white border border-blue-200">
+                      {extractedSkillsList.length > 0 ? (
+                        extractedSkillsList.map((skill, i) => {
+                          const isNew = !existingSkillsList.includes(skill.toLowerCase());
+                          return (
+                            <span
+                              key={i}
+                              className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 ${
+                                isNew
+                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
+                                  : "bg-blue-50 text-blue-700 border border-blue-200"
+                              }`}
+                            >
+                              {skill}
+                              {isNew && (
+                                <span className="text-[9px] px-1 bg-emerald-600 text-white rounded font-bold">
+                                  + NEW
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">No skills detected from resume.</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Editable Fields */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                    Skills by Category (Comma-separated)
+                  </h3>
+                  <span className="text-xs text-slate-500">Edit or add tags before saving</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    💻 Programming Languages
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. JavaScript, Python, C++, Java"
+                    value={formData.skills.programmingLanguages}
+                    onChange={(e) => handleSkillChange("programmingLanguages", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    📦 Frameworks & Libraries
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. React, Node.js, Express, Tailwind CSS"
+                    value={formData.skills.frameworks}
+                    onChange={(e) => handleSkillChange("frameworks", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    🛠️ Developer Tools & Databases
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Git, GitHub, Docker, MongoDB, PostgreSQL, AWS"
+                    value={formData.skills.tools}
+                    onChange={(e) => handleSkillChange("tools", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    🎯 Soft Skills & Other Domains
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Problem Solving, Agile, Communication, System Design"
+                    value={formData.skills.other}
+                    onChange={(e) => handleSkillChange("other", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
               </div>
             </div>
           )}
 
-          {/* TAB 2: EDUCATION */}
+          {/* TAB 2: PERSONAL & SOCIAL */}
+          {activeTab === "personal" && (
+            <div className="space-y-6">
+              {viewMode === "diff" && existingProfile?.personal && (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+                  <span className="font-bold text-slate-700 uppercase tracking-wide block">
+                    Profile Comparison (Current vs Resume)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600">
+                    <div>
+                      <span className="text-slate-400">Current Name:</span>{" "}
+                      <span className="font-medium text-slate-800">{existingProfile.personal.fullName || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Current Location:</span>{" "}
+                      <span className="font-medium text-slate-800">{existingProfile.personal.location || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Current Phone:</span>{" "}
+                      <span className="font-medium text-slate-800">{existingProfile.personal.phone || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Current LinkedIn:</span>{" "}
+                      <span className="font-medium text-slate-800 truncate block max-w-xs">{existingProfile.personal.linkedin || "—"}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={formData.personal.fullName}
+                    onChange={(e) => handlePersonalChange("fullName", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={formData.personal.email}
+                    onChange={(e) => handlePersonalChange("email", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Phone Number</label>
+                  <input
+                    type="text"
+                    value={formData.personal.phone}
+                    onChange={(e) => handlePersonalChange("phone", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Bangalore, Karnataka"
+                    value={formData.personal.location}
+                    onChange={(e) => handlePersonalChange("location", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">LinkedIn URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://linkedin.com/in/username"
+                    value={formData.personal.linkedin}
+                    onChange={(e) => handlePersonalChange("linkedin", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">GitHub URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://github.com/username"
+                    value={formData.personal.github}
+                    onChange={(e) => handlePersonalChange("github", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Portfolio / Personal Website</label>
+                  <input
+                    type="url"
+                    placeholder="https://yourportfolio.dev"
+                    value={formData.personal.portfolio}
+                    onChange={(e) => handlePersonalChange("portfolio", e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+              </div>
+
+              {/* Coding Profiles Section */}
+              <div className="pt-4 border-t border-slate-200">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide mb-3">
+                  Competitive Programming & Coding Handles
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">LeetCode</label>
+                    <input
+                      type="url"
+                      placeholder="https://leetcode.com/username"
+                      value={formData.codingProfiles.leetcode}
+                      onChange={(e) => handleCodingChange("leetcode", e.target.value)}
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">HackerRank</label>
+                    <input
+                      type="url"
+                      placeholder="https://hackerrank.com/username"
+                      value={formData.codingProfiles.hackerrank}
+                      onChange={(e) => handleCodingChange("hackerrank", e.target.value)}
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">CodeChef</label>
+                    <input
+                      type="url"
+                      placeholder="https://codechef.com/users/username"
+                      value={formData.codingProfiles.codechef}
+                      onChange={(e) => handleCodingChange("codechef", e.target.value)}
+                      className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: SUMMARY / BIO */}
+          {activeTab === "summary" && (
+            <div className="space-y-4">
+              {viewMode === "diff" && existingProfile?.summary && (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                  <span className="font-bold text-slate-600 uppercase tracking-wide block">
+                    Current Profile Bio / Summary:
+                  </span>
+                  <p className="text-slate-700 italic">{existingProfile.summary}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1">
+                  Extracted Summary / Bio (Will update profile bio)
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Professional summary extracted from resume..."
+                  value={formData.summary}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, summary: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  If left empty, your current profile bio will not be modified.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: EDUCATION */}
           {activeTab === "education" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -400,147 +723,104 @@ export default function ParsedResumeReviewModal({
                 <button
                   type="button"
                   onClick={addEducation}
-                  className="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition"
+                  className="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition cursor-pointer"
                 >
                   + Add Education
                 </button>
               </div>
 
-              {formData.education.map((edu, idx) => (
-                <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3 relative">
-                  <button
-                    type="button"
-                    onClick={() => removeEducation(idx)}
-                    className="absolute top-3 right-3 text-slate-400 hover:text-red-600 text-sm p-1"
-                    title="Remove this entry"
-                  >
-                    🗑️
-                  </button>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-8">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Institution / College</label>
-                      <input
-                        type="text"
-                        value={edu.college}
-                        onChange={(e) => handleEduChange(idx, "college", e.target.value)}
-                        className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
-                      />
+              {formData.education.map((edu, idx) => {
+                const alreadyExists = existingProfile?.education?.some(
+                  (ee) => (ee.degree || "").toLowerCase() === (edu.degree || "").toLowerCase()
+                );
+
+                return (
+                  <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3 relative">
+                    <div className="flex items-center justify-between pr-8">
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        alreadyExists ? "bg-slate-200 text-slate-700" : "bg-emerald-100 text-emerald-800"
+                      }`}>
+                        {alreadyExists ? "Matches Existing Entry" : "+ NEW to Profile"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeEducation(idx)}
+                        className="text-slate-400 hover:text-red-600 text-sm p-1 cursor-pointer"
+                        title="Remove this entry"
+                      >
+                        🗑️
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Degree</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. B.Tech"
-                        value={edu.degree}
-                        onChange={(e) => handleEduChange(idx, "degree", e.target.value)}
-                        className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Branch / Specialization</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Computer Science"
-                        value={edu.branch}
-                        onChange={(e) => handleEduChange(idx, "branch", e.target.value)}
-                        className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
-                      />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-8">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">CGPA / %</label>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Institution / College</label>
                         <input
                           type="text"
-                          value={edu.cgpa}
-                          onChange={(e) => handleEduChange(idx, "cgpa", e.target.value)}
-                          className="w-full h-9 px-2 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          value={edu.college}
+                          onChange={(e) => handleEduChange(idx, "college", e.target.value)}
+                          className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Start</label>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Degree</label>
                         <input
                           type="text"
-                          placeholder="YYYY"
-                          value={edu.startYear}
-                          onChange={(e) => handleEduChange(idx, "startYear", e.target.value)}
-                          className="w-full h-9 px-2 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          placeholder="e.g. B.Tech"
+                          value={edu.degree}
+                          onChange={(e) => handleEduChange(idx, "degree", e.target.value)}
+                          className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">End</label>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Branch / Specialization</label>
                         <input
                           type="text"
-                          placeholder="YYYY"
-                          value={edu.endYear}
-                          onChange={(e) => handleEduChange(idx, "endYear", e.target.value)}
-                          className="w-full h-9 px-2 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          placeholder="e.g. Computer Science"
+                          value={edu.branch}
+                          onChange={(e) => handleEduChange(idx, "branch", e.target.value)}
+                          className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
                         />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">CGPA / %</label>
+                          <input
+                            type="text"
+                            value={edu.cgpa}
+                            onChange={(e) => handleEduChange(idx, "cgpa", e.target.value)}
+                            className="w-full h-9 px-2 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Start</label>
+                          <input
+                            type="text"
+                            placeholder="YYYY"
+                            value={edu.startYear}
+                            onChange={(e) => handleEduChange(idx, "startYear", e.target.value)}
+                            className="w-full h-9 px-2 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">End</label>
+                          <input
+                            type="text"
+                            placeholder="YYYY"
+                            value={edu.endYear}
+                            onChange={(e) => handleEduChange(idx, "endYear", e.target.value)}
+                            className="w-full h-9 px-2 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {/* TAB 3: SKILLS */}
-          {activeTab === "skills" && (
-            <div className="space-y-4">
-              <p className="text-xs text-slate-500">
-                Skills extracted from your resume. Separate multiple skills with commas.
-              </p>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  💻 Programming Languages
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. JavaScript, Python, C++, Java"
-                  value={formData.skills.programmingLanguages}
-                  onChange={(e) => handleSkillChange("programmingLanguages", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  📦 Frameworks & Libraries
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. React, Node.js, Express, Tailwind CSS, Django"
-                  value={formData.skills.frameworks}
-                  onChange={(e) => handleSkillChange("frameworks", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  🛠️ Developer Tools & Databases
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Git, GitHub, Docker, MongoDB, PostgreSQL, AWS"
-                  value={formData.skills.tools}
-                  onChange={(e) => handleSkillChange("tools", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  🎯 Soft Skills & Other Domains
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Problem Solving, Agile, Communication, System Design"
-                  value={formData.skills.other}
-                  onChange={(e) => handleSkillChange("other", e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: PROJECTS */}
+          {/* TAB 5: PROJECTS */}
           {activeTab === "projects" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -548,7 +828,7 @@ export default function ParsedResumeReviewModal({
                 <button
                   type="button"
                   onClick={addProject}
-                  className="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition"
+                  className="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition cursor-pointer"
                 >
                   + Add Project
                 </button>
@@ -559,74 +839,88 @@ export default function ParsedResumeReviewModal({
                   No projects extracted. Click "+ Add Project" to add one manually.
                 </div>
               ) : (
-                formData.projects.map((proj, idx) => (
-                  <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3 relative">
-                    <button
-                      type="button"
-                      onClick={() => removeProject(idx)}
-                      className="absolute top-3 right-3 text-slate-400 hover:text-red-600 text-sm p-1"
-                    >
-                      🗑️
-                    </button>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-8">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Project Name</label>
-                        <input
-                          type="text"
-                          value={proj.name}
-                          onChange={(e) => handleProjectChange(idx, "name", e.target.value)}
-                          className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
-                        />
+                formData.projects.map((proj, idx) => {
+                  const alreadyExists = existingProfile?.projects?.some(
+                    (ep) => (ep.name || "").toLowerCase() === (proj.name || "").toLowerCase()
+                  );
+
+                  return (
+                    <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3 relative">
+                      <div className="flex items-center justify-between pr-8">
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          alreadyExists ? "bg-slate-200 text-slate-700" : "bg-emerald-100 text-emerald-800"
+                        }`}>
+                          {alreadyExists ? "Already In Profile" : "+ NEW Project"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeProject(idx)}
+                          className="text-slate-400 hover:text-red-600 text-sm p-1 cursor-pointer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-8">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Project Name</label>
+                          <input
+                            type="text"
+                            value={proj.name}
+                            onChange={(e) => handleProjectChange(idx, "name", e.target.value)}
+                            className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Technologies Used</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. React, Node.js, MongoDB"
+                            value={proj.technologies}
+                            onChange={(e) => handleProjectChange(idx, "technologies", e.target.value)}
+                            className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          />
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Technologies Used</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. React, Node.js, MongoDB"
-                          value={proj.technologies}
-                          onChange={(e) => handleProjectChange(idx, "technologies", e.target.value)}
-                          className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Description / Key Features</label>
+                        <textarea
+                          rows={2}
+                          value={proj.description}
+                          onChange={(e) => handleProjectChange(idx, "description", e.target.value)}
+                          className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
                         />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">GitHub Repo</label>
+                          <input
+                            type="url"
+                            placeholder="https://github.com/..."
+                            value={proj.github}
+                            onChange={(e) => handleProjectChange(idx, "github", e.target.value)}
+                            className="w-full h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Live Demo Link</label>
+                          <input
+                            type="url"
+                            placeholder="https://..."
+                            value={proj.live}
+                            onChange={(e) => handleProjectChange(idx, "live", e.target.value)}
+                            className="w-full h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Description / Key Features</label>
-                      <textarea
-                        rows={2}
-                        value={proj.description}
-                        onChange={(e) => handleProjectChange(idx, "description", e.target.value)}
-                        className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">GitHub Repo</label>
-                        <input
-                          type="url"
-                          placeholder="https://github.com/..."
-                          value={proj.github}
-                          onChange={(e) => handleProjectChange(idx, "github", e.target.value)}
-                          className="w-full h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Live Demo Link</label>
-                        <input
-                          type="url"
-                          placeholder="https://..."
-                          value={proj.live}
-                          onChange={(e) => handleProjectChange(idx, "live", e.target.value)}
-                          className="w-full h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}
 
-          {/* TAB 5: EXPERIENCE */}
+          {/* TAB 6: EXPERIENCE */}
           {activeTab === "experience" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -634,7 +928,7 @@ export default function ParsedResumeReviewModal({
                 <button
                   type="button"
                   onClick={addExperience}
-                  className="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition"
+                  className="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition cursor-pointer"
                 >
                   + Add Experience
                 </button>
@@ -645,69 +939,83 @@ export default function ParsedResumeReviewModal({
                   No experience entries found. Click "+ Add Experience" if applicable.
                 </div>
               ) : (
-                formData.experience.map((exp, idx) => (
-                  <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3 relative">
-                    <button
-                      type="button"
-                      onClick={() => removeExperience(idx)}
-                      className="absolute top-3 right-3 text-slate-400 hover:text-red-600 text-sm p-1"
-                    >
-                      🗑️
-                    </button>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pr-8">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Company</label>
-                        <input
-                          type="text"
-                          value={exp.company}
-                          onChange={(e) => handleExpChange(idx, "company", e.target.value)}
-                          className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
-                        />
+                formData.experience.map((exp, idx) => {
+                  const alreadyExists = existingProfile?.experience?.some(
+                    (ee) => (ee.company || "").toLowerCase() === (exp.company || "").toLowerCase()
+                  );
+
+                  return (
+                    <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3 relative">
+                      <div className="flex items-center justify-between pr-8">
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          alreadyExists ? "bg-slate-200 text-slate-700" : "bg-emerald-100 text-emerald-800"
+                        }`}>
+                          {alreadyExists ? "Already In Profile" : "+ NEW Experience"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeExperience(idx)}
+                          className="text-slate-400 hover:text-red-600 text-sm p-1 cursor-pointer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pr-8">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Company / Organization</label>
+                          <input
+                            type="text"
+                            value={exp.company}
+                            onChange={(e) => handleExpChange(idx, "company", e.target.value)}
+                            className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Role / Title</label>
+                          <input
+                            type="text"
+                            value={exp.role}
+                            onChange={(e) => handleExpChange(idx, "role", e.target.value)}
+                            className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Duration / Dates</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Jun 2023 – Aug 2023"
+                            value={exp.duration}
+                            onChange={(e) => handleExpChange(idx, "duration", e.target.value)}
+                            className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                          />
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Role / Title</label>
-                        <input
-                          type="text"
-                          value={exp.role}
-                          onChange={(e) => handleExpChange(idx, "role", e.target.value)}
-                          className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Duration</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Jun 2023 – Aug 2023"
-                          value={exp.duration}
-                          onChange={(e) => handleExpChange(idx, "duration", e.target.value)}
-                          className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Responsibilities / Achievements</label>
+                        <textarea
+                          rows={2}
+                          value={exp.description}
+                          onChange={(e) => handleExpChange(idx, "description", e.target.value)}
+                          className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Responsibilities / Achievements</label>
-                      <textarea
-                        rows={2}
-                        value={exp.description}
-                        onChange={(e) => handleExpChange(idx, "description", e.target.value)}
-                        className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
-                      />
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}
 
-          {/* TAB 6: CERTIFICATIONS */}
+          {/* TAB 7: CERTIFICATIONS */}
           {activeTab === "certifications" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 font-medium">Certifications and achievements:</p>
+                <p className="text-xs text-slate-500 font-medium">Certifications extracted from resume:</p>
                 <button
                   type="button"
                   onClick={addCert}
-                  className="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition"
+                  className="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition cursor-pointer"
                 >
                   + Add Certification
                 </button>
@@ -729,7 +1037,7 @@ export default function ParsedResumeReviewModal({
                     />
                     <input
                       type="text"
-                      placeholder="Issuer (e.g. Coursera)"
+                      placeholder="Issuer (e.g. Coursera, AWS)"
                       value={cert.issuer}
                       onChange={(e) => handleCertChange(idx, "issuer", e.target.value)}
                       className="w-48 h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none"
@@ -744,7 +1052,48 @@ export default function ParsedResumeReviewModal({
                     <button
                       type="button"
                       onClick={() => removeCert(idx)}
-                      className="text-slate-400 hover:text-red-600 text-sm p-1"
+                      className="text-slate-400 hover:text-red-600 text-sm p-1 cursor-pointer"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* TAB 8: ACHIEVEMENTS */}
+          {activeTab === "achievements" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 font-medium">Honors, awards, and achievements:</p>
+                <button
+                  type="button"
+                  onClick={addAch}
+                  className="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition cursor-pointer"
+                >
+                  + Add Achievement
+                </button>
+              </div>
+
+              {formData.achievements.length === 0 ? (
+                <div className="p-8 text-center border border-dashed border-slate-200 rounded-2xl text-slate-400 text-xs">
+                  No achievements extracted.
+                </div>
+              ) : (
+                formData.achievements.map((ach, idx) => (
+                  <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center gap-3">
+                    <input
+                      type="text"
+                      placeholder="Achievement / Award Title"
+                      value={ach.title}
+                      onChange={(e) => handleAchChange(idx, "title", e.target.value)}
+                      className="flex-1 h-9 px-3 rounded-lg border border-slate-200 bg-white text-xs outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeAch(idx)}
+                      className="text-slate-400 hover:text-red-600 text-sm p-1 cursor-pointer"
                     >
                       🗑️
                     </button>
@@ -758,7 +1107,7 @@ export default function ParsedResumeReviewModal({
         {/* Footer Actions */}
         <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <div className="text-xs text-slate-500 text-center sm:text-left">
-            🔒 Existing manually entered information will be intelligently preserved and merged.
+            🔒 Safe sync: Existing manually entered information is preserved and never blindly overwritten.
           </div>
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
             {(onCancel || onClose) && (

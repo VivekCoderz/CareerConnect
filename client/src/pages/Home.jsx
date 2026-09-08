@@ -39,7 +39,7 @@ const Home = () => {
       // Ignore
     }
     dispatch(logout());
-    navigate("/home", { replace: true });
+    navigate("/", { replace: true });
   };
 
   const dashboardUrl = user ? getDashboardPath(user.userType, user) : "/home";

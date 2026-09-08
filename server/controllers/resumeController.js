@@ -1134,10 +1134,108 @@ const parseResumeHandler = async (req, res) => {
       }
     }
 
+    // 4. Fetch existing profile data for immediate diff comparison in the frontend review modal
+    let existingProfile = null;
+    if (req.user?._id) {
+      try {
+        const user = await User.findById(req.user._id).lean();
+        if (user) {
+          const userType = user.userType;
+          let profileDoc = null;
+          if (userType === "student") {
+            profileDoc = await StudentProfile.findOne({ userId: user._id }).lean();
+          } else if (userType === "fresher") {
+            profileDoc = await FresherProfile.findOne({ userId: user._id }).lean();
+          } else if (userType === "professional") {
+            profileDoc = await ProfessionalProfile.findOne({ userId: user._id }).lean();
+          }
+
+          let locationStr = "";
+          if (profileDoc?.location) {
+            const { city, state, country } = profileDoc.location;
+            locationStr = [city, state, country].filter(Boolean).join(", ");
+          }
+
+          existingProfile = {
+            personal: {
+              fullName: user.fullName || "",
+              email: user.email || "",
+              phone: user.phone || "",
+              location: locationStr,
+              linkedin: profileDoc?.socialLinks?.linkedin || user.socialLinks?.linkedin || "",
+              github: profileDoc?.socialLinks?.github || user.socialLinks?.github || "",
+              portfolio: profileDoc?.socialLinks?.portfolio || user.socialLinks?.portfolio || "",
+            },
+            summary: profileDoc?.bio || profileDoc?.careerObjective || profileDoc?.professionalSummary || "",
+            education: (profileDoc?.education || []).map((e) => ({
+              college: e.institution || e.college || "",
+              degree: e.degree || "",
+              branch: e.fieldOfStudy || e.specialization || "",
+              cgpa: e.grade || e.percentageOrCgpa || "",
+              startYear: e.startYear ? String(e.startYear) : "",
+              endYear: e.endYear ? String(e.endYear) : e.graduationYear ? String(e.graduationYear) : "",
+            })),
+            skills: {
+              programmingLanguages: userType === "student"
+                ? (profileDoc?.technicalSkills || []).join(", ")
+                : skillsToString(profileDoc?.skills?.programmingLanguages),
+              frameworks: userType === "student" ? "" : skillsToString(profileDoc?.skills?.frameworks),
+              tools: userType === "student" ? "" : skillsToString(profileDoc?.skills?.tools),
+              other: userType === "student"
+                ? (profileDoc?.softSkills || []).join(", ")
+                : skillsToString([
+                    ...(profileDoc?.skills?.databases || []),
+                    ...(profileDoc?.skills?.softSkills || []),
+                    ...(profileDoc?.skills?.technical || []),
+                  ]),
+            },
+            projects: (profileDoc?.projects || []).map((p) => ({
+              name: p.title || p.name || "",
+              technologies: Array.isArray(p.technologies) ? p.technologies.join(", ") : p.technologies || "",
+              description: p.description || "",
+              github: p.githubUrl || "",
+              live: p.liveUrl || "",
+            })),
+            experience: (
+              userType === "fresher"
+                ? profileDoc?.internships || []
+                : userType === "professional"
+                ? profileDoc?.workExperience || []
+                : profileDoc?.experience || []
+            ).map((exp) => ({
+              company: exp.companyName || exp.organization || "",
+              role: exp.role || exp.jobTitle || "",
+              duration: exp.startDate ? `${formatDate(exp.startDate)}${exp.endDate ? ` – ${formatDate(exp.endDate)}` : ""}` : "",
+              description: exp.description || "",
+            })),
+            certifications: (profileDoc?.certifications || []).map((c) => ({
+              name: c.name || "",
+              issuer: c.issuingOrganization || "",
+              year: c.issueDate ? String(new Date(c.issueDate).getFullYear()) : "",
+            })),
+            achievements: (profileDoc?.achievements || []).map((a) => ({
+              title: a.title || "",
+              description: a.description || "",
+            })),
+            codingProfiles: {
+              leetcode: profileDoc?.codingProfiles?.find?.((c) => c.platform?.toLowerCase() === "leetcode")?.profileUrl || "",
+              hackerrank: profileDoc?.codingProfiles?.find?.((c) => c.platform?.toLowerCase() === "hackerrank")?.profileUrl || "",
+              codechef: profileDoc?.codingProfiles?.find?.((c) => c.platform?.toLowerCase() === "codechef")?.profileUrl || "",
+              codeforces: profileDoc?.codingProfiles?.find?.((c) => c.platform?.toLowerCase() === "codeforces")?.profileUrl || "",
+              github: profileDoc?.codingProfiles?.find?.((c) => c.platform?.toLowerCase() === "github")?.profileUrl || profileDoc?.socialLinks?.github || "",
+            },
+          };
+        }
+      } catch (profErr) {
+        console.warn("Failed to fetch existing profile during parse:", profErr.message);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: "Resume parsed successfully. Please review your imported details.",
       parsedData,
+      existingProfile,
       resumeUrl,
       resumeName,
     });
@@ -1247,8 +1345,8 @@ const confirmParsedProfileHandler = async (req, res) => {
 
         if (matchIndex === -1) {
           existingEdu.push({
-            institution: ne.college?.trim() || "",
-            degree: ne.degree?.trim() || "",
+            institution: ne.college?.trim() || "University / College",
+            degree: ne.degree?.trim() || "Degree / Coursework",
             fieldOfStudy: ne.branch?.trim() || "",
             specialization: ne.branch?.trim() || "",
             grade: ne.cgpa?.trim() || "",
@@ -1281,10 +1379,11 @@ const confirmParsedProfileHandler = async (req, res) => {
           (ep) => (ep.title || ep.name || "").toLowerCase() === title.toLowerCase()
         );
         if (!exists) {
+          const rawDesc = Array.isArray(np.description) ? np.description.join(" ") : np.description || "";
           existingProjects.push({
             title,
             name: title,
-            description: Array.isArray(np.description) ? np.description.join(" ") : np.description || "",
+            description: rawDesc.trim() || "Project details",
             technologies: splitSkills(np.technologies),
             githubUrl: np.github?.trim() || "",
             liveUrl: np.live?.trim() || "",
@@ -1307,10 +1406,11 @@ const confirmParsedProfileHandler = async (req, res) => {
             (ee) => (ee.organization || "").toLowerCase() === comp.toLowerCase()
           );
           if (!exists) {
+            const rawDesc = Array.isArray(ne.description) ? ne.description.join(" ") : ne.description || "";
             existingExp.push({
-              organization: comp,
+              organization: comp || "Organization",
               role: ne.role?.trim() || "Intern",
-              description: Array.isArray(ne.description) ? ne.description.join(" ") : ne.description || "",
+              description: rawDesc.trim() || "Experience details",
               startDate: parseResumeDate(ne.duration),
             });
           }
@@ -1402,7 +1502,7 @@ const confirmParsedProfileHandler = async (req, res) => {
         if (!exists) {
           existingCerts.push({
             name: nc.name.trim(),
-            issuingOrganization: nc.issuer?.trim() || "",
+            issuingOrganization: nc.issuer?.trim() || "Independent / Online",
             issueDate: nc.year ? new Date(`${nc.year}-01-01`) : undefined,
           });
         }
@@ -1424,6 +1524,65 @@ const confirmParsedProfileHandler = async (req, res) => {
         }
       }
       profile.achievements = existingAch;
+
+      // Summary / Bio / Objective
+      if (parsedData.summary?.trim()) {
+        const trimmedSummary = parsedData.summary.trim().slice(0, 1500);
+        if (userType === "student") {
+          profile.bio = trimmedSummary;
+        } else if (userType === "fresher") {
+          profile.careerObjective = trimmedSummary;
+          if (!profile.bio) profile.bio = trimmedSummary;
+        } else if (userType === "professional") {
+          profile.professionalSummary = trimmedSummary;
+        }
+      }
+
+      // Coding Profiles (FresherProfile & StudentProfile social links)
+      if (parsedData.codingProfiles && typeof parsedData.codingProfiles === "object") {
+        if (userType === "fresher") {
+          const currentCoding = profile.codingProfiles || [];
+          const platforms = [
+            { key: "leetcode", label: "LeetCode" },
+            { key: "hackerrank", label: "HackerRank" },
+            { key: "codechef", label: "CodeChef" },
+            { key: "codeforces", label: "Codeforces" },
+            { key: "github", label: "GitHub" },
+          ];
+          for (const p of platforms) {
+            const url = parsedData.codingProfiles[p.key]?.trim();
+            if (url) {
+              const idx = currentCoding.findIndex((cp) => cp.platform?.toLowerCase() === p.label.toLowerCase());
+              if (idx === -1) {
+                currentCoding.push({
+                  platform: p.label,
+                  profileUrl: url,
+                  username: url.split("/").filter(Boolean).pop() || "",
+                });
+              } else if (!currentCoding[idx].profileUrl) {
+                currentCoding[idx].profileUrl = url;
+              }
+            }
+          }
+          profile.codingProfiles = currentCoding;
+        }
+      }
+
+      // Recalculate profile completion
+      let compScore = 0;
+      if (user.fullName && user.email && user.phone) compScore += 20;
+      if (profile.education?.length) compScore += 20;
+      const totalSkillsCount = userType === "student"
+        ? (profile.technicalSkills?.length || 0) + (profile.softSkills?.length || 0)
+        : (profile.skills?.programmingLanguages?.length || 0) + (profile.skills?.frameworks?.length || 0);
+      if (totalSkillsCount >= 3) compScore += 20;
+      else if (totalSkillsCount > 0) compScore += 10;
+      if (profile.projects?.length) compScore += 20;
+      if (profile.resume?.resumeUrl) compScore += 10;
+      if (profile.certifications?.length) compScore += 10;
+
+      profile.profileCompletion = Math.min(100, compScore);
+      profile.isProfileComplete = profile.profileCompletion >= 70;
 
       await profile.save({ validateBeforeSave: false });
     }
@@ -1547,40 +1706,49 @@ const tailorResumeHandler = async (req, res) => {
 
     const { opportunityType, opportunityId, opportunityData, template } = req.body;
 
-    let targetOpportunity = opportunityData || {};
+    let targetOpportunity = { ...(opportunityData || {}) };
 
     if (opportunityId) {
       if (opportunityType === "Job" || opportunityType === "job") {
         const job = await Job.findById(opportunityId).lean();
         if (job) {
           targetOpportunity = {
-            title: job.title,
-            companyName: job.companyName || "",
-            description: job.description || "",
-            requiredSkills: job.requiredSkills || [],
-            preferredSkills: job.preferredSkills || [],
-            responsibilities: job.responsibilities || [],
-            education: job.education || "",
-            workMode: job.workMode || "",
-            location: job.location || "",
+            ...targetOpportunity,
+            title: job.title || targetOpportunity.title,
+            companyName: job.companyName || targetOpportunity.companyName || "",
+            description: job.description || targetOpportunity.description || "",
+            requiredSkills: job.requiredSkills?.length ? job.requiredSkills : (targetOpportunity.requiredSkills || []),
+            preferredSkills: job.preferredSkills?.length ? job.preferredSkills : (targetOpportunity.preferredSkills || []),
+            bonusSkills: job.bonusSkills || targetOpportunity.bonusSkills || [],
+            responsibilities: job.responsibilities?.length ? job.responsibilities : (targetOpportunity.responsibilities || []),
+            education: job.education || targetOpportunity.education || "",
+            experience: job.experience ? `${job.experience.minYears || 0}-${job.experience.maxYears || 0} years (${job.experience.level || ""})` : targetOpportunity.experience || "",
+            workMode: job.workMode || targetOpportunity.workMode || "",
+            location: job.location || targetOpportunity.location || "",
           };
         }
       } else if (opportunityType === "Internship" || opportunityType === "internship") {
         const internship = await Internship.findById(opportunityId).lean();
         if (internship) {
           targetOpportunity = {
-            title: internship.title,
-            companyName: internship.companyName || "",
-            description: internship.description || "",
-            requiredSkills: internship.requiredSkills || [],
-            preferredSkills: internship.preferredSkills || [],
-            responsibilities: internship.responsibilities || [],
-            education: internship.education || "",
-            workMode: internship.workMode || "",
-            location: internship.location || "",
+            ...targetOpportunity,
+            title: internship.title || targetOpportunity.title,
+            companyName: internship.companyName || targetOpportunity.companyName || "",
+            description: internship.description || targetOpportunity.description || "",
+            requiredSkills: internship.requiredSkills?.length ? internship.requiredSkills : (targetOpportunity.requiredSkills || []),
+            preferredSkills: internship.preferredSkills?.length ? internship.preferredSkills : (targetOpportunity.preferredSkills || []),
+            responsibilities: internship.responsibilities?.length ? internship.responsibilities : (targetOpportunity.responsibilities || []),
+            education: internship.education || targetOpportunity.education || "",
+            workMode: internship.workMode || targetOpportunity.workMode || "",
+            location: internship.location || targetOpportunity.location || "",
           };
         }
       }
+    }
+
+    // Normalize requiredSkills from any alias
+    if (!targetOpportunity.requiredSkills || targetOpportunity.requiredSkills.length === 0) {
+      targetOpportunity.requiredSkills = targetOpportunity.skillsRequired || targetOpportunity.skills || targetOpportunity.tags || [];
     }
 
     if (!targetOpportunity.title) {
@@ -1588,6 +1756,29 @@ const tailorResumeHandler = async (req, res) => {
         success: false,
         message: "Opportunity details (title, skills, description) are required to tailor resume",
       });
+    }
+
+    // Check if an existing tailored resume already exists for this opportunity (reuse if not forceRegenerate)
+    const forceRegenerate = req.body.forceRegenerate === true;
+    if (!forceRegenerate && opportunityId) {
+      const isJob = (opportunityType || "").toLowerCase() === "job";
+      const existingTailored = await Resume.findOne({
+        user: req.user._id,
+        isTailored: true,
+        [isJob ? "targetJobId" : "targetInternshipId"]: opportunityId,
+      }).lean();
+
+      if (existingTailored && existingTailored.generatedData) {
+        return res.status(200).json({
+          success: true,
+          reused: true,
+          message: `Existing tailored resume retrieved for ${targetOpportunity.title}`,
+          resume: existingTailored,
+          resumeUrl: existingTailored.resumeUrl,
+          generatedData: existingTailored.generatedData,
+          tailoredMeta: existingTailored.generatedData.tailoredMeta || {},
+        });
+      }
     }
 
     // 1. Fetch user's verified data from primary Resume or Profile

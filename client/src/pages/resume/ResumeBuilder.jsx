@@ -171,6 +171,7 @@ const ResumeBuilder = () => {
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [parsedResumeData, setParsedResumeData] = useState(null);
+  const [existingProfileData, setExistingProfileData] = useState(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -350,6 +351,9 @@ const ResumeBuilder = () => {
       const parseRes = await parseResumeAPI(selectedFile);
       if (parseRes?.success && parseRes?.parsedData) {
         setParsedResumeData(parseRes.parsedData);
+        if (parseRes.existingProfile) {
+          setExistingProfileData(parseRes.existingProfile);
+        }
         if (parseRes.resumeUrl) {
           dispatch(
             updateUserProfile({
@@ -1267,6 +1271,8 @@ const ResumeBuilder = () => {
           isOpen={isReviewModalOpen}
           onClose={() => setIsReviewModalOpen(false)}
           parsedData={parsedResumeData}
+          existingProfile={existingProfileData}
+          resumeName={selectedFile?.name}
           onConfirm={handleConfirmParsedData}
           title="Review Imported Resume Information"
         />

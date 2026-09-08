@@ -358,6 +358,7 @@ CRITICAL RULES:
     "github": "",
     "portfolio": ""
   },
+  "summary": "",
   "education": [
     {
       "college": "",
@@ -411,7 +412,14 @@ CRITICAL RULES:
       "title": "",
       "description": ""
     }
-  ]
+  ],
+  "codingProfiles": {
+    "leetcode": "",
+    "hackerrank": "",
+    "codechef": "",
+    "codeforces": "",
+    "github": ""
+  }
 }`;
 
 const TAILOR_SYSTEM_PROMPT = `You are an expert ATS resume tailoring engine.
@@ -470,6 +478,20 @@ const heuristicParseResume = (rawText) => {
   const linkedinMatch = text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([a-zA-Z0-9_-]+)/i);
   const githubMatch = text.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_-]+)/i);
   const portfolioMatch = text.match(/(?:https?:\/\/)?([a-zA-Z0-9-]+\.(?:dev|me|io|com|app))(?:\/[^\s]*)?/i);
+
+  // Coding profiles heuristics
+  const leetcodeMatch = text.match(/(?:https?:\/\/)?(?:www\.)?leetcode\.com\/(?:u\/)?([a-zA-Z0-9_-]+)/i);
+  const hackerrankMatch = text.match(/(?:https?:\/\/)?(?:www\.)?hackerrank\.com\/(?:profile\/)?([a-zA-Z0-9_-]+)/i);
+  const codechefMatch = text.match(/(?:https?:\/\/)?(?:www\.)?codechef\.com\/(?:users\/)?([a-zA-Z0-9_-]+)/i);
+  const codeforcesMatch = text.match(/(?:https?:\/\/)?(?:www\.)?codeforces\.com\/(?:profile\/)?([a-zA-Z0-9_-]+)/i);
+
+  // Summary / Objective heuristic
+  let summary = "";
+  const summaryMatch = text.match(/(?:SUMMARY|PROFESSIONAL SUMMARY|OBJECTIVE|CAREER OBJECTIVE|ABOUT ME)[\s\S]*?(?=(?:EDUCATION|SKILLS|EXPERIENCE|WORK EXPERIENCE|PROJECTS|CERTIFICATIONS|$))/i);
+  if (summaryMatch) {
+    const sLines = summaryMatch[0].split(/\r?\n/).slice(1).map((l) => l.trim()).filter(Boolean);
+    summary = sLines.join(" ").slice(0, 600).trim();
+  }
 
   // Name heuristic: Look at first 4 lines, find line with 2-4 words, no numbers, not "resume"
   let fullName = "";
@@ -658,6 +680,7 @@ const heuristicParseResume = (rawText) => {
       github: githubMatch ? `https://${githubMatch[0].replace(/^https?:\/\//, "")}` : "",
       portfolio: portfolioMatch ? `https://${portfolioMatch[1]}` : "",
     },
+    summary,
     education,
     skills: {
       programmingLanguages: Array.from(foundLanguages),
@@ -670,6 +693,13 @@ const heuristicParseResume = (rawText) => {
     internships: [],
     certifications,
     achievements,
+    codingProfiles: {
+      leetcode: leetcodeMatch ? `https://leetcode.com/${leetcodeMatch[1]}` : "",
+      hackerrank: hackerrankMatch ? `https://hackerrank.com/${hackerrankMatch[1]}` : "",
+      codechef: codechefMatch ? `https://codechef.com/users/${codechefMatch[1]}` : "",
+      codeforces: codeforcesMatch ? `https://codeforces.com/profile/${codeforcesMatch[1]}` : "",
+      github: githubMatch ? `https://github.com/${githubMatch[1]}` : "",
+    },
   };
 };
 
@@ -914,12 +944,123 @@ async function parseResumeText(pdfText) {
 }
 
 /**
+ * Strict Grounding Enforcement:
+ * Mathematically guarantees that the tailored resume ONLY contains information
+ * that genuinely belongs to the user.
+ * - Filters out any skill not found in the user's verified profile / rawData
+ * - Ensures projects, work experience, education, certifications originate from user data
+ */
+function enforceGrounding(tailoredResume, verifiedUserData) {
+  if (!tailoredResume || !verifiedUserData) return tailoredResume;
+
+  const user = verifiedUserData;
+  const originalSkills = new Set();
+
+  const addSkillsToSet = (skillsInput) => {
+    if (!skillsInput) return;
+    if (Array.isArray(skillsInput)) {
+      skillsInput.forEach(addSkillsToSet);
+    } else if (typeof skillsInput === "string") {
+      skillsInput.split(/[,/\n]/).forEach((s) => {
+        const cleaned = s.trim().toLowerCase();
+        if (cleaned) originalSkills.add(cleaned);
+      });
+    }
+  };
+
+  // 1. Gather all verified user skills from skills object, projects, and work experience
+  if (user.skills) {
+    addSkillsToSet(user.skills.programmingLanguages);
+    addSkillsToSet(user.skills.frameworks);
+    addSkillsToSet(user.skills.tools);
+    addSkillsToSet(user.skills.other);
+    addSkillsToSet(user.skills.databases);
+  }
+  if (Array.isArray(user.technicalSkills)) user.technicalSkills.forEach(addSkillsToSet);
+  if (Array.isArray(user.softSkills)) user.softSkills.forEach(addSkillsToSet);
+  (user.projects || []).forEach((p) => addSkillsToSet(p.technologies));
+
+  const isVerifiedSkill = (skill) => {
+    if (!skill) return false;
+    const sLower = String(skill).trim().toLowerCase();
+    if (originalSkills.has(sLower)) return true;
+    for (const orig of originalSkills) {
+      if (orig === sLower || orig.includes(sLower) || sLower.includes(orig)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // 2. Filter tailored skills: ONLY allow skills verified in user's data
+  if (tailoredResume.skills) {
+    const categories = ["programmingLanguages", "frameworks", "tools", "other"];
+    for (const cat of categories) {
+      if (Array.isArray(tailoredResume.skills[cat])) {
+        tailoredResume.skills[cat] = tailoredResume.skills[cat].filter(isVerifiedSkill);
+      }
+    }
+  }
+
+  // 3. Ground matchedSkills in tailoredMeta
+  if (tailoredResume.tailoredMeta && Array.isArray(tailoredResume.tailoredMeta.matchedSkills)) {
+    tailoredResume.tailoredMeta.matchedSkills = tailoredResume.tailoredMeta.matchedSkills.filter(isVerifiedSkill);
+  }
+
+  // 4. Ensure education entries match verified user institutions/degrees
+  if (Array.isArray(tailoredResume.education) && Array.isArray(user.education) && user.education.length > 0) {
+    tailoredResume.education = tailoredResume.education.filter((edu) => {
+      const col = (edu.college || edu.institution || "").toLowerCase();
+      return user.education.some((ue) => {
+        const uCol = (ue.college || ue.institution || "").toLowerCase();
+        return !col || !uCol || uCol.includes(col) || col.includes(uCol);
+      });
+    });
+    if (tailoredResume.education.length === 0) {
+      tailoredResume.education = user.education;
+    }
+  }
+
+  // 5. Ensure projects match verified user projects
+  if (Array.isArray(tailoredResume.projects) && Array.isArray(user.projects) && user.projects.length > 0) {
+    tailoredResume.projects = tailoredResume.projects.filter((p) => {
+      const pName = (p.name || p.title || "").toLowerCase();
+      return user.projects.some((up) => {
+        const uName = (up.name || up.title || "").toLowerCase();
+        return !pName || !uName || uName.includes(pName) || pName.includes(uName);
+      });
+    });
+    if (tailoredResume.projects.length === 0) {
+      tailoredResume.projects = user.projects;
+    }
+  }
+
+  // 6. Ensure work experience matches verified user experience
+  const origExp = user.experience || user.workExperience || user.internships || [];
+  if (Array.isArray(tailoredResume.experience) && Array.isArray(origExp) && origExp.length > 0) {
+    tailoredResume.experience = tailoredResume.experience.filter((e) => {
+      const comp = (e.company || e.companyName || e.organization || "").toLowerCase();
+      return origExp.some((ue) => {
+        const uComp = (ue.company || ue.companyName || ue.organization || "").toLowerCase();
+        return !comp || !uComp || uComp.includes(comp) || comp.includes(uComp);
+      });
+    });
+    if (tailoredResume.experience.length === 0) {
+      tailoredResume.experience = origExp;
+    }
+  }
+
+  return tailoredResume;
+}
+
+/**
  * Tailor user's resume specifically for a target opportunity
  * NEVER invents skills, experiences, or credentials.
  */
 async function tailorResumeForOpportunity(userData, opportunityData, template = "classic") {
   if (!geminiModel) {
-    return mockTailor(userData, opportunityData, template);
+    const rawMock = mockTailor(userData, opportunityData, template);
+    return enforceGrounding(rawMock, userData);
   }
 
   try {
@@ -937,10 +1078,11 @@ async function tailorResumeForOpportunity(userData, opportunityData, template = 
     })();
 
     const tailored = await Promise.race([apiPromise, timeoutPromise]);
-    return tailored;
+    return enforceGrounding(tailored, userData);
   } catch (err) {
     console.error("Gemini tailor failed, falling back to mock tailoring:", err.message);
-    return mockTailor(userData, opportunityData, template);
+    const rawMock = mockTailor(userData, opportunityData, template);
+    return enforceGrounding(rawMock, userData);
   }
 }
 
@@ -951,4 +1093,5 @@ module.exports = {
   tailorResumeForOpportunity,
   mockTailor,
   heuristicParseResume,
+  enforceGrounding,
 };

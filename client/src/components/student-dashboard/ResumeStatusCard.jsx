@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { uploadResumeAPI } from "../../services/resumeService";
+import { uploadResumeAPI, parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
 import { updateUserProfile } from "../../redux/features/authSlice";
+import ParsedResumeReviewModal from "../resume-builder/ParsedResumeReviewModal";
 
 const ResumeStatusCard = ({ resume, profile }) => {
   const navigate = useNavigate();
@@ -14,6 +15,11 @@ const ResumeStatusCard = ({ resume, profile }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [parsedData, setParsedData] = useState(null);
+  const [existingProfileData, setExistingProfileData] = useState(null);
+  const [parsedResumeUrl, setParsedResumeUrl] = useState("");
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isSavingParsed, setIsSavingParsed] = useState(false);
   const fileInputRef = useRef(null);
 
   const hasResume = !!(resume?.resumeName || resume?.resumeUrl);
@@ -56,20 +62,72 @@ const ResumeStatusCard = ({ resume, profile }) => {
     setUploading(true);
     setUploadError("");
     try {
-      const res = await uploadResumeAPI(selectedFile);
+      // First parse resume to extract information
+      const parseRes = await parseResumeAPI(selectedFile);
+      if (parseRes?.success && parseRes?.parsedData) {
+        setParsedData(parseRes.parsedData);
+        setExistingProfileData(parseRes.existingProfile || null);
+        setParsedResumeUrl(parseRes.resumeUrl || "");
+        if (parseRes.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: parseRes.resumeUrl,
+              resumeName: parseRes.resumeName || selectedFile.name,
+            }),
+          );
+        }
+        setShowModal(false);
+        setIsReviewModalOpen(true);
+      } else {
+        const res = await uploadResumeAPI(selectedFile);
+        setUploadSuccess(true);
+        if (res?.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: res.resumeUrl,
+              resumeName: res.resumeName || selectedFile.name,
+            }),
+          );
+        }
+      }
+    } catch (err) {
+      try {
+        const res = await uploadResumeAPI(selectedFile);
+        setUploadSuccess(true);
+        if (res?.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: res.resumeUrl,
+              resumeName: res.resumeName || selectedFile.name,
+            }),
+          );
+        }
+      } catch (uploadErr) {
+        setUploadError(uploadErr.message || err.message || "Failed to upload resume.");
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleConfirmParsedProfile = async (payload) => {
+    try {
+      setIsSavingParsed(true);
+      await confirmParsedProfileAPI(payload);
+      setIsReviewModalOpen(false);
       setUploadSuccess(true);
-      if (res?.resumeUrl) {
+      if (payload.resumeUrl) {
         dispatch(
           updateUserProfile({
-            resumeUrl: res.resumeUrl,
-            resumeName: res.resumeName || selectedFile.name,
+            resumeUrl: payload.resumeUrl,
+            resumeName: payload.resumeName || selectedFile?.name || "Uploaded Resume.pdf",
           }),
         );
       }
     } catch (err) {
-      setUploadError(err.message || "Failed to upload resume.");
+      alert(err.message || "Failed to save parsed resume details to profile.");
     } finally {
-      setUploading(false);
+      setIsSavingParsed(false);
     }
   };
 
@@ -374,7 +432,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
                         {uploading && (
                           <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         )}
-                        {uploading ? "Uploading..." : "Upload Resume"}
+                        {uploading ? "Uploading & Parsing..." : "Upload & Review"}
                       </button>
                     </div>
                   </div>
@@ -384,6 +442,19 @@ const ResumeStatusCard = ({ resume, profile }) => {
           </div>
         </div>
       )}
+
+      {/* Parsed Resume Review Modal */}
+      <ParsedResumeReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        parsedData={parsedData}
+        existingProfile={existingProfileData}
+        resumeUrl={parsedResumeUrl}
+        resumeName={selectedFile?.name}
+        isSaving={isSavingParsed}
+        onConfirm={handleConfirmParsedProfile}
+        title="Review & Confirm Resume Auto-Fill"
+      />
     </div>
   );
 };

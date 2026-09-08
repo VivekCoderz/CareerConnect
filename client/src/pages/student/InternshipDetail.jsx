@@ -269,63 +269,20 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
             ) : (
               !successMsg && (
                 <div className="space-y-4">
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 space-y-2">
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 to-indigo-50/80 border border-blue-200 space-y-3">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
-                      <span>✨</span> AI Tailored Resume
+                      <span>📄</span> Resume & Application
                     </div>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      Automatically optimize and tailor your verified profile skills and projects specifically for this opportunity. You preview and review before submitting.
+                      Choose to build an ATS-tailored resume with AI or upload/select your own resume. You preview and confirm everything before submitting.
                     </p>
                     <button
                       type="button"
                       onClick={() => setIsTailorModalOpen(true)}
-                      className="w-full mt-2 h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full mt-1 h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <span>🎯</span> Apply with Tailored Resume
+                      <span>🚀</span> Apply for Internship
                     </button>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100">
-                    <details className="text-xs group">
-                      <summary className="font-semibold text-slate-500 hover:text-slate-800 cursor-pointer list-none flex items-center justify-between">
-                        <span>Or apply manually with a direct link</span>
-                        <span className="text-[10px] text-slate-400 group-open:rotate-180 transition">▼</span>
-                      </summary>
-                      <form onSubmit={handleApply} className="space-y-3 mt-3">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                            Resume Link
-                          </label>
-                          <input
-                            type="url"
-                            placeholder="Google Drive / Cloudinary URL"
-                            value={resumeUrl}
-                            onChange={(e) => setResumeUrl(e.target.value)}
-                            required
-                            className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#1e3a8a]"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                            Cover Note (Optional)
-                          </label>
-                          <textarea
-                            rows={3}
-                            placeholder="Why are you a good fit?"
-                            value={coverNote}
-                            onChange={(e) => setCoverNote(e.target.value)}
-                            className="w-full p-2.5 rounded-xl border border-slate-200 text-xs outline-none resize-none focus:border-[#1e3a8a]"
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          disabled={applying}
-                          className="w-full h-10 rounded-xl bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-bold"
-                        >
-                          {applying ? "Submitting..." : "Submit Manual Application"}
-                        </button>
-                      </form>
-                    </details>
                   </div>
                 </div>
               )

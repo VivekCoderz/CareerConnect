@@ -455,7 +455,7 @@ const EmployerDashboard = () => {
                 </div>
 
                 <div
-                  onClick={() => setActiveTab("learning")}
+                  onClick={() => navigate("/employer/courses")}
                   className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-amber-300 shadow-2xs cursor-pointer transition"
                 >
                   <span className="text-xl">🎓</span>

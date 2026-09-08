@@ -25,6 +25,7 @@ import CertificationsCard from "../../components/student-dashboard/Certification
 import InternshipRecommendationsCard from "../../components/student-dashboard/InternshipRecommendationsCard";
 import JobRecommendationsCard from "../../components/student-dashboard/JobRecommendationsCard";
 import CourseRecommendationsCard from "../../components/student-dashboard/CourseRecommendationsCard";
+import StudentCoursesPage from "../courses/StudentCoursesPage";
 import ApplicationTrackerCard from "../../components/student-dashboard/ApplicationTrackerCard";
 import SavedOpportunitiesCard from "../../components/student-dashboard/SavedOpportunitiesCard";
 import UpcomingDeadlinesCard from "../../components/student-dashboard/UpcomingDeadlinesCard";
@@ -96,7 +97,7 @@ const StudentDashboard = () => {
       console.error(e);
     }
     dispatch(logout());
-    navigate("/login");
+    navigate("/", { replace: true });
   };
 
   const handleSelectTab = (tab) => {
@@ -430,8 +431,10 @@ const StudentDashboard = () => {
 
           {/* ================= COURSES ================= */}
           {activeTab === "courses" && (
-            <CourseRecommendationsCard courses={filteredCourses} />
-          )}
+  <div className="animate-fade-in">
+    <StudentCoursesPage />
+  </div>
+)}
 
           {/* ================= APPLICATIONS ================= */}
           {activeTab === "applications" && (
