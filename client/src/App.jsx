@@ -56,6 +56,9 @@ import EditInternship from "./pages/employer/EditInternship";
 // Resume Builder
 import ResumeBuilder from "./pages/resume/ResumeBuilder";
 
+// Global Rate Limit Warning Modal
+import RateLimitWarningModal from "./components/RateLimitWarningModal";
+
 // Redux
 import { getCurrentUser } from "./services/authService";
 import { setUser, setInitialized } from "./redux/features/authSlice";
@@ -138,6 +141,7 @@ const AuthInitializer = ({ children }) => {
 function App() {
   return (
     <BrowserRouter>
+      <RateLimitWarningModal />
       <AuthInitializer>
         <Routes>
           {/* =================================================

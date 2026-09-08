@@ -55,11 +55,18 @@ const validateEmailFormat = (email) => {
 };
 
 /**
- * Validates that phone number is a valid Indian mobile number.
+ * Validates phone number format based on country code.
+ * Defaults to Indian mobile number (10 digits starting with 6-9) if countryCode is +91.
  */
-const validatePhoneFormat = (phone) => {
-  const digits = phone.replace(/\D/g, "").slice(-10);
-  return /^[6-9]\d{9}$/.test(digits);
+const validatePhoneFormat = (phone, countryCode = "+91") => {
+  if (!phone) return false;
+  const digits = String(phone).replace(/\D/g, "");
+  if (countryCode === "+91") {
+    const last10 = digits.slice(-10);
+    return /^[6-9]\d{9}$/.test(last10) && digits.length >= 10;
+  }
+  // International E.164 standard: 6 to 15 digits
+  return digits.length >= 6 && digits.length <= 15;
 };
 
 /**

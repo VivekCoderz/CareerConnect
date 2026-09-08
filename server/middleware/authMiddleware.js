@@ -2,15 +2,39 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User.js");
 
 /**
- * Authentication Middleware (JWT-based Verification)
+ * Authentication Middleware with Mongoose Session Support & Fallback JWT Verification
  * 
- * 1. Checks Bearer token in headers or Cookie token.
- * 2. Verifies JWT payload and signature with JWT_SECRET.
- * 3. Validates that account exists and is not suspended.
- * 4. Attaches authenticated `req.user` to the request pipeline.
+ * 1. Checks MongoDB Session (`req.session.user`).
+ * 2. On activity, updates in-session `lastActive` timestamp (rolling: true extends TTL).
+ * 3. Falls back to Bearer / Cookie JWT if token is provided.
+ * 4. Returns 401 with distinct codes for NOT_AUTHENTICATED, SESSION_EXPIRED, INVALID_TOKEN, and USER_NOT_FOUND.
  */
 const protect = async (req, res, next) => {
   try {
+    // 1. Primary Authentication: Active MongoDB Session
+    if (req.session && req.session.user && req.session.user.userId) {
+      const user = await User.findById(req.session.user.userId).select("-password");
+
+      if (!user) {
+        // User deleted or invalid in MongoDB -> destroy stale session
+        req.session.destroy(() => {});
+        return res.status(401).json({
+          success: false,
+          code: "USER_NOT_FOUND",
+          message: "Account no longer exists. Please sign in again.",
+        });
+      }
+
+      // Update session activity time
+      req.session.user.lastActive = new Date();
+
+      // Attach user & session details to request
+      req.user = user;
+      req.sessionUser = req.session.user;
+      return next();
+    }
+
+    // 2. Secondary / Fallback Authentication: JWT Token (Cookie or Header)
     let token = req.cookies?.token;
     if (
       !token &&
@@ -66,6 +90,17 @@ const protect = async (req, res, next) => {
     }
 
     req.user = user;
+    // Automatically seed MongoDB session if not yet active
+    if (req.session && !req.session.user) {
+      req.session.user = {
+        userId: user._id.toString(),
+        email: user.email,
+        role: user.role,
+        userType: user.userType,
+        loginTime: new Date(),
+        lastActive: new Date(),
+      };
+    }
     return next();
   } catch (error) {
     return res.status(401).json({

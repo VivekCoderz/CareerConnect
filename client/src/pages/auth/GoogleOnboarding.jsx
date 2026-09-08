@@ -5,6 +5,7 @@ import api from "../../api/api";
 import { updateUserProfile } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import ResumeUploadInput from "../../components/common/ResumeUploadInput";
+import PhoneInput from "../../components/common/PhoneInput";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ const GoogleOnboarding = () => {
   const isOnboardingActiveRef = useRef(true);
 
   const [formData, setFormData] = useState({
+    countryCode: "+91",
     phone: "",
     linkedin: "",
     github: "",
@@ -108,11 +110,15 @@ const GoogleOnboarding = () => {
   const validateStep1 = () => {
     const errors = {};
     if (!formData.phone.trim()) {
-      errors.phone = "Phone number is required";
+      errors.phone = "Mobile number is required";
     } else {
-      const digits = formData.phone.replace(/\D/g, "").slice(-10);
-      if (!/^[6-9]\d{9}$/.test(digits)) {
-        errors.phone = "Please enter a valid 10-digit mobile number";
+      const digits = formData.phone.replace(/\D/g, "");
+      if (formData.countryCode === "+91") {
+        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+          errors.phone = "Please enter a valid 10-digit mobile number";
+        }
+      } else if (digits.length < 6 || digits.length > 15) {
+        errors.phone = "Please enter a valid mobile number (6-15 digits)";
       }
     }
     setFieldErrors(errors);
@@ -143,8 +149,25 @@ const GoogleOnboarding = () => {
   };
 
   // ─── Step 1 → 2 ─────────────────────────────────────────────────────────────
-  const handleStep1Next = () => {
+  const handleStep1Next = async () => {
     if (!validateStep1()) return;
+
+    try {
+      const checkRes = await api.post("/auth/check-phone", {
+        phone: formData.phone.trim(),
+        countryCode: formData.countryCode || "+91",
+      });
+      if (checkRes.data?.exists) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          phone: "This mobile number is already registered with another account",
+        }));
+        return;
+      }
+    } catch (err) {
+      console.warn("Phone check warning:", err.message);
+    }
+
     setStep(2);
     setFieldErrors({});
   };
@@ -158,6 +181,7 @@ const GoogleOnboarding = () => {
 
     try {
       const payload = {
+        countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         linkedin: formData.linkedin.trim(),
         github: formData.github.trim(),
@@ -198,6 +222,9 @@ const GoogleOnboarding = () => {
       setSubmitError(msg);
       if (err.response?.data?.field) {
         setFieldErrors({ [err.response.data.field]: msg });
+        if (err.response.data.field === "phone") {
+          setStep(1);
+        }
       }
     } finally {
       setLoading(false);
@@ -378,22 +405,17 @@ const GoogleOnboarding = () => {
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
                     Mobile Number <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-                      <PhoneIcon />
-                    </div>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      placeholder="+91 98765 43210"
-                      className={`${inputCls(fieldErrors.phone)} pl-11`}
-                    />
-                  </div>
-                  {fieldErrors.phone && (
-                    <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>
-                  )}
+                  <PhoneInput
+                    countryCode={formData.countryCode}
+                    onCountryCodeChange={(code) => setFormData((prev) => ({ ...prev, countryCode: code }))}
+                    phone={formData.phone}
+                    onPhoneChange={(val) => {
+                      setFormData((prev) => ({ ...prev, phone: val }));
+                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
+                    error={fieldErrors.phone}
+                    theme="blue"
+                  />
                 </div>
 
                 {/* LinkedIn */}
