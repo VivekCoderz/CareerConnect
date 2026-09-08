@@ -369,11 +369,36 @@ const fresherProfileSchema = new mongoose.Schema(
       default: "",
     },
 
+    careerGoal: {
+      type: String,
+      trim: true,
+      default: "Get my first job",
+    },
+
     targetRole: {
       type: String,
       trim: true,
       maxlength: [100, "Target role cannot exceed 100 characters"],
       default: "",
+    },
+
+    targetRoles: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+
+    primarySkills: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+
+    activelyLooking: {
+      type: Boolean,
+      default: true,
     },
 
     targetIndustry: {

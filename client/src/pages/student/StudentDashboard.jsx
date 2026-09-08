@@ -93,7 +93,7 @@ const StudentDashboard = () => {
       console.error(e);
     }
     dispatch(logout());
-    navigate("/login");
+    navigate("/", { replace: true });
   };
 
   const handleSelectTab = (tab) => {

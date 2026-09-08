@@ -68,7 +68,7 @@ router.get("/me", authMiddleware, authControllers.getMe);
 router.patch(
   "/update-experience-level",
   authMiddleware,
-  authControllers.updateExperienceLevel,
+  authControllers.updateExperienceLevel
 );
 
 // ==========================================

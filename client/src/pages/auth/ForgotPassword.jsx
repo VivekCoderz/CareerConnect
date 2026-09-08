@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/api";
+import {
+  validatePassword,
+  PASSWORD_VALIDATION_ERROR,
+} from "../../utils/passwordGenerator";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -36,7 +40,7 @@ const ForgotPassword = () => {
     setError("");
     setSuccess("");
 
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError("Please enter a valid email address");
       return;
     }
@@ -46,7 +50,7 @@ const ForgotPassword = () => {
       await api.post("/auth/forgot-password", {
         email: email.trim().toLowerCase(),
       });
-      setSuccess("OTP sent to your email");
+      setSuccess(`OTP sent to ${email}`);
       setStep("otp");
       startCooldown(60);
     } catch (err) {
@@ -80,8 +84,8 @@ const ForgotPassword = () => {
     setError("");
     setSuccess("");
 
-    if (!otp || otp.length !== 6) {
-      setError("Please enter the 6-digit OTP");
+    if (!otp || otp.trim().length !== 6) {
+      setError("Please enter 6-digit OTP");
       return;
     }
 
@@ -106,8 +110,8 @@ const ForgotPassword = () => {
     setError("");
     setSuccess("");
 
-    if (!password || password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (!validatePassword(password)) {
+      setError(PASSWORD_VALIDATION_ERROR);
       return;
     }
     if (password !== confirmPassword) {

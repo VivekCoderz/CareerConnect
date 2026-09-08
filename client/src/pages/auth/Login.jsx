@@ -132,7 +132,7 @@ const Login = () => {
 
       // Step 1: Firebase Google popup
       const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
+      const idToken = await result.user.getIdToken(true);
 
       // Step 2: Send ID token to backend with role (employer or user/candidate)
       const response = await api.post("/auth/google-auth", {
@@ -305,7 +305,7 @@ const Login = () => {
                   name="emailOrUsername"
                   value={formData.emailOrUsername}
                   onChange={handleChange}
-                  placeholder="you@example.com"
+                  placeholder="Enter your email or username"
                   required
                   className="w-full h-11 rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm outline-none transition focus:border-[#1e3a8a] focus:ring-4 focus:ring-[#1e3a8a]/10"
                 />
@@ -416,20 +416,20 @@ const Login = () => {
           </>
 
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-            <p className="text-sm text-slate-500 mb-3">Don't have an account?</p>
+            <p className="text-sm text-slate-500 mb-3">New to CareerConnect?</p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link
                 to="/register/student"
                 className="text-[13px] font-semibold text-[#1e3a8a] hover:text-[#1e40af]"
               >
-                Student Register
+                Create Candidate Account
               </Link>
               <span className="text-slate-300">|</span>
               <Link
                 to="/register/employer"
                 className="text-[13px] font-semibold text-[#f59e0b] hover:text-[#d97706]"
               >
-                Employer Register
+                Create Employer Account
               </Link>
             </div>
           </div>

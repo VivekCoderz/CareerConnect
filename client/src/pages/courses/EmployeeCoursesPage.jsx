@@ -1,396 +1,496 @@
-import React from "react";
-import {
-  LayoutDashboard,
-  User,
-  BookOpen,
-  ClipboardList,
-  MessageSquare,
-  Settings,
-  Bell,
-  ChevronDown,
-  Menu,
-  Plus,
-  CalendarDays,
-  Pencil,
-  Trash2,
-  EyeOff,
-  Upload,
-  ChevronLeft,
-  ChevronRight,
-  Star,
-} from "lucide-react";
-
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import api from "../../services/api";
 import "./EmployeeCoursesPage.css";
 
 const EmployeeCoursesPage = () => {
-  // Temporary dummy data
-  // Baad mein isi jagah GET /api/courses/my-courses ka data aayega
-  const courses = [
-    {
-      id: 1,
-      title: "React Development for Beginners",
-      description:
-        "Learn React from scratch and build modern web applications with hands-on projects.",
-      category: "DEVELOPMENT",
-      level: "Beginner",
-      duration: "8 Weeks",
-      lessons: "15 Lessons",
-      rating: "4.8",
-      status: "Published",
-      createdOn: "20 Mar 2024",
-      image: "react",
-    },
-    {
-      id: 2,
-      title: "JavaScript Fundamentals",
-      description:
-        "Master the core concepts of JavaScript and improve your programming skills.",
-      category: "PROGRAMMING",
-      level: "Beginner",
-      duration: "6 Weeks",
-      lessons: "12 Lessons",
-      rating: "4.6",
-      status: "Draft",
-      createdOn: "18 Mar 2024",
-      image: "javascript",
-    },
-    {
-      id: 3,
-      title: "Node.js - Build Scalable Apps",
-      description:
-        "Learn Node.js, Express and MongoDB to build scalable backend applications.",
-      category: "BACKEND",
-      level: "Intermediate",
-      duration: "10 Weeks",
-      lessons: "18 Lessons",
-      rating: "4.7",
-      status: "Published",
-      createdOn: "15 Mar 2024",
-      image: "node",
-    },
-  ];
+  const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
+
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("All");
+  const [deletingId, setDeletingId] = useState(null);
+  const [statusLoading, setStatusLoading] = useState(null);
+
+  const loadCourses = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await api.get("/courses/my-courses");
+
+      const data = response?.data;
+
+      setCourses(
+        data?.courses ||
+          data?.data?.courses ||
+          (Array.isArray(data) ? data : [])
+      );
+    } catch (err) {
+      console.error("Failed to load courses:", err);
+      setError(
+        err?.response?.data?.message ||
+          "Unable to load your courses. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCourses();
+  }, []);
+
+  const filteredCourses = useMemo(() => {
+    return courses.filter((course) => {
+      const matchesSearch =
+        course.title?.toLowerCase().includes(search.toLowerCase()) ||
+        course.description?.toLowerCase().includes(search.toLowerCase()) ||
+        course.domain?.toLowerCase().includes(search.toLowerCase());
+
+      const status = course.status || "Draft";
+
+      const matchesFilter =
+        filter === "All" || status.toLowerCase() === filter.toLowerCase();
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [courses, search, filter]);
+
+  const stats = useMemo(() => {
+    const published = courses.filter(
+      (course) => course.status === "Published"
+    ).length;
+
+    const drafts = courses.filter(
+      (course) => course.status !== "Published"
+    ).length;
+
+    return {
+      total: courses.length,
+      published,
+      drafts,
+    };
+  }, [courses]);
+
+  const handleDelete = async (courseId) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this course?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(courseId);
+
+      await api.delete(`/courses/${courseId}`);
+
+      setCourses((prev) =>
+        prev.filter((course) => course._id !== courseId)
+      );
+    } catch (err) {
+      console.error("Delete course error:", err);
+      alert(
+        err?.response?.data?.message ||
+          "Unable to delete the course."
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleToggleStatus = async (course) => {
+    const newStatus =
+      course.status === "Published" ? "Draft" : "Published";
+
+    try {
+      setStatusLoading(course._id);
+
+      const response = await api.patch(
+        `/courses/${course._id}/status`,
+        {
+          status: newStatus,
+        }
+      );
+
+      const updatedCourse =
+        response?.data?.course ||
+        response?.data?.data?.course;
+
+      setCourses((prev) =>
+        prev.map((item) =>
+          item._id === course._id
+            ? updatedCourse || { ...item, status: newStatus }
+            : item
+        )
+      );
+    } catch (err) {
+      console.error("Status update error:", err);
+      alert(
+        err?.response?.data?.message ||
+          "Unable to update course status."
+      );
+    } finally {
+      setStatusLoading(null);
+    }
+  };
+
+  const getInitials = (name = "") => {
+    const words = name.trim().split(" ");
+
+    if (words.length >= 2) {
+      return `${words[0][0]}${words[1][0]}`.toUpperCase();
+    }
+
+    return name.slice(0, 2).toUpperCase() || "GU";
+  };
+
+  if (loading) {
+    return (
+      <div className="employee-courses-page">
+        <div className="courses-loading">
+          <div className="loading-spinner"></div>
+          <h3>Loading your courses...</h3>
+          <p>Please wait while we fetch your course workspace.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="employee-courses-page">
 
       {/* ================= HEADER ================= */}
-      <header className="employee-header">
+      <header className="courses-header">
+        <div>
+          <div className="breadcrumb">
+            Dashboard <span>/</span> Courses
+          </div>
 
-        <div className="header-left">
+          <h1>Course Management</h1>
 
-          <div className="university-logo">
-            <img
-              src="/geeta-university-logo.png"
-              alt="Geeta University"
+          <p>
+            Create, manage and publish learning content for
+            CareerConnect learners.
+          </p>
+        </div>
+
+        <button
+          className="create-course-btn"
+          onClick={() => navigate("/employer/courses/create")}
+        >
+          <span>+</span>
+          Create New Course
+        </button>
+      </header>
+
+      {/* ================= WELCOME CARD ================= */}
+      <section className="welcome-card">
+        <div className="welcome-content">
+          <div className="welcome-avatar">
+            {user?.profileImage ? (
+              <img
+                src={user.profileImage}
+                alt="Profile"
+              />
+            ) : (
+              getInitials(user?.fullName || user?.name)
+            )}
+          </div>
+
+          <div>
+            <p className="welcome-small">Welcome back</p>
+
+            <h2>
+              {user?.fullName || user?.name || "Course Creator"}
+            </h2>
+
+            <p>
+              Manage your courses and keep your learning content
+              up to date.
+            </p>
+          </div>
+        </div>
+
+        <div className="welcome-decoration">
+          <div>🎓</div>
+        </div>
+      </section>
+
+      {/* ================= STATS ================= */}
+      <section className="course-stats">
+
+        <div className="stat-card">
+          <div className="stat-icon total">📚</div>
+          <div>
+            <span>Total Courses</span>
+            <strong>{stats.total}</strong>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon published">✓</div>
+          <div>
+            <span>Published</span>
+            <strong>{stats.published}</strong>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon draft">📝</div>
+          <div>
+            <span>Drafts</span>
+            <strong>{stats.drafts}</strong>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon learners">👥</div>
+          <div>
+            <span>Learning Hub</span>
+            <strong>Active</strong>
+          </div>
+        </div>
+
+      </section>
+
+      {/* ================= TOOLBAR ================= */}
+      <section className="course-toolbar">
+
+        <div className="toolbar-left">
+          <h2>My Courses</h2>
+          <span>{filteredCourses.length} courses</span>
+        </div>
+
+        <div className="toolbar-right">
+
+          <div className="course-search">
+            <span>⌕</span>
+
+            <input
+              type="text"
+              placeholder="Search courses..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
-          <div className="header-divider"></div>
-
-          <button className="menu-button">
-            <Menu size={26} />
-          </button>
-
-        </div>
-
-        <div className="header-right">
-
-          <div className="notification-wrapper">
-            <Bell size={27} />
-            <span className="notification-count">3</span>
-          </div>
-
-          <div className="employee-profile">
-
-            <div className="employee-avatar">
-              E
-            </div>
-
-            <span className="employee-name">
-              Employee
-            </span>
-
-            <ChevronDown size={18} />
-
-          </div>
-
-        </div>
-
-      </header>
-
-
-      {/* ================= MAIN LAYOUT ================= */}
-
-      <div className="employee-layout">
-
-        {/* ================= SIDEBAR ================= */}
-
-        <aside className="employee-sidebar">
-
-          <nav className="sidebar-nav">
-
-            <a href="#" className="sidebar-item">
-              <LayoutDashboard size={23} />
-              <span>Dashboard</span>
-            </a>
-
-            <a href="#" className="sidebar-item">
-              <User size={23} />
-              <span>My Profile</span>
-            </a>
-
-            <a
-              href="/employer/courses"
-              className="sidebar-item active"
-            >
-              <BookOpen size={23} />
-              <span>My Courses</span>
-            </a>
-
-            <a href="#" className="sidebar-item">
-              <ClipboardList size={23} />
-              <span>Applications</span>
-            </a>
-
-            <a href="#" className="sidebar-item">
-              <MessageSquare size={23} />
-              <span>Messages</span>
-            </a>
-
-            <a href="#" className="sidebar-item">
-              <Settings size={23} />
-              <span>Settings</span>
-            </a>
-
-          </nav>
-
-        </aside>
-
-
-        {/* ================= CONTENT ================= */}
-
-        <main className="courses-content">
-
-          {/* Page heading */}
-
-          <div className="courses-heading">
-
-            <div>
-
-              <h1>My Courses</h1>
-
-              <div className="breadcrumb">
-                <span>Dashboard</span>
-                <span className="breadcrumb-arrow">›</span>
-                <span>My Courses</span>
-              </div>
-
-            </div>
-
-            <button className="create-course-btn">
-              <Plus size={22} />
-              <span>Create New Course</span>
-            </button>
-
-          </div>
-
-
-          {/* ================= COURSE LIST ================= */}
-
-          <div className="course-list">
-
-            {courses.map((course) => (
-
-              <div className="course-card" key={course.id}>
-
-                {/* Course Thumbnail */}
-
-                <div className={`course-thumbnail ${course.image}`}>
-
-                  {course.image === "react" && (
-                    <>
-                      <div className="react-symbol">⚛</div>
-                      <div className="thumbnail-title">
-                        React
-                      </div>
-                      <div className="thumbnail-subtitle">
-                        DEVELOPMENT
-                      </div>
-                    </>
-                  )}
-
-                  {course.image === "javascript" && (
-                    <>
-                      <div className="js-box">JS</div>
-                      <div className="thumbnail-title js-title">
-                        JavaScript
-                      </div>
-                      <div className="thumbnail-subtitle js-subtitle">
-                        FUNDAMENTALS
-                      </div>
-                    </>
-                  )}
-
-                  {course.image === "node" && (
-                    <>
-                      <div className="node-logo">
-                        node
-                        <span>.js</span>
-                      </div>
-
-                      <div className="thumbnail-title node-title">
-                        BUILD SCALABLE
-                      </div>
-
-                      <div className="thumbnail-subtitle node-subtitle">
-                        APPS
-                      </div>
-                    </>
-                  )}
-
-                </div>
-
-
-                {/* Course Information */}
-
-                <div className="course-info">
-
-                  <div className="course-category">
-                    {course.category}
-                  </div>
-
-                  <h2>{course.title}</h2>
-
-                  <p className="course-description">
-                    {course.description}
-                  </p>
-
-
-                  {/* Course Meta */}
-
-                  <div className="course-meta">
-
-                    <span>
-                      <CalendarDays size={17} />
-                      {course.level}
-                    </span>
-
-                    <span className="meta-dot">•</span>
-
-                    <span>{course.duration}</span>
-
-                    <span className="meta-dot">•</span>
-
-                    <span>{course.lessons}</span>
-
-                    <span className="meta-dot">•</span>
-
-                    <span className="rating">
-                      <Star
-                        size={17}
-                        fill="currentColor"
-                      />
-                      {course.rating}
-                    </span>
-
-                  </div>
-
-                </div>
-
-
-                {/* Right Section */}
-
-                <div className="course-actions-section">
-
-                  <div className="course-status-area">
-
-                    <span
-                      className={`course-status ${
-                        course.status === "Published"
-                          ? "published"
-                          : "draft"
-                      }`}
-                    >
-                      {course.status}
-                    </span>
-
-                    <p>
-                      Created on {course.createdOn}
-                    </p>
-
-                  </div>
-
-
-                  {/* Buttons */}
-
-                  <div className="course-buttons">
-
-                    <button className="edit-btn">
-                      <Pencil size={18} />
-                      <span>Edit</span>
-                    </button>
-
-                    <button className="delete-btn">
-                      <Trash2 size={18} />
-                      <span>Delete</span>
-                    </button>
-
-                    {course.status === "Published" ? (
-
-                      <button className="unpublish-btn">
-                        <EyeOff size={18} />
-                        <span>Unpublish</span>
-                      </button>
-
-                    ) : (
-
-                      <button className="publish-btn">
-                        <Upload size={18} />
-                        <span>Publish</span>
-                      </button>
-
-                    )}
-
-                  </div>
-
-                </div>
-
-              </div>
-
+          <div className="course-filters">
+
+            {["All", "Published", "Draft"].map((item) => (
+              <button
+                key={item}
+                className={filter === item ? "active" : ""}
+                onClick={() => setFilter(item)}
+              >
+                {item}
+              </button>
             ))}
 
           </div>
 
+        </div>
+      </section>
 
-          {/* ================= BOTTOM ================= */}
-
-          <div className="courses-bottom">
-
-            <p>
-              Showing 1 to 3 of 3 courses
-            </p>
-
-            <div className="pagination">
-
-              <button className="pagination-arrow">
-                <ChevronLeft size={20} />
-              </button>
-
-              <button className="pagination-number active-page">
-                1
-              </button>
-
-              <button className="pagination-arrow">
-                <ChevronRight size={20} />
-              </button>
-
-            </div>
-
+      {/* ================= ERROR ================= */}
+      {error && (
+        <div className="course-error">
+          <div>
+            <strong>Something went wrong</strong>
+            <p>{error}</p>
           </div>
 
-        </main>
+          <button onClick={loadCourses}>
+            Try Again
+          </button>
+        </div>
+      )}
 
-      </div>
+      {/* ================= EMPTY ================= */}
+      {!error && filteredCourses.length === 0 && (
+        <div className="empty-courses">
+
+          <div className="empty-icon">📚</div>
+
+          <h3>
+            {search || filter !== "All"
+              ? "No matching courses"
+              : "No courses yet"}
+          </h3>
+
+          <p>
+            {search || filter !== "All"
+              ? "Try changing your search or filter."
+              : "Create your first course and start building your learning content."}
+          </p>
+
+          {!search && filter === "All" && (
+            <button
+              onClick={() =>
+                navigate("/employer/courses/create")
+              }
+            >
+              + Create Your First Course
+            </button>
+          )}
+
+        </div>
+      )}
+
+      {/* ================= COURSE GRID ================= */}
+      {filteredCourses.length > 0 && (
+        <section className="course-grid">
+
+          {filteredCourses.map((course) => {
+
+            const isPublished =
+              course.status === "Published";
+
+            return (
+              <article
+                className="course-card"
+                key={course._id}
+              >
+
+                {/* Thumbnail */}
+                <div className="course-thumbnail">
+
+                  {course.thumbnail ? (
+                    <img
+                      src={course.thumbnail}
+                      alt={course.title}
+                    />
+                  ) : (
+                    <div className="thumbnail-placeholder">
+                      <span>🎓</span>
+                    </div>
+                  )}
+
+                  <span
+                    className={`course-status ${
+                      isPublished
+                        ? "published-status"
+                        : "draft-status"
+                    }`}
+                  >
+                    {isPublished
+                      ? "● Published"
+                      : "● Draft"}
+                  </span>
+
+                </div>
+
+                {/* Content */}
+                <div className="course-card-content">
+
+                  <div className="course-domain">
+                    {course.domain || "General"}
+                  </div>
+
+                  <h3>{course.title}</h3>
+
+                  <p className="course-description">
+                    {course.description ||
+                      "No course description available."}
+                  </p>
+
+                  <div className="course-meta">
+
+                    <span>
+                      📖 Course
+                    </span>
+
+                    {course.duration && (
+                      <span>
+                        ⏱ {course.duration}
+                        {course.durationUnit
+                          ? ` ${course.durationUnit}`
+                          : ""}
+                      </span>
+                    )}
+
+                  </div>
+
+                  <div className="course-divider"></div>
+
+                  {/* Actions */}
+                  <div className="course-actions">
+
+                    <button
+                      className="manage-btn"
+                      onClick={() =>
+                        navigate(
+                          `/employer/courses/${course._id}/content`
+                        )
+                      }
+                    >
+                      Manage Content
+                      <span>→</span>
+                    </button>
+
+                    <div className="secondary-actions">
+
+                      <button
+                        title="Edit Course"
+                        onClick={() =>
+                          navigate(
+                            `/employer/courses/${course._id}/edit`
+                          )
+                        }
+                      >
+                        ✏️
+                      </button>
+
+                      <button
+                        title={
+                          isPublished
+                            ? "Unpublish"
+                            : "Publish"
+                        }
+                        disabled={
+                          statusLoading === course._id
+                        }
+                        onClick={() =>
+                          handleToggleStatus(course)
+                        }
+                      >
+                        {statusLoading === course._id
+                          ? "..."
+                          : isPublished
+                          ? "↩"
+                          : "🚀"}
+                      </button>
+
+                      <button
+                        title="Delete Course"
+                        disabled={
+                          deletingId === course._id
+                        }
+                        onClick={() =>
+                          handleDelete(course._id)
+                        }
+                      >
+                        {deletingId === course._id
+                          ? "..."
+                          : "🗑️"}
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </article>
+            );
+          })}
+
+        </section>
+      )}
 
     </div>
   );
