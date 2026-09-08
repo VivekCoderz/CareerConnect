@@ -2,16 +2,16 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User.js");
 
 /**
- * Authentication Middleware with Redis Session Support & Fallback JWT Verification
+ * Authentication Middleware with Mongoose Session Support & Fallback JWT Verification
  * 
- * 1. Checks Redis Session (`req.session.user`).
+ * 1. Checks MongoDB Session (`req.session.user`).
  * 2. On activity, updates in-session `lastActive` timestamp (rolling: true extends TTL).
  * 3. Falls back to Bearer / Cookie JWT if token is provided.
  * 4. Returns 401 with distinct codes for NOT_AUTHENTICATED, SESSION_EXPIRED, INVALID_TOKEN, and USER_NOT_FOUND.
  */
 const protect = async (req, res, next) => {
   try {
-    // 1. Primary Authentication: Active Redis Session
+    // 1. Primary Authentication: Active MongoDB Session
     if (req.session && req.session.user && req.session.user.userId) {
       const user = await User.findById(req.session.user.userId).select("-password");
 
@@ -90,8 +90,7 @@ const protect = async (req, res, next) => {
     }
 
     req.user = user;
-
-    // Automatically seed Redis session if not yet active
+    // Automatically seed MongoDB session if not yet active
     if (req.session && !req.session.user) {
       req.session.user = {
         userId: user._id.toString(),
@@ -102,7 +101,6 @@ const protect = async (req, res, next) => {
         lastActive: new Date(),
       };
     }
-
     return next();
   } catch (error) {
     return res.status(401).json({

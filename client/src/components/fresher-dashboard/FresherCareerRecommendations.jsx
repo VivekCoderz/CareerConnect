@@ -5,12 +5,15 @@ const FresherCareerRecommendations = ({ recommendations = [] }) => {
     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 tracking-tight">Recommended For You</h2>
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight">Career Recommendations</h2>
           <p className="text-xs text-slate-500 mt-0.5">High-impact actions to boost your recruiter visibility and job readiness</p>
         </div>
-        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
-          Career Insights
-        </span>
+        <Link
+          to="/fresher/career-recommendations"
+          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition"
+        >
+          View All Recommendations →
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">

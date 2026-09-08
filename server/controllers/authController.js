@@ -61,6 +61,8 @@ const generateUsername = (email) => {
   return `${base}${random}`;
 };
 
+const { validatePhoneFormat } = require("../middleware/validationMiddleware");
+
 // Helper: Generate unique username (ensures no collision)
 const generateUniqueUsername = async (email) => {
   let attempts = 0;
@@ -73,6 +75,30 @@ const generateUniqueUsername = async (email) => {
   return `user${Date.now()}`;
 };
 
+// Helper: Check if phone number is already registered across any user
+const isPhoneAlreadyTaken = async (phone, countryCode = "+91", excludeUserId = null) => {
+  if (!phone) return false;
+  const digits = String(phone).replace(/\D/g, "");
+  if (!digits) return false;
+  const last10 = digits.slice(-10);
+
+  const orConditions = [
+    { phone: digits, countryCode: countryCode },
+    { phone: last10, countryCode: countryCode },
+    { phone: digits },
+    { phone: `${countryCode}${digits}` },
+    { phone: `${countryCode}${last10}` },
+  ];
+
+  const query = { $or: orConditions };
+  if (excludeUserId) {
+    query._id = { $ne: excludeUserId };
+  }
+
+  const existing = await User.findOne(query);
+  return !!existing;
+};
+
 // Shared user payload shape
 const userPayload = (user, extra = {}) => ({
   _id: user._id,
@@ -80,6 +106,7 @@ const userPayload = (user, extra = {}) => ({
   fullName: user.fullName,
   username: user.username,
   email: user.email,
+  countryCode: user.countryCode || "+91",
   phone: user.phone,
   profileImage: user.profileImage,
   role: user.role,
@@ -295,6 +322,7 @@ module.exports.registerUser = async (req, res, next) => {
     const {
       fullName,
       email,
+      countryCode = "+91",
       phone,
       password,
       confirmPassword,
@@ -338,12 +366,35 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
-    const cleanPhone = phone ? phone.toString().trim().replace(/\D/g, "") : "";
-    if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+    if (!phone || !phone.toString().trim()) {
       return res.status(400).json({
         success: false,
         field: "phone",
-        message: "Please enter a valid 10-digit mobile number containing only numeric digits (0-9)",
+        message: "Mobile number is required",
+      });
+    }
+
+    const cleanPhone = phone.toString().trim().replace(/\D/g, "");
+    const cleanCountryCode = countryCode?.trim() || "+91";
+
+    if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
+      return res.status(400).json({
+        success: false,
+        field: "phone",
+        message:
+          cleanCountryCode === "+91"
+            ? "Please enter a valid 10-digit mobile number"
+            : "Please enter a valid mobile number (6-15 digits)",
+      });
+    }
+
+    // Check duplicate phone number
+    const phoneExists = await isPhoneAlreadyTaken(cleanPhone, cleanCountryCode);
+    if (phoneExists) {
+      return res.status(409).json({
+        success: false,
+        field: "phone",
+        message: "Yeh mobile number pehle se registered hai (Mobile number is already registered)",
       });
     }
 
@@ -407,7 +458,8 @@ module.exports.registerUser = async (req, res, next) => {
     const userData = {
       fullName: fullName.trim(),
       email: normalizedEmail,
-      phone: phone.trim(),
+      countryCode: cleanCountryCode,
+      phone: cleanPhone,
       password,
       userType,
       authProviders: ["email"],
@@ -619,6 +671,7 @@ module.exports.firebaseLogin = async (req, res, next) => {
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
     } catch (firebaseErr) {
+      console.error("[GoogleAuth Link] verifyIdToken failed:", firebaseErr.message);
       return res.status(401).json({
         success: false,
         message: "Invalid or expired Firebase token. Please sign in again.",
@@ -709,6 +762,7 @@ module.exports.googleAuth = async (req, res, next) => {
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
     } catch (firebaseErr) {
+      console.error("[GoogleAuth] verifyIdToken failed:", firebaseErr.message);
       return res.status(401).json({
         success: false,
         message: "Invalid or expired Firebase token. Please try again.",
@@ -861,6 +915,7 @@ module.exports.completePasswordSetup = async (req, res, next) => {
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
     } catch (firebaseErr) {
+      console.error("[SetPasswordGoogle] verifyIdToken failed:", firebaseErr.message);
       return res.status(401).json({
         success: false,
         message: "Invalid or expired Firebase token. Please sign in again.",
@@ -1028,6 +1083,33 @@ module.exports.checkEmail = async (req, res) => {
 
     return res.status(200).json({
       exists: !!user,
+    });
+  } catch (error) {
+    return res.status(200).json({ exists: false });
+  }
+};
+
+// ==========================================
+// CHECK PHONE
+// ==========================================
+module.exports.checkPhone = async (req, res) => {
+  try {
+    const { phone, countryCode = "+91" } = req.body;
+    if (!phone) {
+      return res.status(200).json({ exists: false });
+    }
+
+    const cleanPhone = String(phone).replace(/\D/g, "");
+    const cleanCountryCode = countryCode.trim() || "+91";
+
+    const exists = await isPhoneAlreadyTaken(
+      cleanPhone,
+      cleanCountryCode,
+      req.user?._id || req.user?.id || null
+    );
+
+    return res.status(200).json({
+      exists,
     });
   } catch (error) {
     return res.status(200).json({ exists: false });
@@ -1242,6 +1324,7 @@ module.exports.registerEmployer = async (req, res, next) => {
     const {
       companyName,
       email,
+      countryCode = "+91",
       phone,
       password,
       confirmPassword,
@@ -1271,12 +1354,34 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     }
 
-    const cleanPhone = phone ? phone.toString().trim().replace(/\D/g, "") : "";
-    if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+    if (!phone || !phone.toString().trim()) {
       return res.status(400).json({
         success: false,
         field: "phone",
-        message: "Please enter a valid 10-digit mobile number containing only numeric digits (0-9)",
+        message: "Mobile number is required",
+      });
+    }
+
+    const cleanPhone = phone.toString().trim().replace(/\D/g, "");
+    const cleanCountryCode = countryCode?.trim() || "+91";
+
+    if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
+      return res.status(400).json({
+        success: false,
+        field: "phone",
+        message:
+          cleanCountryCode === "+91"
+            ? "Please enter a valid 10-digit mobile number"
+            : "Please enter a valid mobile number (6-15 digits)",
+      });
+    }
+
+    const phoneExists = await isPhoneAlreadyTaken(cleanPhone, cleanCountryCode);
+    if (phoneExists) {
+      return res.status(409).json({
+        success: false,
+        field: "phone",
+        message: "Yeh mobile number pehle se registered hai (Mobile number is already registered)",
       });
     }
 
@@ -1369,7 +1474,8 @@ module.exports.registerEmployer = async (req, res, next) => {
     const user = await User.create({
       fullName: contactPerson.trim(),
       email: normalizedEmail,
-      phone: phone.trim(),
+      countryCode: cleanCountryCode,
+      phone: cleanPhone,
       password,
       role: "employer",
       userType: "employer",
@@ -1457,6 +1563,7 @@ module.exports.registerEmployer = async (req, res, next) => {
 module.exports.completeGoogleOnboarding = async (req, res, next) => {
   try {
     const {
+      countryCode = "+91",
       phone,
       linkedin,
       github,
@@ -1494,12 +1601,26 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
       });
     }
 
-    const phoneDigits = phone.replace(/\D/g, "").slice(-10);
-    if (!/^[6-9]\d{9}$/.test(phoneDigits)) {
+    const cleanPhone = phone.replace(/\D/g, "");
+    const cleanCountryCode = countryCode.trim() || "+91";
+
+    if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
       return res.status(400).json({
         success: false,
         field: "phone",
-        message: "Please enter a valid 10-digit mobile number",
+        message:
+          cleanCountryCode === "+91"
+            ? "Please enter a valid 10-digit mobile number"
+            : "Please enter a valid mobile number (6-15 digits)",
+      });
+    }
+
+    const phoneExists = await isPhoneAlreadyTaken(cleanPhone, cleanCountryCode, userId);
+    if (phoneExists) {
+      return res.status(409).json({
+        success: false,
+        field: "phone",
+        message: "Yeh mobile number pehle se registered hai (Mobile number is already registered)",
       });
     }
 
@@ -1538,7 +1659,8 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
 
     // -------- Update User document --------
     const updateData = {
-      phone: phone.trim(),
+      countryCode: cleanCountryCode,
+      phone: cleanPhone,
       userType,
       socialLinks: {
         linkedin: linkedin?.trim() || "",
@@ -1642,6 +1764,7 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
 module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
   try {
     const {
+      countryCode = "+91",
       phone,
       companyName,
       contactPerson,
@@ -1656,12 +1779,31 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
 
     // -------- Validation --------
     if (!phone?.trim()) {
-      return res.status(400).json({ success: false, field: "phone", message: "Phone number is required" });
+      return res.status(400).json({ success: false, field: "phone", message: "Mobile number is required" });
     }
-    const phoneDigits = phone.replace(/\D/g, "").slice(-10);
-    if (!/^[6-9]\d{9}$/.test(phoneDigits)) {
-      return res.status(400).json({ success: false, field: "phone", message: "Please enter a valid 10-digit mobile number" });
+    const cleanPhone = phone.replace(/\D/g, "");
+    const cleanCountryCode = countryCode.trim() || "+91";
+
+    if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
+      return res.status(400).json({
+        success: false,
+        field: "phone",
+        message:
+          cleanCountryCode === "+91"
+            ? "Please enter a valid 10-digit mobile number"
+            : "Please enter a valid mobile number (6-15 digits)",
+      });
     }
+
+    const phoneExists = await isPhoneAlreadyTaken(cleanPhone, cleanCountryCode, userId);
+    if (phoneExists) {
+      return res.status(409).json({
+        success: false,
+        field: "phone",
+        message: "Yeh mobile number pehle se registered hai (Mobile number is already registered)",
+      });
+    }
+
     if (!companyName?.trim()) {
       return res.status(400).json({ success: false, field: "companyName", message: "Company name is required" });
     }
@@ -1682,7 +1824,8 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
     const user = await User.findByIdAndUpdate(
       userId,
       {
-        phone: phone.trim(),
+        countryCode: cleanCountryCode,
+        phone: cleanPhone,
         role: "employer",
         userType: "employer",
         profileCompletion: 40,

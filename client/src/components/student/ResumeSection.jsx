@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { updateStudentProfile } from "../../services/studentProfileService";
+import ResumeUploadInput from "../common/ResumeUploadInput";
 
 const ResumeSection = ({
   resume,
@@ -16,8 +17,20 @@ const ResumeSection = ({
 
   const [saving, setSaving] = useState(false);
 
+  const handleResumeChange = (newUrl, meta) => {
+    setUrl(newUrl);
+    if (meta?.fileName && (!name || name === "Student_Professional_Resume.pdf")) {
+      setName(meta.fileName);
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
+
+    if (!url) {
+      alert("Please upload a resume file or paste a resume URL first.");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -45,8 +58,8 @@ const ResumeSection = ({
     <section className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-5">
       <div className="pb-4 border-b border-slate-100 flex justify-between items-center flex-wrap gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Resume & CV Links</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Attach your hosted resume link or build a new ATS resume</p>
+          <h2 className="text-lg font-bold text-slate-900">Resume & CV Documents</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Upload your resume from your device or paste a hosted link</p>
         </div>
         <Link
           to="/resume-builder?mode=choose"
@@ -94,25 +107,21 @@ const ResumeSection = ({
       )}
 
       <form onSubmit={handleSave} className="space-y-4 pt-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-4">
+          <ResumeUploadInput
+            value={url}
+            onChange={handleResumeChange}
+            label="Resume Document or Online Link"
+            helperText="Supported formats: PDF, DOC, DOCX up to 10MB or direct URLs."
+          />
+
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Resume Name / Title</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Display Name / Title (Optional)</label>
             <input
               type="text"
               placeholder="e.g. John_Doe_FullStack_Resume.pdf"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full h-11 px-4 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-xs sm:text-sm outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Resume URL (Drive / Cloud Link)</label>
-            <input
-              type="url"
-              placeholder="https://drive.google.com/..."
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
               className="w-full h-11 px-4 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-xs sm:text-sm outline-none"
             />
           </div>

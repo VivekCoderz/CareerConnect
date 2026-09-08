@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ResumeUploadInput from "../common/ResumeUploadInput";
 
 const ResumeSection = ({ profile, user, onChange }) => {
   const [resumeData, setResumeData] = useState({
@@ -10,6 +11,7 @@ const ResumeSection = ({ profile, user, onChange }) => {
 
   const [activeTab, setActiveTab] = useState("builder"); // 'builder' | 'upload'
   const [uploadUrl, setUploadUrl] = useState(profile?.resume?.resumeUrl || "");
+  const [uploadResumeName, setUploadResumeName] = useState(profile?.resume?.resumeName || "");
 
   const handleSetGenerated = () => {
     const updated = {
@@ -28,7 +30,7 @@ const ResumeSection = ({ profile, user, onChange }) => {
 
     const updated = {
       resumeUrl: uploadUrl.trim(),
-      resumeName: uploadUrl.split("/").pop() || "Uploaded_Resume.pdf",
+      resumeName: uploadResumeName || uploadUrl.split("/").pop() || "Uploaded_Resume.pdf",
       isGenerated: false,
       uploadedAt: new Date().toISOString(),
     };
@@ -335,22 +337,16 @@ const ResumeSection = ({ profile, user, onChange }) => {
       ) : (
         /* Upload Tab */
         <form onSubmit={handleSaveUpload} className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
-              Direct Resume URL / Cloud Drive Link
-            </label>
-            <input
-              type="url"
-              required
-              placeholder="https://drive.google.com/... or https://domain.com/my-resume.pdf"
-              value={uploadUrl}
-              onChange={(e) => setUploadUrl(e.target.value)}
-              className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-500"
-            />
-            <p className="text-[11px] text-slate-400 mt-1.5">
-              Ensure permissions are set to "Anyone with the link can view".
-            </p>
-          </div>
+          <ResumeUploadInput
+            value={uploadUrl}
+            onChange={(url, meta) => {
+              setUploadUrl(url);
+              if (meta?.fileName) setUploadResumeName(meta.fileName);
+            }}
+            required={true}
+            label="Upload Resume File or Provide Link"
+            helperText="Upload PDF, DOC, or DOCX (up to 10MB) or paste an accessible URL."
+          />
 
           <div className="flex items-center justify-between pt-2">
             <button
@@ -365,7 +361,7 @@ const ResumeSection = ({ profile, user, onChange }) => {
               type="submit"
               className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs"
             >
-              Save Resume Link
+              Save Resume
             </button>
           </div>
         </form>

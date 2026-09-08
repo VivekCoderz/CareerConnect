@@ -55,6 +55,27 @@ api.interceptors.response.use(
         window.location.replace("/login?expired=1");
       }
     }
+
+    // Handle 429 (Rate Limit Warning) & 403 (24h Block / IP Block)
+    if (
+      error.response?.status === 429 ||
+      (error.response?.status === 403 &&
+        (error.response?.data?.code === "TEMPORARILY_BLOCKED_24H" ||
+          error.response?.data?.code === "IP_BLOCKED" ||
+          error.response?.data?.isBlocked24h))
+    ) {
+      const alertPayload = error.response?.data || {
+        message: "Too many requests. Please slow down.",
+        code:
+          error.response?.status === 429
+            ? "RATE_LIMIT_WARNING"
+            : "TEMPORARILY_BLOCKED_24H",
+      };
+      window.dispatchEvent(
+        new CustomEvent("rate_limit_alert", { detail: alertPayload })
+      );
+    }
+
     return Promise.reject(error);
   }
 );

@@ -1,9 +1,10 @@
 import React from "react";
-import { CheckCircle2, Clock, Award } from "lucide-react";
+import { CheckCircle2, Clock, Award, Sparkles } from "lucide-react";
 
 /**
  * CourseProgress
  * Visual progress bar and metrics component for CareerConnect LMS.
+ * Supports completion badges, lesson counters, and responsive progress bars.
  */
 const CourseProgress = ({
   progress = 0,
@@ -37,12 +38,12 @@ const CourseProgress = ({
         <div className="flex items-center justify-between font-medium">
           <div className="flex items-center gap-1.5 text-slate-700">
             {isComplete ? (
-              <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+              <span className="flex items-center gap-1 text-emerald-600 font-bold">
                 <CheckCircle2 size={15} />
-                <span>Completed</span>
+                <span>Course Completed 🎉</span>
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-slate-600">
+              <span className="flex items-center gap-1 text-slate-600 font-semibold">
                 <Clock size={14} className="text-[#1e3a8a]" />
                 <span>In Progress</span>
               </span>
@@ -55,7 +56,7 @@ const CourseProgress = ({
           </div>
 
           <span
-            className={`font-bold ${
+            className={`font-extrabold ${
               isComplete ? "text-emerald-600" : "text-[#1e3a8a]"
             } ${textClasses[size]}`}
           >
@@ -71,12 +72,19 @@ const CourseProgress = ({
         <div
           className={`h-full transition-all duration-500 rounded-full ${
             isComplete
-              ? "bg-gradient-to-r from-emerald-500 to-teal-600"
-              : "bg-gradient-to-r from-[#1e3a8a] to-[#1e40af]"
+              ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600"
+              : "bg-gradient-to-r from-[#1e3a8a] via-[#1e40af] to-indigo-600"
           }`}
           style={{ width: `${normalizedProgress}%` }}
         />
       </div>
+
+      {isComplete && (
+        <div className="pt-0.5 flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+          <Sparkles size={12} className="text-amber-500" />
+          <span>Congratulations! You've mastered all learning modules in this course.</span>
+        </div>
+      )}
     </div>
   );
 };

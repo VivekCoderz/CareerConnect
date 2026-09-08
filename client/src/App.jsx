@@ -39,6 +39,7 @@ import MyApplications from "./pages/student/MyApplications";
 // Fresher
 import FresherDashboard from "./pages/fresher/FresherDashboard";
 import FresherProfile from "./pages/fresher/FresherProfile";
+import CareerRecommendationsPage from "./pages/fresher/CareerRecommendationsPage";
 
 // Professional
 import ProfessionalDashboard from "./pages/professional/ProfessionalDashboard";
@@ -54,6 +55,9 @@ import EditInternship from "./pages/employer/EditInternship";
 
 // Resume Builder
 import ResumeBuilder from "./pages/resume/ResumeBuilder";
+
+// Global Rate Limit Warning Modal
+import RateLimitWarningModal from "./components/RateLimitWarningModal";
 
 // Redux
 import { getCurrentUser } from "./services/authService";
@@ -137,6 +141,7 @@ const AuthInitializer = ({ children }) => {
 function App() {
   return (
     <BrowserRouter>
+      <RateLimitWarningModal />
       <AuthInitializer>
         <Routes>
           {/* =================================================
@@ -247,6 +252,7 @@ function App() {
             <Route path="/fresher/dashboard" element={<FresherDashboard />} />
             <Route path="/fresher/profile" element={<FresherProfile />} />
             <Route path="/fresher/profile/setup" element={<FresherProfile />} />
+            <Route path="/fresher/career-recommendations" element={<CareerRecommendationsPage />} />
           </Route>
 
           {/* =================================================

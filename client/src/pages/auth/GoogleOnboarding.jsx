@@ -4,6 +4,8 @@ import { useDispatch, useSelector } from "react-redux";
 import api from "../../api/api";
 import { updateUserProfile } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import ResumeUploadInput from "../../components/common/ResumeUploadInput";
+import PhoneInput from "../../components/common/PhoneInput";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -57,13 +59,14 @@ const GoogleOnboarding = () => {
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
 
-  // Resume upload state
-  const [resumeFile, setResumeFile] = useState(null);
-  const [resumeUploading, setResumeUploading] = useState(false);
+  // Resume state
+  const [resumeUrl, setResumeUrl] = useState("");
+  const [resumeName, setResumeName] = useState("");
   const [resumeUploaded, setResumeUploaded] = useState(false);
   const isOnboardingActiveRef = useRef(true);
 
   const [formData, setFormData] = useState({
+    countryCode: "+91",
     phone: "",
     linkedin: "",
     github: "",
@@ -107,11 +110,15 @@ const GoogleOnboarding = () => {
   const validateStep1 = () => {
     const errors = {};
     if (!formData.phone.trim()) {
-      errors.phone = "Phone number is required";
+      errors.phone = "Mobile number is required";
     } else {
-      const digits = formData.phone.replace(/\D/g, "").slice(-10);
-      if (!/^[6-9]\d{9}$/.test(digits)) {
-        errors.phone = "Please enter a valid 10-digit mobile number";
+      const digits = formData.phone.replace(/\D/g, "");
+      if (formData.countryCode === "+91") {
+        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+          errors.phone = "Please enter a valid 10-digit mobile number";
+        }
+      } else if (digits.length < 6 || digits.length > 15) {
+        errors.phone = "Please enter a valid mobile number (6-15 digits)";
       }
     }
     setFieldErrors(errors);
@@ -142,8 +149,25 @@ const GoogleOnboarding = () => {
   };
 
   // ─── Step 1 → 2 ─────────────────────────────────────────────────────────────
-  const handleStep1Next = () => {
+  const handleStep1Next = async () => {
     if (!validateStep1()) return;
+
+    try {
+      const checkRes = await api.post("/auth/check-phone", {
+        phone: formData.phone.trim(),
+        countryCode: formData.countryCode || "+91",
+      });
+      if (checkRes.data?.exists) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          phone: "This mobile number is already registered with another account",
+        }));
+        return;
+      }
+    } catch (err) {
+      console.warn("Phone check warning:", err.message);
+    }
+
     setStep(2);
     setFieldErrors({});
   };
@@ -157,6 +181,7 @@ const GoogleOnboarding = () => {
 
     try {
       const payload = {
+        countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         linkedin: formData.linkedin.trim(),
         github: formData.github.trim(),
@@ -197,62 +222,52 @@ const GoogleOnboarding = () => {
       setSubmitError(msg);
       if (err.response?.data?.field) {
         setFieldErrors({ [err.response.data.field]: msg });
+        if (err.response.data.field === "phone") {
+          setStep(1);
+        }
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── Resume Upload ───────────────────────────────────────────────────────────
-  const handleResumeChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.type !== "application/pdf") {
-      setSubmitError("Please upload a PDF file.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setSubmitError("File size must be under 5 MB.");
-      return;
-    }
-    setResumeFile(file);
+  // ─── Resume Change & Finish ──────────────────────────────────────────────────
+  const handleResumeChange = (url, meta) => {
+    setResumeUrl(url);
+    if (meta?.fileName) setResumeName(meta.fileName);
+    setResumeUploaded(!!url);
     setSubmitError("");
-  };
-
-  const handleResumeUpload = async () => {
-    if (!resumeFile) return;
-    setResumeUploading(true);
-    setSubmitError("");
-
-    try {
-      const formPayload = new FormData();
-      formPayload.append("resume", resumeFile);
-
-      const res = await api.post("/resume/upload", formPayload, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setResumeUploaded(true);
-      if (res.data?.resumeUrl) {
-        dispatch(
-          updateUserProfile({
-            resumeUrl: res.data.resumeUrl,
-            resumeName: res.data.resumeName,
-          })
-        );
-      }
-    } catch (err) {
-      console.error("[GoogleOnboarding] Resume upload failed:", err);
-      setSubmitError(
-        err.response?.data?.message || "Failed to upload resume. Please try again."
-      );
-    } finally {
-      setResumeUploading(false);
-    }
   };
 
   // ─── Finish Onboarding ───────────────────────────────────────────────────────
-  const handleFinish = () => {
+  const handleFinish = async () => {
     isOnboardingActiveRef.current = false;
+    if (resumeUrl) {
+      try {
+        const finalName = resumeName || "Candidate_Resume.pdf";
+        dispatch(
+          updateUserProfile({
+            resumeUrl,
+            resumeName: finalName,
+          })
+        );
+        if (userType === "student") {
+          await api.put("/student/profile", {
+            resume: { resumeUrl, resumeName: finalName, uploadedAt: new Date() },
+          });
+        } else if (userType === "fresher") {
+          await api.put("/fresher/profile", {
+            resume: { resumeUrl, resumeName: finalName, uploadedAt: new Date(), isGenerated: false },
+          });
+        } else if (userType === "professional") {
+          await api.put("/professional/profile", {
+            resume: { resumeUrl, resumeName: finalName, uploadedAt: new Date(), isGenerated: false },
+          });
+        }
+      } catch (err) {
+        console.error("[GoogleOnboarding] Failed to persist resume on finish:", err);
+      }
+    }
     navigate(getDashboardPath(userType, user), { replace: true });
   };
 
@@ -390,22 +405,17 @@ const GoogleOnboarding = () => {
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
                     Mobile Number <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-                      <PhoneIcon />
-                    </div>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      placeholder="+91 98765 43210"
-                      className={`${inputCls(fieldErrors.phone)} pl-11`}
-                    />
-                  </div>
-                  {fieldErrors.phone && (
-                    <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>
-                  )}
+                  <PhoneInput
+                    countryCode={formData.countryCode}
+                    onCountryCodeChange={(code) => setFormData((prev) => ({ ...prev, countryCode: code }))}
+                    phone={formData.phone}
+                    onPhoneChange={(val) => {
+                      setFormData((prev) => ({ ...prev, phone: val }));
+                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
+                    error={fieldErrors.phone}
+                    theme="blue"
+                  />
                 </div>
 
                 {/* LinkedIn */}
@@ -694,55 +704,22 @@ const GoogleOnboarding = () => {
               <div className="mb-7">
                 <p className="text-[13px] font-semibold text-[#1e3a8a] mb-1.5">Step 3 of 3</p>
                 <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Upload your resume
+                  Upload or Link Your Resume
                 </h2>
                 <p className="text-sm text-slate-500 mt-1.5">
-                  Upload a PDF resume to apply to internships faster. You can skip this for now.
+                  Upload a resume file (PDF, DOC, DOCX) or paste an online link to apply faster. You can also skip this for now.
                 </p>
               </div>
 
-              {/* Upload area */}
-              <label
-                htmlFor="resume-upload"
-                className={`flex flex-col items-center justify-center w-full h-40 rounded-2xl border-2 border-dashed cursor-pointer transition ${
-                  resumeFile
-                    ? "border-[#1e3a8a] bg-[#eff6ff]"
-                    : "border-slate-300 bg-slate-50 hover:border-[#1e3a8a] hover:bg-[#eff6ff]/40"
-                }`}
-              >
-                <input
-                  id="resume-upload"
-                  type="file"
-                  accept=".pdf"
-                  className="hidden"
+              {/* Universal Resume Input */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                <ResumeUploadInput
+                  value={resumeUrl}
                   onChange={handleResumeChange}
+                  label="Resume Document or URL"
+                  helperText="Supported formats: PDF, DOC, DOCX up to 10MB or direct URLs."
                 />
-                {resumeFile ? (
-                  <div className="text-center px-4">
-                    <div className="w-12 h-12 rounded-xl bg-[#1e3a8a] text-white flex items-center justify-center mx-auto mb-3">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    <p className="text-sm font-semibold text-[#1e3a8a] truncate max-w-[240px]">
-                      {resumeFile.name}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {(resumeFile.size / 1024 / 1024).toFixed(2)} MB · Click to change
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-center px-4">
-                    <div className="w-12 h-12 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center mx-auto mb-3">
-                      <UploadIcon />
-                    </div>
-                    <p className="text-sm font-semibold text-slate-700">
-                      Click to upload your resume
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">PDF only · Max 5 MB</p>
-                  </div>
-                )}
-              </label>
+              </div>
 
               {/* Upload success */}
               {resumeUploaded && (
@@ -750,7 +727,7 @@ const GoogleOnboarding = () => {
                   <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
                     <CheckIcon />
                   </div>
-                  Resume uploaded successfully!
+                  Resume ready and attached!
                 </div>
               )}
 
@@ -759,24 +736,6 @@ const GoogleOnboarding = () => {
               )}
 
               <div className="mt-6 space-y-3">
-                {/* Upload button — only shown if file selected and not yet uploaded */}
-                {resumeFile && !resumeUploaded && (
-                  <button
-                    onClick={handleResumeUpload}
-                    disabled={resumeUploading}
-                    className="w-full h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] disabled:bg-blue-400 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm"
-                  >
-                    {resumeUploading ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      "Upload Resume"
-                    )}
-                  </button>
-                )}
-
                 {/* Go to Dashboard */}
                 <button
                   onClick={handleFinish}
@@ -786,7 +745,7 @@ const GoogleOnboarding = () => {
                       : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
                 >
-                  {resumeUploaded ? "Go to Dashboard →" : "Skip for now →"}
+                  {resumeUploaded ? "Save & Go to Dashboard →" : "Skip for now →"}
                 </button>
               </div>
 

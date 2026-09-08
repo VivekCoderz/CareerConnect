@@ -1,15 +1,14 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
 import { getDashboardPath } from "../utils/dashboardRedirect";
-import { logout } from "../redux/features/authSlice";
-import { logoutUser } from "../services/authService";
+import useLogout from "../hooks/useLogout";
 import opportunityService from "../services/opportunityService";
 
 const Home = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
   const [searchQuery, setSearchQuery] = useState("");
   const [featuredJobs, setFeaturedJobs] = useState([]);
@@ -32,14 +31,8 @@ const Home = () => {
     loadFeatured();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await logoutUser();
-    } catch {
-      // Ignore
-    }
-    dispatch(logout());
-    navigate("/", { replace: true });
+  const handleLogout = () => {
+    logout();
   };
 
   const dashboardUrl = user ? getDashboardPath(user.userType, user) : "/home";

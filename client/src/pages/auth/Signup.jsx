@@ -13,15 +13,11 @@ import {
 import api from "../../api/api";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
-import {
-  generateStrongPassword,
-  validatePassword,
-  PASSWORD_VALIDATION_ERROR,
-} from "../../utils/passwordGenerator";
+import PhoneInput from "../../components/common/PhoneInput";
+import { generateStrongPassword } from "../../utils/passwordGenerator";
 
-// Eye icon toggle component
 const EyeIcon = ({ hidden = false }) => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     {hidden ? (
       <>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
@@ -37,7 +33,6 @@ const EyeIcon = ({ hidden = false }) => (
     )}
   </svg>
 );
-
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -83,6 +78,7 @@ const Signup = () => {
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
+    countryCode: "+91",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -115,19 +111,22 @@ const Signup = () => {
     if (!formData.email.trim()) errors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Please enter a valid email";
     else if (!emailVerified) errors.email = "Please verify your email address before continuing";
-    if (!formData.phone.trim()) errors.phone = "Mobile number is required";
-    else if (!/^[6-9]\d{9}$/.test(formData.phone.replace(/\D/g, "").slice(-10)))
-      errors.phone = "Please enter a valid 10-digit mobile number";
-    if (!formData.password) {
-      errors.password = "Password is required";
-    } else if (!validatePassword(formData.password)) {
-      errors.password = PASSWORD_VALIDATION_ERROR;
+    if (!formData.phone.trim()) {
+      errors.phone = "Mobile number is required";
+    } else {
+      const digits = formData.phone.replace(/\D/g, "");
+      if (formData.countryCode === "+91") {
+        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+          errors.phone = "Please enter a valid 10-digit mobile number";
+        }
+      } else if (digits.length < 6 || digits.length > 15) {
+        errors.phone = "Please enter a valid mobile number (6-15 digits)";
+      }
     }
-    if (!formData.confirmPassword) {
-      errors.confirmPassword = "Please confirm your password";
-    } else if (formData.password !== formData.confirmPassword) {
-      errors.confirmPassword = "Passwords do not match";
-    }
+    if (!formData.password) errors.password = "Password is required";
+    else if (formData.password.length < 6) errors.password = "Password must be at least 6 characters";
+    if (!formData.confirmPassword) errors.confirmPassword = "Please confirm your password";
+    else if (formData.password !== formData.confirmPassword) errors.confirmPassword = "Passwords do not match";
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -237,7 +236,7 @@ const Signup = () => {
     }
   };
 
-  const handleStep1Next = () => {
+  const handleStep1Next = async () => {
     if (!emailVerified) {
       const emailToVerify = formData.email.trim().toLowerCase();
       if (emailToVerify && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToVerify) && !otpSent) {
@@ -251,6 +250,23 @@ const Signup = () => {
     }
 
     if (!validateStep1()) return;
+
+    // Check if phone number is already registered
+    try {
+      const checkRes = await api.post("/auth/check-phone", {
+        phone: formData.phone.trim(),
+        countryCode: formData.countryCode || "+91",
+      });
+      if (checkRes.data?.exists) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          phone: "This mobile number is already registered with another account",
+        }));
+        return;
+      }
+    } catch (err) {
+      console.warn("Phone check warning:", err.message);
+    }
 
     goNext(2);
   };
@@ -377,6 +393,7 @@ const Signup = () => {
       const payload = {
         fullName: formData.fullName.trim(),
         email: formData.email.trim().toLowerCase(),
+        countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
@@ -422,6 +439,9 @@ const Signup = () => {
       dispatch(signupFailure(message));
       if (err.response?.data?.field) {
         setFieldErrors({ [err.response.data.field]: err.response.data.message });
+        if (err.response.data.field === "phone" || err.response.data.field === "email") {
+          setStep(1);
+        }
       }
     }
   };
@@ -712,41 +732,18 @@ const Signup = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Mobile</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={10}
-                    value={formData.phone}
-                    autoComplete="off"
-                    onChange={(e) => {
-                      const numeric = e.target.value.replace(/\D/g, "").slice(0, 10);
-                      setFormData((prev) => ({ ...prev, phone: numeric }));
-                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
-                      if (error) dispatch(clearMessages());
-                    }}
-                    onKeyDown={(e) => {
-                      if (
-                        !/[0-9]/.test(e.key) &&
-                        !["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"].includes(e.key) &&
-                        !e.ctrlKey &&
-                        !e.metaKey
-                      ) {
-                        e.preventDefault();
-                      }
-                    }}
-                    onPaste={(e) => {
-                      e.preventDefault();
-                      const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 10);
-                      setFormData((prev) => ({ ...prev, phone: pasted }));
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Mobile Number</label>
+                  <PhoneInput
+                    countryCode={formData.countryCode}
+                    onCountryCodeChange={(code) => setFormData((prev) => ({ ...prev, countryCode: code }))}
+                    phone={formData.phone}
+                    onPhoneChange={(val) => {
+                      setFormData((prev) => ({ ...prev, phone: val }));
                       if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
                     }}
-                    placeholder="Enter 10-digit mobile number"
-                    className={inputClass("phone")}
+                    error={fieldErrors.phone}
+                    theme="blue"
                   />
-                  {fieldErrors.phone && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

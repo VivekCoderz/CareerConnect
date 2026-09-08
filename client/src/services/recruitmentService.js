@@ -11,6 +11,11 @@ export const updateApplicationStage = async (id, status, notes = "") => {
   return res.data;
 };
 
+export const updateApplicationStatus = async (id, status) => {
+  const res = await api.patch(`/applications/${id}/status`, { status });
+  return res.data;
+};
+
 export const addApplicationNote = async (id, note) => {
   const res = await api.post(`/applications/${id}/notes`, { note });
   return res.data;
@@ -49,7 +54,17 @@ export const getInterviews = async (params = {}) => {
 };
 
 export const getInterviewStats = async () => {
-  const res = await api.get("/interviews/stats");
+  const res = await api.get("/interviews/statistics");
+  return res.data;
+};
+
+export const getEligibleCandidates = async () => {
+  const res = await api.get("/interviews/eligible-candidates");
+  return res.data;
+};
+
+export const getInterviewById = async (id) => {
+  const res = await api.get(`/interviews/${id}`);
   return res.data;
 };
 
@@ -64,17 +79,32 @@ export const scheduleInterview = async (data) => {
 };
 
 export const submitInterviewFeedback = async (id, data) => {
-  const res = await api.patch(`/interviews/${id}/feedback`, data);
+  const res = await api.post(`/interviews/${id}/scorecard`, data);
+  return res.data;
+};
+
+export const submitScorecard = async (id, data) => {
+  const res = await api.post(`/interviews/${id}/scorecard`, data);
   return res.data;
 };
 
 export const rescheduleInterview = async (id, data) => {
-  const res = await api.patch(`/interviews/${id}/reschedule`, data);
+  const res = await api.put(`/interviews/${id}/reschedule`, data);
   return res.data;
 };
 
 export const cancelInterview = async (id, data) => {
-  const res = await api.patch(`/interviews/${id}/cancel`, data);
+  const res = await api.put(`/interviews/${id}/cancel`, data);
+  return res.data;
+};
+
+export const completeInterview = async (id) => {
+  const res = await api.put(`/interviews/${id}/complete`);
+  return res.data;
+};
+
+export const updateInterviewResult = async (id, data) => {
+  const res = await api.put(`/interviews/${id}/result`, data);
   return res.data;
 };
 
@@ -143,6 +173,7 @@ export const getEmployerAnalytics = async () => {
 export default {
   getEmployerApplications,
   updateApplicationStage,
+  updateApplicationStatus,
   addApplicationNote,
   rateApplication,
   getAssessments,
@@ -151,11 +182,16 @@ export default {
   deleteAssessment,
   getInterviews,
   getInterviewStats,
+  getEligibleCandidates,
+  getInterviewById,
   getCandidateInterviewHistory,
   scheduleInterview,
   submitInterviewFeedback,
+  submitScorecard,
   rescheduleInterview,
   cancelInterview,
+  completeInterview,
+  updateInterviewResult,
   updateInterviewStatus,
   getOffers,
   getOfferStats,

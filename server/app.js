@@ -27,15 +27,11 @@ const employerLearningRoutes = require("./routes/employerLearningRoutes.js");
 const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 
 const resumeRoutes = require("./routes/resumeRoutes.js");
-const sessionMiddleware = require("./config/session.js");
 const opportunityRoutes = require("./routes/opportunityRoutes.js");
-
-const {
-  ipBlockerMiddleware,
-  globalLimiter,
-} = require("./middleware/rateLimitMiddleware.js");
+const recommendationRoutes = require("./routes/recommendationRoutes.js");
 
 const app = express();
+app.set("trust proxy", 1);
 
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
@@ -72,11 +68,6 @@ app.use(
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(cookieParser());
-app.use(sessionMiddleware);
-
-// Anti-DDoS & IP Abuse Blocker — blocks repetitive excessive requests
-app.use(ipBlockerMiddleware);
-app.use("/api", globalLimiter);
 
 // Base & User Profile Routes
 app.use("/api/auth", authRoutes);
@@ -109,6 +100,8 @@ app.use("/api/resume", resumeRoutes);
 app.use("/api/api/resume", resumeRoutes); // Safety alias
 app.use("/api/opportunities", opportunityRoutes);
 app.use("/api/feed", opportunityRoutes);
+app.use("/api/recommendations", recommendationRoutes);
+app.use("/api/fresher/recommendations", recommendationRoutes);
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
 
 // Gateway Health Check Endpoint
