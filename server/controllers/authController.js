@@ -671,6 +671,7 @@ module.exports.firebaseLogin = async (req, res, next) => {
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
     } catch (firebaseErr) {
+      console.error("[GoogleAuth Link] verifyIdToken failed:", firebaseErr.message);
       return res.status(401).json({
         success: false,
         message: "Invalid or expired Firebase token. Please sign in again.",
@@ -761,6 +762,7 @@ module.exports.googleAuth = async (req, res, next) => {
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
     } catch (firebaseErr) {
+      console.error("[GoogleAuth] verifyIdToken failed:", firebaseErr.message);
       return res.status(401).json({
         success: false,
         message: "Invalid or expired Firebase token. Please try again.",
@@ -913,6 +915,7 @@ module.exports.completePasswordSetup = async (req, res, next) => {
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
     } catch (firebaseErr) {
+      console.error("[SetPasswordGoogle] verifyIdToken failed:", firebaseErr.message);
       return res.status(401).json({
         success: false,
         message: "Invalid or expired Firebase token. Please sign in again.",

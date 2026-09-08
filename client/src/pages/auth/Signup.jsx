@@ -14,7 +14,25 @@ import api from "../../api/api";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
 import PhoneInput from "../../components/common/PhoneInput";
+import { generateStrongPassword } from "../../utils/passwordGenerator";
 
+const EyeIcon = ({ hidden = false }) => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    {hidden ? (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.6 10.6a2 2 0 002.8 2.8" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.9 4.2A10.8 10.8 0 0112 4c5 0 8.8 3.3 10 8a10.8 10.8 0 01-3 5.1" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.6 6.6A11 11 0 002 12c1.2 4.7 5 8 10 8a10.7 10.7 0 004.2-.8" />
+      </>
+    ) : (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+        <circle cx="12" cy="12" r="2.5" />
+      </>
+    )}
+  </svg>
+);
 
 const Signup = () => {
   const navigate = useNavigate();

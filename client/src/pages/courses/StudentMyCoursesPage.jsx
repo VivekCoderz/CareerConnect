@@ -26,7 +26,6 @@ import ContentCard from "../../components/courses/ContentCard";
 const StudentMyCoursesPage = () => {
   const [coursesList, setCoursesList] = useState([]);
   const { user } = useSelector((state) => state.auth);
-  const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
