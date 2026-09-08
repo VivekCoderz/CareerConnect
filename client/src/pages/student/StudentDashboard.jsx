@@ -1,9 +1,8 @@
 // pages/student/StudentDashboard.jsx
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
-import { logout } from "../../redux/features/authSlice";
-import { logoutUser } from "../../services/authService";
+import { useSelector } from "react-redux";
+import useLogout from "../../hooks/useLogout";
 import {
   getStudentDashboardData,
   saveOpportunity,
@@ -36,18 +35,28 @@ import Internships from "./Internships";
 import InternshipDetail from "./InternshipDetail";
 import MyApplications from "./MyApplications";
 
+// Courses module (embedded)
+import StudentCoursesPage from "../courses/StudentCoursesPage";
+import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
+import CourseDetailsPage from "../courses/CourseDetailsPage";
+
 const StudentDashboard = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Internship sub-views inside dashboard
   const [internshipView, setInternshipView] = useState("list"); // list | detail
   const [selectedInternshipId, setSelectedInternshipId] = useState(null);
+
+  // Courses sub-views inside dashboard
+  const [coursesView, setCoursesView] = useState("catalog"); // catalog | my-courses | detail
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
 
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -86,14 +95,8 @@ const StudentDashboard = () => {
     fetchDashboard();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await logoutUser();
-    } catch (e) {
-      console.error(e);
-    }
-    dispatch(logout());
-    navigate("/", { replace: true });
+  const handleLogout = () => {
+    logout();
   };
 
   const handleSelectTab = (tab) => {
@@ -101,6 +104,10 @@ const StudentDashboard = () => {
     if (tab === "internships") {
       setInternshipView("list");
       setSelectedInternshipId(null);
+    }
+    if (tab === "courses") {
+      setCoursesView("catalog");
+      setSelectedCourseId(null);
     }
     setMobileSidebarOpen(false);
   };
@@ -257,7 +264,7 @@ const StudentDashboard = () => {
   } = dashboardData || {};
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex font-sans">
       {/* Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -265,10 +272,16 @@ const StudentDashboard = () => {
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
         onLogout={handleLogout}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
       />
 
       {/* Main */}
-      <div className="lg:pl-64 flex flex-col min-h-screen">
+      <div
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+          sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
+        }`}
+      >
         <DashboardHeader
           user={user}
           profile={profile}
@@ -276,6 +289,7 @@ const StudentDashboard = () => {
           onSearchChange={setSearchQuery}
           notifications={notifications}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onLogout={handleLogout}
         />
 
@@ -336,7 +350,15 @@ const StudentDashboard = () => {
                 savedIds={savedIds}
               />
 
-              <CourseRecommendationsCard courses={filteredCourses} />
+              <CourseRecommendationsCard
+                courses={filteredCourses}
+                onViewAll={() => handleSelectTab("courses")}
+                onSelectCourse={(id) => {
+                  setSelectedCourseId(id);
+                  setCoursesView("detail");
+                  setActiveTab("courses");
+                }}
+              />
 
               <ApplicationTrackerCard
                 applications={applicationsData}
@@ -427,9 +449,36 @@ const StudentDashboard = () => {
             />
           )}
 
-          {/* ================= COURSES ================= */}
+          {/* ================= COURSES (full module) ================= */}
           {activeTab === "courses" && (
-            <CourseRecommendationsCard courses={filteredCourses} />
+            <div className="animate-fade-in">
+              {coursesView === "catalog" && (
+                <StudentCoursesPage
+                  embedded
+                  onViewDetails={(id) => {
+                    setSelectedCourseId(id);
+                    setCoursesView("detail");
+                  }}
+                  onNavigateToMyCourses={() => setCoursesView("my-courses")}
+                />
+              )}
+              {coursesView === "my-courses" && (
+                <StudentMyCoursesPage
+                  embedded
+                  onBackToCatalog={() => setCoursesView("catalog")}
+                />
+              )}
+              {coursesView === "detail" && (
+                <CourseDetailsPage
+                  embedded
+                  id={selectedCourseId}
+                  onBack={() => {
+                    setCoursesView("catalog");
+                    setSelectedCourseId(null);
+                  }}
+                />
+              )}
+            </div>
           )}
 
           {/* ================= APPLICATIONS ================= */}

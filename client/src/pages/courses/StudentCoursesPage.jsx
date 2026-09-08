@@ -5,26 +5,29 @@ import { getDashboardPath } from "../../utils/dashboardRedirect";
 import {
   Search,
   Filter,
-  Sparkles,
   BookOpen,
   Clock,
-  Layers,
-  Star,
-  CheckCircle2,
+  Sparkles,
   AlertCircle,
-  Tag,
-  ArrowRight,
   ArrowLeft,
+  GraduationCap,
 } from "lucide-react";
-import api from "../../api/api";
+import { getRecommendedCourses, applyForCourse } from "../../services/courseService";
+import CourseCard from "../../components/courses/CourseCard";
 
 /**
  * StudentCoursesPage
- * Student course catalog & AI recommendations page.
+ * Student course catalog & AI recommendations discovery view.
+ * Supports both standalone routing and embedded dashboard integration.
  */
-const StudentCoursesPage = ({ onViewDetails }) => {
+const StudentCoursesPage = ({
+  embedded = false,
+  onViewDetails,
+  onNavigateToMyCourses,
+}) => {
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
+
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,63 +36,62 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDomain, setSelectedDomain] = useState("All");
   const [selectedLevel, setSelectedLevel] = useState("All");
+
+  // Applying state
   const [applyingId, setApplyingId] = useState(null);
   const [appliedCourseIds, setAppliedCourseIds] = useState(new Set());
 
-  const fetchRecommendedCourses = async () => {
+  const fetchCoursesData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.get("/courses/recommended");
-      if (res.data?.success) {
-        setCourses(res.data.courses || []);
+      const res = await getRecommendedCourses();
+      if (res?.success) {
+        setCourses(res.courses || []);
       }
     } catch (err) {
       console.error("Fetch Recommended Courses Error:", err);
-      // Fallback: try fetching all published courses if endpoint fails
-      try {
-        const catalogRes = await api.get("/courses/my-courses");
-        if (catalogRes.data?.success) {
-          const published = (catalogRes.data.courses || []).filter(
-            (c) => c.status === "Published"
-          );
-          setCourses(published);
-        }
-      } catch (fallbackErr) {
-        setError("Failed to load recommended courses.");
-      }
+      setError("Failed to load recommended courses. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRecommendedCourses();
+    fetchCoursesData();
   }, []);
 
   const handleApply = async (courseId) => {
     try {
       setApplyingId(courseId);
-      const res = await api.post(`/courses/${courseId}/apply`);
-      if (res.data?.success) {
+      const res = await applyForCourse(courseId);
+      if (res?.success) {
         setAppliedCourseIds((prev) => new Set(prev).add(courseId));
       }
     } catch (err) {
       console.error("Apply Course Error:", err);
-      alert(err.response?.data?.message || "Failed to apply for course.");
+      alert(err.response?.data?.message || "Failed to enroll in course.");
     } finally {
       setApplyingId(null);
     }
   };
 
+  const handleSelectCourse = (courseId) => {
+    if (onViewDetails) {
+      onViewDetails(courseId);
+    } else {
+      navigate(`/courses/${courseId}`);
+    }
+  };
+
   // Filtered List
   const filteredCourses = courses.filter((course) => {
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      course.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (course.skills || []).some((s) =>
-        s.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      !q ||
+      course.title?.toLowerCase().includes(q) ||
+      course.description?.toLowerCase().includes(q) ||
+      (course.skills || []).some((s) => s.toLowerCase().includes(q));
 
     const matchesDomain =
       selectedDomain === "All" || course.domain === selectedDomain;
@@ -100,38 +102,55 @@ const StudentCoursesPage = ({ onViewDetails }) => {
     return matchesSearch && matchesDomain && matchesLevel;
   });
 
-  const domainList = ["All", ...new Set(courses.map((c) => c.domain).filter(Boolean))];
+  const domainList = [
+    "All",
+    ...new Set(courses.map((c) => c.domain).filter(Boolean)),
+  ];
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Back navigation & Banner */}
-        <div className="flex items-center justify-between">
-          <Link
-            to={getDashboardPath(user?.userType || "student", user)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-          >
-            <ArrowLeft size={14} /> Back to Dashboard
-          </Link>
+    <div className={embedded ? "space-y-6" : "min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8"}>
+      <div className={embedded ? "space-y-6" : "max-w-7xl mx-auto space-y-6"}>
+        {/* Standalone Navigation Bar */}
+        {!embedded && (
+          <div className="flex items-center justify-between">
+            <Link
+              to={getDashboardPath(user?.userType || "student", user)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+            >
+              <ArrowLeft size={14} /> Back to Dashboard
+            </Link>
 
-          <Link
-            to="/my-courses"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-[#1e3a8a] hover:bg-blue-100 transition shadow-2xs"
-          >
-            <BookOpen size={14} /> My Enrolled Courses
-          </Link>
-        </div>
+            <Link
+              to="/my-courses"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-[#1e3a8a] hover:bg-blue-100 transition shadow-2xs"
+            >
+              <BookOpen size={14} /> My Enrolled Courses
+            </Link>
+          </div>
+        )}
 
+        {/* Hero Header Banner */}
         <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-indigo-900 text-white shadow-md relative overflow-hidden">
           <div className="relative z-10 max-w-2xl space-y-2">
-            <span className="px-3 py-1 rounded-full bg-white/20 text-[11px] font-bold text-amber-300 uppercase tracking-wider border border-white/20">
-              ✨ CareerConnect Learning Hub
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-3 py-1 rounded-full bg-white/20 text-[11px] font-bold text-amber-300 uppercase tracking-wider border border-white/20">
+                ✨ CareerConnect Learning Hub
+              </span>
+              {embedded && onNavigateToMyCourses && (
+                <button
+                  type="button"
+                  onClick={onNavigateToMyCourses}
+                  className="px-3 py-1 rounded-full bg-blue-500/40 hover:bg-blue-500/60 text-[11px] font-bold text-white border border-white/20 transition cursor-pointer flex items-center gap-1"
+                >
+                  <GraduationCap size={13} /> View Enrolled Courses &rarr;
+                </button>
+              )}
+            </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Recommended & Popular Courses
+              Explore & Recommended Courses
             </h1>
             <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed">
-              Enhance your skills with industry-aligned courses tailored for Geeta University students.
+              Industry-aligned technical curriculum tailored for Geeta University students to bridge career skill gaps.
             </p>
           </div>
         </div>
@@ -144,7 +163,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search courses by skill, title, technology..."
+              placeholder="Search courses by title, skill, or keyword..."
               className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100 outline-none"
             />
           </div>
@@ -153,7 +172,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
             <select
               value={selectedDomain}
               onChange={(e) => setSelectedDomain(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white outline-none focus:border-[#1e3a8a]"
+              className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white outline-none focus:border-[#1e3a8a] text-slate-700"
             >
               {domainList.map((d) => (
                 <option key={d} value={d}>
@@ -165,7 +184,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
             <select
               value={selectedLevel}
               onChange={(e) => setSelectedLevel(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white outline-none focus:border-[#1e3a8a]"
+              className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white outline-none focus:border-[#1e3a8a] text-slate-700"
             >
               <option value="All">Level: All</option>
               <option value="beginner">Beginner</option>
@@ -175,9 +194,9 @@ const StudentCoursesPage = ({ onViewDetails }) => {
           </div>
         </div>
 
-        {/* Loading / Error States */}
+        {/* Loading State */}
         {loading && (
-          <div className="p-12 text-center bg-white border border-slate-200 rounded-2xl">
+          <div className="p-12 text-center bg-white border border-slate-200 rounded-3xl">
             <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             <p className="text-xs font-semibold text-slate-600">
               Matching recommended courses for your profile...
@@ -185,129 +204,49 @@ const StudentCoursesPage = ({ onViewDetails }) => {
           </div>
         )}
 
+        {/* Error State */}
         {error && (
-          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-700 flex items-center gap-2">
-            <AlertCircle size={16} /> {error}
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={16} /> {error}
+            </div>
+            <button
+              type="button"
+              onClick={fetchCoursesData}
+              className="text-xs font-bold underline hover:text-rose-900"
+            >
+              Retry
+            </button>
           </div>
         )}
 
         {/* Course Cards Grid */}
-        {!loading && filteredCourses.length === 0 ? (
-          <div className="p-12 text-center bg-white border border-slate-200 rounded-2xl space-y-2">
+        {!loading && !error && filteredCourses.length === 0 ? (
+          <div className="p-12 text-center bg-white border border-slate-200 rounded-3xl space-y-2">
             <BookOpen size={36} className="mx-auto text-slate-300" />
-            <h4 className="text-base font-bold text-slate-800">No courses match your search</h4>
+            <h4 className="text-base font-bold text-slate-800">
+              No courses match your search
+            </h4>
             <p className="text-xs text-slate-500">
-              Try adjusting your search keywords or domain filter.
+              Try adjusting your search query or reset domain/level filters.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCourses.map((course) => {
-              const isApplied = appliedCourseIds.has(course._id);
-              const isApplying = applyingId === course._id;
-
-              return (
-                <div
-                  key={course._id}
-                  className="bg-white border border-slate-200 hover:border-slate-300 rounded-3xl shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden group"
-                >
-                  {/* Thumbnail / Header */}
-                  <div className="relative h-40 bg-slate-100 overflow-hidden">
-                    {course.thumbnail ? (
-                      <img
-                        src={course.thumbnail}
-                        alt={course.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-[#1e3a8a] to-[#1e40af] p-4 flex flex-col justify-between text-white">
-                        <BookOpen size={24} />
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">
-                            {course.domain || "Course"}
-                          </p>
-                          <p className="text-xs font-bold line-clamp-1">{course.title}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Recommendation Badge */}
-                    {course.recommendation && (
-                      <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-amber-400 text-slate-900 text-[10.5px] font-bold shadow-xs flex items-center gap-1">
-                        <Sparkles size={12} /> {course.recommendation}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Body Content */}
-                  <div className="p-5 space-y-3 flex-1 flex flex-col justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-                        <span className="text-[#1e3a8a] font-bold">{course.category}</span>
-                        <span className="capitalize">{course.level || "Beginner"}</span>
-                      </div>
-
-                      <h3 className="text-base font-bold text-slate-900 line-clamp-2">
-                        {course.title}
-                      </h3>
-
-                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                        {course.description}
-                      </p>
-                    </div>
-
-                    {/* Matched Skills */}
-                    {course.matchedSkills && course.matchedSkills.length > 0 && (
-                      <div className="flex items-center gap-1 flex-wrap pt-1">
-                        <span className="text-[10px] font-bold text-slate-400">Matches:</span>
-                        {course.matchedSkills.slice(0, 3).map((sk, i) => (
-                          <span
-                            key={i}
-                            className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-semibold border border-emerald-200/60"
-                          >
-                            {sk}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Footer Stats & Apply CTA */}
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-700">
-                        {course.price > 0 ? `₹${course.price}` : "Free"}
-                      </span>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (onViewDetails) onViewDetails(course._id);
-                            else navigate(`/courses/${course._id}`);
-                          }}
-                          className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
-                        >
-                          Details
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleApply(course._id)}
-                          disabled={isApplied || isApplying}
-                          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                            isApplied
-                              ? "bg-emerald-100 text-emerald-800 cursor-default"
-                              : "bg-[#1e3a8a] hover:bg-[#1e40af] text-white shadow-xs"
-                          }`}
-                        >
-                          {isApplied ? "Enrolled ✓" : isApplying ? "Applying..." : "Enroll"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          !loading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCourses.map((course) => (
+                <CourseCard
+                  key={course._id || course.id}
+                  course={course}
+                  mode="catalog"
+                  isApplied={appliedCourseIds.has(course._id || course.id)}
+                  isApplying={applyingId === (course._id || course.id)}
+                  onViewDetails={handleSelectCourse}
+                  onEnroll={handleApply}
+                />
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>

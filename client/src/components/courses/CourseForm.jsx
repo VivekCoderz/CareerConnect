@@ -140,11 +140,38 @@ const CourseForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* 2-Step Creator Progress Flow */}
+      {!isEdit && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-900 to-indigo-900 text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 font-black flex items-center justify-center text-sm shadow-xs">
+              1
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">Step 1 of 2 · Active</p>
+              <h4 className="text-sm font-bold text-white">Course Overview & Target Skills</h4>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 opacity-60 text-xs font-semibold">
+            <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center text-xs">
+              2
+            </div>
+            <span>Next: Upload Video Lectures (Cloudinary) & Notes</span>
+          </div>
+        </div>
+      )}
+
       {/* Basic Details Card */}
       <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-4">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
-          <BookOpen className="text-[#1e3a8a]" size={20} />
-          <h3 className="text-base font-bold text-slate-900">Basic Course Details</h3>
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+          <div className="flex items-center gap-2">
+            <BookOpen className="text-[#1e3a8a]" size={20} />
+            <h3 className="text-base font-bold text-slate-900">Basic Course Details</h3>
+          </div>
+          <span className="text-[11px] font-semibold text-slate-400">
+            Visible to Students & Professionals
+          </span>
         </div>
 
         {/* Title */}
@@ -334,10 +361,14 @@ const CourseForm = ({
               name="skills"
               value={formData.skills}
               onChange={handleChange}
-              placeholder="e.g. React, Redux Toolkit, Tailwind CSS, JavaScript"
+              placeholder="e.g. React, Node.js, Python, AWS, Docker, AI"
               className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100 outline-none text-xs font-medium text-slate-800"
             />
           </div>
+          <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+            <Sparkles size={12} className="text-amber-500" />
+            <span>Students, Freshers, and Working Professionals filter & get AI-recommended courses based on these skills.</span>
+          </p>
         </div>
 
         {/* Price */}
@@ -363,7 +394,7 @@ const CourseForm = ({
           <button
             type="button"
             onClick={onCancel}
-            className="px-5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-xs transition-colors"
+            className="px-5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-xs transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -372,17 +403,17 @@ const CourseForm = ({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="px-6 py-2.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs transition-all flex items-center gap-2 disabled:opacity-50"
+          className="px-6 py-2.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
         >
           {isSubmitting ? (
             <>
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>Saving...</span>
+              <span>Saving Course...</span>
             </>
           ) : (
             <>
               <CheckCircle2 size={16} />
-              <span>{submitText}</span>
+              <span>{isEdit ? "Update Course Details" : "Save & Proceed to Upload Videos ➔"}</span>
             </>
           )}
         </button>
