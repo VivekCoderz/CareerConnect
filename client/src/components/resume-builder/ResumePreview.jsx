@@ -1,36 +1,49 @@
-import React from 'react';
-import ProfessionalTemplate from './templates/ProfessionalTemplate';
-import ModernTemplate from './templates/ModernTemplate';
-import MinimalTemplate from './templates/MinimalTemplate';
+import React from "react";
+import ClassicTemplate from "./templates/ClassicTemplate";
+import ExecutiveTemplate from "./templates/ExecutiveTemplate";
+import SidebarTemplate from "./templates/SidebarTemplate";
+import TwoColumnTemplate from "./templates/TwoColumnTemplate";
+import CompactTemplate from "./templates/CompactTemplate";
+import ElegantTemplate from "./templates/ElegantTemplate";
+import BoldTemplate from "./templates/BoldTemplate";
 
 const ResumePreview = ({ data, templateId }) => {
   if (!data) {
     return (
-      <div className="text-center py-16 text-gray-400">
-        No resume generated yet.
-      </div>
+      <div className="text-center py-16 text-gray-400">No resume generated yet.</div>
     );
   }
 
-  const renderTemplate = () => {
-    switch (templateId) {
-      case 'modern':
-        return <ModernTemplate data={data} />;
-      case 'minimal':
-        return <MinimalTemplate data={data} />;
-      case 'professional':
-      default:
-        return <ProfessionalTemplate data={data} />;
-    }
-  };
+  const tid = (templateId || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  return (
-    <div className="bg-gray-100 rounded-xl p-4 overflow-auto">
-      <div className="shadow-lg rounded-lg overflow-hidden bg-white">
-        {renderTemplate()}
-      </div>
-    </div>
-  );
+  switch (tid) {
+    case "executive":
+    case "corporate":
+      return <ExecutiveTemplate data={data} />;
+    case "sidebar":
+    case "leftsidebar":
+      return <SidebarTemplate data={data} />;
+    case "twocolumn":
+    case "2column":
+      return <TwoColumnTemplate data={data} />;
+    case "compact":
+    case "compacttech":
+    case "tech":
+    case "developer":
+      return <CompactTemplate data={data} />;
+    case "elegant":
+    case "minimal":
+      return <ElegantTemplate data={data} />;
+    case "bold":
+    case "boldheader":
+    case "modern":
+      return <BoldTemplate data={data} />;
+    case "classic":
+    case "professional":
+    case "traditional":
+    default:
+      return <ClassicTemplate data={data} />;
+  }
 };
 
 export default ResumePreview;

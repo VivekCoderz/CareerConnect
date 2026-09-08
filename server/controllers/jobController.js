@@ -1,6 +1,8 @@
+const mongoose = require("mongoose");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
+const { getAggregatedOpportunities } = require("../services/jobScraperService");
 
 /**
  * Helper to ensure employer profile exists for logged in user
@@ -55,14 +57,63 @@ exports.getJobs = async (req, res, next) => {
     if (workMode && workMode !== "All") query.workMode = workMode;
     if (location) query.location = { $regex: location, $options: "i" };
 
-    const jobs = await Job.find(query)
-      .populate("employerId", "companyName logo headquarters industry")
-      .sort({ createdAt: -1 });
+    let jobs = [];
+    if (mongoose.connection.readyState === 1) {
+      try {
+        jobs = await Job.find(query)
+          .populate("employerId", "companyName logo headquarters industry")
+          .sort({ createdAt: -1 });
+      } catch (dbErr) {
+        console.warn("MongoDB Job.find error, using live scraper fallback:", dbErr.message);
+      }
+    }
+
+    let allJobs = jobs;
+    if (jobs.length === 0 && myJobs !== "true") {
+      try {
+        const scraped = await getAggregatedOpportunities({
+          opportunityType: employmentType && employmentType !== "All" ? employmentType.toLowerCase() : "all",
+          workMode: workMode && workMode !== "All" ? workMode : "all",
+          search: search || "",
+        });
+
+        const formattedScraped = (scraped.data || []).map((item, idx) => ({
+          _id: `scraped-job-${idx}`,
+          id: `scraped-job-${idx}`,
+          jobId: `scraped-job-${idx}`,
+          title: item.title,
+          company: item.company,
+          employerId: {
+            companyName: item.company,
+            headquarters: item.location,
+          },
+          location: item.location,
+          employmentType: item.opportunityType || "Full-Time",
+          workMode: item.workMode || "On-Site",
+          salary: "Competitive Package",
+          salaryRange: { min: 400000, max: 1200000, currency: "INR" },
+          description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
+          responsibilities: ["Deliver on project requirements", "Collaborate with cross-functional engineering team"],
+          requiredSkills: [item.title.split(" ")[0] || "Engineering", "Problem Solving"],
+          applyLink: item.applyLink,
+          isExternal: true,
+          platformSource: item.platformSource,
+          source: item.platformSource,
+          status: "Published",
+          postedAt: item.postedDate || "Recently",
+          createdAt: new Date(),
+        }));
+
+        allJobs = [...jobs, ...formattedScraped];
+      } catch (e) {
+        console.error("Live jobs scraper fallback error:", e.message);
+      }
+    }
 
     return res.status(200).json({
       success: true,
-      count: jobs.length,
-      jobs,
+      count: allJobs.length,
+      jobs: allJobs,
     });
   } catch (error) {
     next(error);

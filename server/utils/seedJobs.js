@@ -6,19 +6,9 @@ const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 
 const seedInitialJobs = async () => {
-  try {
-    const jobCount = await Job.countDocuments();
-    if (jobCount > 0) {
-      // Update existing jobs if category or city is missing
-      await Job.updateMany(
-        { category: { $exists: false } },
-        { $set: { category: "Web Development", city: "Bangalore", isPaid: true, hasJobOffer: true } }
-      );
-      console.log("ℹ️ Jobs already exist, updated missing fields if any.");
-      return;
-    }
-
-    console.log("🌱 Seeding initial dynamic jobs, internships & verified employers...");
+  // Hardcoded dummy seed disabled - only live opportunities & real employer postings are used.
+  return;
+};
 
     const companies = [
       {

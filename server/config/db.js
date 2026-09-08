@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const seedInitialJobs = require("../utils/seedJobs");
+// const seedInitialJobs = require("../utils/seedJobs");
 
 const connectDB = async () => {
   try {

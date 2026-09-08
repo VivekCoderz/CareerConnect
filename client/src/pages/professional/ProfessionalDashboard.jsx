@@ -130,7 +130,7 @@ const ProfessionalDashboard = () => {
       console.error(e);
     }
     dispatch(logout());
-    navigate("/login");
+    navigate("/", { replace: true });
   };
 
   // Trigger Application Review Flow

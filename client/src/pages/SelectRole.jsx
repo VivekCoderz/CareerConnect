@@ -104,15 +104,25 @@ const SelectRole = () => {
         experienceLevel: selected, // "student" | "fresher" | "professional"
       });
 
+      let updatedUser = null;
       if (res?.data?.user) {
         dispatch(updateUserProfile(res.data.user));
+        updatedUser = res.data.user;
       } else {
         dispatch(updateUserProfile({ userType: selected }));
       }
 
-      // Navigate dynamically to role dashboard
-      const dest = getDashboardPath(selected);
-      navigate(dest, { replace: true });
+      // If user has no phone number, they came via Google → send to profile onboarding
+      const phone = updatedUser?.phone || "";
+      if (!phone.trim()) {
+        navigate("/onboarding/profile", { replace: true });
+      } else if (selected === "fresher" && !updatedUser?.isProfileComplete) {
+        navigate("/fresher/profile", { replace: true });
+      } else {
+        // Navigate dynamically to role dashboard
+        const dest = getDashboardPath(selected, updatedUser);
+        navigate(dest, { replace: true });
+      }
     } catch (err) {
       console.error(err);
       // error message dikhao

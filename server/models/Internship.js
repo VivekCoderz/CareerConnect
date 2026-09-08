@@ -74,7 +74,7 @@ const internshipSchema = new mongoose.Schema(
     applicantsCount: { type: Number, default: 0 },
     source: {
       type: String,
-      enum: ["CareerConnect", "Adzuna", "Remotive", "Jooble", "Other"],
+      enum: ["CareerConnect", "LinkedIn", "Internshala", "Remotive", "Arbeitnow", "GU Drives", "Jooble", "Other"],
       default: "CareerConnect",
       index: true,
     },

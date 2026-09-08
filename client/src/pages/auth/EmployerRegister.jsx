@@ -1,13 +1,42 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { signInWithPopup } from "firebase/auth";
+import { auth, googleProvider } from "../../config/firebase";
 import {
   signupStart,
   signupSuccess,
   signupFailure,
   clearMessages,
+  loginSuccess,
 } from "../../redux/features/authSlice";
 import api from "../../api/api";
+import { getCaptchaToken } from "../../utils/captcha";
+import {
+  generateStrongPassword,
+  validatePassword,
+  PASSWORD_VALIDATION_ERROR,
+} from "../../utils/passwordGenerator";
+
+// Eye icon toggle component
+const EyeIcon = ({ hidden = false }) => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    {hidden ? (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.6 10.6a2 2 0 002.8 2.8" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.9 4.2A10.8 10.8 0 0112 4c5 0 8.8 3.3 10 8a10.8 10.8 0 01-3 5.1" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.6 6.6A11 11 0 002 12c1.2 4.7 5 8 10 8a10.7 10.7 0 004.2-.8" />
+      </>
+    ) : (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+        <circle cx="12" cy="12" r="2.5" />
+      </>
+    )}
+  </svg>
+);
+
 
 const EmployerRegister = () => {
   const navigate = useNavigate();
@@ -17,14 +46,38 @@ const EmployerRegister = () => {
   // step: 1 = basic, "otp" = verify, 2 = company details
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState("next");
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState("");
+
 
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpError, setOtpError] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpSuccessMsg, setOtpSuccessMsg] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const handleGeneratePassword = () => {
+    const generated = generateStrongPassword();
+    setFormData((prev) => ({
+      ...prev,
+      password: generated,
+      confirmPassword: generated,
+    }));
+    setShowPassword(true);
+    setShowConfirmPassword(true);
+    setFieldErrors((prev) => ({
+      ...prev,
+      password: "",
+      confirmPassword: "",
+    }));
+  };
 
   const [formData, setFormData] = useState({
     companyName: "",
@@ -53,15 +106,21 @@ const EmployerRegister = () => {
     if (!formData.email.trim()) errors.email = "Official email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
       errors.email = "Please enter a valid email";
+    else if (!emailVerified)
+      errors.email = "Please verify your official email before continuing";
     if (!formData.phone.trim()) errors.phone = "Mobile number is required";
     else if (!/^[6-9]\d{9}$/.test(formData.phone.replace(/\D/g, "").slice(-10)))
       errors.phone = "Please enter a valid 10-digit mobile number";
-    if (!formData.password) errors.password = "Password is required";
-    else if (formData.password.length < 6)
-      errors.password = "Password must be at least 6 characters";
-    if (!formData.confirmPassword) errors.confirmPassword = "Please confirm password";
-    else if (formData.password !== formData.confirmPassword)
+    if (!formData.password) {
+      errors.password = "Password is required";
+    } else if (!validatePassword(formData.password)) {
+      errors.password = PASSWORD_VALIDATION_ERROR;
+    }
+    if (!formData.confirmPassword) {
+      errors.confirmPassword = "Please confirm password";
+    } else if (formData.password !== formData.confirmPassword) {
       errors.confirmPassword = "Passwords do not match";
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -103,26 +162,84 @@ const EmployerRegister = () => {
     }, 1000);
   };
 
-  const handleStep1Next = async () => {
-    if (!validateStep1()) return;
+  // Send OTP inline under official email input field
+  const handleSendEmailOTP = async () => {
+    const emailToVerify = formData.email.trim().toLowerCase();
+    if (!emailToVerify) {
+      setFieldErrors((prev) => ({ ...prev, email: "Official email is required" }));
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToVerify)) {
+      setFieldErrors((prev) => ({ ...prev, email: "Please enter a valid email" }));
+      return;
+    }
+
     try {
       setCheckingEmail(true);
-      setFieldErrors({});
-      await api.post("/auth/send-otp", {
-        email: formData.email.trim().toLowerCase(),
-        fullName: formData.companyName.trim(),
-      });
-      setOtp("");
+      setFieldErrors((prev) => ({ ...prev, email: "" }));
       setOtpError("");
+      setOtpSuccessMsg("");
+
+      await api.post("/auth/send-otp", {
+        email: emailToVerify,
+        fullName: formData.companyName.trim() || "Employer",
+      });
+
+      setOtpSent(true);
+      setOtp("");
+      setOtpSuccessMsg(`OTP sent to ${emailToVerify}`);
       startCooldown(60);
-      goNext("otp");
     } catch (err) {
       const msg = err.response?.data?.message || "Failed to send OTP";
       const soft = err.response?.data?.field || "email";
-      setFieldErrors({ [soft]: msg });
+      setFieldErrors((prev) => ({ ...prev, [soft]: msg }));
     } finally {
       setCheckingEmail(false);
     }
+  };
+
+  // Verify OTP inline
+  const handleVerifyInlineOTP = async () => {
+    const cleanOtp = otp.replace(/\D/g, "").slice(0, 6);
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      setOtpError("Please enter the 6-digit OTP");
+      return;
+    }
+    try {
+      setVerifyingOtp(true);
+      setOtpError("");
+      await api.post("/auth/verify-otp", {
+        email: formData.email.trim().toLowerCase(),
+        otp: cleanOtp,
+      });
+      setEmailVerified(true);
+      setOtpSent(false);
+      setOtp("");
+      setOtpSuccessMsg("Official email verified successfully!");
+      setFieldErrors((prev) => ({ ...prev, email: "" }));
+    } catch (err) {
+      setOtpError(err.response?.data?.message || "Invalid or expired OTP");
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleStep1Next = () => {
+    if (!emailVerified) {
+      const emailToVerify = formData.email.trim().toLowerCase();
+      if (emailToVerify && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToVerify) && !otpSent) {
+        handleSendEmailOTP();
+      }
+      setFieldErrors((prev) => ({
+        ...prev,
+        email: "Please verify your official email with OTP before continuing",
+      }));
+      return;
+    }
+
+    if (!validateStep1()) return;
+
+    goNext(2);
   };
 
   const handleResendOTP = async () => {
@@ -142,24 +259,57 @@ const EmployerRegister = () => {
     }
   };
 
-  const handleVerifyOTP = async () => {
-    if (!otp || otp.length !== 6) {
-      setOtpError("Please enter the 6-digit OTP");
-      return;
-    }
+  // ─── Google Employer Sign-Up ─────────────────────────────────────────────────
+  const handleGoogleEmployerSignup = async () => {
+    setGoogleLoading(true);
+    setGoogleError("");
+    dispatch(clearMessages());
+
     try {
-      setVerifyingOtp(true);
-      setOtpError("");
-      await api.post("/auth/verify-otp", {
-        email: formData.email.trim().toLowerCase(),
-        otp: otp.trim(),
+      const captchaToken = await getCaptchaToken("google_employer_signup");
+
+      // Firebase Google popup
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
+
+      // Send to backend with role=employer so new users get employer role
+      const response = await api.post("/auth/google-auth", {
+        idToken,
+        keepSignedIn: false,
+        captchaToken,
+        role: "employer",
       });
-      setEmailVerified(true);
-      goNext(2);
+
+      const { user, requiresPasswordSetup, token } = response.data;
+      dispatch(loginSuccess({ user, token }));
+
+      if (requiresPasswordSetup) {
+        // New employer Google user → set password → collect company details
+        navigate("/set-password", { replace: true });
+      } else if (!user.phone?.trim()) {
+        // Has password, but hasn't completed company details!
+        navigate("/onboarding/employer", { replace: true });
+      } else {
+        // Existing employer who already has completed company details → go to dashboard
+        navigate("/employer/dashboard", { replace: true });
+      }
     } catch (err) {
-      setOtpError(err.response?.data?.message || "Invalid OTP");
+      if (
+        err.code === "auth/popup-closed-by-user" ||
+        err.code === "auth/cancelled-popup-request"
+      ) {
+        // User dismissed popup — silent
+      } else if (err.code === "auth/account-exists-with-different-credential") {
+        setGoogleError(
+          "This email is already registered with a different sign-in method. Please use email + password."
+        );
+      } else {
+        setGoogleError(
+          err.response?.data?.message || "Google sign-up failed. Please try again."
+        );
+      }
     } finally {
-      setVerifyingOtp(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -173,6 +323,8 @@ const EmployerRegister = () => {
 
     dispatch(signupStart());
     try {
+      const captchaToken = await getCaptchaToken("employer_signup");
+
       const payload = {
         companyName: formData.companyName.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -186,7 +338,10 @@ const EmployerRegister = () => {
         industry: formData.industry.trim(),
         location: formData.location.trim(),
         role: "employer",
+        keepSignedIn,
+        captchaToken,
       };
+
 
       const res = await api.post("/auth/register-employer", payload);
       dispatch(signupSuccess({ user: res.data.user, token: res.data.token }));
@@ -213,7 +368,7 @@ const EmployerRegister = () => {
         : "border-slate-200 focus:border-[#f59e0b] focus:ring-[#f59e0b]/15"
     }`;
 
-  const progressStep = step === "otp" ? 1.5 : step === 2 ? 2 : 1;
+  const progressStep = step;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex">
@@ -312,6 +467,10 @@ const EmployerRegister = () => {
                 </p>
               </div>
 
+              {/* Prevent browser autofill */}
+              <input type="text" name="fake_username_prevent_autofill" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="off" />
+              <input type="password" name="fake_password_prevent_autofill" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="new-password" />
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
@@ -321,7 +480,8 @@ const EmployerRegister = () => {
                     name="companyName"
                     value={formData.companyName}
                     onChange={handleChange}
-                    placeholder="Your company name"
+                    autoComplete="off"
+                    placeholder="Enter company name"
                     className={inputClass("companyName")}
                   />
                   {fieldErrors.companyName && (
@@ -330,17 +490,158 @@ const EmployerRegister = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                    Official email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="hr@company.com"
-                    className={inputClass("email")}
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[13px] font-semibold text-slate-700">
+                      Official email
+                    </label>
+                    {emailVerified && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Verified
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={(e) => {
+                        handleChange(e);
+                        if (emailVerified) setEmailVerified(false);
+                        if (otpSent) setOtpSent(false);
+                      }}
+                      disabled={emailVerified}
+                      autoComplete="off"
+                      placeholder="Enter official email address"
+                      className={`${inputClass("email")} ${emailVerified ? "bg-slate-50 border-emerald-400 text-slate-700 pr-10" : ""}`}
+                    />
+                    {emailVerified && (
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center text-emerald-600 pointer-events-none">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Verify button directly below Email input */}
+                  {!emailVerified && !otpSent && (
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[12px] text-slate-500">Verify email with OTP</span>
+                      <button
+                        type="button"
+                        onClick={handleSendEmailOTP}
+                        disabled={checkingEmail || !formData.email.trim()}
+                        className="h-8 px-4 rounded-lg bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
+                      >
+                        {checkingEmail ? (
+                          <>
+                            <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                            Sending OTP...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Verify Email
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Inline OTP Input Box directly below Email */}
+                  {otpSent && !emailVerified && (
+                    <div className="mt-2.5 p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2.5 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                          <svg className="w-4 h-4 text-[#b45309]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          Enter OTP sent to email
+                        </span>
+                        {resendCooldown > 0 ? (
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            Resend in {resendCooldown}s
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleSendEmailOTP}
+                            disabled={checkingEmail}
+                            className="text-[11px] font-bold text-[#b45309] hover:underline"
+                          >
+                            Resend OTP
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={otp}
+                          onChange={(e) => {
+                            setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                            setOtpError("");
+                          }}
+                          placeholder="Enter 6-digit OTP"
+                          className="flex-1 h-10 px-3 text-center tracking-[0.25em] font-bold text-slate-800 bg-white border border-slate-300 rounded-lg text-sm outline-none focus:border-[#f59e0b] focus:ring-2 focus:ring-[#f59e0b]/15 transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyInlineOTP}
+                          disabled={verifyingOtp || otp.length !== 6}
+                          className="h-10 px-4 rounded-lg bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm whitespace-nowrap"
+                        >
+                          {verifyingOtp ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                              Verifying...
+                            </>
+                          ) : (
+                            "Submit OTP"
+                          )}
+                        </button>
+                      </div>
+
+                      {otpError && <p className="text-xs text-red-600 font-medium">{otpError}</p>}
+                      {otpSuccessMsg && !otpError && (
+                        <p className="text-xs text-emerald-600 font-medium">{otpSuccessMsg}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Verified State */}
+                  {emailVerified && (
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-semibold">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Email verified successfully
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmailVerified(false);
+                          setOtpSent(false);
+                          setOtp("");
+                          setOtpSuccessMsg("");
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-600 underline font-medium"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
+
                   {fieldErrors.email && (
                     <p className="text-xs text-red-500 mt-1.5">{fieldErrors.email}</p>
                   )}
@@ -348,14 +649,39 @@ const EmployerRegister = () => {
 
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                    Mobile
+                    Official Mobile
                   </label>
                   <input
                     type="tel"
                     name="phone"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={10}
                     value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+91 98765 43210"
+                    autoComplete="off"
+                    onChange={(e) => {
+                      const numeric = e.target.value.replace(/\D/g, "").slice(0, 10);
+                      setFormData((prev) => ({ ...prev, phone: numeric }));
+                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                      if (error) dispatch(clearMessages());
+                    }}
+                    onKeyDown={(e) => {
+                      if (
+                        !/[0-9]/.test(e.key) &&
+                        !["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"].includes(e.key) &&
+                        !e.ctrlKey &&
+                        !e.metaKey
+                      ) {
+                        e.preventDefault();
+                      }
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 10);
+                      setFormData((prev) => ({ ...prev, phone: pasted }));
+                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
+                    placeholder="Enter 10-digit mobile number"
                     className={inputClass("phone")}
                   />
                   {fieldErrors.phone && (
@@ -365,33 +691,73 @@ const EmployerRegister = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder="••••••••"
-                      className={inputClass("password")}
-                    />
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[13px] font-semibold text-slate-700">
+                        Password
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleGeneratePassword}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-[#f59e0b] hover:text-[#d97706] transition"
+                        title="Generate strong random password"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        Generate
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        autoComplete="new-password"
+                        placeholder="Create a strong password"
+                        className={`${inputClass("password")} pr-10`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((p) => !p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        <EyeIcon hidden={showPassword} />
+                      </button>
+                    </div>
                     {fieldErrors.password && (
                       <p className="text-xs text-red-500 mt-1.5">{fieldErrors.password}</p>
                     )}
                   </div>
+
                   <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                      Confirm
-                    </label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      placeholder="••••••••"
-                      className={inputClass("confirmPassword")}
-                    />
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[13px] font-semibold text-slate-700">
+                        Confirm
+                      </label>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        autoComplete="new-password"
+                        placeholder="Confirm your password"
+                        className={`${inputClass("confirmPassword")} pr-10`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((p) => !p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                        title={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        <EyeIcon hidden={showConfirmPassword} />
+                      </button>
+                    </div>
                     {fieldErrors.confirmPassword && (
                       <p className="text-xs text-red-500 mt-1.5">{fieldErrors.confirmPassword}</p>
                     )}
@@ -401,7 +767,7 @@ const EmployerRegister = () => {
                 <button
                   type="button"
                   onClick={handleStep1Next}
-                  disabled={checkingEmail}
+                  disabled={checkingEmail || googleLoading}
                   className="w-full h-11 mt-1 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm"
                 >
                   {checkingEmail ? (
@@ -409,10 +775,57 @@ const EmployerRegister = () => {
                       <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                       Sending OTP...
                     </>
+                  ) : emailVerified ? (
+                    "Continue to Next Step →"
                   ) : (
-                    "Continue"
+                    "Continue →"
                   )}
                 </button>
+                <p className="text-center text-[11px] text-slate-500">
+                  {emailVerified ? "✓ Official email verified. Click continue to proceed." : "🔒 Verify your email with the OTP button above before continuing"}
+                </p>
+
+                {/* OR divider */}
+                <div className="flex items-center gap-3 my-1">
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-xs text-slate-400 font-medium">OR</span>
+                  <div className="flex-1 h-px bg-slate-200" />
+                </div>
+
+                {/* Google error */}
+                {googleError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {googleError}
+                  </div>
+                )}
+
+                {/* Continue with Google */}
+                <button
+                  type="button"
+                  onClick={handleGoogleEmployerSignup}
+                  disabled={checkingEmail || googleLoading}
+                  className="w-full h-11 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold transition flex items-center justify-center gap-3 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-60 shadow-sm"
+                >
+                  {googleLoading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                      Connecting to Google...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                      </svg>
+                      Continue with Google
+                    </>
+                  )}
+                </button>
+                <p className="text-center text-[11px] text-slate-400">
+                  Google sign-up will ask you to set a password & fill company details
+                </p>
               </div>
 
               <p className="text-center text-sm text-slate-500 mt-7">
@@ -427,80 +840,6 @@ const EmployerRegister = () => {
                   Sign in
                 </Link>
               </p>
-            </div>
-          )}
-
-          {/* ========== OTP STEP ========== */}
-          {step === "otp" && (
-            <div key="otp" className={slideClass}>
-              <button
-                type="button"
-                onClick={() => goBack(1)}
-                className="text-sm text-slate-500 hover:text-slate-700 mb-6 flex items-center gap-1"
-              >
-                ← Back
-              </button>
-
-              <div className="mb-8 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-[#fffbeb] text-[#b45309] flex items-center justify-center mx-auto mb-4 border border-amber-200">
-                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Verify your email
-                </h2>
-                <p className="text-sm text-slate-500 mt-1.5">
-                  We've sent a 6-digit code to <br />
-                  <span className="font-semibold text-slate-800">{formData.email}</span>
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => {
-                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
-                      setOtpError("");
-                    }}
-                    placeholder="Enter 6-digit OTP"
-                    className="w-full h-12 text-center text-lg font-bold tracking-[6px] rounded-xl border border-slate-200 bg-white outline-none focus:border-[#f59e0b] focus:ring-4 focus:ring-[#f59e0b]/15"
-                  />
-                  {otpError && <p className="text-xs text-red-500 mt-2 text-center">{otpError}</p>}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleVerifyOTP}
-                  disabled={verifyingOtp || otp.length !== 6}
-                  className="w-full h-11 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm"
-                >
-                  {verifyingOtp ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      Verifying...
-                    </>
-                  ) : (
-                    "Verify & Continue"
-                  )}
-                </button>
-
-                <div className="text-center text-xs text-slate-500 pt-2">
-                  Didn't receive the code?{" "}
-                  <button
-                    type="button"
-                    onClick={handleResendOTP}
-                    disabled={resendCooldown > 0 || checkingEmail}
-                    className="font-bold text-[#b45309] hover:underline disabled:opacity-50"
-                  >
-                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend OTP"}
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 
@@ -533,7 +872,7 @@ const EmployerRegister = () => {
                     name="contactPerson"
                     value={formData.contactPerson}
                     onChange={handleChange}
-                    placeholder="e.g. Rahul Sharma"
+                    placeholder="Enter contact person name"
                     className={inputClass("contactPerson")}
                   />
                   {fieldErrors.contactPerson && (
@@ -549,7 +888,7 @@ const EmployerRegister = () => {
                     name="designation"
                     value={formData.designation}
                     onChange={handleChange}
-                    placeholder="e.g. HR Manager / Campus Recruiter"
+                    placeholder="Enter designation (e.g. HR Manager)"
                     className={inputClass("designation")}
                   />
                   {fieldErrors.designation && (
@@ -588,7 +927,7 @@ const EmployerRegister = () => {
                       name="industry"
                       value={formData.industry}
                       onChange={handleChange}
-                      placeholder="e.g. IT, FinTech"
+                      placeholder="Enter industry (e.g. IT, FinTech)"
                       className={inputClass("industry")}
                     />
                     {fieldErrors.industry && (
@@ -605,7 +944,7 @@ const EmployerRegister = () => {
                     name="location"
                     value={formData.location}
                     onChange={handleChange}
-                    placeholder="e.g. Gurugram, Delhi NCR"
+                    placeholder="Enter city / location (e.g. Gurugram, Delhi NCR)"
                     className={inputClass("location")}
                   />
                   {fieldErrors.location && (
@@ -626,6 +965,22 @@ const EmployerRegister = () => {
                   />
                 </div>
 
+                {/* Keep Me Signed In */}
+                <label className="flex items-center gap-3 cursor-pointer select-none py-0.5">
+                  <input
+                    type="checkbox"
+                    checked={keepSignedIn}
+                    onChange={(e) => setKeepSignedIn(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 accent-[#f59e0b] cursor-pointer"
+                  />
+                  <span className="text-[13px] text-slate-600">
+                    Keep me signed in
+                    <span className="ml-1 text-slate-400 text-xs">
+                      ({keepSignedIn ? "7 days" : "25 hours"})
+                    </span>
+                  </span>
+                </label>
+
                 <button
                   type="submit"
                   disabled={loading}
@@ -641,6 +996,7 @@ const EmployerRegister = () => {
                   )}
                 </button>
               </form>
+
             </div>
           )}
         </div>

@@ -1,11 +1,21 @@
 import { createSlice } from "@reduxjs/toolkit";
 
+const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem("careerconnect_user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 const initialState = {
-  user: null,
+  user: getStoredUser(),
   loading: false,
   isInitialized: false, // Tracks if initial /me check has occurred
   error: null,
   success: null,
+  sessionExpired: false, // Set to true when JWT expires mid-session → shows banner on Login page
 };
 
 const authSlice = createSlice({
@@ -20,6 +30,13 @@ const authSlice = createSlice({
       state.loading = false;
       state.isInitialized = true;
       state.error = null;
+      state.sessionExpired = false;
+      if (action.payload) {
+        localStorage.setItem("careerconnect_user", JSON.stringify(action.payload));
+      } else {
+        localStorage.removeItem("careerconnect_user");
+        localStorage.removeItem("careerconnect_token");
+      }
     },
 
     setLoading: (state, action) => {
@@ -36,7 +53,14 @@ const authSlice = createSlice({
           ...state.user,
           ...action.payload,
         };
+        localStorage.setItem("careerconnect_user", JSON.stringify(state.user));
       }
+    },
+
+    // ================= SESSION EXPIRED =================
+
+    setSessionExpired: (state, action) => {
+      state.sessionExpired = action.payload;
     },
 
     // ================= LOGIN =================
@@ -53,6 +77,13 @@ const authSlice = createSlice({
       state.isInitialized = true;
       state.error = null;
       state.success = "Login successful";
+      state.sessionExpired = false;
+      if (action.payload.user) {
+        localStorage.setItem("careerconnect_user", JSON.stringify(action.payload.user));
+      }
+      if (action.payload.token) {
+        localStorage.setItem("careerconnect_token", action.payload.token);
+      }
     },
 
     loginFailure: (state, action) => {
@@ -75,6 +106,12 @@ const authSlice = createSlice({
       state.isInitialized = true;
       state.error = null;
       state.success = "Account created successfully";
+      if (action.payload.user) {
+        localStorage.setItem("careerconnect_user", JSON.stringify(action.payload.user));
+      }
+      if (action.payload.token) {
+        localStorage.setItem("careerconnect_token", action.payload.token);
+      }
     },
 
     signupFailure: (state, action) => {
@@ -95,9 +132,12 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.loading = false;
-      state.isInitialized = true;
+      state.isInitialized = true; // Still initialized — just not authenticated
       state.error = null;
       state.success = null;
+      localStorage.removeItem("careerconnect_user");
+      localStorage.removeItem("careerconnect_token");
+      // Do not clear sessionExpired here — Login page reads it to show the message
     },
   },
 });
@@ -107,6 +147,7 @@ export const {
   setLoading,
   setInitialized,
   updateUserProfile,
+  setSessionExpired,
 
   loginStart,
   loginSuccess,
