@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getById } from "../../services/internshipService";
 import { applyToInternship } from "../../services/applicationService";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 
 export default function InternshipDetail({ id, onBack, embedded = false }) {
   const { id: paramId } = useParams();
@@ -14,6 +15,7 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
   const [successMsg, setSuccessMsg] = useState("");
   const [coverNote, setCoverNote] = useState("");
   const [resumeUrl, setResumeUrl] = useState("");
+  const [isTailorModalOpen, setIsTailorModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -266,46 +268,82 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
               </div>
             ) : (
               !successMsg && (
-                <form onSubmit={handleApply} className="space-y-4">
-                  <h4 className="text-sm font-bold text-slate-900">Apply via CareerConnect</h4>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                      Resume link
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="Google Drive / Dropbox URL"
-                      value={resumeUrl}
-                      onChange={(e) => setResumeUrl(e.target.value)}
-                      required
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#1e3a8a] focus:ring-4 focus:ring-[#1e3a8a]/10"
-                    />
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
+                      <span>✨</span> AI Tailored Resume
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Automatically optimize and tailor your verified profile skills and projects specifically for this opportunity. You preview and review before submitting.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsTailorModalOpen(true)}
+                      className="w-full mt-2 h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>🎯</span> Apply with Tailored Resume
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                      Cover note (optional)
-                    </label>
-                    <textarea
-                      rows={4}
-                      placeholder="Why are you a good fit?"
-                      value={coverNote}
-                      onChange={(e) => setCoverNote(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-slate-200 text-sm outline-none resize-none focus:border-[#1e3a8a] focus:ring-4 focus:ring-[#1e3a8a]/10"
-                    />
+
+                  <div className="pt-2 border-t border-slate-100">
+                    <details className="text-xs group">
+                      <summary className="font-semibold text-slate-500 hover:text-slate-800 cursor-pointer list-none flex items-center justify-between">
+                        <span>Or apply manually with a direct link</span>
+                        <span className="text-[10px] text-slate-400 group-open:rotate-180 transition">▼</span>
+                      </summary>
+                      <form onSubmit={handleApply} className="space-y-3 mt-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                            Resume Link
+                          </label>
+                          <input
+                            type="url"
+                            placeholder="Google Drive / Cloudinary URL"
+                            value={resumeUrl}
+                            onChange={(e) => setResumeUrl(e.target.value)}
+                            required
+                            className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#1e3a8a]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                            Cover Note (Optional)
+                          </label>
+                          <textarea
+                            rows={3}
+                            placeholder="Why are you a good fit?"
+                            value={coverNote}
+                            onChange={(e) => setCoverNote(e.target.value)}
+                            className="w-full p-2.5 rounded-xl border border-slate-200 text-xs outline-none resize-none focus:border-[#1e3a8a]"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={applying}
+                          className="w-full h-10 rounded-xl bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-bold"
+                        >
+                          {applying ? "Submitting..." : "Submit Manual Application"}
+                        </button>
+                      </form>
+                    </details>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={applying}
-                    className="w-full h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] disabled:opacity-60 text-white text-sm font-bold"
-                  >
-                    {applying ? "Submitting..." : "Submit application"}
-                  </button>
-                </form>
+                </div>
               )
             )}
           </section>
         </div>
       </div>
+
+      <TailoredResumeApplicationModal
+        isOpen={isTailorModalOpen}
+        onClose={() => setIsTailorModalOpen(false)}
+        opportunity={internship}
+        opportunityType="Internship"
+        onApplicationSubmitted={() => {
+          setSuccessMsg("Application submitted successfully with your tailored resume!");
+          setIsTailorModalOpen(false);
+        }}
+      />
     </>
   );
 

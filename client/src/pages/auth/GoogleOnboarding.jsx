@@ -4,6 +4,8 @@ import { useDispatch, useSelector } from "react-redux";
 import api from "../../api/api";
 import { updateUserProfile } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import { parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
+import ParsedResumeReviewModal from "../../components/resume-builder/ParsedResumeReviewModal";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -61,6 +63,9 @@ const GoogleOnboarding = () => {
   const [resumeFile, setResumeFile] = useState(null);
   const [resumeUploading, setResumeUploading] = useState(false);
   const [resumeUploaded, setResumeUploaded] = useState(false);
+  const [parsedResult, setParsedResult] = useState(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const isOnboardingActiveRef = useRef(true);
 
   const [formData, setFormData] = useState({
@@ -225,28 +230,37 @@ const GoogleOnboarding = () => {
     setSubmitError("");
 
     try {
-      const formPayload = new FormData();
-      formPayload.append("resume", resumeFile);
-
-      const res = await api.post("/resume/upload", formPayload, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setResumeUploaded(true);
-      if (res.data?.resumeUrl) {
-        dispatch(
-          updateUserProfile({
-            resumeUrl: res.data.resumeUrl,
-            resumeName: res.data.resumeName,
-          })
-        );
+      const res = await parseResumeAPI(resumeFile);
+      if (res?.parsedData) {
+        setParsedResult(res);
+        setIsReviewOpen(true);
+      } else {
+        setSubmitError("Failed to parse resume details. You may continue to your dashboard.");
       }
     } catch (err) {
-      console.error("[GoogleOnboarding] Resume upload failed:", err);
+      console.error("[GoogleOnboarding] Resume parse failed:", err);
       setSubmitError(
-        err.response?.data?.message || "Failed to upload resume. Please try again."
+        err.response?.data?.message || "Failed to parse resume. Please try again."
       );
     } finally {
       setResumeUploading(false);
+    }
+  };
+
+  const handleConfirmParsedProfile = async ({ parsedData, resumeUrl, resumeName }) => {
+    try {
+      setIsSavingProfile(true);
+      setSubmitError("");
+      const res = await confirmParsedProfileAPI({ parsedData, resumeUrl, resumeName });
+      if (res?.profile) {
+        setResumeUploaded(true);
+      }
+      setIsReviewOpen(false);
+      handleFinish();
+    } catch (err) {
+      setSubmitError(err.response?.data?.message || "Failed to save verified profile details.");
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -797,6 +811,19 @@ const GoogleOnboarding = () => {
           )}
         </div>
       </div>
+
+      {/* Review Parsed Resume Modal */}
+      {parsedResult?.parsedData && (
+        <ParsedResumeReviewModal
+          isOpen={isReviewOpen}
+          initialData={parsedResult.parsedData}
+          resumeUrl={parsedResult.resumeUrl}
+          resumeName={parsedResult.resumeName}
+          onConfirm={handleConfirmParsedProfile}
+          onCancel={handleFinish}
+          isSaving={isSavingProfile}
+        />
+      )}
     </div>
   );
 };

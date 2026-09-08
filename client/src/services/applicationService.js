@@ -11,6 +11,16 @@ export const applyToInternship = async (id, data) => {
 };
 
 /**
+ * Apply to a job (Campus/Direct listing)
+ * @param {string} id - Job ID
+ * @param {Object} data - { coverNote, resumeUrl }
+ */
+export const applyToJob = async (id, data) => {
+  const { data: resData } = await api.post(`/applications/job/${id}`, data);
+  return resData;
+};
+
+/**
  * Get logged-in candidate's applications
  */
 export const getMyApplications = async () => {

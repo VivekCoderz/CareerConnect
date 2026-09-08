@@ -13,7 +13,8 @@ import {
 import api from "../../api/api";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
-
+import { parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
+import ParsedResumeReviewModal from "../../components/resume-builder/ParsedResumeReviewModal";
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -23,6 +24,13 @@ const Signup = () => {
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState("next");
   const [userType, setUserType] = useState("");
+  const [registeredUser, setRegisteredUser] = useState(null);
+  const [resumeFile, setResumeFile] = useState(null);
+  const [parsingResume, setParsingResume] = useState(false);
+  const [resumeError, setResumeError] = useState("");
+  const [parsedResult, setParsedResult] = useState(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState("");
@@ -364,7 +372,8 @@ const Signup = () => {
 
       const res = await api.post("/auth/register", payload);
       dispatch(signupSuccess({ user: res.data.user, token: res.data.token }));
-      navigate(getDashboardPath(res.data.user?.userType || userType), { replace: true });
+      setRegisteredUser(res.data.user);
+      goNext(4);
     } catch (err) {
       const message = err.response?.data?.message || "Registration failed. Please try again.";
       dispatch(signupFailure(message));
@@ -372,6 +381,63 @@ const Signup = () => {
         setFieldErrors({ [err.response.data.field]: err.response.data.message });
       }
     }
+  };
+
+  const handleResumeFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setResumeError("Only PDF resumes are supported.");
+      setResumeFile(null);
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setResumeError("File size must be under 10 MB.");
+      setResumeFile(null);
+      return;
+    }
+    setResumeFile(file);
+    setResumeError("");
+  };
+
+  const handleUploadAndParseResume = async () => {
+    if (!resumeFile) {
+      setResumeError("Please select a PDF file first.");
+      return;
+    }
+    try {
+      setParsingResume(true);
+      setResumeError("");
+      const res = await parseResumeAPI(resumeFile);
+      if (res?.parsedData) {
+        setParsedResult(res);
+        setIsReviewOpen(true);
+      } else {
+        setResumeError("Unable to extract data from the resume. You can still continue to dashboard.");
+      }
+    } catch (err) {
+      setResumeError(err.response?.data?.message || err.message || "Failed to parse resume.");
+    } finally {
+      setParsingResume(false);
+    }
+  };
+
+  const handleConfirmParsedProfile = async ({ parsedData, resumeUrl, resumeName }) => {
+    try {
+      setIsSavingProfile(true);
+      setResumeError("");
+      await confirmParsedProfileAPI({ parsedData, resumeUrl, resumeName });
+      setIsReviewOpen(false);
+      navigate(getDashboardPath(registeredUser?.userType || userType, registeredUser), { replace: true });
+    } catch (err) {
+      setResumeError(err.response?.data?.message || err.message || "Failed to save profile.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleSkipToDashboard = () => {
+    navigate(getDashboardPath(registeredUser?.userType || userType, registeredUser), { replace: true });
   };
 
   const slideClass = direction === "next" ? "animate-slide-in-right" : "animate-slide-in-left";
@@ -445,7 +511,7 @@ const Signup = () => {
 
           {/* Progress */}
           <div className="flex items-center gap-2 mb-9 max-w-md mx-auto">
-            {[1, 2, 3].map((s) => (
+            {[1, 2, 3, 4].map((s) => (
               <div key={s} className="flex items-center gap-2 flex-1 last:flex-none">
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
@@ -456,7 +522,7 @@ const Signup = () => {
                 >
                   {s}
                 </div>
-                {s < 3 && (
+                {s < 4 && (
                   <div
                     className={`h-0.5 flex-1 rounded transition-all ${
                       progressStep > s ? "bg-[#1e3a8a]" : "bg-slate-200"
@@ -943,8 +1009,108 @@ const Signup = () => {
 
             </div>
           )}
+
+          {/* ========== STEP 4: UPLOAD YOUR RESUME ========== */}
+          {step === 4 && (
+            <div key="step4" className={slideClass}>
+              <div className="mb-6">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-800 text-xs font-bold mb-3 border border-blue-200">
+                  <span>✨</span> Step 4: Final Step
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                  Upload Your Resume
+                </h2>
+                <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+                  Upload your existing resume in PDF format. We will automatically parse and import your verified education, skills, projects, and experience into your profile.
+                </p>
+              </div>
+
+              {resumeError && (
+                <div className="mb-5 p-4 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center justify-between">
+                  <span>{resumeError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setResumeError("")}
+                    className="font-bold underline ml-2 cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {/* Upload Dropzone */}
+              <div className="p-8 border-2 border-dashed border-slate-300 hover:border-blue-500 bg-white rounded-3xl text-center transition flex flex-col items-center justify-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-3xl">
+                  📁
+                </div>
+
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {resumeFile ? resumeFile.name : "Select or drag your PDF resume"}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {resumeFile
+                      ? `${(resumeFile.size / (1024 * 1024)).toFixed(2)} MB PDF file selected`
+                      : "PDF format up to 10MB"}
+                  </p>
+                </div>
+
+                <label className="cursor-pointer px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition border border-slate-200">
+                  <span>{resumeFile ? "Choose Different File" : "Browse Files"}</span>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={handleResumeFileSelect}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleUploadAndParseResume}
+                  disabled={!resumeFile || parsingResume}
+                  className="w-full sm:flex-1 h-12 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] disabled:opacity-50 text-white text-sm font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {parsingResume ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Parsing Resume with AI...
+                    </>
+                  ) : (
+                    <>
+                      <span>⚡</span> Upload & Auto-Fill Profile
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSkipToDashboard}
+                  className="w-full sm:w-auto px-5 h-12 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-bold transition"
+                >
+                  Skip for now →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Review Parsed Resume Modal */}
+      {parsedResult?.parsedData && (
+        <ParsedResumeReviewModal
+          isOpen={isReviewOpen}
+          initialData={parsedResult.parsedData}
+          resumeUrl={parsedResult.resumeUrl}
+          resumeName={parsedResult.resumeName}
+          onConfirm={handleConfirmParsedProfile}
+          onCancel={handleSkipToDashboard}
+          isSaving={isSavingProfile}
+        />
+      )}
     </div>
   );
 };

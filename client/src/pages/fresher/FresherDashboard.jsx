@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { logout } from "../../redux/features/authSlice";
 import { logoutUser } from "../../services/authService";
 import { getFresherDashboardData } from "../../services/fresherDashboardService";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 
 const FresherDashboard = () => {
   const navigate = useNavigate();
@@ -13,6 +14,8 @@ const FresherDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedOpportunityForTailoring, setSelectedOpportunityForTailoring] = useState(null);
+  const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
 
   const fetchDashboard = async () => {
     setLoading(true);
@@ -225,10 +228,24 @@ const FresherDashboard = () => {
 
                     <button
                       type="button"
-                      onClick={() => alert(`Application submitted for ${job.title} at ${job.company}!`)}
+                      onClick={() => {
+                        setSelectedOpportunityForTailoring({
+                          _id: job.id || job._id,
+                          id: job.id || job._id,
+                          title: job.title,
+                          company: job.company,
+                          companyName: job.company,
+                          type: "Job",
+                          opportunityType: "Job",
+                          description: `${job.title} at ${job.company}. Location: ${job.location || "Remote"}. Experience: ${job.experienceRequired || "Fresher"}.`,
+                          requirements: job.skillsRequired || [],
+                          skillsRequired: job.skillsRequired || [],
+                        });
+                        setIsTailoredModalOpen(true);
+                      }}
                       className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition shadow-xs self-start sm:self-center whitespace-nowrap"
                     >
-                      1-Click Apply
+                      1-Click Tailored Apply
                     </button>
                   </div>
                 ))}
@@ -415,6 +432,19 @@ const FresherDashboard = () => {
           </div>
         </div>
       </main>
+
+      {/* Tailored Resume Application Modal */}
+      <TailoredResumeApplicationModal
+        isOpen={isTailoredModalOpen}
+        onClose={() => {
+          setIsTailoredModalOpen(false);
+          setSelectedOpportunityForTailoring(null);
+        }}
+        opportunity={selectedOpportunityForTailoring}
+        onAppliedSuccess={() => {
+          alert(`Application submitted successfully for ${selectedOpportunityForTailoring?.title}!`);
+        }}
+      />
     </div>
   );
 };
