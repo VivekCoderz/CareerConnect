@@ -366,17 +366,16 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
-    const cleanPhone = phone ? phone.toString().trim().replace(/\D/g, "") : "";
-    if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+    if (!phone || !phone.toString().trim()) {
       return res.status(400).json({
         success: false,
         field: "phone",
-        message: "Please enter a valid 10-digit mobile number containing only numeric digits (0-9)",
+        message: "Mobile number is required",
       });
     }
 
-    const cleanPhone = phone.replace(/\D/g, "");
-    const cleanCountryCode = countryCode.trim() || "+91";
+    const cleanPhone = phone.toString().trim().replace(/\D/g, "");
+    const cleanCountryCode = countryCode?.trim() || "+91";
 
     if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
       return res.status(400).json({
@@ -1352,17 +1351,16 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     }
 
-    const cleanPhone = phone ? phone.toString().trim().replace(/\D/g, "") : "";
-    if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+    if (!phone || !phone.toString().trim()) {
       return res.status(400).json({
         success: false,
         field: "phone",
-        message: "Please enter a valid 10-digit mobile number containing only numeric digits (0-9)",
+        message: "Mobile number is required",
       });
     }
 
-    const cleanPhone = phone.replace(/\D/g, "");
-    const cleanCountryCode = countryCode.trim() || "+91";
+    const cleanPhone = phone.toString().trim().replace(/\D/g, "");
+    const cleanCountryCode = countryCode?.trim() || "+91";
 
     if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
       return res.status(400).json({
