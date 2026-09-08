@@ -47,6 +47,41 @@ export const getSkillDevelopment = async () => {
   return res.data;
 };
 
+export const getRecommendedCourses = async () => {
+  const res = await api.get("/courses/recommended");
+  return res.data;
+};
+
+export const getCourseDetails = async (courseId) => {
+  const res = await api.get(`/courses/${courseId}`);
+  return res.data;
+};
+
+export const applyForCourse = async (courseId, payload = {}) => {
+  const res = await api.post(`/courses/${courseId}/apply`, payload);
+  return res.data;
+};
+
+export const getStudentCourses = async () => {
+  const res = await api.get("/student/courses");
+  return res.data;
+};
+
+export const getStudentCourseContent = async (courseId) => {
+  const res = await api.get(`/student/courses/${courseId}/content`);
+  return res.data;
+};
+
+export const markContentComplete = async (courseId, contentId) => {
+  const res = await api.patch(`/student/courses/${courseId}/content/${contentId}/complete`);
+  return res.data;
+};
+
+export const getStudentProfile = async () => {
+  const res = await api.get("/student/profile");
+  return res.data;
+};
+
 export default {
   getCourseCatalog,
   getMyLearning,
@@ -57,4 +92,11 @@ export default {
   getMyCertificates,
   verifyCertificate,
   getSkillDevelopment,
+  getRecommendedCourses,
+  getCourseDetails,
+  applyForCourse,
+  getStudentCourses,
+  getStudentCourseContent,
+  markContentComplete,
+  getStudentProfile,
 };
