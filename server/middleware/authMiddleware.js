@@ -90,7 +90,6 @@ const protect = async (req, res, next) => {
     }
 
     req.user = user;
-
     // Automatically seed MongoDB session if not yet active
     if (req.session && !req.session.user) {
       req.session.user = {
@@ -102,7 +101,6 @@ const protect = async (req, res, next) => {
         lastActive: new Date(),
       };
     }
-
     return next();
   } catch (error) {
     return res.status(401).json({

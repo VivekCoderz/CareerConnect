@@ -27,8 +27,8 @@ const employerLearningRoutes = require("./routes/employerLearningRoutes.js");
 const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 
 const resumeRoutes = require("./routes/resumeRoutes.js");
-const sessionMiddleware = require("./config/session.js");
 const opportunityRoutes = require("./routes/opportunityRoutes.js");
+const recommendationRoutes = require("./routes/recommendationRoutes.js");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -68,7 +68,6 @@ app.use(
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(cookieParser());
-app.use(sessionMiddleware);
 
 // Base & User Profile Routes
 app.use("/api/auth", authRoutes);
@@ -101,6 +100,8 @@ app.use("/api/resume", resumeRoutes);
 app.use("/api/api/resume", resumeRoutes); // Safety alias
 app.use("/api/opportunities", opportunityRoutes);
 app.use("/api/feed", opportunityRoutes);
+app.use("/api/recommendations", recommendationRoutes);
+app.use("/api/fresher/recommendations", recommendationRoutes);
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
 
 // Gateway Health Check Endpoint

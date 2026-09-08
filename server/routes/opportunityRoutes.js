@@ -6,5 +6,6 @@ const opportunityController = require("../controllers/opportunityController");
 router.get("/", opportunityController.getOpportunities);
 router.get("/meta", opportunityController.getOpportunityMetadata);
 router.get("/health", opportunityController.healthCheck);
+router.get("/:id", opportunityController.getOpportunityById);
 
 module.exports = router;

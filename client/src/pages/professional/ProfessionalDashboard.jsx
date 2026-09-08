@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
-import { logout } from "../../redux/features/authSlice";
-import { logoutUser } from "../../services/authService";
+import { useSelector } from "react-redux";
+import useLogout from "../../hooks/useLogout";
 import { getProfessionalDashboardData } from "../../services/professionalDashboardService";
 
 // Subcomponents
@@ -72,11 +71,12 @@ const INITIAL_APPLICATIONS = [
 
 const ProfessionalDashboard = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -123,14 +123,8 @@ const ProfessionalDashboard = () => {
     fetchDashboard();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await logoutUser();
-    } catch (e) {
-      console.error(e);
-    }
-    dispatch(logout());
-    navigate("/", { replace: true });
+  const handleLogout = () => {
+    logout();
   };
 
   // Trigger Application Review Flow
@@ -289,29 +283,39 @@ const ProfessionalDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/70 text-slate-800 flex flex-col font-sans">
-      {/* Top Header */}
-      <ProfessionalHeader
-        professionalName={professionalName}
-        professionalRole={currentRole}
+    <div className="min-h-screen bg-slate-50/70 text-slate-800 flex font-sans">
+      {/* Left Side Navigation Sidebar */}
+      <ProfessionalSidebar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        onToggleSidebar={() => setMobileSidebarOpen((prev) => !prev)}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
         onLogout={handleLogout}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
       />
 
-      <div className="flex-1 flex w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
-        {/* Left Side Navigation Sidebar */}
-        <ProfessionalSidebar
+      {/* Main Content Area */}
+      <div
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+          sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
+        }`}
+      >
+        {/* Top Header */}
+        <ProfessionalHeader
+          user={user}
+          profile={profile}
+          professionalName={professionalName}
+          professionalRole={currentRole}
           activeTab={activeTab}
           onSelectTab={setActiveTab}
-          isOpen={mobileSidebarOpen}
-          onClose={() => setMobileSidebarOpen(false)}
+          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           onLogout={handleLogout}
         />
 
         {/* Main Center Content Area */}
-        <main className="flex-1 min-w-0 space-y-6">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
           {/* Main Dashboard Overview Tab */}
           {activeTab === "dashboard" && (
             <div className="space-y-6 animate-fade-in">
