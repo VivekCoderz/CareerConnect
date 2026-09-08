@@ -29,12 +29,8 @@ const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 const resumeRoutes = require("./routes/resumeRoutes.js");
 const opportunityRoutes = require("./routes/opportunityRoutes.js");
 
-const {
-  ipBlockerMiddleware,
-  globalLimiter,
-} = require("./middleware/rateLimitMiddleware.js");
-
 const app = express();
+app.set("trust proxy", 1);
 
 // Middlewares
 const allowedOrigins = [
@@ -67,10 +63,6 @@ app.use(
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(cookieParser());
-
-// Anti-DDoS & IP Abuse Blocker — blocks repetitive excessive requests
-app.use(ipBlockerMiddleware);
-app.use("/api", globalLimiter);
 
 // Base & User Profile Routes
 app.use("/api/auth", authRoutes);

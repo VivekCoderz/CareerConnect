@@ -13,6 +13,7 @@ import {
 import api from "../../api/api";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
+import PhoneInput from "../../components/common/PhoneInput";
 
 
 const Signup = () => {
@@ -41,6 +42,7 @@ const Signup = () => {
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
+    countryCode: "+91",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -73,9 +75,18 @@ const Signup = () => {
     if (!formData.email.trim()) errors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Please enter a valid email";
     else if (!emailVerified) errors.email = "Please verify your email address before continuing";
-    if (!formData.phone.trim()) errors.phone = "Mobile number is required";
-    else if (!/^[6-9]\d{9}$/.test(formData.phone.replace(/\D/g, "").slice(-10)))
-      errors.phone = "Please enter a valid 10-digit mobile number";
+    if (!formData.phone.trim()) {
+      errors.phone = "Mobile number is required";
+    } else {
+      const digits = formData.phone.replace(/\D/g, "");
+      if (formData.countryCode === "+91") {
+        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+          errors.phone = "Please enter a valid 10-digit mobile number";
+        }
+      } else if (digits.length < 6 || digits.length > 15) {
+        errors.phone = "Please enter a valid mobile number (6-15 digits)";
+      }
+    }
     if (!formData.password) errors.password = "Password is required";
     else if (formData.password.length < 6) errors.password = "Password must be at least 6 characters";
     if (!formData.confirmPassword) errors.confirmPassword = "Please confirm your password";
@@ -189,7 +200,7 @@ const Signup = () => {
     }
   };
 
-  const handleStep1Next = () => {
+  const handleStep1Next = async () => {
     if (!emailVerified) {
       const emailToVerify = formData.email.trim().toLowerCase();
       if (emailToVerify && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToVerify) && !otpSent) {
@@ -203,6 +214,23 @@ const Signup = () => {
     }
 
     if (!validateStep1()) return;
+
+    // Check if phone number is already registered
+    try {
+      const checkRes = await api.post("/auth/check-phone", {
+        phone: formData.phone.trim(),
+        countryCode: formData.countryCode || "+91",
+      });
+      if (checkRes.data?.exists) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          phone: "This mobile number is already registered with another account",
+        }));
+        return;
+      }
+    } catch (err) {
+      console.warn("Phone check warning:", err.message);
+    }
 
     goNext(2);
   };
@@ -329,6 +357,7 @@ const Signup = () => {
       const payload = {
         fullName: formData.fullName.trim(),
         email: formData.email.trim().toLowerCase(),
+        countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
@@ -370,6 +399,9 @@ const Signup = () => {
       dispatch(signupFailure(message));
       if (err.response?.data?.field) {
         setFieldErrors({ [err.response.data.field]: err.response.data.message });
+        if (err.response.data.field === "phone" || err.response.data.field === "email") {
+          setStep(1);
+        }
       }
     }
   };
@@ -648,9 +680,18 @@ const Signup = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Mobile</label>
-                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="+91 98765 43210" className={inputClass("phone")} />
-                  {fieldErrors.phone && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>}
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Mobile Number</label>
+                  <PhoneInput
+                    countryCode={formData.countryCode}
+                    onCountryCodeChange={(code) => setFormData((prev) => ({ ...prev, countryCode: code }))}
+                    phone={formData.phone}
+                    onPhoneChange={(val) => {
+                      setFormData((prev) => ({ ...prev, phone: val }));
+                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
+                    error={fieldErrors.phone}
+                    theme="blue"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
