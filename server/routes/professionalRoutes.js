@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const professionalController = require("../controllers/professionalController");
+const marketInsightsController = require("../controllers/marketInsightsController");
 const protect = require("../middleware/authMiddleware");
 const { requireUserType } = require("../middleware/roleMiddleware");
 
@@ -29,5 +30,9 @@ router.get(
   "/recommendations",
   professionalController.getProfessionalRecommendations,
 );
+
+// Career & Company Insights Engine
+router.get("/market-insights", marketInsightsController.getMarketInsights);
+router.get("/companies/:companySlug", marketInsightsController.getCompanyDetails);
 
 module.exports = router;

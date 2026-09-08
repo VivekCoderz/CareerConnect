@@ -7,6 +7,10 @@ import {
 } from "firebase/auth";
 import { auth } from "../../config/firebase";
 import api from "../../api/api";
+import {
+  validatePassword,
+  PASSWORD_VALIDATION_ERROR,
+} from "../../utils/passwordGenerator";
 import { setUser } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 
@@ -92,8 +96,8 @@ const SetPassword = () => {
     setError("");
 
     // Validation
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (!validatePassword(password)) {
+      setError(PASSWORD_VALIDATION_ERROR);
       return;
     }
     if (password !== confirmPassword) {

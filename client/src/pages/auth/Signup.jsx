@@ -13,6 +13,7 @@ import {
 import api from "../../api/api";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
+import PhoneInput from "../../components/common/PhoneInput";
 
 
 const Signup = () => {
@@ -37,10 +38,29 @@ const Signup = () => {
   const [otpSuccessMsg, setOtpSuccessMsg] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const handleGeneratePassword = () => {
+    const generated = generateStrongPassword();
+    setFormData((prev) => ({
+      ...prev,
+      password: generated,
+      confirmPassword: generated,
+    }));
+    setShowPassword(true);
+    setShowConfirmPassword(true);
+    setFieldErrors((prev) => ({
+      ...prev,
+      password: "",
+      confirmPassword: "",
+    }));
+  };
 
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
+    countryCode: "+91",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -73,9 +93,18 @@ const Signup = () => {
     if (!formData.email.trim()) errors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Please enter a valid email";
     else if (!emailVerified) errors.email = "Please verify your email address before continuing";
-    if (!formData.phone.trim()) errors.phone = "Mobile number is required";
-    else if (!/^[6-9]\d{9}$/.test(formData.phone.replace(/\D/g, "").slice(-10)))
-      errors.phone = "Please enter a valid 10-digit mobile number";
+    if (!formData.phone.trim()) {
+      errors.phone = "Mobile number is required";
+    } else {
+      const digits = formData.phone.replace(/\D/g, "");
+      if (formData.countryCode === "+91") {
+        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+          errors.phone = "Please enter a valid 10-digit mobile number";
+        }
+      } else if (digits.length < 6 || digits.length > 15) {
+        errors.phone = "Please enter a valid mobile number (6-15 digits)";
+      }
+    }
     if (!formData.password) errors.password = "Password is required";
     else if (formData.password.length < 6) errors.password = "Password must be at least 6 characters";
     if (!formData.confirmPassword) errors.confirmPassword = "Please confirm your password";
@@ -189,7 +218,7 @@ const Signup = () => {
     }
   };
 
-  const handleStep1Next = () => {
+  const handleStep1Next = async () => {
     if (!emailVerified) {
       const emailToVerify = formData.email.trim().toLowerCase();
       if (emailToVerify && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToVerify) && !otpSent) {
@@ -203,6 +232,23 @@ const Signup = () => {
     }
 
     if (!validateStep1()) return;
+
+    // Check if phone number is already registered
+    try {
+      const checkRes = await api.post("/auth/check-phone", {
+        phone: formData.phone.trim(),
+        countryCode: formData.countryCode || "+91",
+      });
+      if (checkRes.data?.exists) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          phone: "This mobile number is already registered with another account",
+        }));
+        return;
+      }
+    } catch (err) {
+      console.warn("Phone check warning:", err.message);
+    }
 
     goNext(2);
   };
@@ -329,6 +375,7 @@ const Signup = () => {
       const payload = {
         fullName: formData.fullName.trim(),
         email: formData.email.trim().toLowerCase(),
+        countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
@@ -364,12 +411,19 @@ const Signup = () => {
 
       const res = await api.post("/auth/register", payload);
       dispatch(signupSuccess({ user: res.data.user, token: res.data.token }));
-      navigate(getDashboardPath(res.data.user?.userType || userType), { replace: true });
+      const dest =
+        userType === "fresher"
+          ? "/fresher/profile"
+          : getDashboardPath(res.data.user?.userType || userType, res.data.user);
+      navigate(dest, { replace: true });
     } catch (err) {
       const message = err.response?.data?.message || "Registration failed. Please try again.";
       dispatch(signupFailure(message));
       if (err.response?.data?.field) {
         setFieldErrors({ [err.response.data.field]: err.response.data.message });
+        if (err.response.data.field === "phone" || err.response.data.field === "email") {
+          setStep(1);
+        }
       }
     }
   };
@@ -485,10 +539,21 @@ const Signup = () => {
                 </p>
               </div>
 
+              {/* Prevent browser autofill */}
+              <input type="text" name="fake_username_prevent_autofill" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="off" />
+              <input type="password" name="fake_password_prevent_autofill" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="new-password" />
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Full Name</label>
-                  <input name="fullName" value={formData.fullName} onChange={handleChange} placeholder="John Doe" className={inputClass("fullName")} />
+                  <input
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    autoComplete="off"
+                    placeholder="Enter your full name"
+                    className={inputClass("fullName")}
+                  />
                   {fieldErrors.fullName && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.fullName}</p>}
                 </div>
 
@@ -518,7 +583,8 @@ const Signup = () => {
                         if (otpSent) setOtpSent(false);
                       }}
                       disabled={emailVerified}
-                      placeholder="john@example.com"
+                      autoComplete="off"
+                      placeholder="Enter your email address"
                       className={`${inputClass("email")} ${emailVerified ? "bg-slate-50 border-emerald-400 text-slate-700 pr-10" : ""}`}
                     />
                     {emailVerified && (
@@ -648,21 +714,84 @@ const Signup = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Mobile</label>
-                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="+91 98765 43210" className={inputClass("phone")} />
-                  {fieldErrors.phone && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>}
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Mobile Number</label>
+                  <PhoneInput
+                    countryCode={formData.countryCode}
+                    onCountryCodeChange={(code) => setFormData((prev) => ({ ...prev, countryCode: code }))}
+                    phone={formData.phone}
+                    onPhoneChange={(val) => {
+                      setFormData((prev) => ({ ...prev, phone: val }));
+                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
+                    error={fieldErrors.phone}
+                    theme="blue"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Password</label>
-                    <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="••••••••" className={inputClass("password")} />
-                    {fieldErrors.password && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.password}</p>}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[13px] font-semibold text-slate-700">Password</label>
+                      <button
+                        type="button"
+                        onClick={handleGeneratePassword}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1e3a8a] hover:text-[#1e40af] transition"
+                        title="Generate strong random password"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        Generate
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        autoComplete="new-password"
+                        placeholder="Create a strong password"
+                        className={`${inputClass("password")} pr-10`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((p) => !p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        <EyeIcon hidden={showPassword} />
+                      </button>
+                    </div>
+                    {fieldErrors.password && <p className="text-xs text-red-500 mt-1">{fieldErrors.password}</p>}
                   </div>
+
                   <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Confirm</label>
-                    <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="••••••••" className={inputClass("confirmPassword")} />
-                    {fieldErrors.confirmPassword && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.confirmPassword}</p>}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[13px] font-semibold text-slate-700">Confirm</label>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        autoComplete="new-password"
+                        placeholder="Confirm your password"
+                        className={`${inputClass("confirmPassword")} pr-10`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((p) => !p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                        title={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        <EyeIcon hidden={showConfirmPassword} />
+                      </button>
+                    </div>
+                    {fieldErrors.confirmPassword && <p className="text-xs text-red-500 mt-1">{fieldErrors.confirmPassword}</p>}
                   </div>
                 </div>
 
@@ -819,12 +948,12 @@ const Signup = () => {
                   <>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">College / University</label>
-                      <input name="college" value={formData.college} onChange={handleChange} placeholder="Geeta University" className={inputClass("college")} />
+                      <input name="college" value={formData.college} onChange={handleChange} placeholder="Enter college / university name" className={inputClass("college")} />
                       {fieldErrors.college && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.college}</p>}
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Course</label>
-                      <input name="course" value={formData.course} onChange={handleChange} placeholder="B.Tech Computer Science" className={inputClass("course")} />
+                      <input name="course" value={formData.course} onChange={handleChange} placeholder="Enter course name (e.g. B.Tech Computer Science)" className={inputClass("course")} />
                       {fieldErrors.course && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.course}</p>}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -841,7 +970,7 @@ const Signup = () => {
                       </div>
                       <div>
                         <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Graduation Year</label>
-                        <input type="number" name="graduationYear" value={formData.graduationYear} onChange={handleChange} placeholder="2027" className={inputClass("graduationYear")} />
+                        <input type="number" name="graduationYear" value={formData.graduationYear} onChange={handleChange} placeholder="e.g. 2027" className={inputClass("graduationYear")} />
                         {fieldErrors.graduationYear && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.graduationYear}</p>}
                       </div>
                     </div>
@@ -852,17 +981,17 @@ const Signup = () => {
                   <>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Highest Qualification</label>
-                      <input name="highestQualification" value={formData.highestQualification} onChange={handleChange} placeholder="B.Tech / BCA / MCA" className={inputClass("highestQualification")} />
+                      <input name="highestQualification" value={formData.highestQualification} onChange={handleChange} placeholder="Enter qualification (e.g. B.Tech / BCA / MCA)" className={inputClass("highestQualification")} />
                       {fieldErrors.highestQualification && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.highestQualification}</p>}
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Passout Year</label>
-                      <input type="number" name="passoutYear" value={formData.passoutYear} onChange={handleChange} placeholder="2024" className={inputClass("passoutYear")} />
+                      <input type="number" name="passoutYear" value={formData.passoutYear} onChange={handleChange} placeholder="e.g. 2024" className={inputClass("passoutYear")} />
                       {fieldErrors.passoutYear && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.passoutYear}</p>}
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Key Skills</label>
-                      <input name="skills" value={formData.skills} onChange={handleChange} placeholder="React, Node.js, Python..." className={inputClass("skills")} />
+                      <input name="skills" value={formData.skills} onChange={handleChange} placeholder="Enter skills (e.g. React, Node.js, Python)" className={inputClass("skills")} />
                     </div>
                   </>
                 )}
@@ -871,12 +1000,12 @@ const Signup = () => {
                   <>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Current Company</label>
-                      <input name="currentCompany" value={formData.currentCompany} onChange={handleChange} placeholder="Company name" className={inputClass("currentCompany")} />
+                      <input name="currentCompany" value={formData.currentCompany} onChange={handleChange} placeholder="Enter current company name" className={inputClass("currentCompany")} />
                       {fieldErrors.currentCompany && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.currentCompany}</p>}
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Job Title</label>
-                      <input name="jobTitle" value={formData.jobTitle} onChange={handleChange} placeholder="Software Engineer" className={inputClass("jobTitle")} />
+                      <input name="jobTitle" value={formData.jobTitle} onChange={handleChange} placeholder="Enter job title (e.g. Software Engineer)" className={inputClass("jobTitle")} />
                       {fieldErrors.jobTitle && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.jobTitle}</p>}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -893,7 +1022,7 @@ const Signup = () => {
                       </div>
                       <div>
                         <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Industry</label>
-                        <input name="industry" value={formData.industry} onChange={handleChange} placeholder="IT / Finance" className={inputClass("industry")} />
+                        <input name="industry" value={formData.industry} onChange={handleChange} placeholder="Enter industry (e.g. IT, Finance)" className={inputClass("industry")} />
                       </div>
                     </div>
                   </>
@@ -902,11 +1031,11 @@ const Signup = () => {
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">LinkedIn</label>
-                    <input name="linkedin" value={formData.linkedin} onChange={handleChange} placeholder="linkedin.com/in/..." className={inputClass("linkedin")} />
+                    <input name="linkedin" value={formData.linkedin} onChange={handleChange} placeholder="https://linkedin.com/in/yourprofile" className={inputClass("linkedin")} />
                   </div>
                   <div>
                     <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">GitHub</label>
-                    <input name="github" value={formData.github} onChange={handleChange} placeholder="github.com/username" className={inputClass("github")} />
+                    <input name="github" value={formData.github} onChange={handleChange} placeholder="https://github.com/yourusername" className={inputClass("github")} />
                   </div>
                 </div>
                 {/* Keep Me Signed In */}

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
+import { getDashboardPath } from "../../utils/dashboardRedirect";
 import {
   Search,
   Sparkles,
@@ -11,6 +13,7 @@ import {
   ArrowRight,
   ShieldCheck,
   GraduationCap,
+  ArrowLeft,
 } from "lucide-react";
 import api from "../../api/api";
 import CourseCard from "../../components/courses/CourseCard";
@@ -23,8 +26,7 @@ import CourseDetailsPage from "./CourseDetailsPage";
  * Integrates directly inside the existing CareerConnect Student Dashboard framework.
  * (No duplicate inner navbar, notification bell, profile header, or logout button).
  */
-const StudentCoursesPage = () => {
-  const { user } = useSelector((state) => state.auth || {});
+const StudentCoursesPage = ({ onViewDetails }) => {
 
   // Navigation tab state: "recommended" | "my-courses" | "all" | "details"
   const [activeTab, setActiveTab] = useState("recommended");
@@ -37,6 +39,10 @@ const StudentCoursesPage = () => {
   const [applicationStatusMap, setApplicationStatusMap] = useState({});
   const [studentProfile, setStudentProfile] = useState(null);
 
+const StudentCoursesPage = () => {
+  const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
+  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 

@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { getDashboardPath } from "../../utils/dashboardRedirect";
 import {
   BookOpen,
   CheckCircle2,
@@ -22,6 +25,8 @@ import ContentCard from "../../components/courses/ContentCard";
  */
 const StudentMyCoursesPage = () => {
   const [coursesList, setCoursesList] = useState([]);
+  const { user } = useSelector((state) => state.auth);
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
