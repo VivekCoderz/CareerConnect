@@ -523,7 +523,26 @@ module.exports.updateStudentProfile = async (req, res, next) => {
     // 1. Sync User-level fields if provided
     const userUpdates = {};
     if (updateData.fullName) userUpdates.fullName = String(updateData.fullName).trim();
-    if (updateData.phone !== undefined) userUpdates.phone = String(updateData.phone).trim();
+    if (updateData.phone !== undefined && String(updateData.phone).trim()) {
+      const cleanPhone = String(updateData.phone).replace(/\D/g, "");
+      const countryCode = updateData.countryCode?.trim() || "+91";
+      const taken = await User.findOne({
+        _id: { $ne: userId },
+        $or: [
+          { phone: cleanPhone },
+          { phone: cleanPhone.slice(-10) },
+          { phone: `${countryCode}${cleanPhone}` },
+        ],
+      });
+      if (taken) {
+        return res.status(409).json({
+          success: false,
+          message: "Mobile number is already registered with another account",
+        });
+      }
+      userUpdates.phone = cleanPhone;
+      if (updateData.countryCode) userUpdates.countryCode = updateData.countryCode.trim();
+    }
     if (updateData.profileImage !== undefined) userUpdates.profileImage = String(updateData.profileImage).trim();
     if (updateData.socialLinks) userUpdates.socialLinks = updateData.socialLinks;
     if (updateData.resume?.resumeUrl) {

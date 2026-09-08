@@ -16,7 +16,7 @@ const EmployerNavbar = ({ onOpenMobileSidebar, profile = {} }) => {
       // ignore
     }
     dispatch(logout());
-    navigate("/login?type=employer", { replace: true });
+    navigate("/", { replace: true });
   };
 
   return (

@@ -312,7 +312,26 @@ module.exports.updateFresherProfile = async (req, res, next) => {
     // Synchronize basic user fields if present in updateData
     const userUpdateFields = {};
     if (updateData.fullName) userUpdateFields.fullName = updateData.fullName.trim();
-    if (updateData.phone !== undefined) userUpdateFields.phone = updateData.phone.trim();
+    if (updateData.phone !== undefined && String(updateData.phone).trim()) {
+      const cleanPhone = String(updateData.phone).replace(/\D/g, "");
+      const countryCode = updateData.countryCode?.trim() || "+91";
+      const taken = await User.findOne({
+        _id: { $ne: userId },
+        $or: [
+          { phone: cleanPhone },
+          { phone: cleanPhone.slice(-10) },
+          { phone: `${countryCode}${cleanPhone}` },
+        ],
+      });
+      if (taken) {
+        return res.status(409).json({
+          success: false,
+          message: "Mobile number is already registered with another account",
+        });
+      }
+      userUpdateFields.phone = cleanPhone;
+      if (updateData.countryCode) userUpdateFields.countryCode = updateData.countryCode.trim();
+    }
     if (updateData.profileImage !== undefined) userUpdateFields.profileImage = updateData.profileImage;
     if (updateData.socialLinks) {
       userUpdateFields.socialLinks = {
@@ -580,6 +599,223 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       recent: recentApps,
     };
 
+    // Calculate Target Role & Benchmarks
+    const targetRole =
+      profile.targetRole ||
+      profile.targetRoles?.[0] ||
+      profile.jobPreferences?.preferredRoles?.[0] ||
+      "Full Stack Developer";
+
+    const benchmarks =
+      ROLE_SKILL_BENCHMARKS[targetRole] || ROLE_SKILL_BENCHMARKS["Full Stack Developer"];
+
+    const allProfileSkills = [];
+    const skillCategories = ["programmingLanguages", "frameworks", "databases", "tools", "technical", "softSkills"];
+    skillCategories.forEach((cat) => {
+      (profile?.skills?.[cat] || []).forEach((s) => allProfileSkills.push(s.name));
+    });
+    if (Array.isArray(profile.primarySkills)) {
+      profile.primarySkills.forEach((s) => {
+        if (!allProfileSkills.includes(s)) allProfileSkills.push(s);
+      });
+    }
+
+    const userSkillsSet = new Set(allProfileSkills.map((s) => s.toLowerCase()));
+    const missingSkills = benchmarks.filter((s) => !userSkillsSet.has(s.toLowerCase()));
+
+    const skillReasons = {
+      "Node.js": "Crucial for building scalable, high-throughput backend services and APIs.",
+      "Express": "Industry-standard minimalist framework for RESTful routing and middleware.",
+      "Express.js": "Industry-standard minimalist framework for RESTful routing and middleware.",
+      "MongoDB": "Leading NoSQL database widely used in modern full-stack web applications.",
+      "SQL": "Essential for relational data querying, analytics, and enterprise data models.",
+      "React": "Most popular component-based frontend library demanded by tech companies.",
+      "Docker": "Key containerization tool expected in modern cloud and DevOps environments.",
+      "REST API": "Standard architectural style for client-server integration across web applications.",
+      "REST APIs": "Standard architectural style for client-server integration across web applications.",
+      "TypeScript": "Enables type safety and maintainability in production-grade JavaScript apps.",
+      "Git": "Essential version control and collaboration system used across all tech teams.",
+      "Python": "High versatility in automation, backend APIs, data engineering, and AI systems.",
+      "Data Structures": "Core requirement for passing technical interviews and problem-solving.",
+      "Algorithms": "Fundamental for optimizing execution time and scalable code efficiency.",
+      "Postman": "Industry tool for designing, testing, and documenting HTTP APIs.",
+      "Redux": "Predictable state management for complex Single Page Applications.",
+      "PowerBI": "Leading business intelligence tool for interactive data dashboards.",
+      "Tableau": "Powerful visual analytics platform used by top data-driven enterprises.",
+      "Pandas": "Core Python data manipulation and analysis library.",
+    };
+
+    const recommendedSkills = missingSkills.slice(0, 4).map((s) => ({
+      name: s,
+      reason: skillReasons[s] || `Highly in-demand skill commonly required for ${targetRole} positions.`,
+      resourceUrl: `/courses?search=${encodeURIComponent(s)}`,
+    }));
+
+    // Recommended Courses
+    const recommendedCourses = [
+      {
+        id: "crs-f1",
+        name: `Complete ${targetRole} Bootcamp 2026`,
+        platform: "CareerConnect Academy",
+        skill: missingSkills[0] || "Full Stack Architecture",
+        difficulty: "Beginner to Intermediate",
+        duration: "6 Weeks (Self-paced)",
+        thumbnail: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=500&auto=format&fit=crop&q=60",
+        url: "/courses/explore/full-stack-bootcamp",
+        rating: 4.9,
+      },
+      {
+        id: "crs-f2",
+        name: "Data Structures & Algorithms in Java / C++",
+        platform: "AlgoPrep",
+        skill: "Problem Solving",
+        difficulty: "Intermediate",
+        duration: "8 Weeks",
+        thumbnail: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=500&auto=format&fit=crop&q=60",
+        url: "/courses/explore/dsa-mastery",
+        rating: 4.8,
+      },
+      {
+        id: "crs-f3",
+        name: `Modern RESTful APIs & Backend Architecture with ${missingSkills[0] || "Node.js"}`,
+        platform: "Coursera / CareerConnect",
+        skill: missingSkills[0] || "Backend Development",
+        difficulty: "Intermediate",
+        duration: "4 Weeks",
+        thumbnail: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=500&auto=format&fit=crop&q=60",
+        url: `/courses?search=${encodeURIComponent(missingSkills[0] || "Node.js")}`,
+        rating: 4.9,
+      },
+      {
+        id: "crs-f4",
+        name: "Frontend System Design & Performance",
+        platform: "Frontend Masters",
+        skill: "React & TypeScript",
+        difficulty: "Advanced",
+        duration: "3 Weeks",
+        thumbnail: "https://images.unsplash.com/photo-1581291518655-9523b932eed8?w=500&auto=format&fit=crop&q=60",
+        url: "/courses/explore/frontend-system-design",
+        rating: 4.7,
+      },
+    ];
+
+    // Career Recommendations
+    const careerRecommendations = [];
+    if (missingSkills.length > 0) {
+      careerRecommendations.push({
+        id: "rec-skill-1",
+        title: `Add ${missingSkills[0]} to strengthen your ${targetRole} profile`,
+        description: `82% of entry-level ${targetRole} postings list ${missingSkills[0]} as a key requirement.`,
+        ctaText: "Explore Learning",
+        ctaAction: `/courses?search=${encodeURIComponent(missingSkills[0])}`,
+        type: "skill",
+      });
+    }
+
+    const matchingCount = finalRecommendedJobs.length;
+    if (matchingCount > 0) {
+      careerRecommendations.push({
+        id: "rec-jobs-1",
+        title: `${matchingCount} new entry-level roles match your target role`,
+        description: `Verified opportunities seeking ${targetRole} candidates with your skill profile.`,
+        ctaText: "View Matching Jobs",
+        ctaAction: "jobs",
+        type: "job",
+      });
+    }
+
+    if (!profile.projects || profile.projects.length === 0) {
+      careerRecommendations.push({
+        id: "rec-proj-1",
+        title: "Add your latest project to showcase your practical experience",
+        description: "Freshers with 2+ projects receive 3.5x more recruiter shortlists.",
+        ctaText: "Add Project",
+        ctaAction: "/fresher/profile?step=2",
+        type: "project",
+      });
+    }
+
+    if (!profile.resume?.resumeUrl && !profile.resume?.resumeName) {
+      careerRecommendations.push({
+        id: "rec-res-1",
+        title: "Update your resume before applying to new opportunities",
+        description: "Upload your latest PDF or use our AI-powered Resume Builder.",
+        ctaText: "Upload Resume",
+        ctaAction: "/resume-builder",
+        type: "resume",
+      });
+    }
+
+    careerRecommendations.push({
+      id: "rec-course-1",
+      title: `Explore courses related to ${targetRole}`,
+      description: "Upgrade your technical credentials with verified certifications.",
+      ctaText: "Browse Courses",
+      ctaAction: "/courses",
+      type: "course",
+    });
+
+    // Recent Activity Timeline
+    const recentActivity = [
+      {
+        id: "act-1",
+        type: "profile",
+        title: "Fresher Profile Created",
+        subtitle: `Configured target role as ${targetRole}`,
+        timestamp: "Recently",
+      },
+      ...(profile.projects && profile.projects.length > 0
+        ? [
+            {
+              id: "act-2",
+              type: "project",
+              title: `Project Added: ${profile.projects[0].title}`,
+              subtitle: `Showcasing ${profile.projects[0].technologies?.join(", ") || "Tech Stack"}`,
+              timestamp: "Active",
+            },
+          ]
+        : []),
+      ...(profile.resume?.resumeName
+        ? [
+            {
+              id: "act-3",
+              type: "resume",
+              title: "Resume Uploaded",
+              subtitle: profile.resume.resumeName,
+              timestamp: "Uploaded",
+            },
+          ]
+        : []),
+      ...(recentApps.slice(0, 2).map((app, idx) => ({
+        id: `act-app-${idx}`,
+        type: "application",
+        title: `Applied to ${app.title}`,
+        subtitle: `${app.company} · ${app.status}`,
+        timestamp: app.appliedDate,
+      }))),
+    ];
+
+    const careerTarget = {
+      targetRole,
+      targetRoles: profile.targetRoles?.length > 0 ? profile.targetRoles : [targetRole],
+      jobType: profile.jobPreferences?.employmentTypes?.join(", ") || "Full-time opportunities",
+      workMode: profile.jobPreferences?.workMode?.join(" / ") || "Remote / Hybrid",
+      preferredLocations: profile.jobPreferences?.preferredLocations?.length > 0
+        ? profile.jobPreferences.preferredLocations
+        : ["Bangalore", "Pune", "Remote"],
+      careerGoal: profile.careerGoal || "Get my first job",
+      activelyLooking: profile.activelyLooking !== false,
+    };
+
+    const experienceSummary = {
+      projectsCount: profile.projects?.length || 0,
+      internshipsCount: profile.internships?.length || 0,
+      certificationsCount: profile.certifications?.length || 0,
+      skillsCount: allProfileSkills.length,
+      latestProject: profile.projects?.[0] || null,
+      latestInternship: profile.internships?.[0] || null,
+    };
+
     return res.status(200).json({
       success: true,
       data: {
@@ -597,6 +833,15 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         profile,
         profileCompletion: completion,
         jobReadiness: readiness,
+        careerTarget,
+        skillDevelopment: {
+          userSkills: allProfileSkills.slice(0, 10),
+          recommendedSkills,
+        },
+        recommendedCourses,
+        careerRecommendations,
+        recentActivity,
+        experienceSummary,
         recommendedJobs: finalRecommendedJobs,
         recommendedInternships: finalRecommendedInternships,
         applications,

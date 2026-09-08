@@ -5,9 +5,14 @@
  * @returns {string} - Dashboard path or fallback to select-role
  */
 export const getDashboardPath = (userType, user = null) => {
-  const type = user?.role === "employer" ? "employer" : userType || user?.userType;
+  const roleOrType =
+    user?.role === "employer"
+      ? "employer"
+      : user?.userType ||
+        userType ||
+        (user?.role && user.role !== "user" ? user.role : null);
 
-  switch (type) {
+  switch (roleOrType) {
     case "employer":
       return "/employer/dashboard";
 

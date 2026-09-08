@@ -429,7 +429,26 @@ module.exports.updateProfessionalProfile = async (req, res, next) => {
     // Synchronize basic user fields
     const userUpdateFields = {};
     if (updateData.fullName) userUpdateFields.fullName = updateData.fullName.trim();
-    if (updateData.phone !== undefined) userUpdateFields.phone = updateData.phone.trim();
+    if (updateData.phone !== undefined && String(updateData.phone).trim()) {
+      const cleanPhone = String(updateData.phone).replace(/\D/g, "");
+      const countryCode = updateData.countryCode?.trim() || "+91";
+      const taken = await User.findOne({
+        _id: { $ne: userId },
+        $or: [
+          { phone: cleanPhone },
+          { phone: cleanPhone.slice(-10) },
+          { phone: `${countryCode}${cleanPhone}` },
+        ],
+      });
+      if (taken) {
+        return res.status(409).json({
+          success: false,
+          message: "Mobile number is already registered with another account",
+        });
+      }
+      userUpdateFields.phone = cleanPhone;
+      if (updateData.countryCode) userUpdateFields.countryCode = updateData.countryCode.trim();
+    }
     if (updateData.profileImage !== undefined) userUpdateFields.profileImage = updateData.profileImage;
     if (updateData.socialLinks) {
       userUpdateFields.socialLinks = {
