@@ -731,29 +731,140 @@ async function getAggregatedOpportunities({
     });
   }
 
-  // Merge On-Campus Drives
-  let combinedResults = [];
-  if (scope === "all" || scope === "on-campus") {
-    if (source === "all" || source === "campus") {
-      const filteredDrives = CAMPUS_DRIVES.filter((drive) => {
-        if (region === "International") return false;
-        if (workMode === "Remote" && drive.workMode !== "Remote") return false;
-        if (workMode === "On-Site" && drive.workMode === "Remote") return false;
-        if (normalizedOppType === "internship" && drive.opportunityType !== "Internship") return false;
-        if (normalizedOppType === "fulltime" && drive.opportunityType !== "Full-Time Job") return false;
-        if (customQuery) {
-          const qLower = customQuery.toLowerCase();
-          const match =
-            drive.title.toLowerCase().includes(qLower) ||
-            drive.company.toLowerCase().includes(qLower) ||
-            drive.location.toLowerCase().includes(qLower);
-          if (!match) return false;
+  // Query Real MongoDB Opportunities
+  let dbOpportunities = [];
+  if (mongoose.connection.readyState === 1) {
+    try {
+      const jobFilter = { status: "Published" };
+      const internFilter = { status: "Published" };
+
+      if (customQuery) {
+        const sRegex = new RegExp(customQuery, "i");
+        jobFilter.$or = [
+          { title: sRegex },
+          { description: sRegex },
+          { requiredSkills: { $in: [sRegex] } },
+        ];
+        internFilter.$or = [
+          { title: sRegex },
+          { description: sRegex },
+          { skillsRequired: { $in: [sRegex] } },
+        ];
+      }
+
+      if (workMode && workMode !== "all") {
+        jobFilter.workMode = workMode === "Remote" ? "Remote" : { $ne: "Remote" };
+        internFilter.workMode = workMode;
+      }
+
+      const isInternshipRequested =
+        opportunityType === "internship" ||
+        opportunityType === "internships";
+      const isJobRequested =
+        opportunityType === "job" ||
+        opportunityType === "jobs" ||
+        opportunityType === "fulltime" ||
+        opportunityType === "full-time" ||
+        opportunityType === "parttime" ||
+        opportunityType === "part-time";
+
+      let dbJobs = [];
+      let dbInterns = [];
+
+      if (!isInternshipRequested) {
+        // Query jobs (exclude internships)
+        const pureJobFilter = {
+          ...jobFilter,
+          employmentType: { $not: /^internship$/i },
+        };
+        if (opportunityType === "parttime" || opportunityType === "part-time") {
+          pureJobFilter.employmentType = { $regex: /part-time/i };
+        } else if (opportunityType === "fulltime" || opportunityType === "full-time") {
+          pureJobFilter.employmentType = { $regex: /full-time/i };
         }
-        return true;
-      });
-      combinedResults = [...filteredDrives, ...scrapedResults];
-    } else {
-      combinedResults = scrapedResults;
+        dbJobs = await Job.find(pureJobFilter)
+          .populate("employerId", "companyName logo headquarters industry")
+          .sort({ createdAt: -1 })
+          .lean();
+      }
+
+      if (!isJobRequested) {
+        // Query internships from both Internship collection and Job collection with employmentType=Internship
+        const [internDocs, jobInternDocs] = await Promise.all([
+          Internship.find(internFilter)
+            .populate("employerId", "companyName logo headquarters industry")
+            .sort({ createdAt: -1 })
+            .lean(),
+          Job.find({
+            ...jobFilter,
+            employmentType: { $regex: /^internship$/i },
+          })
+            .populate("employerId", "companyName logo headquarters industry")
+            .sort({ createdAt: -1 })
+            .lean(),
+        ]);
+        dbInterns = [...(internDocs || []), ...(jobInternDocs || [])];
+      }
+
+      const formattedJobs = dbJobs.map((j) => ({
+        _id: j._id.toString(),
+        id: j._id.toString(),
+        title: j.title,
+        company: j.employerId?.companyName || "CareerConnect Partner",
+        location: j.location || "On-Campus / Hybrid",
+        opportunityType: j.employmentType || "Full-Time",
+        workMode: j.workMode || "On-Site",
+        salary: j.salaryRange?.max
+          ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
+          : "Competitive Package",
+        stipend: j.salaryRange?.max
+          ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
+          : "Competitive Package",
+        description: j.description,
+        skills: j.requiredSkills || [],
+        skillsRequired: j.requiredSkills || [],
+        deadline: j.deadline ? new Date(j.deadline).toLocaleDateString() : "Open",
+        postedDate: j.createdAt
+          ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+          : "Recently",
+        applyLink: `/jobs/${j._id}`,
+        isExclusive: true,
+        isExternal: false,
+        platformSource: "GU Placement Cell",
+        type: "job",
+        employerId: j.employerId?._id || j.employerId,
+      }));
+
+      const formattedInterns = dbInterns.map((i) => ({
+        _id: i._id.toString(),
+        id: i._id.toString(),
+        title: i.title,
+        company: i.companyName || i.employerId?.companyName || "CareerConnect Partner",
+        location: i.location || "Panipat / Remote",
+        opportunityType: "Internship",
+        workMode: i.workMode || "On-Site",
+        salary: i.stipend ? `₹${i.stipend}/month` : "Paid Internship",
+        stipend: i.stipend ? `₹${i.stipend}/month` : "Paid Internship",
+        description: i.description,
+        skills: i.skillsRequired || i.requiredSkills || [],
+        skillsRequired: i.skillsRequired || i.requiredSkills || [],
+        deadline: i.applicationDeadline || i.deadline
+          ? new Date(i.applicationDeadline || i.deadline).toLocaleDateString()
+          : "Open",
+        postedDate: i.createdAt
+          ? new Date(i.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+          : "Recently",
+        applyLink: `/internships/${i._id}`,
+        isExclusive: true,
+        isExternal: false,
+        platformSource: "GU Placement Cell",
+        type: "internship",
+        employerId: i.employerId?._id || i.employerId,
+      }));
+
+      dbOpportunities = [...formattedJobs, ...formattedInterns];
+    } catch (err) {
+      console.warn("Error querying MongoDB opportunities:", err.message);
     }
   }
 

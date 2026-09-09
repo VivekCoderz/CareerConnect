@@ -502,7 +502,7 @@ const parseResumeDate = (value) => {
   return match ? new Date(`${match[1]}-01-01`) : undefined;
 };
 
-const syncProfileFromResume = async (user, rawData) => {
+const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
   let effectiveType = (user.userType || "student").toLowerCase();
   if (effectiveType.includes("fresh")) effectiveType = "fresher";
   else if (effectiveType.includes("prof") || effectiveType.includes("work")) effectiveType = "professional";
@@ -520,6 +520,18 @@ const syncProfileFromResume = async (user, rawData) => {
     profile = new ProfileModel({ userId: user._id });
   }
 
+  const effectiveResumeUrl = resumeUrl || user.resumeUrl || "";
+  const effectiveResumeName = resumeName || user.resumeName || "Uploaded Resume.pdf";
+
+  if (effectiveResumeUrl) {
+    profile.resume = {
+      resumeUrl: effectiveResumeUrl,
+      resumeName: effectiveResumeName,
+      uploadedAt: profile.resume?.uploadedAt || new Date(),
+      isGenerated: false,
+    };
+  }
+
   const locationParts = String(rawData.personal?.location || user.city || "")
     .split(",")
     .map((item) => item.trim())
@@ -532,7 +544,6 @@ const syncProfileFromResume = async (user, rawData) => {
     country: locationParts.slice(2).join(", ") || "India",
   };
 
-<<<<<<< HEAD
   profile.socialLinks = {
     ...profile.socialLinks?.toObject?.(),
     linkedin: String(rawData.personal?.linkedin || user.socialLinks?.linkedin || "").trim(),
@@ -574,22 +585,6 @@ const syncProfileFromResume = async (user, rawData) => {
     currentlyStudying: !item.endYear || Number(item.endYear) >= new Date().getFullYear(),
   }));
 
-=======
-  const education = (rawData.education || [])
-    .filter((item) => item.college || item.school || item.degree || item.institution)
-    .map((item) => ({
-      institution: (item.college || item.school || item.institution || item.institute || "").trim(),
-      degree: (item.degree || (item.level === "10th" ? "10th / Secondary" : item.level === "12th" ? "12th / Senior Secondary" : "")).trim(),
-      specialization: (item.branch || item.stream || item.specialization || item.fieldOfStudy || "").trim(),
-      fieldOfStudy: (item.branch || item.stream || item.specialization || item.fieldOfStudy || "").trim(),
-      percentageOrCgpa: (item.cgpa || item.percentage || "").trim(),
-      grade: (item.cgpa || item.percentage || "").trim(),
-      graduationYear: Number(item.endYear || item.passingYear) || undefined,
-      endYear: Number(item.endYear || item.passingYear) || undefined,
-      startYear: Number(item.startYear) || undefined,
-      qualificationType: item.level === "10th" ? "10th" : item.level === "12th" ? "12th" : item.level === "diploma" ? "Diploma" : item.level === "postgraduate" ? "MCA" : "B.Tech",
-    }));
->>>>>>> origin/develop
   const projects = (rawData.projects || [])
     .filter((item) => item.name || item.title || item.description)
     .map((item) => ({
@@ -720,6 +715,12 @@ const syncProfileFromResume = async (user, rawData) => {
         github: String(rawData.personal?.github || user.socialLinks?.github || "").trim(),
         portfolio: String(rawData.personal?.portfolio || user.socialLinks?.portfolio || "").trim(),
       },
+      ...(effectiveResumeUrl
+        ? {
+            resumeUrl: effectiveResumeUrl,
+            resumeName: effectiveResumeName,
+          }
+        : {}),
     },
   });
 };
@@ -1125,19 +1126,19 @@ const uploadResumeHandler = async (req, res) => {
       await StudentProfile.findOneAndUpdate(
         { userId },
         { resume: resumeData },
-        { new: true },
+        { new: true, upsert: true },
       );
     } else if (req.user.userType === "fresher") {
       await FresherProfile.findOneAndUpdate(
         { userId },
         { resume: resumeData },
-        { new: true },
+        { new: true, upsert: true },
       );
     } else if (req.user.userType === "professional") {
       await ProfessionalProfile.findOneAndUpdate(
         { userId },
         { resume: resumeData },
-        { new: true },
+        { new: true, upsert: true },
       );
     }
 
@@ -1159,7 +1160,6 @@ const uploadResumeHandler = async (req, res) => {
 };
 
 /**
-<<<<<<< HEAD
  * Helper: Extract raw text from PDF buffer using pdf-parse
  */
 const extractTextFromPdfBuffer = async (buffer) => {
@@ -1256,12 +1256,15 @@ ${rawText.slice(0, 10000)}
   const genAI = new GoogleGenerativeAI(key);
   const modelsToTry = [
     process.env.GEMINI_MODEL,
-    "gemini-1.5-flash",
-    "gemini-flash-latest",
-    "gemini-1.5-pro",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3.8-flash",
   ].filter(Boolean);
+  const uniqueModels = [...new Set(modelsToTry)];
 
-  for (const modelName of modelsToTry) {
+  for (const modelName of uniqueModels) {
     try {
       const model = genAI.getGenerativeModel({ model: modelName });
       const result = await model.generateContent(prompt);
@@ -1282,43 +1285,11 @@ ${rawText.slice(0, 10000)}
  * saves Cloudinary URL, and syncs all parsed details directly to user profile.
  */
 const uploadAndParseResumeHandler = async (req, res) => {
-=======
- * Helper to deduplicate array of skill strings case-insensitively
- */
-const mergeSkillStrings = (existing = [], incoming = []) => {
-  const seen = new Set(
-    existing
-      .map((s) => (typeof s === "string" ? s : s?.name || ""))
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean)
-  );
-  const result = [...existing];
-  for (const item of incoming) {
-    const str = typeof item === "string" ? item.trim() : (item?.name || "").trim();
-    if (str && !seen.has(str.toLowerCase())) {
-      seen.add(str.toLowerCase());
-      result.push(typeof existing[0] === "object" ? { name: str } : str);
-    }
-  }
-  return result;
-};
-
-/**
- * POST /api/resume/parse
- * Uploads resume PDF, extracts text using pdf-parse, parses structured data with AI,
- * uploads PDF to Cloudinary, and returns parsed JSON for user review.
- */
-const parseResumeHandler = async (req, res) => {
->>>>>>> origin/develop
   try {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-<<<<<<< HEAD
         message: "No resume file provided. Please upload a PDF file.",
-=======
-        message: "Please upload a resume PDF file",
->>>>>>> origin/develop
       });
     }
 
@@ -1328,7 +1299,6 @@ const parseResumeHandler = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-<<<<<<< HEAD
         message: "Only PDF files are allowed for resume upload.",
       });
     }
@@ -1352,12 +1322,45 @@ const parseResumeHandler = async (req, res) => {
 
     const resumeName = req.file.originalname;
 
-    // 2. Save resume info on User document
+    // 2. Save resume info on User document and role-specific profile collection immediately
     const user = await User.findById(userId);
     if (user && resumeUrl) {
       user.resumeUrl = resumeUrl;
       user.resumeName = resumeName;
       await user.save();
+    }
+
+    if (resumeUrl) {
+      const resumeData = {
+        resumeUrl,
+        resumeName,
+        uploadedAt: new Date(),
+        isGenerated: false,
+      };
+      const userType = (user?.userType || req.user?.userType || "student").toLowerCase();
+      try {
+        if (userType.includes("fresh")) {
+          await FresherProfile.findOneAndUpdate(
+            { userId },
+            { $set: { resume: resumeData } },
+            { new: true, upsert: true }
+          );
+        } else if (userType.includes("prof") || userType.includes("work")) {
+          await ProfessionalProfile.findOneAndUpdate(
+            { userId },
+            { $set: { resume: resumeData } },
+            { new: true, upsert: true }
+          );
+        } else {
+          await StudentProfile.findOneAndUpdate(
+            { userId },
+            { $set: { resume: resumeData } },
+            { new: true, upsert: true }
+          );
+        }
+      } catch (profileResumeErr) {
+        console.warn("Could not immediately update profile.resume:", profileResumeErr.message);
+      }
     }
 
     // 3. Extract text from PDF buffer
@@ -1414,7 +1417,7 @@ const parseResumeHandler = async (req, res) => {
     // 5. Automatically sync all parsed resume details directly to User Profile
     if (user) {
       try {
-        await syncProfileFromResume(user, parsedData);
+        await syncProfileFromResume(user, parsedData, resumeUrl, resumeName);
       } catch (syncErr) {
         console.error("Error syncing profile from parsed resume:", syncErr.message);
       }
@@ -1444,23 +1447,67 @@ const parseResumeHandler = async (req, res) => {
       userPayloadFn = require("./authController").userPayload;
     } catch (e) {
       console.warn("Could not import userPayload:", e.message);
-=======
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Resume uploaded, parsed by AI, and profile saved successfully!",
+      resumeUrl,
+      resumeName,
+      publicId,
+      parsedData,
+      user: userPayloadFn ? userPayloadFn(updatedUser) : updatedUser,
+    });
+  } catch (error) {
+    console.error("uploadAndParseResumeHandler error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload and parse resume",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/resume/parse
+ * Uploads resume PDF, extracts text, parses structured data with AI,
+ * uploads PDF to Cloudinary, and returns parsed JSON for user review.
+ */
+const parseResumeHandler = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload a resume PDF file",
+      });
+    }
+
+    if (
+      req.file.mimetype !== "application/pdf" &&
+      !req.file.originalname.toLowerCase().endsWith(".pdf")
+    ) {
+      return res.status(400).json({
+        success: false,
         message: "Only PDF files are supported for resume parsing",
       });
     }
 
-    // 1. Extract text from PDF buffer using pdf-parse
+    // 1. Extract text from PDF buffer
     let extractedText = "";
     try {
-      const pdfData = await pdfParse(req.file.buffer);
-      extractedText = pdfData.text || "";
-      console.log(`[Resume Parse] pdf-parse extracted ${extractedText.length} characters from ${req.file.originalname}`);
+      extractedText = await extractTextFromPdfBuffer(req.file.buffer);
     } catch (parseErr) {
-      console.warn("pdf-parse extraction warning:", parseErr.message);
+      console.warn("PDF extraction warning:", parseErr.message);
     }
 
     // 2. Parse structured data from extracted text using AI / heuristic parser
-    const parsedData = await parseResumeText(extractedText);
+    let parsedData = null;
+    if (extractedText && extractedText.trim()) {
+      parsedData = await parseResumeTextWithAi(extractedText, req.user);
+    }
+    if (!parsedData) {
+      parsedData = await parseResumeText(extractedText);
+    }
 
     // If fullName is fallback "Candidate Name" and we have user info or filename, use better candidate name
     if ((!parsedData.personal?.fullName || parsedData.personal.fullName === "Candidate Name") && req.user?.fullName) {
@@ -1539,16 +1586,16 @@ const parseResumeHandler = async (req, res) => {
             skills: {
               programmingLanguages: userType === "student"
                 ? (profileDoc?.technicalSkills || []).join(", ")
-                : skillsToString(profileDoc?.skills?.programmingLanguages),
-              frameworks: userType === "student" ? "" : skillsToString(profileDoc?.skills?.frameworks),
-              tools: userType === "student" ? "" : skillsToString(profileDoc?.skills?.tools),
+                : (profileDoc?.skills?.programmingLanguages || []).map((s) => typeof s === "string" ? s : s.name || "").filter(Boolean).join(", "),
+              frameworks: userType === "student" ? "" : (profileDoc?.skills?.frameworks || []).map((s) => typeof s === "string" ? s : s.name || "").filter(Boolean).join(", "),
+              tools: userType === "student" ? "" : (profileDoc?.skills?.tools || []).map((s) => typeof s === "string" ? s : s.name || "").filter(Boolean).join(", "),
               other: userType === "student"
                 ? (profileDoc?.softSkills || []).join(", ")
-                : skillsToString([
+                : [
                     ...(profileDoc?.skills?.databases || []),
                     ...(profileDoc?.skills?.softSkills || []),
                     ...(profileDoc?.skills?.technical || []),
-                  ]),
+                  ].map((s) => typeof s === "string" ? s : s.name || "").filter(Boolean).join(", "),
             },
             projects: (profileDoc?.projects || []).map((p) => ({
               name: p.title || p.name || "",
@@ -1566,7 +1613,7 @@ const parseResumeHandler = async (req, res) => {
             ).map((exp) => ({
               company: exp.companyName || exp.organization || "",
               role: exp.role || exp.jobTitle || "",
-              duration: exp.startDate ? `${formatDate(exp.startDate)}${exp.endDate ? ` – ${formatDate(exp.endDate)}` : ""}` : "",
+              duration: exp.startDate ? `${new Date(exp.startDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}${exp.endDate ? ` – ${new Date(exp.endDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}` : ""}` : "",
               description: exp.description || "",
             })),
             certifications: (profileDoc?.certifications || []).map((c) => ({
@@ -1590,25 +1637,10 @@ const parseResumeHandler = async (req, res) => {
       } catch (profErr) {
         console.warn("Failed to fetch existing profile during parse:", profErr.message);
       }
->>>>>>> origin/develop
     }
 
     return res.status(200).json({
       success: true,
-<<<<<<< HEAD
-      message: "Resume uploaded, parsed by AI, and profile saved successfully!",
-      resumeUrl,
-      resumeName,
-      publicId,
-      parsedData,
-      user: userPayloadFn ? userPayloadFn(updatedUser) : updatedUser,
-    });
-  } catch (error) {
-    console.error("uploadAndParseResumeHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to upload and parse resume",
-=======
       message: "Resume parsed successfully. Please review your imported details.",
       parsedData,
       existingProfile,
@@ -1620,14 +1652,11 @@ const parseResumeHandler = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to parse resume",
->>>>>>> origin/develop
       error: error.message,
     });
   }
 };
 
-<<<<<<< HEAD
-=======
 /**
  * POST /api/resume/confirm-parsed
  * Merges user-verified parsed data into their existing profile without destroying existing data.
@@ -2366,7 +2395,6 @@ const getTailoredResumeHandler = async (req, res) => {
   }
 };
 
->>>>>>> origin/develop
 module.exports = {
   generateResumeHandler,
   updateResumeHandler,

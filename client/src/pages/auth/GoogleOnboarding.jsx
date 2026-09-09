@@ -79,6 +79,12 @@ const GoogleOnboarding = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
+  useEffect(() => {
+    if (user && user.hasPassword === false) {
+      navigate("/set-password", { replace: true });
+    }
+  }, [user, navigate]);
+
   // Steps: 1 = "Let's get started" info card, 2 = "Areas of Interest"
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);

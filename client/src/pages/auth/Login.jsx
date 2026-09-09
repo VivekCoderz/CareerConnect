@@ -146,7 +146,9 @@ const Login = () => {
       dispatch(loginSuccess({ user, token }));
 
       // Step 3: Route based on account status
-      if (!user.phone?.trim() || !user.isProfileComplete) {
+      if (requiresPasswordSetup || user.hasPassword === false) {
+        navigate("/set-password", { replace: true });
+      } else if (!user.phone?.trim() || !user.isProfileComplete) {
         navigate(
           user.role === "employer" || loginType === "employer"
             ? "/onboarding/employer"

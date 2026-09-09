@@ -394,8 +394,23 @@ module.exports.getProfessionalProfile = async (req, res, next) => {
 
       profile = await profile.populate(
         "userId",
-        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks"
+        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks resumeUrl resumeName"
       );
+    }
+
+    // Fallback sync: if profile has no resumeUrl, but User has resumeUrl, sync it now
+    const fallbackUrl = profile.userId?.resumeUrl || req.user?.resumeUrl;
+    const fallbackName = profile.userId?.resumeName || req.user?.resumeName || "Uploaded Resume.pdf";
+    if ((!profile.resume || !profile.resume.resumeUrl) && fallbackUrl) {
+      profile.resume = {
+        resumeUrl: fallbackUrl,
+        resumeName: fallbackName,
+        uploadedAt: new Date(),
+        isGenerated: false,
+      };
+      await ProfessionalProfile.findByIdAndUpdate(profile._id, {
+        $set: { resume: profile.resume },
+      });
     }
 
     // Dynamic experience calculation

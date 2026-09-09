@@ -16,8 +16,10 @@ const Home = () => {
 
   useEffect(() => {
     if (isInitialized && user) {
-      if (user.hasPassword === false && !user.phone?.trim()) {
-        navigate("/onboarding/profile", { replace: true });
+      if (user.hasPassword === false) {
+        navigate("/set-password", { replace: true });
+      } else if (!user.phone?.trim() || !user.isProfileComplete) {
+        navigate(user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile", { replace: true });
       } else {
         navigate(getDashboardPath(user.userType || user.role, user), { replace: true });
       }

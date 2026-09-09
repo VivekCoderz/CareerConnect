@@ -419,6 +419,19 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       );
     }
 
+    // Fallback sync: if profile has no resumeUrl, but req.user has resumeUrl, sync it now
+    if ((!profile.resume || !profile.resume.resumeUrl) && req.user?.resumeUrl) {
+      profile.resume = {
+        resumeUrl: req.user.resumeUrl,
+        resumeName: req.user.resumeName || "Uploaded Resume.pdf",
+        uploadedAt: new Date(),
+        isGenerated: false,
+      };
+      await FresherProfile.findByIdAndUpdate(profile._id, {
+        $set: { resume: profile.resume },
+      });
+    }
+
     const completion = calculateFresherProfileCompletion(profile, req.user);
     const readiness = calculateFresherJobReadiness(profile, completion);
 

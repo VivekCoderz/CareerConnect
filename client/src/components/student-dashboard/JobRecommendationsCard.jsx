@@ -1,12 +1,8 @@
-<<<<<<< HEAD
 import { Link } from "react-router-dom";
 
 const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], limit = 1 }) => {
   const displayedJobs = limit ? jobs.slice(0, limit) : jobs;
 
-=======
-const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], onViewAll }) => {
->>>>>>> origin/develop
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
@@ -22,7 +18,6 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], onV
             Top trending full-time opportunity curated for entry-level and campus graduates
           </p>
         </div>
-<<<<<<< HEAD
         <Link
           to="/jobs"
           className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 transition whitespace-nowrap self-start sm:self-center"
@@ -30,17 +25,6 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], onV
           <span>Explore All Jobs</span>
           <span>&rarr;</span>
         </Link>
-=======
-        {onViewAll && (
-          <button
-            type="button"
-            onClick={onViewAll}
-            className="text-xs font-bold text-[#1e3a8a] hover:text-[#1e40af] transition"
-          >
-            View All Jobs →
-          </button>
-        )}
->>>>>>> origin/develop
       </div>
 
       {displayedJobs && displayedJobs.length > 0 ? (

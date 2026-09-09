@@ -14,7 +14,6 @@ try {
     genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const targetModel = process.env.GEMINI_MODEL || "gemini-3.5-flash";
     geminiModel = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
       model: targetModel,
       generationConfig: {
         temperature: 0.2,
@@ -961,7 +960,8 @@ async function parseResumeText(pdfText) {
     geminiModel,
     genAI ? genAI.getGenerativeModel({ model: "gemini-3.5-flash", generationConfig: { temperature: 0.2 } }) : null,
     genAI ? genAI.getGenerativeModel({ model: "gemini-3.6-flash", generationConfig: { temperature: 0.2 } }) : null,
-    genAI ? genAI.getGenerativeModel({ model: "gemini-flash-latest", generationConfig: { temperature: 0.2 } }) : null,
+    genAI ? genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite", generationConfig: { temperature: 0.2 } }) : null,
+    genAI ? genAI.getGenerativeModel({ model: "gemini-flash-lite-latest", generationConfig: { temperature: 0.2 } }) : null,
   ].filter(Boolean);
 
   for (const m of modelsToTry) {

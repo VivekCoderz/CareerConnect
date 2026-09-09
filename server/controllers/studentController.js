@@ -143,6 +143,19 @@ module.exports.getStudentDashboard = async (req, res, next) => {
       });
     }
 
+    // Fallback sync: if profile has no resumeUrl, but req.user has resumeUrl, sync it now
+    if ((!profile.resume || !profile.resume.resumeUrl) && req.user?.resumeUrl) {
+      profile.resume = {
+        resumeUrl: req.user.resumeUrl,
+        resumeName: req.user.resumeName || "Uploaded Resume.pdf",
+        uploadedAt: new Date(),
+        isGenerated: false,
+      };
+      await StudentProfile.findByIdAndUpdate(profile._id, {
+        $set: { resume: profile.resume },
+      });
+    }
+
     const completion = calculateProfileCompletion(profile, req.user);
     const readiness = calculateCareerReadiness(profile, completion);
     const skillGap = analyzeSkillGap(profile);
@@ -242,7 +255,6 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     let finalRecommendedInternships = recommendedInternships;
     let finalRecommendedJobs = recommendedJobs;
 
-<<<<<<< HEAD
     if (finalRecommendedInternships.length < 10 || finalRecommendedJobs.length < 10) {
       const searchTarget = profile?.careerGoal || "Full Stack Developer";
       try {
@@ -333,8 +345,6 @@ module.exports.getStudentDashboard = async (req, res, next) => {
       }
     }
 
-=======
->>>>>>> origin/develop
     // 3. Fetch Real Courses from database
     const dbCourses = await Course.find({ status: "Published" }).limit(6).lean();
     const recommendedCourses = dbCourses.map((c) => ({
@@ -493,7 +503,7 @@ module.exports.getStudentProfile = async (req, res, next) => {
     const userId = req.user._id;
     let profile = await StudentProfile.findOne({ userId }).populate(
       "userId",
-      "fullName email username phone profileImage socialLinks"
+      "fullName email username phone profileImage socialLinks resumeUrl resumeName"
     );
 
     if (!profile) {
@@ -512,8 +522,23 @@ module.exports.getStudentProfile = async (req, res, next) => {
       });
       profile = await profile.populate(
         "userId",
-        "fullName email username phone profileImage socialLinks"
+        "fullName email username phone profileImage socialLinks resumeUrl resumeName"
       );
+    }
+
+    // Fallback sync: if profile has no resumeUrl, but User has resumeUrl, sync it now
+    const fallbackUrl = profile.userId?.resumeUrl || req.user?.resumeUrl;
+    const fallbackName = profile.userId?.resumeName || req.user?.resumeName || "Uploaded Resume.pdf";
+    if ((!profile.resume || !profile.resume.resumeUrl) && fallbackUrl) {
+      profile.resume = {
+        resumeUrl: fallbackUrl,
+        resumeName: fallbackName,
+        uploadedAt: new Date(),
+        isGenerated: false,
+      };
+      await StudentProfile.findByIdAndUpdate(profile._id, {
+        $set: { resume: profile.resume },
+      });
     }
 
     const completion = calculateProfileCompletion(profile, profile.userId || req.user);
@@ -684,13 +709,9 @@ module.exports.applyOpportunity = async (req, res, next) => {
       job = await Job.findById(targetJobId).populate("employerId");
       if (!job) {
         job = await Internship.findById(targetJobId).populate("employerId");
-<<<<<<< HEAD
         if (job) {
           isInternship = true;
         }
-=======
-        if (job) isInternship = true;
->>>>>>> origin/develop
       }
     }
 
@@ -708,19 +729,11 @@ module.exports.applyOpportunity = async (req, res, next) => {
       });
     }
 
-<<<<<<< HEAD
     const existing = await Application.findOne(
       isInternship
         ? { internshipId: targetJobId, candidateId }
         : { jobId: targetJobId, candidateId }
     );
-=======
-    // Check duplicate
-    const existing = await Application.findOne({
-      candidateId,
-      $or: [{ jobId: targetJobId }, { internshipId: targetJobId }],
-    });
->>>>>>> origin/develop
     if (existing) {
       return res.status(409).json({
         success: false,
@@ -792,30 +805,24 @@ module.exports.applyOpportunity = async (req, res, next) => {
     );
     const matchOverall = Math.min(100, Math.max(40, Math.round(50 + (strongSkills.length * 15))));
 
-<<<<<<< HEAD
-    const companyName = job.companyName || job.employerId?.companyName || company || "Partner Employer";
+    const companyName =
+      job.employerId?.companyName ||
+      job.companyName ||
+      job.company ||
+      company ||
+      "Partner Employer";
 
-    const application = await Application.create({
-      jobId: isInternship ? null : targetJobId,
-      internshipId: isInternship ? targetJobId : null,
+    const applicationPayload = {
       opportunityType: isInternship ? "Internship" : "Job",
       opportunityTitle: job.title || title || "",
       companyName,
-=======
-    const applicationPayload = {
->>>>>>> origin/develop
       candidateId,
       employerId: job.employerId?._id || job.employerId,
-      resumeUrl: req.body.resumeUrl || studentProf?.resume?.resumeUrl || "",
-      coverNote: req.body.coverNote ? String(req.body.coverNote).trim() : "",
-      
-      opportunityType: isInternship ? "Internship" : "Job",
-      status: "Applied",
-<<<<<<< HEAD
-      stage: "Applied",
-=======
-      appliedAt: new Date(),
       resumeUrl: finalResume,
+      coverNote: req.body.coverNote ? String(req.body.coverNote).trim() : "",
+      status: "Applied",
+      stage: "Applied",
+      appliedAt: new Date(),
       studentName: finalName,
       studentEmail: finalEmail,
       studentPhone: finalPhone,
@@ -825,7 +832,6 @@ module.exports.applyOpportunity = async (req, res, next) => {
       portfolioUrl: finalPortfolio,
       coverLetter: finalCover,
       applicationData: fullApplicationData,
->>>>>>> origin/develop
       stageHistory: [
         {
           stage: "Applied",
@@ -852,8 +858,6 @@ module.exports.applyOpportunity = async (req, res, next) => {
       applicationPayload.jobId = targetJobId;
     }
 
-<<<<<<< HEAD
-=======
     const application = await Application.create(applicationPayload);
 
     if (typeof job.applicantsCount === "number") {
@@ -861,14 +865,6 @@ module.exports.applyOpportunity = async (req, res, next) => {
       await job.save();
     }
 
-    const companyName =
-      job.employerId?.companyName ||
-      job.companyName ||
-      job.company ||
-      company ||
-      "Partner Employer";
-
->>>>>>> origin/develop
     return res.status(201).json({
       success: true,
       message: `✓ Application submitted successfully for "${job.title}" at ${companyName}!`,
@@ -878,11 +874,7 @@ module.exports.applyOpportunity = async (req, res, next) => {
         jobId: job._id.toString(),
         title: job.title,
         company: companyName,
-<<<<<<< HEAD
         type: job.employmentType || (isInternship ? "Internship" : "Job"),
-=======
-        type: job.employmentType || "Internship",
->>>>>>> origin/develop
         appliedDate: "Today",
         status: "Applied",
         lastUpdated: "Just now",

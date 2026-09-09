@@ -9,7 +9,7 @@ if (process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes("your_gem
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     geminiModel = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.5-flash",
     });
     console.log("RAG AI Assistant initialized with Gemini");
   } catch (e) {

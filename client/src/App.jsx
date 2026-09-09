@@ -71,8 +71,11 @@ const RootRoute = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
   if (user) {
-    if (user.hasPassword === false && !user.phone?.trim()) {
-      return <Navigate to="/onboarding/profile" replace />;
+    if (user.hasPassword === false) {
+      return <Navigate to="/set-password" replace />;
+    }
+    if (!user.phone?.trim() || !user.isProfileComplete) {
+      return <Navigate to={user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile"} replace />;
     }
     return <Navigate to={getDashboardPath(user.userType || user.role, user)} replace />;
   }
@@ -83,8 +86,11 @@ const PublicOnlyRoute = ({ children }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
   if (user) {
-    if (user.hasPassword === false && !user.phone?.trim()) {
-      return <Navigate to="/onboarding/profile" replace />;
+    if (user.hasPassword === false) {
+      return <Navigate to="/set-password" replace />;
+    }
+    if (!user.phone?.trim() || !user.isProfileComplete) {
+      return <Navigate to={user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile"} replace />;
     }
     return <Navigate to={getDashboardPath(user.userType || user.role, user)} replace />;
   }

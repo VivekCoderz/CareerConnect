@@ -38,12 +38,9 @@ exports.getJobs = async (req, res, next) => {
       status,
       myJobs,
       source,
-<<<<<<< HEAD
       sort = "latest",
       page = 1,
       limit = 10,
-=======
->>>>>>> origin/develop
     } = req.query;
 
     const query = {};
@@ -82,7 +79,6 @@ exports.getJobs = async (req, res, next) => {
     }
 
     if (department && department !== "All") query.department = department;
-<<<<<<< HEAD
     if (category && category !== "All") {
       const catRegex = new RegExp(category, "i");
       if (query.$or) {
@@ -93,8 +89,6 @@ exports.getJobs = async (req, res, next) => {
       }
     }
     if (employmentType && employmentType !== "All") query.employmentType = employmentType;
-=======
->>>>>>> origin/develop
     if (workMode && workMode !== "All") query.workMode = workMode;
     const locFilter = (city || location || "").trim();
     if (locFilter && locFilter !== "All") query.location = { $regex: locFilter, $options: "i" };
@@ -141,26 +135,16 @@ exports.getJobs = async (req, res, next) => {
       }
     }
 
-<<<<<<< HEAD
     let allJobs = jobs;
     if (myJobs !== "true" && source !== "campus") {
       try {
         const scraped = await getAggregatedOpportunities({
           opportunityType: employmentType && employmentType !== "All" ? employmentType.toLowerCase() : "job",
-=======
-    let externalJobs = [];
-    if (source !== "campus" && myJobs !== "true") {
-      try {
-        const scraped = await getAggregatedOpportunities({
-          opportunityType: reqType && reqType !== "All" ? reqType.toLowerCase() : "fulltime",
-          source: "external",
->>>>>>> origin/develop
           workMode: workMode && workMode !== "All" ? workMode : "all",
           region: locFilter && locFilter !== "All" ? locFilter : "all",
           search: searchTerm || (category && category !== "All" ? category : ""),
         });
 
-<<<<<<< HEAD
         const formattedScraped = (scraped.data || []).map((item, idx) => ({
           _id: `scraped-job-${idx}`,
           id: `scraped-job-${idx}`,
@@ -194,50 +178,11 @@ exports.getJobs = async (req, res, next) => {
         } else {
           allJobs = [...jobs, ...formattedScraped];
         }
-=======
-        const campusKeys = new Set(
-          campusJobs.map((c) => `${(c.title || "").toLowerCase().trim()}_${(c.company || c.companyName || "").toLowerCase().trim()}`)
-        );
-
-        externalJobs = (scraped.data || [])
-          .filter((item) => {
-            if (item.isExternal === false || item.platformSource === "GU Placement Cell") return false;
-            const key = `${(item.title || "").toLowerCase().trim()}_${(item.company || "").toLowerCase().trim()}`;
-            return !campusKeys.has(key);
-          })
-          .map((item, idx) => ({
-            _id: `scraped-job-${idx}`,
-            id: `scraped-job-${idx}`,
-            jobId: `scraped-job-${idx}`,
-            title: item.title,
-            company: item.company,
-            employerId: {
-              companyName: item.company,
-              headquarters: item.location,
-            },
-            location: item.location,
-            employmentType: item.opportunityType || "Full-Time",
-            workMode: item.workMode || "On-Site",
-            salary: "Competitive Package",
-            salaryRange: { min: 400000, max: 1200000, currency: "INR" },
-            description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
-            responsibilities: ["Deliver on project requirements", "Collaborate with cross-functional engineering team"],
-            requiredSkills: [item.title.split(" ")[0] || "Engineering", "Problem Solving"],
-            applyLink: item.applyLink,
-            isExternal: true,
-            platformSource: item.platformSource,
-            source: item.platformSource,
-            status: "Published",
-            postedAt: item.postedDate || "Recently",
-            createdAt: new Date(),
-          }));
->>>>>>> origin/develop
       } catch (e) {
         console.error("Live jobs scraper error:", e.message);
       }
     }
 
-<<<<<<< HEAD
     // Sort by latest first (createdAt / postedDate descending) or salary
     const getTimestamp = (item) => {
       if (item.createdAt) {
@@ -264,17 +209,6 @@ exports.getJobs = async (req, res, next) => {
     const total = allJobs.length;
     const paginatedJobs = allJobs.slice((pageNum - 1) * pageSize, pageNum * pageSize);
 
-=======
-    let allJobs = [];
-    if (source === "campus") {
-      allJobs = campusJobs;
-    } else if (source === "external") {
-      allJobs = externalJobs;
-    } else {
-      allJobs = [...campusJobs, ...externalJobs];
-    }
-
->>>>>>> origin/develop
     return res.status(200).json({
       success: true,
       count: paginatedJobs.length,
@@ -372,19 +306,7 @@ exports.createJob = async (req, res, next) => {
       status: status || "Published",
     });
 
-<<<<<<< HEAD
-    // Real-time Mail Notification trigger
-    if (job.status === "Published") {
-      try {
-        const { createOpportunityNotification } = require("../services/notificationService");
-        createOpportunityNotification({ type: "job", item: job });
-      } catch (notifErr) {
-        console.warn("Notification dispatch failed for new job:", notifErr.message);
-      }
-    }
-=======
     clearSearchCache();
->>>>>>> origin/develop
 
     return res.status(201).json({
       success: true,

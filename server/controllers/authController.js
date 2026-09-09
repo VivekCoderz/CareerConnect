@@ -370,6 +370,10 @@ module.exports.registerUser = async (req, res, next) => {
       jobTitle,
       experienceYears,
       industry,
+
+      // Resume uploaded during registration
+      resumeUrl,
+      resumeName,
     } = req.body;
 
     const finalFullName = (
@@ -537,10 +541,22 @@ module.exports.registerUser = async (req, res, next) => {
       },
       role: "user",
       username: await generateUniqueUsername(normalizedEmail),
+      resumeUrl: resumeUrl?.trim() || "",
+      resumeName: resumeName?.trim() || (resumeUrl ? "Uploaded Resume.pdf" : ""),
     };
 
     // -------------------- Create user --------------------
     const user = await User.create(userData);
+
+    // Initial resume data if uploaded during signup
+    const initialResumeData = resumeUrl?.trim()
+      ? {
+          resumeUrl: resumeUrl.trim(),
+          resumeName: resumeName?.trim() || "Uploaded Resume.pdf",
+          uploadedAt: new Date(),
+          isGenerated: false,
+        }
+      : undefined;
 
     // -------------------- Create role-specific profile --------------------
     try {
@@ -556,6 +572,7 @@ module.exports.registerUser = async (req, res, next) => {
           },
           interests: userData.interests,
           technicalSkills: userData.interests,
+          ...(initialResumeData ? { resume: initialResumeData } : {}),
           education: [
             {
               institution: resolvedCollege,
@@ -577,6 +594,7 @@ module.exports.registerUser = async (req, res, next) => {
             city: city?.trim() || "",
             country: "India",
           },
+          ...(initialResumeData ? { resume: initialResumeData } : {}),
           education: [
             {
               institution: resolvedCollege,
@@ -603,6 +621,7 @@ module.exports.registerUser = async (req, res, next) => {
             jobTitle: jobTitle?.trim() || "Working Professional",
             industry: industry?.trim() || "Information Technology",
           },
+          ...(initialResumeData ? { resume: initialResumeData } : {}),
           education: [
             {
               institution: resolvedCollege,
@@ -982,13 +1001,6 @@ module.exports.completePasswordSetup = async (req, res, next) => {
   try {
     const { idToken, password, keepSignedIn = false } = req.body;
 
-    if (!idToken) {
-      return res.status(400).json({
-        success: false,
-        message: "Firebase ID token is required",
-      });
-    }
-
     if (!password || !validatePassword(password)) {
       return res.status(400).json({
         success: false,
@@ -997,49 +1009,57 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       });
     }
 
+    let uid = null;
+    let email = null;
     const admin = getFirebaseAdmin();
-    if (!admin) {
-      return res.status(503).json({
-        success: false,
-        message: "Firebase authentication is not configured on this server",
-      });
+
+    // If Firebase ID Token provided and Firebase Admin configured, verify it
+    if (idToken && admin) {
+      try {
+        const decoded = await admin.auth().verifyIdToken(idToken);
+        uid = decoded.uid;
+        email = decoded.email;
+
+        // Update Firebase user password directly via Firebase Admin SDK
+        try {
+          await admin.auth().updateUser(uid, { password });
+        } catch (fbErr) {
+          console.warn("[completePasswordSetup] Firebase admin updateUser warning:", fbErr.message);
+        }
+      } catch (firebaseErr) {
+        console.warn("[SetPasswordGoogle] verifyIdToken failed, falling back to authenticated user:", firebaseErr.message);
+      }
     }
 
-    // Verify Firebase ID Token
-    let decoded;
-    try {
-      decoded = await admin.auth().verifyIdToken(idToken);
-    } catch (firebaseErr) {
-      console.error("[SetPasswordGoogle] verifyIdToken failed:", firebaseErr.message);
-      return res.status(401).json({
-        success: false,
-        message: "Invalid or expired Firebase token. Please sign in again.",
-      });
+    // Find MongoDB user by authenticated session user, firebaseUid, or email
+    let user = null;
+    if (req.user?._id) {
+      user = await User.findById(req.user._id).select("+password");
     }
 
-    const { uid, email } = decoded;
-
-    // Update Firebase user password directly via Firebase Admin SDK
-    try {
-      await admin.auth().updateUser(uid, { password });
-    } catch (fbErr) {
-      console.warn("[completePasswordSetup] Firebase admin updateUser warning:", fbErr.message);
+    if (!user && (uid || email)) {
+      user = await User.findOne({
+        $or: [
+          ...(uid ? [{ firebaseUid: uid }] : []),
+          ...(email ? [{ email: email.toLowerCase() }] : []),
+        ],
+      }).select("+password");
     }
-
-    // Find MongoDB user by firebaseUid, email, or authenticated session user
-    let user = await User.findOne({
-      $or: [
-        { firebaseUid: uid },
-        { email: email?.toLowerCase() },
-        ...(req.user?._id ? [{ _id: req.user._id }] : []),
-      ],
-    }).select("+password");
 
     if (!user) {
       return res.status(404).json({
         success: false,
         message: "CareerConnect account not found. Please sign in again.",
       });
+    }
+
+    // Also sync to Firebase if user has firebaseUid and admin is available
+    if (!uid && user.firebaseUid && admin) {
+      try {
+        await admin.auth().updateUser(user.firebaseUid, { password });
+      } catch (adminSyncErr) {
+        console.warn("[completePasswordSetup] Background Firebase password sync warning:", adminSyncErr.message);
+      }
     }
 
     // Save hashed password in MongoDB and update flags
@@ -2029,11 +2049,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-<<<<<<< HEAD
 };
 
 module.exports.userPayload = userPayload;
 
-=======
-};
->>>>>>> origin/develop
