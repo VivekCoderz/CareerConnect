@@ -3,12 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { uploadResumeAPI, parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
 import { updateUserProfile } from "../../redux/features/authSlice";
-<<<<<<< HEAD
 import ParsedResumeReviewModal from "../resume-builder/ParsedResumeReviewModal";
-=======
 import { updateStudentProfile } from "../../services/studentProfileService";
 import ResumeUploadInput from "../common/ResumeUploadInput";
->>>>>>> fa30fe4a6cc816a728960926a7682d50b9b41aac
 
 const ResumeStatusCard = ({ resume, profile }) => {
   const navigate = useNavigate();
@@ -20,16 +17,13 @@ const ResumeStatusCard = ({ resume, profile }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState(false);
-<<<<<<< HEAD
   const [parsedData, setParsedData] = useState(null);
   const [existingProfileData, setExistingProfileData] = useState(null);
   const [parsedResumeUrl, setParsedResumeUrl] = useState("");
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isSavingParsed, setIsSavingParsed] = useState(false);
-=======
   const [modalResumeUrl, setModalResumeUrl] = useState("");
   const [modalResumeName, setModalResumeName] = useState("");
->>>>>>> fa30fe4a6cc816a728960926a7682d50b9b41aac
   const fileInputRef = useRef(null);
 
   const hasResume = !!(resume?.resumeName || resume?.resumeUrl);
@@ -453,11 +447,8 @@ const ResumeStatusCard = ({ resume, profile }) => {
                         {uploading && (
                           <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         )}
-<<<<<<< HEAD
                         {uploading ? "Uploading & Parsing..." : "Upload & Review"}
-=======
                         {uploading ? "Saving..." : "Save to Profile"}
->>>>>>> fa30fe4a6cc816a728960926a7682d50b9b41aac
                       </button>
                     </div>
                   </div>

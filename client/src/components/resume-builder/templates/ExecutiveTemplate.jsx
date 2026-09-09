@@ -1,5 +1,5 @@
 import React from "react";
-import { extractSkillsList } from "../../../utils/resumeHelpers";
+import { extractSkillsList, sortEducation } from "../../../utils/resumeHelpers";
 
 const ExecutiveTemplate = ({ data }) => {
   const { personal, summary, education, skills, projects, experience, certifications, achievements } = data || {};
@@ -57,12 +57,25 @@ const ExecutiveTemplate = ({ data }) => {
         {education?.length > 0 && (
           <section className="mb-4">
             <h2 className="text-xs font-bold uppercase text-slate-800 tracking-wider border-b border-slate-300 pb-1 mb-2">Education</h2>
-            {education.map((e, i) => (
-              <div key={i} className="flex justify-between mb-1">
-                <span><strong>{e.college}</strong> — {e.degree}{e.branch ? `, ${e.branch}` : ""}</span>
-                <span className="text-gray-500 text-xs">{e.startYear}–{e.endYear}</span>
-              </div>
-            ))}
+            {sortEducation(education).map((e, i) => {
+              const instName = e.college || e.school || e.institution || "";
+              const degreeName = e.degree || (e.level === "10th" ? "10th / Secondary" : e.level === "12th" ? "12th / Senior Secondary" : "");
+              const branchName = e.branch || e.stream || e.specialization || "";
+              const branchText = branchName ? (e.level === "12th" ? ` — Stream: ${branchName}` : `, ${branchName}`) : "";
+              const scoreText = e.cgpa ? (String(e.cgpa).includes("%") ? ` | Percentage: ${e.cgpa}` : ` | CGPA: ${e.cgpa}`) : "";
+              const yearText = e.startYear && e.endYear ? `${e.startYear}–${e.endYear}` : (e.endYear || e.passingYear || e.startYear || "");
+
+              return (
+                <div key={i} className="flex justify-between mb-1">
+                  <span>
+                    <strong>{instName}</strong>
+                    {degreeName && ` — ${degreeName}${branchText}`}
+                    {scoreText}
+                  </span>
+                  {yearText && <span className="text-gray-500 text-xs">{yearText}</span>}
+                </div>
+              );
+            })}
           </section>
         )}
 

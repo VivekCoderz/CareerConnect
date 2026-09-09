@@ -101,21 +101,63 @@ const buildSummary = (raw) => {
 
 // ---------- Improved Mock Generate ----------
 
+const getEducationLevelRank = (level, degree = "") => {
+  const lvl = String(level || "").toLowerCase().trim();
+  const deg = String(degree || "").toLowerCase().trim();
+
+  if (lvl === "postgraduate" || deg.includes("master") || deg.includes("mba") || deg.includes("mca") || deg.includes("m.tech") || deg.includes("m.sc")) return 1;
+  if (lvl === "undergraduate" || deg.includes("b.tech") || deg.includes("bachelor") || deg.includes("bca") || deg.includes("b.sc") || deg.includes("b.e.")) return 2;
+  if (lvl === "diploma" || deg.includes("diploma") || deg.includes("polytechnic")) return 3;
+  if (lvl === "other") return 4;
+  if (lvl === "12th" || deg.includes("12th") || deg.includes("senior secondary") || deg.includes("intermediate") || deg.includes("higher secondary")) return 5;
+  if (lvl === "10th" || deg.includes("10th") || deg.includes("secondary") || deg.includes("matric") || deg.includes("high school")) return 6;
+  return 2;
+};
+
+const sortEducation = (eduList = []) => {
+  if (!Array.isArray(eduList)) return [];
+  return [...eduList].sort((a, b) => {
+    const rankA = getEducationLevelRank(a.level, a.degree);
+    const rankB = getEducationLevelRank(b.level, b.degree);
+    if (rankA !== rankB) return rankA - rankB;
+
+    const yearA = parseInt(a.endYear || a.passingYear || a.startYear || "0", 10) || 0;
+    const yearB = parseInt(b.endYear || b.passingYear || b.startYear || "0", 10) || 0;
+    return yearB - yearA;
+  });
+};
+
 const mockGenerate = (rawData, template) => {
   const raw = deepClone(rawData);
   return {
     personal: { ...raw.personal },
     summary: buildSummary(raw),
-    education: (raw.education || [])
-      .filter((e) => e.college || e.degree)
-      .map((e) => ({
-        college: e.college || "",
-        degree: e.degree || "",
-        branch: e.branch || "",
-        cgpa: e.cgpa || "",
-        startYear: e.startYear || "",
-        endYear: e.endYear || "",
-      })),
+    education: sortEducation(
+      (raw.education || [])
+        .filter((e) => e.college || e.school || e.degree || e.institution)
+        .map((e) => ({
+          level:
+            e.level ||
+            (e.degree?.toLowerCase().includes("10th")
+              ? "10th"
+              : e.degree?.toLowerCase().includes("12th")
+                ? "12th"
+                : "undergraduate"),
+          college: e.college || e.school || e.institution || e.institute || "",
+          degree:
+            e.degree ||
+            (e.level === "10th"
+              ? "10th / Secondary"
+              : e.level === "12th"
+                ? "12th / Senior Secondary"
+                : ""),
+          branch: e.branch || e.stream || e.specialization || "",
+          cgpa: e.cgpa || e.percentage || "",
+          startYear: e.startYear || "",
+          endYear: e.endYear || e.passingYear || "",
+          location: e.location || "",
+        }))
+    ),
     skills: {
       programmingLanguages: parseSkills(raw.skills?.programmingLanguages),
       frameworks: parseSkills(raw.skills?.frameworks),
@@ -308,7 +350,7 @@ Rules (MUST follow):
 {
   "personal": { "fullName": "", "email": "", "phone": "", "location": "", "linkedin": "", "github": "", "portfolio": "" },
   "summary": "",
-  "education": [{ "college": "", "degree": "", "branch": "", "cgpa": "", "startYear": "", "endYear": "" }],
+  "education": [{ "level": "", "college": "", "degree": "", "branch": "", "cgpa": "", "startYear": "", "endYear": "", "location": "" }],
   "skills": { "programmingLanguages": [], "frameworks": [], "tools": [], "other": [] },
   "projects": [{ "name": "", "technologies": "", "description": [], "github": "", "live": "" }],
   "experience": [{ "company": "", "role": "", "duration": "", "description": [] }],
@@ -857,6 +899,9 @@ async function generateResume(rawData, template = "professional") {
       JSON.stringify({ rawData, template })
     );
     result.template = template;
+    if (Array.isArray(result.education)) {
+      result.education = sortEducation(result.education);
+    }
     return result;
   } catch (err) {
     console.error("Gemini generate failed, falling back to mock:", err.message);

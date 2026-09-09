@@ -1,5 +1,5 @@
 import React from "react";
-import { extractSkillsList } from "../../../utils/resumeHelpers";
+import { extractSkillsList, sortEducation } from "../../../utils/resumeHelpers";
 
 const TwoColumnTemplate = ({ data }) => {
   const {
@@ -58,16 +58,25 @@ const TwoColumnTemplate = ({ data }) => {
               <h2 className="text-[11px] font-bold uppercase tracking-widest border-b border-gray-400 pb-0.5 mb-2">
                 Education
               </h2>
-              {education.map((e, i) => (
-                <div key={i} className="mb-2">
-                  <div className="font-semibold">{e.degree}{e.branch ? ` in ${e.branch}` : ""}</div>
-                  <div className="text-gray-700">{e.college}</div>
-                  <div className="text-gray-500 text-[11px]">
-                    {e.startYear} – {e.endYear}
-                    {e.cgpa ? `  |  CGPA: ${e.cgpa}` : ""}
+              {sortEducation(education).map((e, i) => {
+                const instName = e.college || e.school || e.institution || "";
+                const degreeName = e.degree || (e.level === "10th" ? "10th / Secondary" : e.level === "12th" ? "12th / Senior Secondary" : "");
+                const branchName = e.branch || e.stream || e.specialization || "";
+                const branchText = branchName ? (e.level === "12th" ? ` — Stream: ${branchName}` : ` in ${branchName}`) : "";
+                const scoreText = e.cgpa ? (String(e.cgpa).includes("%") ? `  |  ${e.cgpa}` : `  |  CGPA: ${e.cgpa}`) : "";
+                const yearText = e.startYear && e.endYear ? `${e.startYear} – ${e.endYear}` : (e.endYear || e.passingYear || e.startYear || "");
+
+                return (
+                  <div key={i} className="mb-2">
+                    <div className="font-semibold">{degreeName}{branchText}</div>
+                    <div className="text-gray-700">{instName}</div>
+                    <div className="text-gray-500 text-[11px]">
+                      {yearText}
+                      {scoreText}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </section>
           )}
 

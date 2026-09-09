@@ -529,17 +529,18 @@ const syncProfileFromResume = async (user, rawData) => {
   };
 
   const education = (rawData.education || [])
-    .filter((item) => item.college || item.degree)
+    .filter((item) => item.college || item.school || item.degree || item.institution)
     .map((item) => ({
-      institution: item.college?.trim() || "",
-      degree: item.degree?.trim() || "",
-      specialization: item.branch?.trim() || "",
-      fieldOfStudy: item.branch?.trim() || "",
-      percentageOrCgpa: item.cgpa?.trim() || "",
-      grade: item.cgpa?.trim() || "",
-      graduationYear: Number(item.endYear) || undefined,
-      endYear: Number(item.endYear) || undefined,
+      institution: (item.college || item.school || item.institution || item.institute || "").trim(),
+      degree: (item.degree || (item.level === "10th" ? "10th / Secondary" : item.level === "12th" ? "12th / Senior Secondary" : "")).trim(),
+      specialization: (item.branch || item.stream || item.specialization || item.fieldOfStudy || "").trim(),
+      fieldOfStudy: (item.branch || item.stream || item.specialization || item.fieldOfStudy || "").trim(),
+      percentageOrCgpa: (item.cgpa || item.percentage || "").trim(),
+      grade: (item.cgpa || item.percentage || "").trim(),
+      graduationYear: Number(item.endYear || item.passingYear) || undefined,
+      endYear: Number(item.endYear || item.passingYear) || undefined,
       startYear: Number(item.startYear) || undefined,
+      qualificationType: item.level === "10th" ? "10th" : item.level === "12th" ? "12th" : item.level === "diploma" ? "Diploma" : item.level === "postgraduate" ? "MCA" : "B.Tech",
     }));
   const projects = (rawData.projects || [])
     .filter((item) => item.name || item.description)
@@ -789,34 +790,125 @@ const getProfileForResume = async (req, res) => {
 
     // ── Education ─────────────────────────────────────────────────────────
     if (profile?.education?.length) {
-      rawData.education = profile.education.map((edu) => ({
-        id: String(edu._id || crypto.randomUUID()),
-        college: edu.institution || "",
-        degree: edu.degree || "",
-        branch: edu.fieldOfStudy || edu.specialization || "",
-        cgpa:
+      rawData.education = profile.education.map((edu) => {
+        let level = "undergraduate";
+        const deg = (edu.degree || "").toLowerCase();
+        const qType = (edu.qualificationType || "").toLowerCase();
+        if (
+          qType === "10th" ||
+          deg.includes("10th") ||
+          (deg.includes("secondary") && !deg.includes("senior")) ||
+          deg.includes("matric") ||
+          deg.includes("high school")
+        ) {
+          level = "10th";
+        } else if (
+          qType === "12th" ||
+          deg.includes("12th") ||
+          deg.includes("senior secondary") ||
+          deg.includes("intermediate") ||
+          deg.includes("higher secondary")
+        ) {
+          level = "12th";
+        } else if (
+          qType === "diploma" ||
+          deg.includes("diploma") ||
+          deg.includes("polytechnic")
+        ) {
+          level = "diploma";
+        } else if (
+          qType === "mca" ||
+          qType === "m.sc" ||
+          deg.includes("master") ||
+          deg.includes("mba") ||
+          deg.includes("mca") ||
+          deg.includes("m.tech") ||
+          deg.includes("postgraduate")
+        ) {
+          level = "postgraduate";
+        } else if (qType === "other") {
+          level = "other";
+        }
+
+        const inst = edu.institution || "";
+        const branchVal = edu.fieldOfStudy || edu.specialization || "";
+        const scoreVal =
           edu.percentageOrCgpa ||
           edu.grade ||
           (edu.academicGrade ? edu.academicGrade : "") ||
-          "",
-        startYear: edu.startYear ? String(edu.startYear) : "",
-        endYear: edu.endYear
+          "";
+        const startYr = edu.startYear ? String(edu.startYear) : "";
+        const endYr = edu.endYear
           ? String(edu.endYear)
           : edu.graduationYear
             ? String(edu.graduationYear)
-            : "",
-      }));
+            : "";
+
+        return {
+          id: String(edu._id || crypto.randomUUID()),
+          level,
+          college: inst,
+          school: inst,
+          institution: inst,
+          degree:
+            edu.degree ||
+            (level === "10th"
+              ? "10th / Secondary"
+              : level === "12th"
+                ? "12th / Senior Secondary"
+                : ""),
+          branch: branchVal,
+          stream: branchVal,
+          specialization: branchVal,
+          cgpa: scoreVal,
+          percentage: scoreVal,
+          startYear: startYr,
+          endYear: endYr,
+          passingYear: endYr,
+          location: edu.location || "",
+        };
+      });
+
+      // Professional reverse-chronological order (highest education first, followed by 12th and 10th)
+      const levelRank = (lvl, d = "") => {
+        const l = String(lvl || "").toLowerCase();
+        const dg = String(d || "").toLowerCase();
+        if (l === "postgraduate" || dg.includes("master") || dg.includes("mba") || dg.includes("mca")) return 1;
+        if (l === "undergraduate" || dg.includes("b.tech") || dg.includes("bachelor") || dg.includes("bca")) return 2;
+        if (l === "diploma" || dg.includes("diploma")) return 3;
+        if (l === "other") return 4;
+        if (l === "12th" || dg.includes("12th") || dg.includes("senior secondary")) return 5;
+        if (l === "10th" || dg.includes("10th") || dg.includes("secondary")) return 6;
+        return 2;
+      };
+
+      rawData.education.sort((a, b) => {
+        const rA = levelRank(a.level, a.degree);
+        const rB = levelRank(b.level, b.degree);
+        if (rA !== rB) return rA - rB;
+        const yA = parseInt(a.endYear || a.passingYear || a.startYear || "0", 10) || 0;
+        const yB = parseInt(b.endYear || b.passingYear || b.startYear || "0", 10) || 0;
+        return yB - yA;
+      });
     }
     if (!rawData.education.length) {
       rawData.education = [
         {
           id: "default",
+          level: "undergraduate",
           college: "",
+          school: "",
+          institution: "",
           degree: "",
           branch: "",
+          stream: "",
+          specialization: "",
           cgpa: "",
+          percentage: "",
           startYear: "",
           endYear: "",
+          passingYear: "",
+          location: "",
         },
       ];
     }

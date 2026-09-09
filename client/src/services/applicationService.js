@@ -5,10 +5,10 @@ import api from "../api/api";
  * @param {string} id - Job ID
  * @param {Object} data - { coverNote, resumeUrl }
  */
-export const applyToJob = async (id, data = {}) => {
-  const { data: resData } = await api.post(`/applications/job/${id}`, data);
-  return resData;
-};
+// export const applyToJob = async (id, data = {}) => {
+//   const { data: resData } = await api.post(`/applications/job/${id}`, data);
+//   return resData;
+// };
 
 /**
  * Apply to an internship (Campus listing only)

@@ -1,12 +1,9 @@
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { updateStudentProfile } from "../../services/studentProfileService";
-<<<<<<< HEAD
 import { parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
 import ParsedResumeReviewModal from "../resume-builder/ParsedResumeReviewModal";
-=======
 import ResumeUploadInput from "../common/ResumeUploadInput";
->>>>>>> fa30fe4a6cc816a728960926a7682d50b9b41aac
 
 const ResumeSection = ({
   resume,

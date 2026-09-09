@@ -25,6 +25,32 @@ const extractSkillsList = (skills) => {
   return [];
 };
 
+const getEducationLevelRank = (level, degree = "") => {
+  const lvl = String(level || "").toLowerCase().trim();
+  const deg = String(degree || "").toLowerCase().trim();
+
+  if (lvl === "postgraduate" || deg.includes("master") || deg.includes("mba") || deg.includes("mca") || deg.includes("m.tech") || deg.includes("m.sc")) return 1;
+  if (lvl === "undergraduate" || deg.includes("b.tech") || deg.includes("bachelor") || deg.includes("bca") || deg.includes("b.sc") || deg.includes("b.e.")) return 2;
+  if (lvl === "diploma" || deg.includes("diploma") || deg.includes("polytechnic")) return 3;
+  if (lvl === "other") return 4;
+  if (lvl === "12th" || deg.includes("12th") || deg.includes("senior secondary") || deg.includes("intermediate") || deg.includes("higher secondary")) return 5;
+  if (lvl === "10th" || deg.includes("10th") || deg.includes("secondary") || deg.includes("matric") || deg.includes("high school")) return 6;
+  return 2;
+};
+
+const sortEducation = (eduList = []) => {
+  if (!Array.isArray(eduList)) return [];
+  return [...eduList].sort((a, b) => {
+    const rankA = getEducationLevelRank(a.level, a.degree);
+    const rankB = getEducationLevelRank(b.level, b.degree);
+    if (rankA !== rankB) return rankA - rankB;
+
+    const yearA = parseInt(a.endYear || a.passingYear || a.startYear || "0", 10) || 0;
+    const yearB = parseInt(b.endYear || b.passingYear || b.startYear || "0", 10) || 0;
+    return yearB - yearA;
+  });
+};
+
 /** Palette colors based on template style */
 const getTemplateTheme = (templateId = "classic") => {
   const tid = String(templateId).toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -255,18 +281,42 @@ const generateResumePdfBuffer = (data = {}, templateId = "classic", resumeTitle 
       // ─── Education ────────────────────────────────────────
       if (data.education && data.education.length > 0) {
         addSectionHeader("Education");
-        data.education.forEach((edu) => {
-          if (!edu.college && !edu.degree) return;
-          const degreeText = [edu.degree, edu.branch].filter(Boolean).join(" in ");
-          const collegeText = edu.college ? `${edu.college}` : "";
-          const yearText = [edu.startYear, edu.endYear].filter(Boolean).join(" - ");
-          const cgpaText = edu.cgpa ? ` | CGPA: ${edu.cgpa}` : "";
+        const sortedEdu = sortEducation(data.education);
+        sortedEdu.forEach((edu) => {
+          const instName = (edu.college || edu.school || edu.institution || "").trim();
+          const degreeName = (
+            edu.degree ||
+            (edu.level === "10th"
+              ? "10th / Secondary"
+              : edu.level === "12th"
+                ? "12th / Senior Secondary"
+                : "")
+          ).trim();
+          if (!instName && !degreeName) return;
+
+          const branchName = (edu.branch || edu.stream || edu.specialization || "").trim();
+          let degreeText = degreeName;
+          if (branchName) {
+            degreeText = edu.level === "12th"
+              ? `${degreeName} — Stream: ${branchName}`
+              : [degreeName, branchName].filter(Boolean).join(" in ");
+          }
+
+          const collegeWithLoc = [instName, edu.location].filter(Boolean).join(", ");
+          const yearText = edu.startYear && edu.endYear
+            ? `${edu.startYear} - ${edu.endYear}`
+            : (edu.endYear || edu.passingYear || edu.startYear || "");
+          const cgpaText = edu.cgpa
+            ? String(edu.cgpa).includes("%")
+              ? ` | Percentage: ${edu.cgpa}`
+              : ` | CGPA: ${edu.cgpa}`
+            : "";
 
           doc
             .font("Helvetica-Bold")
             .fontSize(9.5)
             .fillColor(theme.accent)
-            .text(collegeText, { continued: !!degreeText });
+            .text(collegeWithLoc, { continued: !!degreeText });
 
           if (degreeText) {
             doc
