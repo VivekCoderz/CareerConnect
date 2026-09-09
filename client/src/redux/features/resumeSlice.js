@@ -31,9 +31,9 @@ const initialState = {
 
 export const generateResume = createAsyncThunk(
   "resume/generate",
-  async ({ rawData, template, syncProfile }, { rejectWithValue }) => {
+  async ({ rawData, template, syncProfile, resumeId }, { rejectWithValue }) => {
     try {
-      return await generateResumeAPI(rawData, template, syncProfile);
+      return await generateResumeAPI(rawData, template, syncProfile, resumeId);
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || err.message || "Failed to generate resume"
@@ -44,9 +44,10 @@ export const generateResume = createAsyncThunk(
 
 export const updateResumeWithAI = createAsyncThunk(
   "resume/updateWithAI",
-  async ({ currentResume, instruction }, { rejectWithValue }) => {
+  async ({ currentResume, instruction }, { rejectWithValue, getState }) => {
     try {
-      return await updateResumeAPI(currentResume, instruction);
+      const state = getState().resume;
+      return await updateResumeAPI(currentResume, instruction, state.activeResumeId);
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || err.message || "Failed to update resume"
@@ -206,6 +207,13 @@ const resumeSlice = createSlice({
     },
     setLastChangeRequest(state, action) {
       state.lastChangeRequest = action.payload;
+    },
+    startNewResume(state) {
+      state.activeResumeId = null;
+      state.resumeTitle = `Resume #${(state.savedResumes?.length || 0) + 1}`;
+      state.generatedResume = null;
+      state.currentStep = 0;
+      state.selectedTemplate = state.selectedTemplate || "classic";
     },
     resetResumeBuilder() {
       return initialState;
@@ -376,6 +384,7 @@ export const {
   setResumeTitle,
   setActiveResumeId,
   loadSpecificResume,
+  startNewResume,
   setLastChangeRequest,
   resetResumeBuilder,
   clearError,

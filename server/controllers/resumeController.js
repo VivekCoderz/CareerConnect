@@ -54,18 +54,19 @@ const generateResumeHandler = async (req, res) => {
       }
     }
 
-    // Optional DB save (fail hone pe bhi response return hoga)
-    if (req.user?._id) {
+    // Optional DB save: Only update if a specific resumeId is provided
+    // Never overwrite an existing user resume when creating/generating a new one
+    const { resumeId } = req.body;
+    if (req.user?._id && resumeId) {
       try {
         await Resume.findOneAndUpdate(
-          { user: req.user._id },
+          { _id: resumeId, user: req.user._id },
           {
-            user: req.user._id,
             rawData,
             generatedData: generated,
-            selectedTemplate: template || "professional",
+            selectedTemplate: template || "classic",
           },
-          { upsert: true, new: true },
+          { new: true },
         );
       } catch (dbErr) {
         console.error("Resume save failed (non-blocking):", dbErr.message);
@@ -110,10 +111,11 @@ const updateResumeHandler = async (req, res) => {
       String(instruction).trim(),
     );
 
-    if (req.user?._id) {
+    const { resumeId } = req.body;
+    if (req.user?._id && resumeId) {
       try {
         await Resume.findOneAndUpdate(
-          { user: req.user._id },
+          { _id: resumeId, user: req.user._id },
           { generatedData: updated },
           { new: true },
         );
@@ -1423,20 +1425,17 @@ const uploadAndParseResumeHandler = async (req, res) => {
       }
     }
 
-    // 6. Save in Resume collection as primary resume
+    // 6. Save in Resume collection as a new resume without overwriting previous ones
     try {
-      await Resume.findOneAndUpdate(
-        { user: userId },
-        {
-          user: userId,
-          title: `${user?.fullName || "My"} Resume`,
-          selectedTemplate: "professional",
-          rawData: parsedData,
-          resumeUrl,
-          isPrimary: true,
-        },
-        { upsert: true, new: true }
-      );
+      await Resume.updateMany({ user: userId }, { isPrimary: false });
+      await Resume.create({
+        user: userId,
+        title: resumeName || `${user?.fullName || "My"} Resume`,
+        selectedTemplate: "classic",
+        rawData: parsedData,
+        resumeUrl,
+        isPrimary: true,
+      });
     } catch (resumeDbErr) {
       console.warn("Resume document save warning:", resumeDbErr.message);
     }

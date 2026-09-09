@@ -11,11 +11,13 @@ export const generateResumeAPI = async (
   rawData,
   template,
   syncProfile = false,
+  resumeId = null,
 ) => {
   const res = await api.post("/resume/generate", {
     rawData,
     template,
     syncProfile,
+    resumeId,
   });
   return res.data;
 };
@@ -23,10 +25,11 @@ export const generateResumeAPI = async (
 /**
  * Update resume based on user instruction
  */
-export const updateResumeAPI = async (currentResume, instruction) => {
+export const updateResumeAPI = async (currentResume, instruction, resumeId = null) => {
   const res = await api.post("/resume/update", {
     currentResume,
     instruction,
+    resumeId,
   });
   return res.data;
 };
