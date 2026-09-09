@@ -12,7 +12,6 @@ import {
 } from "../../redux/features/authSlice";
 import api from "../../api/api";
 import { getCaptchaToken } from "../../utils/captcha";
-import PhoneInput from "../../components/common/PhoneInput";
 
 
 const EmployerRegister = () => {
@@ -37,29 +36,10 @@ const EmployerRegister = () => {
   const [otpSuccessMsg, setOtpSuccessMsg] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [fieldErrors, setFieldErrors] = useState({});
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  const handleGeneratePassword = () => {
-    const generated = generateStrongPassword();
-    setFormData((prev) => ({
-      ...prev,
-      password: generated,
-      confirmPassword: generated,
-    }));
-    setShowPassword(true);
-    setShowConfirmPassword(true);
-    setFieldErrors((prev) => ({
-      ...prev,
-      password: "",
-      confirmPassword: "",
-    }));
-  };
 
   const [formData, setFormData] = useState({
     companyName: "",
     email: "",
-    countryCode: "+91",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -86,18 +66,9 @@ const EmployerRegister = () => {
       errors.email = "Please enter a valid email";
     else if (!emailVerified)
       errors.email = "Please verify your official email before continuing";
-    if (!formData.phone.trim()) {
-      errors.phone = "Mobile number is required";
-    } else {
-      const digits = formData.phone.replace(/\D/g, "");
-      if (formData.countryCode === "+91") {
-        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
-          errors.phone = "Please enter a valid 10-digit mobile number";
-        }
-      } else if (digits.length < 6 || digits.length > 15) {
-        errors.phone = "Please enter a valid mobile number (6-15 digits)";
-      }
-    }
+    if (!formData.phone.trim()) errors.phone = "Mobile number is required";
+    else if (!/^[6-9]\d{9}$/.test(formData.phone.replace(/\D/g, "").slice(-10)))
+      errors.phone = "Please enter a valid 10-digit mobile number";
     if (!formData.password) errors.password = "Password is required";
     else if (formData.password.length < 6)
       errors.password = "Password must be at least 6 characters";
@@ -207,7 +178,7 @@ const EmployerRegister = () => {
     }
   };
 
-  const handleStep1Next = async () => {
+  const handleStep1Next = () => {
     if (!emailVerified) {
       const emailToVerify = formData.email.trim().toLowerCase();
       if (emailToVerify && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToVerify) && !otpSent) {
@@ -221,22 +192,6 @@ const EmployerRegister = () => {
     }
 
     if (!validateStep1()) return;
-
-    try {
-      const checkRes = await api.post("/auth/check-phone", {
-        phone: formData.phone.trim(),
-        countryCode: formData.countryCode || "+91",
-      });
-      if (checkRes.data?.exists) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          phone: "This mobile number is already registered with another account",
-        }));
-        return;
-      }
-    } catch (err) {
-      console.warn("Phone check warning:", err.message);
-    }
 
     goNext(2);
   };
@@ -327,7 +282,6 @@ const EmployerRegister = () => {
       const payload = {
         companyName: formData.companyName.trim(),
         email: formData.email.trim().toLowerCase(),
-        countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
@@ -354,9 +308,6 @@ const EmployerRegister = () => {
         setFieldErrors({
           [err.response.data.field]: err.response.data.message,
         });
-        if (err.response.data.field === "phone" || err.response.data.field === "email") {
-          setStep(1);
-        }
       }
     }
   };
@@ -470,10 +421,6 @@ const EmployerRegister = () => {
                 </p>
               </div>
 
-              {/* Prevent browser autofill */}
-              <input type="text" name="fake_username_prevent_autofill" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="off" />
-              <input type="password" name="fake_password_prevent_autofill" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="new-password" />
-
               <div className="space-y-4">
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
@@ -483,8 +430,7 @@ const EmployerRegister = () => {
                     name="companyName"
                     value={formData.companyName}
                     onChange={handleChange}
-                    autoComplete="off"
-                    placeholder="Enter company name"
+                    placeholder="Your company name"
                     className={inputClass("companyName")}
                   />
                   {fieldErrors.companyName && (
@@ -518,8 +464,7 @@ const EmployerRegister = () => {
                         if (otpSent) setOtpSent(false);
                       }}
                       disabled={emailVerified}
-                      autoComplete="off"
-                      placeholder="Enter official email address"
+                      placeholder="hr@company.com"
                       className={`${inputClass("email")} ${emailVerified ? "bg-slate-50 border-emerald-400 text-slate-700 pr-10" : ""}`}
                     />
                     {emailVerified && (
@@ -628,7 +573,7 @@ const EmployerRegister = () => {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                         </svg>
-                        Email verified successfully
+                        Official email verified successfully
                       </div>
                       <button
                         type="button"
@@ -652,90 +597,50 @@ const EmployerRegister = () => {
 
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                    Mobile Number
+                    Mobile
                   </label>
-                  <PhoneInput
-                    countryCode={formData.countryCode}
-                    onCountryCodeChange={(code) => setFormData((prev) => ({ ...prev, countryCode: code }))}
-                    phone={formData.phone}
-                    onPhoneChange={(val) => {
-                      setFormData((prev) => ({ ...prev, phone: val }));
-                      if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: "" }));
-                    }}
-                    error={fieldErrors.phone}
-                    theme="amber"
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="+91 98765 43210"
+                    className={inputClass("phone")}
                   />
+                  {fieldErrors.phone && (
+                    <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-[13px] font-semibold text-slate-700">
-                        Password
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleGeneratePassword}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-[#f59e0b] hover:text-[#d97706] transition"
-                        title="Generate strong random password"
-                      >
-                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                        </svg>
-                        Generate
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        autoComplete="new-password"
-                        placeholder="Create a strong password"
-                        className={`${inputClass("password")} pr-10`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((p) => !p)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        title={showPassword ? "Hide password" : "Show password"}
-                      >
-                        <EyeIcon hidden={showPassword} />
-                      </button>
-                    </div>
+                    <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      className={inputClass("password")}
+                    />
                     {fieldErrors.password && (
                       <p className="text-xs text-red-500 mt-1.5">{fieldErrors.password}</p>
                     )}
                   </div>
-
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-[13px] font-semibold text-slate-700">
-                        Confirm
-                      </label>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        name="confirmPassword"
-                        value={formData.confirmPassword}
-                        onChange={handleChange}
-                        autoComplete="new-password"
-                        placeholder="Confirm your password"
-                        className={`${inputClass("confirmPassword")} pr-10`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword((p) => !p)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
-                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                        title={showConfirmPassword ? "Hide password" : "Show password"}
-                      >
-                        <EyeIcon hidden={showConfirmPassword} />
-                      </button>
-                    </div>
+                    <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
+                      Confirm
+                    </label>
+                    <input
+                      type="password"
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      className={inputClass("confirmPassword")}
+                    />
                     {fieldErrors.confirmPassword && (
                       <p className="text-xs text-red-500 mt-1.5">{fieldErrors.confirmPassword}</p>
                     )}
@@ -850,7 +755,7 @@ const EmployerRegister = () => {
                     name="contactPerson"
                     value={formData.contactPerson}
                     onChange={handleChange}
-                    placeholder="Enter contact person name"
+                    placeholder="e.g. Rahul Sharma"
                     className={inputClass("contactPerson")}
                   />
                   {fieldErrors.contactPerson && (
@@ -866,7 +771,7 @@ const EmployerRegister = () => {
                     name="designation"
                     value={formData.designation}
                     onChange={handleChange}
-                    placeholder="Enter designation (e.g. HR Manager)"
+                    placeholder="e.g. HR Manager / Campus Recruiter"
                     className={inputClass("designation")}
                   />
                   {fieldErrors.designation && (
@@ -905,7 +810,7 @@ const EmployerRegister = () => {
                       name="industry"
                       value={formData.industry}
                       onChange={handleChange}
-                      placeholder="Enter industry (e.g. IT, FinTech)"
+                      placeholder="e.g. IT, FinTech"
                       className={inputClass("industry")}
                     />
                     {fieldErrors.industry && (
@@ -922,7 +827,7 @@ const EmployerRegister = () => {
                     name="location"
                     value={formData.location}
                     onChange={handleChange}
-                    placeholder="Enter city / location (e.g. Gurugram, Delhi NCR)"
+                    placeholder="e.g. Gurugram, Delhi NCR"
                     className={inputClass("location")}
                   />
                   {fieldErrors.location && (

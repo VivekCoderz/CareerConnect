@@ -15,7 +15,25 @@ import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
 import { parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
 import ParsedResumeReviewModal from "../../components/resume-builder/ParsedResumeReviewModal";import PhoneInput from "../../components/common/PhoneInput";
+import { generateStrongPassword } from "../../utils/passwordGenerator";
 
+const EyeIcon = ({ hidden = false }) => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    {hidden ? (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.6 10.6a2 2 0 002.8 2.8" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.9 4.2A10.8 10.8 0 0112 4c5 0 8.8 3.3 10 8a10.8 10.8 0 01-3 5.1" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.6 6.6A11 11 0 002 12c1.2 4.7 5 8 10 8a10.7 10.7 0 004.2-.8" />
+      </>
+    ) : (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+        <circle cx="12" cy="12" r="2.5" />
+      </>
+    )}
+  </svg>
+);
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -613,14 +631,7 @@ const Signup = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Full Name</label>
-                  <input
-                    name="fullName"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    autoComplete="off"
-                    placeholder="Enter your full name"
-                    className={inputClass("fullName")}
-                  />
+                  <input name="fullName" value={formData.fullName} onChange={handleChange} placeholder="John Doe" className={inputClass("fullName")} />
                   {fieldErrors.fullName && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.fullName}</p>}
                 </div>
 
@@ -650,8 +661,7 @@ const Signup = () => {
                         if (otpSent) setOtpSent(false);
                       }}
                       disabled={emailVerified}
-                      autoComplete="off"
-                      placeholder="Enter your email address"
+                      placeholder="john@example.com"
                       className={`${inputClass("email")} ${emailVerified ? "bg-slate-50 border-emerald-400 text-slate-700 pr-10" : ""}`}
                     />
                     {emailVerified && (
@@ -1072,7 +1082,7 @@ const Signup = () => {
                     </div>
                     <div>
                       <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Job Title</label>
-                      <input name="jobTitle" value={formData.jobTitle} onChange={handleChange} placeholder="Enter job title (e.g. Software Engineer)" className={inputClass("jobTitle")} />
+                      <input name="jobTitle" value={formData.jobTitle} onChange={handleChange} placeholder="Software Engineer" className={inputClass("jobTitle")} />
                       {fieldErrors.jobTitle && <p className="text-xs text-red-500 mt-1.5">{fieldErrors.jobTitle}</p>}
                     </div>
                     <div className="grid grid-cols-2 gap-3">

@@ -1,45 +1,50 @@
-console.log("==================================================");
-console.log("ℹ️  REDIS HAS BEEN REMOVED FROM CAREERCONNECT");
-console.log("CareerConnect now uses standard in-memory session management.");
-console.log("==================================================");
-process.exit(0);
+const mongoose = require("mongoose");
+require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") });
+const Session = require("../models/Session");
 
 async function inspectSessions() {
   try {
     console.log("==================================================");
-    console.log("🔍 REDIS ACTIVE SESSION INSPECTOR");
+    console.log("🔍 MONGOOSE / MONGODB ACTIVE SESSION INSPECTOR");
     console.log("==================================================");
 
-    const keys = await redis.keys("sess:*");
+    if (!process.env.MONGODB_URI) {
+      console.error("❌ MONGODB_URI is not defined in .env");
+      process.exit(1);
+    }
 
-    if (keys.length === 0) {
-      console.log("⚠️  No active sessions found in Redis (sess:*).");
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log("✅ Connected to MongoDB");
+
+    const sessions = await Session.find().lean();
+
+    if (sessions.length === 0) {
+      console.log("⚠️  No active sessions found in MongoDB (sessions collection).");
       console.log("👉 Log into the application in your browser to create a session.");
       process.exit(0);
     }
 
-    console.log(`Found ${keys.length} active session(s):\n`);
+    console.log(`Found ${sessions.length} active session(s):\n`);
 
-    for (const key of keys) {
-      const ttl = await redis.ttl(key);
-      const rawData = await redis.get(key);
-      let parsed = null;
+    const now = Date.now();
+    for (const s of sessions) {
+      const remainingMs = s.expiresAt ? new Date(s.expiresAt).getTime() - now : 0;
+      const remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
 
-      try {
-        parsed = JSON.parse(rawData);
-      } catch (e) {
-        parsed = rawData;
-      }
-
-      console.log(`🔑 Key: ${key}`);
-      console.log(`⏳ Remaining TTL: ${ttl} seconds (~${Math.floor(ttl / 60)}m ${ttl % 60}s)`);
-      console.log("📦 Payload:", JSON.stringify(parsed, null, 2));
+      console.log(`🔑 Session ID: ${s._id}`);
+      console.log(
+        `⏳ Remaining TTL: ${remainingSeconds} seconds (~${Math.floor(
+          remainingSeconds / 60
+        )}m ${remainingSeconds % 60}s)`
+      );
+      console.log(`📅 Expires At: ${s.expiresAt ? new Date(s.expiresAt).toISOString() : "N/A"}`);
+      console.log("📦 Payload:", JSON.stringify(s.session, null, 2));
       console.log("--------------------------------------------------");
     }
   } catch (error) {
-    console.error("❌ Could not connect to Redis:", error.message);
+    console.error("❌ Error inspecting MongoDB sessions:", error.message);
   } finally {
-    redis.disconnect();
+    await mongoose.disconnect();
     process.exit(0);
   }
 }

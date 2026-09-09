@@ -366,33 +366,16 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
-    // const cleanPhone = phone ? phone.toString().trim().replace(/\D/g, "") : "";
-    // if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     field: "phone",
-    //     message: "Please enter a valid 10-digit mobile number containing only numeric digits (0-9)",
-    //   });
-    // }
+    if (!phone || !phone.toString().trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "phone",
+        message: "Mobile number is required",
+      });
+    }
 
-    // const cleanPhone = phone.replace(/\D/g, "");
-    // const cleanCountryCode = countryCode.trim() || "+91";
-    const cleanPhone = phone
-  ? phone.toString().trim().replace(/\D/g, "")
-  : "";
-
-const cleanCountryCode = countryCode.trim() || "+91";
-
-if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
-  return res.status(400).json({
-    success: false,
-    field: "phone",
-    message:
-      cleanCountryCode === "+91"
-        ? "Please enter a valid 10-digit mobile number"
-        : "Please enter a valid mobile number (6-15 digits)",
-  });
-}
+    const cleanPhone = phone.toString().trim().replace(/\D/g, "");
+    const cleanCountryCode = countryCode?.trim() || "+91";
 
     if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
       return res.status(400).json({
@@ -688,6 +671,7 @@ module.exports.firebaseLogin = async (req, res, next) => {
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
     } catch (firebaseErr) {
+      console.error("[GoogleAuth Link] verifyIdToken failed:", firebaseErr.message);
       return res.status(401).json({
         success: false,
         message: "Invalid or expired Firebase token. Please sign in again.",
@@ -778,6 +762,7 @@ module.exports.googleAuth = async (req, res, next) => {
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
     } catch (firebaseErr) {
+      console.error("[GoogleAuth] verifyIdToken failed:", firebaseErr.message);
       return res.status(401).json({
         success: false,
         message: "Invalid or expired Firebase token. Please try again.",
@@ -930,6 +915,7 @@ module.exports.completePasswordSetup = async (req, res, next) => {
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
     } catch (firebaseErr) {
+      console.error("[SetPasswordGoogle] verifyIdToken failed:", firebaseErr.message);
       return res.status(401).json({
         success: false,
         message: "Invalid or expired Firebase token. Please sign in again.",
@@ -1368,33 +1354,16 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     }
 
-    // const cleanPhone = phone ? phone.toString().trim().replace(/\D/g, "") : "";
-    // if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     field: "phone",
-    //     message: "Please enter a valid 10-digit mobile number containing only numeric digits (0-9)",
-    //   });
-    // }
+    if (!phone || !phone.toString().trim()) {
+      return res.status(400).json({
+        success: false,
+        field: "phone",
+        message: "Mobile number is required",
+      });
+    }
 
-    // const cleanPhone = phone.replace(/\D/g, "");
-    // const cleanCountryCode = countryCode.trim() || "+91";
-    const cleanPhone = phone
-  ? phone.toString().trim().replace(/\D/g, "")
-  : "";
-
-const cleanCountryCode = countryCode.trim() || "+91";
-
-if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
-  return res.status(400).json({
-    success: false,
-    field: "phone",
-    message:
-      cleanCountryCode === "+91"
-        ? "Please enter a valid 10-digit mobile number"
-        : "Please enter a valid mobile number (6-15 digits)",
-  });
-}
+    const cleanPhone = phone.toString().trim().replace(/\D/g, "");
+    const cleanCountryCode = countryCode?.trim() || "+91";
 
     if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
       return res.status(400).json({

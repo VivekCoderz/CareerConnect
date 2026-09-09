@@ -41,7 +41,6 @@ const StudentCoursesPage = ({ onViewDetails }) => {
 
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
-  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
