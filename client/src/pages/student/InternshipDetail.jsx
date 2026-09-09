@@ -1,11 +1,16 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { getById } from "../../services/internshipService";
 import { applyToInternship } from "../../services/applicationService";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { getStudentProfile } from "../../services/studentProfileService";
+import ResumeUploadInput from "../../components/common/ResumeUploadInput";
 
 export default function InternshipDetail({ id, onBack, embedded = false }) {
   const { id: paramId } = useParams();
   const internshipId = id || paramId;
+  const { user } = useSelector((state) => state.auth);
 
   const [internship, setInternship] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,6 +19,23 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
   const [successMsg, setSuccessMsg] = useState("");
   const [coverNote, setCoverNote] = useState("");
   const [resumeUrl, setResumeUrl] = useState("");
+  const [isTailorModalOpen, setIsTailorModalOpen] = useState(false);
+
+  // Comprehensive student form fields
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    address: "",
+    education: "",
+    college: "",
+    graduationYear: "",
+    skills: "",
+    experience: "",
+    portfolioUrl: "",
+    resumeUrl: "",
+    coverNote: "",
+  });
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -32,17 +54,77 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
     if (internshipId) fetchDetail();
   }, [internshipId]);
 
+  // Prepopulate form data from user & profile
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        fullName: prev.fullName || user.fullName || "",
+        email: prev.email || user.email || "",
+        phone: prev.phone || user.phone || "",
+        resumeUrl: prev.resumeUrl || user.resumeUrl || "",
+        portfolioUrl: prev.portfolioUrl || user.socialLinks?.github || user.socialLinks?.linkedin || "",
+      }));
+
+      getStudentProfile()
+        .then((res) => {
+          if (res?.success && res.profile) {
+            const p = res.profile;
+            setFormData((prev) => ({
+              ...prev,
+              fullName: prev.fullName || p.userId?.fullName || user.fullName || "",
+              email: prev.email || p.userId?.email || user.email || "",
+              phone: prev.phone || p.userId?.phone || user.phone || "",
+              education: prev.education || p.education?.[0]?.degree || "",
+              college: prev.college || p.education?.[0]?.institution || "Geeta University",
+              graduationYear: prev.graduationYear || (p.education?.[0]?.endYear ? String(p.education[0].endYear) : ""),
+              skills: prev.skills || (p.technicalSkills || []).join(", "),
+              experience: prev.experience || (p.experience?.[0] ? `${p.experience[0].title || ""} - ${p.experience[0].company || ""}`.trim() : ""),
+              resumeUrl: prev.resumeUrl || p.resume?.resumeUrl || user.resumeUrl || "",
+              portfolioUrl: prev.portfolioUrl || p.userId?.socialLinks?.github || user.socialLinks?.github || "",
+            }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user]);
+
+  const handleChange = (field, val) => {
+    setFormData((prev) => ({ ...prev, [field]: val }));
+  };
+
   const handleApply = async (e) => {
     e.preventDefault();
     try {
       setApplying(true);
       setError("");
       setSuccessMsg("");
-      const res = await applyToInternship(internshipId, { coverNote, resumeUrl });
+
+      const payload = {
+        fullName: formData.fullName.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        address: formData.address.trim(),
+        education: formData.education.trim(),
+        degree: formData.education.trim(),
+        college: formData.college.trim(),
+        graduationYear: formData.graduationYear.trim(),
+        skills: formData.skills.includes(",")
+          ? formData.skills.split(",").map((s) => s.trim()).filter(Boolean)
+          : formData.skills ? [formData.skills.trim()] : [],
+        experience: formData.experience.trim(),
+        portfolioUrl: formData.portfolioUrl.trim(),
+        resumeUrl: formData.resumeUrl.trim(),
+        coverLetter: formData.coverNote.trim(),
+        coverNote: formData.coverNote.trim(),
+        applicationData: {
+          ...formData,
+        },
+      };
+
+      const res = await applyToInternship(internshipId, payload);
       if (res.success) {
         setSuccessMsg(res.message || "Application submitted successfully!");
-        setCoverNote("");
-        setResumeUrl("");
       } else {
         setError(res.message || "Failed to submit application");
       }
@@ -267,38 +349,197 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
             ) : (
               !successMsg && (
                 <form onSubmit={handleApply} className="space-y-4">
-                  <h4 className="text-sm font-bold text-slate-900">Apply via CareerConnect</h4>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                      Resume link
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="Google Drive / Dropbox URL"
-                      value={resumeUrl}
-                      onChange={(e) => setResumeUrl(e.target.value)}
-                      required
-                      className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#1e3a8a] focus:ring-4 focus:ring-[#1e3a8a]/10"
-                    />
+                    <h4 className="text-sm font-bold text-slate-900">Apply via CareerConnect</h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Verify your details. Exact submitted data will be sent directly to the employer.
+                    </p>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                      Cover note (optional)
-                    </label>
-                    <textarea
-                      rows={4}
-                      placeholder="Why are you a good fit?"
-                      value={coverNote}
-                      onChange={(e) => setCoverNote(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-slate-200 text-sm outline-none resize-none focus:border-[#1e3a8a] focus:ring-4 focus:ring-[#1e3a8a]/10"
-                    />
+
+                  {/* Personal Info */}
+                  <div className="space-y-3 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Full Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.fullName}
+                        onChange={(e) => handleChange("fullName", e.target.value)}
+                        placeholder="e.g. Rahul Sharma"
+                        className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                          Email Address *
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          value={formData.email}
+                          onChange={(e) => handleChange("email", e.target.value)}
+                          placeholder="student@example.com"
+                          className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                          Phone Number *
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          value={formData.phone}
+                          onChange={(e) => handleChange("phone", e.target.value)}
+                          placeholder="9876543210"
+                          className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Address / Location
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.address}
+                        onChange={(e) => handleChange("address", e.target.value)}
+                        placeholder="e.g. Panipat, Haryana"
+                        className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                      />
+                    </div>
                   </div>
+
+                  {/* Education & Academic */}
+                  <div className="space-y-3 pt-2 border-t border-slate-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                          Degree / Program *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.education}
+                          onChange={(e) => handleChange("education", e.target.value)}
+                          placeholder="e.g. B.Tech CSE"
+                          className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                          College / University
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.college}
+                          onChange={(e) => handleChange("college", e.target.value)}
+                          placeholder="Geeta University"
+                          className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Graduation Year
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.graduationYear}
+                        onChange={(e) => handleChange("graduationYear", e.target.value)}
+                        placeholder="e.g. 2026"
+                        className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Professional & Skills */}
+                  <div className="space-y-3 pt-2 border-t border-slate-100">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Key Skills (comma-separated) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.skills}
+                        onChange={(e) => handleChange("skills", e.target.value)}
+                        placeholder="e.g. React, Node.js, MongoDB"
+                        className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Experience / Projects summary
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.experience}
+                        onChange={(e) => handleChange("experience", e.target.value)}
+                        placeholder="e.g. 1 year / Fresher with 3 projects"
+                        className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Portfolio / GitHub URL
+                      </label>
+                      <input
+                        type="url"
+                        value={formData.portfolioUrl}
+                        onChange={(e) => handleChange("portfolioUrl", e.target.value)}
+                        placeholder="https://github.com/yourhandle"
+                        className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Documents */}
+                  <div className="space-y-3 pt-2 border-t border-slate-100">
+                    <div className="pt-1">
+                      <ResumeUploadInput
+                        value={formData.resumeUrl}
+                        onChange={(url) => handleChange("resumeUrl", url)}
+                        required={true}
+                        label="Resume / CV"
+                        helperText="Upload your resume document or paste a viewable link."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                        Cover Letter / Note (optional)
+                      </label>
+                      <textarea
+                        rows={3}
+                        placeholder="Explain why you are interested in this position..."
+                        value={formData.coverNote}
+                        onChange={(e) => handleChange("coverNote", e.target.value)}
+                        className="w-full p-3 rounded-xl border border-slate-200 text-xs font-medium outline-none resize-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
+                      />
+                    </div>
+                  </div>
+
                   <button
                     type="submit"
                     disabled={applying}
-                    className="w-full h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] disabled:opacity-60 text-white text-sm font-bold"
+                    className="w-full h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-blue-900/10 transition flex items-center justify-center gap-2"
                   >
-                    {applying ? "Submitting..." : "Submit application"}
+                    {applying ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Submitting Application...</span>
+                      </>
+                    ) : (
+                      <span>Submit Application</span>
+                    )}
                   </button>
                 </form>
               )
@@ -306,6 +547,17 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
           </section>
         </div>
       </div>
+
+      <TailoredResumeApplicationModal
+        isOpen={isTailorModalOpen}
+        onClose={() => setIsTailorModalOpen(false)}
+        opportunity={internship}
+        opportunityType="Internship"
+        onApplicationSubmitted={() => {
+          setSuccessMsg("Application submitted successfully with your tailored resume!");
+          setIsTailorModalOpen(false);
+        }}
+      />
     </>
   );
 

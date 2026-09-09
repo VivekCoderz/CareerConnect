@@ -50,7 +50,12 @@ const applicationSchema = new mongoose.Schema(
     coverNote: {
       type: String,
       default: "",
-      maxlength: 2000,
+      maxlength: 5000,
+    },
+
+    coverLetter: {
+      type: String,
+      default: "",
     },
 
     resumeUrl: {
@@ -58,13 +63,62 @@ const applicationSchema = new mongoose.Schema(
       default: "",
     },
 
+    studentName: {
+      type: String,
+      default: "",
+    },
+
+    studentEmail: {
+      type: String,
+      default: "",
+    },
+
+    studentPhone: {
+      type: String,
+      default: "",
+    },
+
+    education: {
+      type: String,
+      default: "",
+    },
+
+    skills: {
+      type: mongoose.Schema.Types.Mixed,
+      default: [],
+    },
+
+    experience: {
+      type: String,
+      default: "",
+    },
+
+    portfolioUrl: {
+      type: String,
+      default: "",
+    },
+
+    applicationData: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
+    appliedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
     status: {
       type: String,
       enum: [
         "Applied",
+        "Approved",
         "Under Review",
         "Shortlisted",
         "Interview",
+        "Interview Scheduled",
+        "Interview Completed",
+        "Selected",
         "Offered",
         "Hired",
         "Rejected",

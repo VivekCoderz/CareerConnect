@@ -1,9 +1,8 @@
 // pages/student/StudentDashboard.jsx
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
-import { logout } from "../../redux/features/authSlice";
-import { logoutUser } from "../../services/authService";
+import { useSelector } from "react-redux";
+import useLogout from "../../hooks/useLogout";
 import {
   getStudentDashboardData,
   saveOpportunity,
@@ -25,8 +24,11 @@ import CertificationsCard from "../../components/student-dashboard/Certification
 import InternshipRecommendationsCard from "../../components/student-dashboard/InternshipRecommendationsCard";
 import JobRecommendationsCard from "../../components/student-dashboard/JobRecommendationsCard";
 import CourseRecommendationsCard from "../../components/student-dashboard/CourseRecommendationsCard";
+<<<<<<< HEAD
 import InternshalaDashboardRecommendations from "../../components/student-dashboard/InternshalaDashboardRecommendations";
 import StudentCoursesPage from "../courses/StudentCoursesPage";
+=======
+>>>>>>> origin/develop
 import ApplicationTrackerCard from "../../components/student-dashboard/ApplicationTrackerCard";
 import SavedOpportunitiesCard from "../../components/student-dashboard/SavedOpportunitiesCard";
 import UpcomingDeadlinesCard from "../../components/student-dashboard/UpcomingDeadlinesCard";
@@ -37,19 +39,35 @@ import QuickActionsCard from "../../components/student-dashboard/QuickActionsCar
 import Internships from "./Internships";
 import InternshipDetail from "./InternshipDetail";
 import MyApplications from "./MyApplications";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import Jobs from "./Jobs";
+
+// Courses module (embedded)
+import StudentCoursesPage from "../courses/StudentCoursesPage";
+import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
+import CourseDetailsPage from "../courses/CourseDetailsPage";
+
+import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [selectedOpportunityForTailoring, setSelectedOpportunityForTailoring] = useState(null);
+  const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Internship sub-views inside dashboard
   const [internshipView, setInternshipView] = useState("list"); // list | detail
   const [selectedInternshipId, setSelectedInternshipId] = useState(null);
+
+  // Courses sub-views inside dashboard
+  const [coursesView, setCoursesView] = useState("catalog"); // catalog | my-courses | detail
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
 
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -88,14 +106,8 @@ const StudentDashboard = () => {
     fetchDashboard();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await logoutUser();
-    } catch (e) {
-      console.error(e);
-    }
-    dispatch(logout());
-    navigate("/", { replace: true });
+  const handleLogout = () => {
+    logout();
   };
 
   const handleSelectTab = (tab) => {
@@ -103,6 +115,10 @@ const StudentDashboard = () => {
     if (tab === "internships") {
       setInternshipView("list");
       setSelectedInternshipId(null);
+    }
+    if (tab === "courses") {
+      setCoursesView("catalog");
+      setSelectedCourseId(null);
     }
     setMobileSidebarOpen(false);
   };
@@ -139,36 +155,34 @@ const StudentDashboard = () => {
     }
   };
 
-  const handleApply = async (item) => {
-    try {
-      const res = await applyOpportunity({
-        opportunityId: item._id || item.id,
-        jobId: item._id || item.id,
-        title: item.title,
-        company: item.company || item.companyName,
-        type: item.type || "Internship",
-      });
+  const handleApply = (item) => {
+    setSelectedOpportunityForTailoring({
+      _id: item._id || item.id,
+      id: item._id || item.id,
+      title: item.title,
+      company: item.company || item.companyName,
+      companyName: item.company || item.companyName,
+      type: item.type || "Internship",
+      opportunityType: (item.type?.toLowerCase().includes("intern") || !item.type) ? "Internship" : "Job",
+      description: item.description || item.aboutRole || "",
+      requirements: item.requirements || [],
+      skillsRequired: item.skillsRequired || item.skills || [],
+    });
+    setIsTailoredModalOpen(true);
+  };
 
-      if (res?.success && res?.application) {
-        setApplicationsData((prev) => {
-          if (!prev) return { stats: { applied: 1 }, recent: [res.application] };
-          return {
-            stats: {
-              ...prev.stats,
-              applied: (prev.stats?.applied || 0) + 1,
-            },
-            recent: [res.application, ...(prev.recent || [])],
-          };
-        });
-        showToast(res.message || `Applied for "${item.title}"!`, "success");
-      }
-    } catch (err) {
-      const errMsg =
-        err.response?.data?.message ||
-        err.message ||
-        "Application could not be submitted.";
-      showToast(errMsg, "error");
-    }
+  const handleApplicationSuccess = (application) => {
+    setApplicationsData((prev) => {
+      if (!prev) return { stats: { applied: 1 }, recent: [application] };
+      return {
+        stats: {
+          ...prev.stats,
+          applied: (prev.stats?.applied || 0) + 1,
+        },
+        recent: [application, ...(prev.recent || [])],
+      };
+    });
+    showToast(`Applied for "${selectedOpportunityForTailoring?.title || "opportunity"}"!`, "success");
   };
 
   const filteredInternships = useMemo(() => {
@@ -259,7 +273,7 @@ const StudentDashboard = () => {
   } = dashboardData || {};
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex font-sans">
       {/* Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -267,10 +281,16 @@ const StudentDashboard = () => {
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
         onLogout={handleLogout}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
       />
 
       {/* Main */}
-      <div className="lg:pl-64 flex flex-col min-h-screen">
+      <div
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+          sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
+        }`}
+      >
         <DashboardHeader
           user={user}
           profile={profile}
@@ -278,12 +298,14 @@ const StudentDashboard = () => {
           onSearchChange={setSearchQuery}
           notifications={notifications}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onLogout={handleLogout}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-7 max-w-7xl w-full mx-auto">
           {/* ================= DASHBOARD HOME ================= */}
           {activeTab === "dashboard" && (
+<<<<<<< HEAD
             <InternshalaDashboardRecommendations
               jobs={filteredJobs}
               internships={filteredInternships}
@@ -293,6 +315,85 @@ const StudentDashboard = () => {
               onApply={handleApply}
               onNavigateTab={handleSelectTab}
             />
+=======
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ProfileCompletionCard
+                  profile={profile}
+                  user={user}
+                  completion={profileCompletion}
+                />
+                <CareerReadinessCard readiness={careerReadiness} />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ProfileSummaryCard user={user} profile={profile} />
+                <EducationSummaryCard education={education} />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SkillsSectionCard
+                  technicalSkills={technicalSkills}
+                  softSkills={softSkills}
+                />
+                <SkillGapCard skillGap={skillGap} />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ResumeStatusCard resume={resume} profile={profile} />
+                <CareerGoalCard
+                  careerGoal={careerGoal}
+                  preferences={jobPreferences}
+                />
+              </div>
+
+              <ProjectsPortfolioCard projects={projects} />
+              <CertificationsCard certifications={certifications} />
+
+              <InternshipRecommendationsCard
+                internships={filteredInternships}
+                onSave={handleSaveToggle}
+                onApply={handleApply}
+                savedIds={savedIds}
+                onViewAll={() => handleSelectTab("internships")}
+              />
+
+              <JobRecommendationsCard
+                jobs={filteredJobs}
+                onSave={handleSaveToggle}
+                onApply={handleApply}
+                savedIds={savedIds}
+                onViewAll={() => handleSelectTab("jobs")}
+              />
+
+              <CourseRecommendationsCard
+                courses={filteredCourses}
+                onViewAll={() => handleSelectTab("courses")}
+                onSelectCourse={(id) => {
+                  setSelectedCourseId(id);
+                  setCoursesView("detail");
+                  setActiveTab("courses");
+                }}
+              />
+
+              <ApplicationTrackerCard
+                applications={applicationsData}
+                onViewAll={() => handleSelectTab("applications")}
+              />
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SavedOpportunitiesCard
+                  savedItems={savedList}
+                  onRemove={(id) => {
+                    setSavedIds((prev) => prev.filter((item) => item !== id));
+                    setSavedList((prev) => prev.filter((item) => item.id !== id));
+                  }}
+                  onApply={handleApply}
+                />
+                <UpcomingDeadlinesCard deadlines={upcomingDeadlines} />
+              </div>
+            </>
+>>>>>>> origin/develop
           )}
 
           {/* ================= RESUME ================= */}
@@ -355,8 +456,9 @@ const StudentDashboard = () => {
             </div>
           )}
 
-          {/* ================= JOBS ================= */}
+          {/* ================= JOBS (full module) ================= */}
           {activeTab === "jobs" && (
+<<<<<<< HEAD
             <JobRecommendationsCard
               jobs={filteredJobs}
               onSave={handleSaveToggle}
@@ -364,19 +466,62 @@ const StudentDashboard = () => {
               savedIds={savedIds}
               limit={0}
             />
+=======
+            <div className="animate-fade-in">
+              <Jobs
+                embedded
+                studentProfile={profile}
+                onApply={handleApply}
+                onSave={handleSaveToggle}
+                savedIds={savedIds}
+              />
+            </div>
+>>>>>>> origin/develop
           )}
 
-          {/* ================= COURSES ================= */}
+          {/* ================= COURSES (full module) ================= */}
           {activeTab === "courses" && (
-  <div className="animate-fade-in">
-    <StudentCoursesPage />
-  </div>
-)}
+            <div className="animate-fade-in">
+              {coursesView === "catalog" && (
+                <StudentCoursesPage
+                  embedded
+                  onViewDetails={(id) => {
+                    setSelectedCourseId(id);
+                    setCoursesView("detail");
+                  }}
+                  onNavigateToMyCourses={() => setCoursesView("my-courses")}
+                />
+              )}
+              {coursesView === "my-courses" && (
+                <StudentMyCoursesPage
+                  embedded
+                  onBackToCatalog={() => setCoursesView("catalog")}
+                />
+              )}
+              {coursesView === "detail" && (
+                <CourseDetailsPage
+                  embedded
+                  id={selectedCourseId}
+                  onBack={() => {
+                    setCoursesView("catalog");
+                    setSelectedCourseId(null);
+                  }}
+                />
+              )}
+            </div>
+          )}
 
           {/* ================= APPLICATIONS ================= */}
           {activeTab === "applications" && (
             <div className="animate-fade-in">
               <MyApplications embedded />
+            </div>
+          )}
+
+          {/* ================= INTERVIEWS ================= */}
+          {activeTab === "interviews" && (
+            <div className="animate-fade-in">
+              <CandidateInterviewsView />
             </div>
           )}
 
@@ -436,6 +581,17 @@ const StudentDashboard = () => {
           )}
         </main>
       </div>
+
+      {/* Tailored Resume Application Modal */}
+      <TailoredResumeApplicationModal
+        isOpen={isTailoredModalOpen}
+        onClose={() => {
+          setIsTailoredModalOpen(false);
+          setSelectedOpportunityForTailoring(null);
+        }}
+        opportunity={selectedOpportunityForTailoring}
+        onAppliedSuccess={handleApplicationSuccess}
+      />
 
       {/* Toast */}
       {toast && (

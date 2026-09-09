@@ -1,5 +1,9 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
+const mongoose = require("mongoose");
+const Job = require("../models/Job");
+const Internship = require("../models/Internship");
+const EmployerProfile = require("../models/EmployerProfile");
 
 // =========================================================================
 // 1. CLEAN DEGREE KEYWORD MAP (SIMPLIFIED NAMES)
@@ -228,6 +232,12 @@ const CAMPUS_DRIVES = [
 ];
 
 const searchCache = {};
+
+function clearSearchCache() {
+  for (const key in searchCache) {
+    delete searchCache[key];
+  }
+}
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -564,21 +574,21 @@ async function getAggregatedOpportunities({
   if (scope !== "on-campus") {
     const scraperPromises = [];
 
-    if (source === "all" || source === "linkedin") {
+    if (source === "all" || source === "external" || source === "linkedin") {
       scraperPromises.push(
         scrapeLinkedIn(queryKeywords, targetLocation, normalizedOppType),
       );
     }
     if (
-      (source === "all" || source === "internshala") &&
+      (source === "all" || source === "external" || source === "internshala") &&
       region !== "International"
     ) {
       scraperPromises.push(scrapeInternshala(queryKeywords));
     }
-    if (source === "all" || source === "remotive") {
+    if (source === "all" || source === "external" || source === "remotive") {
       scraperPromises.push(fetchRemotiveJobs(queryKeywords));
     }
-    if (source === "all" || source === "arbeitnow") {
+    if (source === "all" || source === "external" || source === "arbeitnow") {
       scraperPromises.push(fetchArbeitnowJobs(queryKeywords));
     }
 
@@ -745,8 +755,19 @@ async function getAggregatedOpportunities({
     } else {
       combinedResults = scrapedResults;
     }
+  }
+
+  // Merge On-Campus Drives & Database Opportunities
+  let combinedResults = [];
+  if (source === "external") {
+    // Strictly external scraped opportunities only (NO campus / DB items)
+    combinedResults = [...scrapedResults];
+  } else if (source === "campus" || scope === "on-campus") {
+    // Strictly employer-listed campus opportunities only (NO external scrapers)
+    combinedResults = [...dbOpportunities];
   } else {
-    combinedResults = scrapedResults;
+    // All sources: Campus listings first, followed by external scraped listings
+    combinedResults = [...dbOpportunities, ...scrapedResults];
   }
 
   searchCache[cacheKey] = {
@@ -808,4 +829,5 @@ module.exports = {
   fetchArbeitnowJobs,
   getAggregatedOpportunities,
   getFilterMetadata,
+  clearSearchCache,
 };

@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
-import { logout } from "../../redux/features/authSlice";
-import { logoutUser } from "../../services/authService";
+import { useSelector } from "react-redux";
+import useLogout from "../../hooks/useLogout";
 import { getProfessionalDashboardData } from "../../services/professionalDashboardService";
 
 // Subcomponents
@@ -26,6 +25,7 @@ import PrivacyModal from "../../components/professional-dashboard/PrivacyModal";
 import ApplyReviewModal from "../../components/professional-dashboard/ApplyReviewModal";
 import ApplicationSuccessModal from "../../components/professional-dashboard/ApplicationSuccessModal";
 import ExternalApplicationFollowupModal from "../../components/professional-dashboard/ExternalApplicationFollowupModal";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 
 const INITIAL_APPLICATIONS = [
   {
@@ -72,11 +72,12 @@ const INITIAL_APPLICATIONS = [
 
 const ProfessionalDashboard = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -96,6 +97,10 @@ const ProfessionalDashboard = () => {
   const [lastSubmittedApplication, setLastSubmittedApplication] = useState(null);
   const [showExternalFollowupModal, setShowExternalFollowupModal] = useState(false);
   const [pendingExternalOpportunity, setPendingExternalOpportunity] = useState(null);
+
+  // Tailored Resume Modal State
+  const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
+  const [tailoringOpportunity, setTailoringOpportunity] = useState(null);
 
   const [toast, setToast] = useState(null);
 
@@ -123,14 +128,8 @@ const ProfessionalDashboard = () => {
     fetchDashboard();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await logoutUser();
-    } catch (e) {
-      console.error(e);
-    }
-    dispatch(logout());
-    navigate("/", { replace: true });
+  const handleLogout = () => {
+    logout();
   };
 
   // Trigger Application Review Flow
@@ -138,11 +137,20 @@ const ProfessionalDashboard = () => {
     if (!opp) return;
     const preparedOpp = {
       ...opp,
+      _id: opp.id || opp._id,
       company: opp.company || opp.companyName || "Technology Enterprise",
       companyName: opp.company || opp.companyName || "Technology Enterprise",
+      type: "Job",
+      description: opp.description || opp.aboutRole || "Senior engineering leadership role.",
+      requiredSkills: opp.tags || opp.skills || [],
     };
-    setReviewingOpportunity(preparedOpp);
-    setShowApplyReviewModal(true);
+    if (opp.isExternal || opp.applyType === "external" || opp.url?.startsWith("http")) {
+      setReviewingOpportunity(preparedOpp);
+      setShowApplyReviewModal(true);
+    } else {
+      setTailoringOpportunity(preparedOpp);
+      setIsTailoredModalOpen(true);
+    }
   };
 
   // Direct Apply via CareerConnect
@@ -289,29 +297,39 @@ const ProfessionalDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/70 text-slate-800 flex flex-col font-sans">
-      {/* Top Header */}
-      <ProfessionalHeader
-        professionalName={professionalName}
-        professionalRole={currentRole}
+    <div className="min-h-screen bg-slate-50/70 text-slate-800 flex font-sans">
+      {/* Left Side Navigation Sidebar */}
+      <ProfessionalSidebar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        onToggleSidebar={() => setMobileSidebarOpen((prev) => !prev)}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
         onLogout={handleLogout}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
       />
 
-      <div className="flex-1 flex w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
-        {/* Left Side Navigation Sidebar */}
-        <ProfessionalSidebar
+      {/* Main Content Area */}
+      <div
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+          sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
+        }`}
+      >
+        {/* Top Header */}
+        <ProfessionalHeader
+          user={user}
+          profile={profile}
+          professionalName={professionalName}
+          professionalRole={currentRole}
           activeTab={activeTab}
           onSelectTab={setActiveTab}
-          isOpen={mobileSidebarOpen}
-          onClose={() => setMobileSidebarOpen(false)}
+          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           onLogout={handleLogout}
         />
 
         {/* Main Center Content Area */}
-        <main className="flex-1 min-w-0 space-y-6">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
           {/* Main Dashboard Overview Tab */}
           {activeTab === "dashboard" && (
             <div className="space-y-6 animate-fade-in">
@@ -592,6 +610,38 @@ const ProfessionalDashboard = () => {
         profile={profile}
         onSubmitDirect={handleDirectSubmit}
         onContinueExternal={handleContinueExternal}
+      />
+
+      {/* Step 1B: Tailored Resume Application Modal for Direct Opportunities */}
+      <TailoredResumeApplicationModal
+        isOpen={isTailoredModalOpen}
+        onClose={() => {
+          setIsTailoredModalOpen(false);
+          setTailoringOpportunity(null);
+        }}
+        opportunity={tailoringOpportunity}
+        opportunityType="Job"
+        onApplicationSubmitted={(res) => {
+          const compName = tailoringOpportunity?.company || tailoringOpportunity?.companyName || "Technology Enterprise";
+          const newApp = {
+            id: `app-${Date.now()}`,
+            title: tailoringOpportunity?.title || "Role",
+            company: compName,
+            appliedDate: "Today",
+            status: "Under Review ⏳",
+            statusType: "review",
+            source: "direct",
+            location: tailoringOpportunity?.location || "Remote",
+          };
+          setApplicationsList((prev) => [newApp, ...prev]);
+          setLastSubmittedApplication({
+            title: tailoringOpportunity?.title,
+            company: compName,
+          });
+          setIsTailoredModalOpen(false);
+          setShowSuccessModal(true);
+          showToast("✓ Application submitted with your tailored resume!", "success");
+        }}
       />
 
       {/* Step 2A: Direct Application Success Modal */}

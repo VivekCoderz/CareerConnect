@@ -4,10 +4,13 @@ import { Link, useNavigate } from "react-router-dom";
 const ProfessionalHeader = ({
   user,
   profile,
+  professionalName: propName,
+  professionalRole: propRole,
   activeTab,
   onSelectTab,
   notifications = [],
   onOpenMobileSidebar,
+  onToggleSidebar,
   onLogout,
 }) => {
   const navigate = useNavigate();
@@ -16,8 +19,10 @@ const ProfessionalHeader = ({
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
-  const professionalName = user?.fullName || profile?.userId?.fullName || "Arya";
+  const professionalName =
+    propName || user?.fullName || profile?.userId?.fullName || "Arya";
   const headline =
+    propRole ||
     profile?.currentEmployment?.jobTitle ||
     profile?.professionalHeadline ||
     "Senior Software Engineer";
@@ -46,14 +51,16 @@ const ProfessionalHeader = ({
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Left: Mobile Toggle & Brand & Top Navigation */}
-        <div className="flex items-center gap-6">
+        {/* Left: Sidebar Toggle & Brand & Top Navigation */}
+        <div className="flex items-center gap-4 sm:gap-6">
           <button
-            onClick={onOpenMobileSidebar}
-            className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition"
-            aria-label="Open navigation"
+            type="button"
+            onClick={onToggleSidebar || onOpenMobileSidebar}
+            className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-purple-600 transition flex items-center justify-center cursor-pointer"
+            aria-label="Toggle navigation"
+            title="Toggle sidebar"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>

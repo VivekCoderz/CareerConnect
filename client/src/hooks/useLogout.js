@@ -21,27 +21,25 @@ const useLogout = () => {
   const navigate = useNavigate();
 
   const performLogout = async () => {
-    try {
-      // 1. Firebase sign-out (clears Google session)
-      await signOut(auth);
-    } catch (firebaseErr) {
-      // Non-critical — proceed even if Firebase signOut fails
-      console.warn("[Logout] Firebase signOut error:", firebaseErr.message);
-    }
+    // 1. Immediately navigate to Home ("/") so route guards never trigger a /login redirect
+    navigate("/", { replace: true });
 
-    try {
-      // 2. Backend logout — clears HTTP-only cookie
-      await api.post("/auth/logout");
-    } catch (apiErr) {
-      // Non-critical — clear frontend state regardless
-      console.warn("[Logout] Backend logout error:", apiErr.message);
-    }
-
-    // 3. Clear Redux auth state
+    // 2. Clear Redux auth state
     dispatch(logout());
 
-    // 4. Navigate to public Home landing page
-    navigate("/", { replace: true });
+    // 3. Clear local storage tokens
+    localStorage.removeItem("careerconnect_token");
+    localStorage.removeItem("careerconnect_user");
+
+    // 4. Clear Firebase & Backend sessions asynchronously
+    try {
+      await Promise.allSettled([
+        signOut(auth),
+        api.post("/auth/logout"),
+      ]);
+    } catch (err) {
+      console.warn("[Logout] Cleanup error:", err);
+    }
   };
 
   return performLogout;

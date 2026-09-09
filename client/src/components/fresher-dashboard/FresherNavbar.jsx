@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 
-const FresherNavbar = ({ user, onOpenMobileSidebar, onLogout, onSearch }) => {
+const FresherNavbar = ({ user, onOpenMobileSidebar, onToggleSidebar, onLogout, onSearch }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef(null);
@@ -32,12 +32,14 @@ const FresherNavbar = ({ user, onOpenMobileSidebar, onLogout, onSearch }) => {
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Mobile toggle & Search */}
+        {/* Toggle & Search */}
         <div className="flex items-center gap-3 flex-1 max-w-md">
           <button
-            onClick={onOpenMobileSidebar}
-            className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition"
-            aria-label="Open navigation menu"
+            type="button"
+            onClick={onToggleSidebar || onOpenMobileSidebar}
+            className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-blue-700 transition cursor-pointer"
+            aria-label="Toggle navigation menu"
+            title="Toggle sidebar"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />

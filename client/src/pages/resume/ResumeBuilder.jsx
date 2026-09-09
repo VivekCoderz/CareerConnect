@@ -20,9 +20,16 @@ import {
   setActiveResumeId,
   fetchProfileForResume,
   saveManualEdit,
+  updateRawData,
 } from "../../redux/features/resumeSlice";
 import { updateUserProfile } from "../../redux/features/authSlice";
-import { uploadResumeAPI } from "../../services/resumeService";
+import {
+  uploadResumeAPI,
+  parseResumeAPI,
+  confirmParsedProfileAPI,
+} from "../../services/resumeService";
+import { updateStudentProfile } from "../../services/studentProfileService";
+import ResumeUploadInput from "../../components/common/ResumeUploadInput";
 import { validateRawData, extractSkillsList } from "../../utils/resumeHelpers";
 import { RESUME_TEMPLATES } from "../../data/templates";
 
@@ -32,6 +39,7 @@ import ResumePreview from "../../components/resume-builder/ResumePreview";
 import ReviewActions from "../../components/resume-builder/ReviewActions";
 import AIChangeRequest from "../../components/resume-builder/AIChangeRequest";
 import ManualEditor from "../../components/resume-builder/ManualEditor";
+import ParsedResumeReviewModal from "../../components/resume-builder/ParsedResumeReviewModal";
 
 // ─── Step indicator for AI flow ──────────────────────────────────────────────
 const FLOW_STEPS = [
@@ -161,9 +169,14 @@ const ResumeBuilder = () => {
 
   // Upload Resume state
   const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadedResumeUrl, setUploadedResumeUrl] = useState("");
+  const [uploadedResumeName, setUploadedResumeName] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [parsedResumeData, setParsedResumeData] = useState(null);
+  const [existingProfileData, setExistingProfileData] = useState(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   // Initial data load: fetch saved resume, all saved resumes & profile
@@ -329,8 +342,8 @@ const ResumeBuilder = () => {
   };
 
   const handleUploadSubmit = async () => {
-    if (!selectedFile) {
-      setUploadError("Please select a PDF file to upload.");
+    if (!uploadedResumeUrl) {
+      setUploadError("Please upload a resume file or paste a valid resume URL.");
       return;
     }
 
@@ -338,20 +351,82 @@ const ResumeBuilder = () => {
     setUploadError("");
 
     try {
-      const res = await uploadResumeAPI(selectedFile);
-      setUploadSuccess(true);
-      if (res?.resumeUrl) {
-        dispatch(
-          updateUserProfile({
-            resumeUrl: res.resumeUrl,
-            resumeName: res.resumeName || selectedFile.name,
-          }),
-        );
+      // First attempt to parse the resume so the user can import it to their profile & builder
+      const parseRes = await parseResumeAPI(selectedFile);
+      if (parseRes?.success && parseRes?.parsedData) {
+        setParsedResumeData(parseRes.parsedData);
+        if (parseRes.existingProfile) {
+          setExistingProfileData(parseRes.existingProfile);
+        }
+        if (parseRes.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: parseRes.resumeUrl,
+              resumeName: parseRes.resumeName || selectedFile.name,
+            })
+          );
+        }
+        setIsReviewModalOpen(true);
+      } else {
+        // Fallback to standard upload
+        const res = await uploadResumeAPI(selectedFile);
+        setUploadSuccess(true);
+        if (res?.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: res.resumeUrl,
+              resumeName: res.resumeName || selectedFile.name,
+            }),
+          );
+        }
       }
     } catch (err) {
-      setUploadError(err.message || "Failed to upload resume. Please try again.");
+      // If parse fails, attempt upload directly
+      try {
+        const res = await uploadResumeAPI(selectedFile);
+        setUploadSuccess(true);
+        if (res?.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: res.resumeUrl,
+              resumeName: res.resumeName || selectedFile.name,
+            }),
+          );
+        }
+      } catch (uploadErr) {
+        setUploadError(uploadErr.message || err.message || "Failed to upload resume. Please try again.");
+      }
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleConfirmParsedData = async (confirmedData) => {
+    try {
+      await confirmParsedProfileAPI(confirmedData);
+      dispatch(fetchProfileForResume());
+      dispatch(fetchAllSavedResumes());
+
+      // Pre-fill rawData for AI builder
+      dispatch(
+        updateRawData({
+          personal: confirmedData.personal || {},
+          education: confirmedData.education || [],
+          experience: confirmedData.experience || [],
+          projects: confirmedData.projects || [],
+          skills: confirmedData.skills || [],
+          certifications: confirmedData.certifications || [],
+          achievements: confirmedData.achievements || [],
+        })
+      );
+
+      setIsReviewModalOpen(false);
+      setUploadSuccess(true);
+      // Seamlessly transition to AI builder step 0 or template selection
+      setViewMode("ai");
+      dispatch(setStep(0));
+    } catch (err) {
+      alert(err.message || "Failed to save parsed profile data");
     }
   };
 
@@ -466,6 +541,11 @@ const ResumeBuilder = () => {
                           </div>
 
                           <div className="shrink-0 flex flex-col items-end gap-1.5">
+                            {resItem.isTailored && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
+                                <span>🎯</span> {resItem.targetOpportunityTitle ? `Tailored for ${resItem.targetOpportunityTitle}` : "Tailored Version"}
+                              </span>
+                            )}
                             {resItem.isPrimary ? (
                               <div className="flex flex-col items-end gap-0.5">
                                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
@@ -856,10 +936,10 @@ const ResumeBuilder = () => {
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
-                  Upload Your Resume
+                  Upload or Link Your Resume
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Upload your completed resume in PDF format to attach to your profile
+                  Upload your completed resume file (PDF, DOC, DOCX up to 10MB) or link a hosted resume URL
                 </p>
               </div>
 
@@ -876,7 +956,7 @@ const ResumeBuilder = () => {
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-emerald-900">
-                      Resume Uploaded Successfully!
+                      Resume Saved Successfully!
                     </h3>
                     <p className="text-xs text-emerald-700 mt-1">
                       Your resume has been saved to your profile and is ready for internship applications.
@@ -904,43 +984,17 @@ const ResumeBuilder = () => {
                 </div>
               ) : (
                 <div className="space-y-5">
-                  {/* File Drop / Select Area */}
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-8 text-center cursor-pointer transition bg-slate-50/50 hover:bg-blue-50/20"
-                  >
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileSelect}
-                      accept="application/pdf,.pdf"
-                      className="hidden"
-                    />
-                    <div className="w-12 h-12 rounded-xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-2xl mx-auto mb-3">
-                      📄
-                    </div>
-                    {selectedFile ? (
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">
-                          {selectedFile.name}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB · Click to change file
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-sm font-semibold text-slate-700">
-                          Click to browse or drag and drop your resume
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1">
-                          PDF only, maximum size 10MB
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                  <ResumeUploadInput
+                    value={uploadedResumeUrl}
+                    onChange={(url, meta) => {
+                      setUploadedResumeUrl(url);
+                      if (meta?.fileName) setUploadedResumeName(meta.fileName);
+                    }}
+                    label="Resume Document or Online Link"
+                    helperText="Supported formats: PDF, DOC, DOCX up to 10MB or direct URLs."
+                  />
 
-                  {/* Upload Button */}
+                  {/* Action Buttons */}
                   <div className="flex justify-end gap-3 pt-2">
                     <button
                       type="button"
@@ -951,14 +1005,14 @@ const ResumeBuilder = () => {
                     </button>
                     <button
                       type="button"
-                      disabled={!selectedFile || isUploading}
+                      disabled={!uploadedResumeUrl || isUploading}
                       onClick={handleUploadSubmit}
                       className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
                     >
                       {isUploading && (
                         <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       )}
-                      {isUploading ? "Uploading to Cloud..." : "Upload & Save to Profile"}
+                      {isUploading ? "Saving Resume..." : "Save Resume to Profile"}
                     </button>
                   </div>
                 </div>
@@ -1189,6 +1243,17 @@ const ResumeBuilder = () => {
             )}
           </div>
         )}
+
+        {/* Parsed Resume Review Modal */}
+        <ParsedResumeReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          parsedData={parsedResumeData}
+          existingProfile={existingProfileData}
+          resumeName={selectedFile?.name}
+          onConfirm={handleConfirmParsedData}
+          title="Review Imported Resume Information"
+        />
 
       </div>
 

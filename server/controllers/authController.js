@@ -2029,7 +2029,11 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+<<<<<<< HEAD
 };
 
 module.exports.userPayload = userPayload;
 
+=======
+};
+>>>>>>> origin/develop

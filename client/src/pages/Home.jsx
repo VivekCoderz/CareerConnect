@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../components/jobs/JobDiscoveryMenu";
 import { getDashboardPath } from "../utils/dashboardRedirect";
@@ -82,14 +82,8 @@ const Home = () => {
     loadHomeData();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await logoutUser();
-    } catch {
-      // Ignore
-    }
-    dispatch(logout());
-    navigate("/", { replace: true });
+  const handleLogout = () => {
+    logout();
   };
 
   const handleHeroSearchSubmit = (e) => {

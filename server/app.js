@@ -27,7 +27,6 @@ const employerLearningRoutes = require("./routes/employerLearningRoutes.js");
 const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 
 const resumeRoutes = require("./routes/resumeRoutes.js");
-const sessionMiddleware = require("./config/session.js");
 const opportunityRoutes = require("./routes/opportunityRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
 const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
@@ -70,7 +69,6 @@ app.use(
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(cookieParser());
-app.use(sessionMiddleware);
 
 // Base & User Profile Routes
 app.use("/api/auth", authRoutes);

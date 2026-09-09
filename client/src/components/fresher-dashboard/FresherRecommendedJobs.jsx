@@ -165,7 +165,15 @@ const FresherRecommendedJobs = ({ jobs = [], targetRole = "Full Stack Developer"
                       View Job
                     </Link>
 
-                    {job.applyUrl || job.applyLink ? (
+                    {onApplyJob ? (
+                      <button
+                        type="button"
+                        onClick={() => onApplyJob(job)}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-semibold transition shadow-xs cursor-pointer"
+                      >
+                        Apply Now
+                      </button>
+                    ) : job.applyUrl || job.applyLink ? (
                       <a
                         href={job.applyUrl || job.applyLink}
                         target="_blank"

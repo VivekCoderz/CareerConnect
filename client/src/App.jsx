@@ -40,6 +40,7 @@ import MyApplications from "./pages/student/MyApplications";
 // Fresher
 import FresherDashboard from "./pages/fresher/FresherDashboard";
 import FresherProfile from "./pages/fresher/FresherProfile";
+import CareerRecommendationsPage from "./pages/fresher/CareerRecommendationsPage";
 
 // Professional
 import ProfessionalDashboard from "./pages/professional/ProfessionalDashboard";
@@ -275,6 +276,7 @@ function App() {
             <Route path="/fresher/dashboard" element={<FresherDashboard />} />
             <Route path="/fresher/profile" element={<FresherProfile />} />
             <Route path="/fresher/profile/setup" element={<FresherProfile />} />
+            <Route path="/fresher/career-recommendations" element={<CareerRecommendationsPage />} />
           </Route>
 
           {/* =================================================
