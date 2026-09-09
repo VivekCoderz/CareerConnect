@@ -8,9 +8,12 @@ import { BookOpen, Sparkles, Clock, ArrowRight } from "lucide-react";
  */
 const CourseRecommendationsCard = ({
   courses = [],
+  limit,
   onViewAll,
   onSelectCourse,
 }) => {
+  const displayedCourses = limit ? courses.slice(0, limit) : courses;
+
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
       <div className="flex justify-between items-center flex-wrap gap-2">
@@ -46,9 +49,9 @@ const CourseRecommendationsCard = ({
         )}
       </div>
 
-      {courses && courses.length > 0 ? (
+      {displayedCourses && displayedCourses.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {courses.map((crs) => {
+          {displayedCourses.map((crs) => {
             const courseId = crs._id || crs.id;
             return (
               <div
@@ -66,7 +69,7 @@ const CourseRecommendationsCard = ({
                       </span>
                     ) : (
                       <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                        ₹{crs.price}
+                        {crs.price ? `₹${crs.price}` : "PREMIUM"}
                       </span>
                     )}
                   </div>

@@ -19,6 +19,18 @@ const userSchema = new mongoose.Schema(
       maxlength: [100, "Full name cannot exceed 100 characters"],
     },
 
+    firstName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    lastName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     username: {
       type: String,
       unique: true,
@@ -114,6 +126,59 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+    },
+
+    city: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    gender: {
+      type: String,
+      enum: ["female", "male", "other", "prefer-not-to-say", ""],
+      default: "",
+    },
+
+    languages: {
+      type: [String],
+      default: [],
+    },
+
+    interests: {
+      type: [String],
+      default: [],
+    },
+
+    workExperience: {
+      type: String,
+      default: "",
+    },
+
+    college: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    course: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    stream: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    startYear: {
+      type: Number,
+    },
+
+    endYear: {
+      type: Number,
     },
 
     // ==========================================

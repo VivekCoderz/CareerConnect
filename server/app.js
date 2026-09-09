@@ -28,7 +28,8 @@ const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 
 const resumeRoutes = require("./routes/resumeRoutes.js");
 const opportunityRoutes = require("./routes/opportunityRoutes.js");
-const recommendationRoutes = require("./routes/recommendationRoutes.js");
+const notificationRoutes = require("./routes/notificationRoutes.js");
+const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -100,8 +101,8 @@ app.use("/api/resume", resumeRoutes);
 app.use("/api/api/resume", resumeRoutes); // Safety alias
 app.use("/api/opportunities", opportunityRoutes);
 app.use("/api/feed", opportunityRoutes);
-app.use("/api/recommendations", recommendationRoutes);
-app.use("/api/fresher/recommendations", recommendationRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/ai", aiAssistantRoutes);
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
 
 // Gateway Health Check Endpoint

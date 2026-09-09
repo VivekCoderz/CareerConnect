@@ -12,6 +12,7 @@ const {
   deleteResume,
   saveManualEdit,
   uploadResumeHandler,
+  uploadAndParseResumeHandler,
   getProfileForResume,
   parseResumeHandler,
   confirmParsedProfileHandler,
@@ -52,6 +53,7 @@ router.use(protect);
 router.get("/", getAllResumes);
 router.post("/save", saveFinalResume);
 router.post("/upload", upload.single("resume"), uploadResumeHandler);
+router.post("/upload-and-parse", upload.single("resume"), uploadAndParseResumeHandler);
 router.post("/parse", upload.single("resume"), parseResumeHandler);
 router.post("/confirm-parsed", confirmParsedProfileHandler);
 router.post("/tailor", tailorResumeHandler);

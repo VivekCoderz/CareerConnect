@@ -37,28 +37,23 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 1b. Password not set yet (first-time Google users) → redirect to set-password
-  if (user.hasPassword === false) {
-    return <Navigate to="/set-password" replace />;
-  }
-
-  // 1c. Profile information not collected yet (phone empty) → redirect to onboarding
+  // 1b. Profile information not collected yet (phone empty) → redirect to onboarding
   if (!user.phone?.trim()) {
     if (user.role === "employer") {
       return <Navigate to="/onboarding/employer" replace />;
     }
-    return <Navigate to="/select-role" replace />;
+    return <Navigate to="/onboarding/profile" replace />;
   }
 
   // 2. Determine effective role
   const effectiveRole =
     user.role === "employer"
       ? "employer"
-      : user.userType || (user.role && user.role !== "user" ? user.role : null);
+      : user.userType || (user.role && user.role !== "user" ? user.role : "student");
 
   const validRoles = ["student", "fresher", "professional", "employer"];
   if (!effectiveRole || !validRoles.includes(effectiveRole)) {
-    return <Navigate to="/select-role" replace />;
+    return <Navigate to="/onboarding/profile" replace />;
   }
 
   // 3. Wrong role's route → redirect to their own dashboard

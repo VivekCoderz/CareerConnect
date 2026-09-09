@@ -116,8 +116,6 @@ const SelectRole = () => {
       const phone = updatedUser?.phone || "";
       if (!phone.trim()) {
         navigate("/onboarding/profile", { replace: true });
-      } else if (selected === "fresher" && !updatedUser?.isProfileComplete) {
-        navigate("/fresher/profile", { replace: true });
       } else {
         // Navigate dynamically to role dashboard
         const dest = getDashboardPath(selected, updatedUser);

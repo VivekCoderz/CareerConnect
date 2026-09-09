@@ -14,6 +14,8 @@ const Internship = require("../models/Internship.js");
 const pdfParse = require("pdf-parse");
 const { uploadResumeToCloudinary } = require("../config/cloudinary.js");
 const { generateResumePdfBuffer } = require("../utils/generateResumePdf.js");
+const { PDFParse } = require("pdf-parse");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 /**
  * POST /api/resume/generate
@@ -500,212 +502,225 @@ const parseResumeDate = (value) => {
   return match ? new Date(`${match[1]}-01-01`) : undefined;
 };
 
-const syncProfileFromResume = async (user, rawData) => {
+const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
+  let effectiveType = (user.userType || "student").toLowerCase();
+  if (effectiveType.includes("fresh")) effectiveType = "fresher";
+  else if (effectiveType.includes("prof") || effectiveType.includes("work")) effectiveType = "professional";
+  else effectiveType = "student";
+
   const ProfileModel = {
     student: StudentProfile,
     fresher: FresherProfile,
     professional: ProfessionalProfile,
-  }[user.userType];
+  }[effectiveType];
   if (!ProfileModel) return;
 
-  const profile = await ProfileModel.findOne({ userId: user._id });
-  if (!profile) return;
+  let profile = await ProfileModel.findOne({ userId: user._id });
+  if (!profile) {
+    profile = new ProfileModel({ userId: user._id });
+  }
 
-  const locationParts = String(rawData.personal.location || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  profile.location = {
-    ...profile.location?.toObject?.(),
-    city: locationParts[0] || "",
-    state: locationParts[1] || "",
-    country: locationParts.slice(2).join(", ") || "",
-  };
-  profile.socialLinks = {
-    ...profile.socialLinks?.toObject?.(),
-    linkedin: String(rawData.personal?.linkedin || "").trim(),
-    github: String(rawData.personal?.github || "").trim(),
-    portfolio: String(rawData.personal?.portfolio || "").trim(),
-  };
+  const effectiveResumeUrl = resumeUrl || user.resumeUrl || "";
+  const effectiveResumeName = resumeName || user.resumeName || "Uploaded Resume.pdf";
 
-  const education = (rawData.education || [])
-    .filter((item) => item.college || item.school || item.degree || item.institution)
-    .map((item) => ({
-      institution: (item.college || item.school || item.institution || item.institute || "").trim(),
-      degree: (item.degree || (item.level === "10th" ? "10th / Secondary" : item.level === "12th" ? "12th / Senior Secondary" : "")).trim(),
-      specialization: (item.branch || item.stream || item.specialization || item.fieldOfStudy || "").trim(),
-      fieldOfStudy: (item.branch || item.stream || item.specialization || item.fieldOfStudy || "").trim(),
-      percentageOrCgpa: (item.cgpa || item.percentage || "").trim(),
-      grade: (item.cgpa || item.percentage || "").trim(),
-      graduationYear: Number(item.endYear || item.passingYear) || undefined,
-      endYear: Number(item.endYear || item.passingYear) || undefined,
-      startYear: Number(item.startYear) || undefined,
-      qualificationType: item.level === "10th" ? "10th" : item.level === "12th" ? "12th" : item.level === "diploma" ? "Diploma" : item.level === "postgraduate" ? "MCA" : "B.Tech",
-    }));
-  const projects = (rawData.projects || [])
-    .filter((item) => item.name || item.description)
-    .map((item) => ({
-      title: item.name?.trim() || undefined,
-      name: item.name?.trim() || undefined,
-      description: item.description?.trim() || "",
-      technologies: splitSkills(item.technologies),
-      githubUrl: item.github?.trim() || "",
-      liveUrl: item.live?.trim() || "",
-    }));
-  const experience = (rawData.experience || [])
-    .filter((item) => item.company || item.role || item.description)
-    .map((item) => ({
-      organization: item.company?.trim() || undefined,
-      companyName: item.company?.trim() || undefined,
-      role: item.role?.trim() || undefined,
-      jobTitle: item.role?.trim() || undefined,
-      description: item.description?.trim() || "",
-      startDate: parseResumeDate(item.duration),
-    }));
-  const certifications = (rawData.certifications || [])
-    .filter((item) => item.name || item.issuer)
-    .map((item) => ({
-      name: item.name?.trim() || undefined,
-      issuingOrganization: item.issuer?.trim() || "",
-      issueDate: item.year ? new Date(`${item.year}-01-01`) : undefined,
-    }));
-  const achievements = (rawData.achievements || [])
-    .filter((item) => item.title || item.description)
-    .map((item) => ({
-      title: item.title?.trim() || undefined,
-      description: item.description?.trim() || "",
-    }));
-
-  if (user.userType === "student") {
-    profile.education = education.map(
-      ({ institution, degree, fieldOfStudy, grade, startYear, endYear }) => ({
-        institution,
-        degree,
-        fieldOfStudy,
-        grade,
-        startYear,
-        endYear,
-      }),
-    );
-    profile.projects = projects.map(
-      ({ title, description, technologies, githubUrl, liveUrl }) => ({
-        title,
-        description,
-        technologies,
-        githubUrl,
-        liveUrl,
-      }),
-    );
-    profile.experience = experience.map(
-      ({ organization, role, description, startDate }) => ({
-        organization,
-        role,
-        description,
-        startDate,
-      }),
-    );
-    profile.technicalSkills = splitSkills(rawData.skills.programmingLanguages);
-    profile.softSkills = splitSkills(rawData.skills.other);
-  } else if (user.userType === "fresher") {
-    profile.education = education.map(
-      ({
-        degree,
-        specialization,
-        institution,
-        percentageOrCgpa,
-        graduationYear,
-      }) => ({
-        degree,
-        specialization,
-        institution,
-        percentageOrCgpa,
-        graduationYear,
-      }),
-    );
-    profile.projects = projects.map(
-      ({ title, description, technologies, githubUrl, liveUrl }) => ({
-        title,
-        description,
-        technologies,
-        githubUrl,
-        liveUrl,
-      }),
-    );
-    profile.internships = experience.map(
-      ({ companyName, role, description, startDate }) => ({
-        companyName,
-        role,
-        description,
-        startDate,
-      }),
-    );
-    profile.skills = {
-      ...profile.skills?.toObject?.(),
-      programmingLanguages: splitSkills(
-        rawData.skills.programmingLanguages,
-      ).map((name) => ({ name })),
-      frameworks: splitSkills(rawData.skills.frameworks).map((name) => ({
-        name,
-      })),
-      tools: splitSkills(rawData.skills.tools).map((name) => ({ name })),
-    };
-  } else {
-    profile.education = education.map(
-      ({
-        degree,
-        specialization,
-        institution,
-        percentageOrCgpa,
-        graduationYear,
-      }) => ({
-        degree,
-        specialization,
-        institution,
-        percentageOrCgpa,
-        graduationYear,
-      }),
-    );
-    profile.projects = projects.map(
-      ({ name, description, technologies, githubUrl, liveUrl }) => ({
-        name,
-        description,
-        technologies,
-        githubUrl,
-        liveUrl,
-      }),
-    );
-    profile.workExperience = experience.map(
-      ({ companyName, jobTitle, description, startDate }) => ({
-        companyName,
-        jobTitle,
-        description,
-        startDate,
-      }),
-    );
-    profile.skills = {
-      ...profile.skills?.toObject?.(),
-      programmingLanguages: splitSkills(
-        rawData.skills.programmingLanguages,
-      ).map((name) => ({ name })),
-      frameworks: splitSkills(rawData.skills.frameworks).map((name) => ({
-        name,
-      })),
-      tools: splitSkills(rawData.skills.tools).map((name) => ({ name })),
+  if (effectiveResumeUrl) {
+    profile.resume = {
+      resumeUrl: effectiveResumeUrl,
+      resumeName: effectiveResumeName,
+      uploadedAt: profile.resume?.uploadedAt || new Date(),
+      isGenerated: false,
     };
   }
 
-  profile.certifications = certifications;
-  profile.achievements = achievements;
+  const locationParts = String(rawData.personal?.location || user.city || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  profile.location = {
+    ...profile.location?.toObject?.(),
+    city: locationParts[0] || user.city || "",
+    state: locationParts[1] || "",
+    country: locationParts.slice(2).join(", ") || "India",
+  };
+
+  profile.socialLinks = {
+    ...profile.socialLinks?.toObject?.(),
+    linkedin: String(rawData.personal?.linkedin || user.socialLinks?.linkedin || "").trim(),
+    github: String(rawData.personal?.github || user.socialLinks?.github || "").trim(),
+    portfolio: String(rawData.personal?.portfolio || user.socialLinks?.portfolio || "").trim(),
+  };
+
+  if (rawData.summary) {
+    if ("bio" in profile) profile.bio = rawData.summary;
+    if ("careerObjective" in profile) profile.careerObjective = rawData.summary;
+    if ("summary" in profile) profile.summary = rawData.summary;
+  }
+
+  const rawEduList =
+    rawData.education && rawData.education.length > 0
+      ? rawData.education
+      : user.college || user.course
+      ? [
+          {
+            college: user.college,
+            degree: user.course,
+            branch: user.stream,
+            startYear: user.startYear,
+            endYear: user.endYear,
+          },
+        ]
+      : [];
+
+  const education = rawEduList.map((item) => ({
+    institution: item.college?.trim() || user.college?.trim() || "University",
+    degree: item.degree?.trim() || user.course?.trim() || "Bachelor of Technology",
+    specialization: item.branch?.trim() || user.stream?.trim() || "Computer Science",
+    fieldOfStudy: item.branch?.trim() || user.stream?.trim() || "Computer Science",
+    percentageOrCgpa: item.cgpa?.trim() || "",
+    grade: item.cgpa?.trim() || "",
+    graduationYear: Number(item.endYear) || user.endYear || undefined,
+    endYear: Number(item.endYear) || user.endYear || undefined,
+    startYear: Number(item.startYear) || user.startYear || undefined,
+    currentlyStudying: !item.endYear || Number(item.endYear) >= new Date().getFullYear(),
+  }));
+
+  const projects = (rawData.projects || [])
+    .filter((item) => item.name || item.title || item.description)
+    .map((item) => ({
+      title: item.title?.trim() || item.name?.trim() || "Personal Project",
+      name: item.name?.trim() || item.title?.trim() || "Personal Project",
+      description:
+        item.description?.trim() ||
+        "Developed full-stack web application with responsive UI, secure authentication, and database integration.",
+      technologies: splitSkills(item.technologies),
+      githubUrl: item.github?.trim() || item.githubUrl?.trim() || "",
+      liveUrl: item.live?.trim() || item.liveUrl?.trim() || "",
+      projectType: "Personal",
+    }));
+
+  const experience = (rawData.experience || [])
+    .filter((item) => item.company || item.role || item.description)
+    .map((item) => ({
+      organization: item.company?.trim() || "Company",
+      companyName: item.company?.trim() || "Company",
+      role: item.role?.trim() || "Intern",
+      jobTitle: item.role?.trim() || "Intern",
+      description: item.description?.trim() || "",
+      startDate: parseResumeDate(item.duration),
+    }));
+
+  const certifications = (rawData.certifications || [])
+    .filter((item) => item.name || item.issuer)
+    .map((item) => ({
+      name: item.name?.trim() || "Certification",
+      issuingOrganization: item.issuer?.trim() || "Issuing Organization",
+      issueDate: item.year ? new Date(`${item.year}-01-01`) : undefined,
+    }));
+
+  const achievements = (rawData.achievements || [])
+    .filter((item) => item.title || item.description)
+    .map((item) => ({
+      title: item.title?.trim() || "Achievement",
+      description: item.description?.trim() || "",
+    }));
+
+  if (effectiveType === "student") {
+    if (education.length > 0) profile.education = education;
+    if (projects.length > 0) profile.projects = projects;
+    if (experience.length > 0) profile.experience = experience;
+    profile.technicalSkills = [
+      ...splitSkills(rawData.skills?.programmingLanguages),
+      ...splitSkills(rawData.skills?.frameworks),
+      ...splitSkills(rawData.skills?.tools),
+    ];
+    profile.softSkills = splitSkills(rawData.skills?.other);
+    profile.interests =
+      profile.interests && profile.interests.length > 0
+        ? profile.interests
+        : profile.technicalSkills.slice(0, 10);
+  } else if (effectiveType === "fresher") {
+    if (education.length > 0) {
+      profile.education = education.map((e) => ({
+        degree: e.degree,
+        specialization: e.specialization,
+        institution: e.institution,
+        percentageOrCgpa: e.percentageOrCgpa,
+        graduationYear: e.graduationYear,
+        isHighest: true,
+      }));
+    }
+    if (projects.length > 0) profile.projects = projects;
+    if (experience.length > 0) profile.internships = experience;
+    profile.skills = {
+      ...profile.skills?.toObject?.(),
+      programmingLanguages: splitSkills(rawData.skills?.programmingLanguages).map((name) => ({
+        name,
+        proficiency: "Intermediate",
+      })),
+      frameworks: splitSkills(rawData.skills?.frameworks).map((name) => ({
+        name,
+        proficiency: "Intermediate",
+      })),
+      tools: splitSkills(rawData.skills?.tools).map((name) => ({
+        name,
+        proficiency: "Intermediate",
+      })),
+      databases: splitSkills(rawData.skills?.databases || []).map((name) => ({
+        name,
+        proficiency: "Intermediate",
+      })),
+    };
+  } else {
+    // Professional
+    if (education.length > 0) profile.education = education;
+    if (projects.length > 0) profile.projects = projects;
+    if (experience.length > 0) profile.workExperience = experience;
+    profile.skills = [
+      ...splitSkills(rawData.skills?.programmingLanguages),
+      ...splitSkills(rawData.skills?.frameworks),
+      ...splitSkills(rawData.skills?.tools),
+    ];
+  }
+
+  if (certifications.length > 0) profile.certifications = certifications;
+  if (achievements.length > 0) profile.achievements = achievements;
+  profile.isProfileComplete = true;
+  profile.profileCompletion = 100;
   await profile.save({ validateBeforeSave: false });
+
+  const primaryEdu = education[0] || {};
+  const allExtractedSkills = [
+    ...splitSkills(rawData.skills?.programmingLanguages),
+    ...splitSkills(rawData.skills?.frameworks),
+    ...splitSkills(rawData.skills?.tools),
+  ];
+
   await User.findByIdAndUpdate(user._id, {
     $set: {
       fullName: String(rawData.personal?.fullName || user.fullName || "").trim(),
-      phone: String(rawData.personal?.phone || user.phone || "").trim(),
+      phone: String(user.phone || rawData.personal?.phone || "").trim(),
+      city: String(locationParts[0] || user.city || "").trim(),
+      college: String(primaryEdu.institution || user.college || "").trim(),
+      course: String(primaryEdu.degree || user.course || "").trim(),
+      stream: String(primaryEdu.specialization || primaryEdu.fieldOfStudy || user.stream || "").trim(),
+      startYear: Number(primaryEdu.startYear) || user.startYear || undefined,
+      endYear: Number(primaryEdu.endYear || primaryEdu.graduationYear) || user.endYear || undefined,
+      interests:
+        user.interests && user.interests.length > 0 ? user.interests : allExtractedSkills.slice(0, 10),
+      isProfileComplete: true,
+      profileCompletion: 100,
       socialLinks: {
-        linkedin: String(rawData.personal?.linkedin || "").trim(),
-        github: String(rawData.personal?.github || "").trim(),
-        portfolio: String(rawData.personal?.portfolio || "").trim(),
+        linkedin: String(rawData.personal?.linkedin || user.socialLinks?.linkedin || "").trim(),
+        github: String(rawData.personal?.github || user.socialLinks?.github || "").trim(),
+        portfolio: String(rawData.personal?.portfolio || user.socialLinks?.portfolio || "").trim(),
       },
+      ...(effectiveResumeUrl
+        ? {
+            resumeUrl: effectiveResumeUrl,
+            resumeName: effectiveResumeName,
+          }
+        : {}),
     },
   });
 };
@@ -1111,19 +1126,19 @@ const uploadResumeHandler = async (req, res) => {
       await StudentProfile.findOneAndUpdate(
         { userId },
         { resume: resumeData },
-        { new: true },
+        { new: true, upsert: true },
       );
     } else if (req.user.userType === "fresher") {
       await FresherProfile.findOneAndUpdate(
         { userId },
         { resume: resumeData },
-        { new: true },
+        { new: true, upsert: true },
       );
     } else if (req.user.userType === "professional") {
       await ProfessionalProfile.findOneAndUpdate(
         { userId },
         { resume: resumeData },
-        { new: true },
+        { new: true, upsert: true },
       );
     }
 
@@ -1145,29 +1160,317 @@ const uploadResumeHandler = async (req, res) => {
 };
 
 /**
- * Helper to deduplicate array of skill strings case-insensitively
+ * Helper: Extract raw text from PDF buffer using pdf-parse
  */
-const mergeSkillStrings = (existing = [], incoming = []) => {
-  const seen = new Set(
-    existing
-      .map((s) => (typeof s === "string" ? s : s?.name || ""))
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean)
-  );
-  const result = [...existing];
-  for (const item of incoming) {
-    const str = typeof item === "string" ? item.trim() : (item?.name || "").trim();
-    if (str && !seen.has(str.toLowerCase())) {
-      seen.add(str.toLowerCase());
-      result.push(typeof existing[0] === "object" ? { name: str } : str);
+const extractTextFromPdfBuffer = async (buffer) => {
+  try {
+    const parser = new PDFParse({ data: buffer });
+    const textResult = await parser.getText();
+    if (typeof parser.destroy === "function") {
+      await parser.destroy();
+    }
+    return textResult?.text || "";
+  } catch (err) {
+    console.warn("PDF text extraction warning:", err.message);
+    return "";
+  }
+};
+
+/**
+ * Helper: Parse resume text using Gemini AI into structured JSON
+ */
+const parseResumeTextWithAi = async (rawText, user) => {
+  if (!rawText || !rawText.trim()) return null;
+
+  const key = process.env.GEMINI_API_KEY;
+  if (!key || key.includes("your_gemini")) return null;
+
+  const prompt = `You are an expert AI Resume Parser.
+Analyze the following resume plain text and extract all relevant candidate information into a strictly valid JSON object.
+Do NOT invent false information; extract what is present in the resume. If a field is not mentioned, use sensible empty defaults ("" or []).
+
+The response MUST be ONLY a valid JSON object matching this structure (no markdown fences, no backticks, no explanations):
+{
+  "personal": {
+    "fullName": "",
+    "email": "",
+    "phone": "",
+    "location": "",
+    "linkedin": "",
+    "github": "",
+    "portfolio": ""
+  },
+  "summary": "",
+  "education": [
+    {
+      "college": "",
+      "degree": "",
+      "branch": "",
+      "cgpa": "",
+      "startYear": "",
+      "endYear": ""
+    }
+  ],
+  "skills": {
+    "programmingLanguages": ["JavaScript", "Python"],
+    "frameworks": ["React", "Node.js"],
+    "tools": ["Git", "Docker"],
+    "other": ["Communication", "Problem Solving"]
+  },
+  "experience": [
+    {
+      "company": "",
+      "role": "",
+      "duration": "",
+      "description": ""
+    }
+  ],
+  "projects": [
+    {
+      "name": "",
+      "technologies": "",
+      "description": "",
+      "github": "",
+      "live": ""
+    }
+  ],
+  "certifications": [
+    {
+      "name": "",
+      "issuer": "",
+      "year": ""
+    }
+  ],
+  "achievements": [
+    {
+      "title": "",
+      "description": ""
+    }
+  ]
+}
+
+RESUME TEXT:
+${rawText.slice(0, 10000)}
+`;
+
+  const genAI = new GoogleGenerativeAI(key);
+  const modelsToTry = [
+    process.env.GEMINI_MODEL,
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3.8-flash",
+  ].filter(Boolean);
+  const uniqueModels = [...new Set(modelsToTry)];
+
+  for (const modelName of uniqueModels) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text() || "{}";
+      const cleanJson = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+      return JSON.parse(cleanJson);
+    } catch (err) {
+      console.warn(`AI resume parsing with ${modelName} warning:`, err.message);
     }
   }
-  return result;
+
+  return null;
+};
+
+/**
+ * POST /api/resume/upload-and-parse
+ * Uploads resume PDF, extracts text, uses AI to extract structured JSON,
+ * saves Cloudinary URL, and syncs all parsed details directly to user profile.
+ */
+const uploadAndParseResumeHandler = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No resume file provided. Please upload a PDF file.",
+      });
+    }
+
+    if (
+      req.file.mimetype !== "application/pdf" &&
+      !req.file.originalname.toLowerCase().endsWith(".pdf")
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Only PDF files are allowed for resume upload.",
+      });
+    }
+
+    const userId = req.user._id;
+
+    // 1. Upload to Cloudinary
+    let resumeUrl = "";
+    let publicId = "";
+    try {
+      const uploadResult = await uploadResumeToCloudinary(
+        req.file.buffer,
+        req.file.originalname,
+        userId.toString()
+      );
+      resumeUrl = uploadResult.secure_url;
+      publicId = uploadResult.public_id;
+    } catch (uploadErr) {
+      console.warn("Cloudinary upload issue:", uploadErr.message);
+    }
+
+    const resumeName = req.file.originalname;
+
+    // 2. Save resume info on User document and role-specific profile collection immediately
+    const user = await User.findById(userId);
+    if (user && resumeUrl) {
+      user.resumeUrl = resumeUrl;
+      user.resumeName = resumeName;
+      await user.save();
+    }
+
+    if (resumeUrl) {
+      const resumeData = {
+        resumeUrl,
+        resumeName,
+        uploadedAt: new Date(),
+        isGenerated: false,
+      };
+      const userType = (user?.userType || req.user?.userType || "student").toLowerCase();
+      try {
+        if (userType.includes("fresh")) {
+          await FresherProfile.findOneAndUpdate(
+            { userId },
+            { $set: { resume: resumeData } },
+            { new: true, upsert: true }
+          );
+        } else if (userType.includes("prof") || userType.includes("work")) {
+          await ProfessionalProfile.findOneAndUpdate(
+            { userId },
+            { $set: { resume: resumeData } },
+            { new: true, upsert: true }
+          );
+        } else {
+          await StudentProfile.findOneAndUpdate(
+            { userId },
+            { $set: { resume: resumeData } },
+            { new: true, upsert: true }
+          );
+        }
+      } catch (profileResumeErr) {
+        console.warn("Could not immediately update profile.resume:", profileResumeErr.message);
+      }
+    }
+
+    // 3. Extract text from PDF buffer
+    const extractedText = await extractTextFromPdfBuffer(req.file.buffer);
+
+    // 4. Use AI to parse resume text into structured JSON
+    let parsedData = null;
+    if (extractedText && extractedText.trim()) {
+      parsedData = await parseResumeTextWithAi(extractedText, user);
+    }
+
+    // Fallback if AI parse fails: construct minimum structured JSON from user data
+    if (!parsedData) {
+      parsedData = {
+        personal: {
+          fullName: user?.fullName || "",
+          email: user?.email || "",
+          phone: user?.phone || "",
+          location: user?.city || "",
+          linkedin: user?.socialLinks?.linkedin || "",
+          github: user?.socialLinks?.github || "",
+          portfolio: "",
+        },
+        summary: "",
+        education: [
+          {
+            college: user?.college || "",
+            degree: user?.course || "",
+            branch: user?.stream || "",
+            startYear: user?.startYear ? String(user.startYear) : "",
+            endYear: user?.endYear ? String(user.endYear) : "",
+            cgpa: "",
+          },
+        ],
+        skills: {
+          programmingLanguages: user?.interests || [],
+          frameworks: [],
+          tools: [],
+          other: [],
+        },
+        experience: [],
+        projects: [],
+        certifications: [],
+        achievements: [],
+      };
+    }
+
+    // Ensure personal details don't get erased if empty in resume
+    if (!parsedData.personal) parsedData.personal = {};
+    if (!parsedData.personal.fullName) parsedData.personal.fullName = user?.fullName || "";
+    if (!parsedData.personal.email) parsedData.personal.email = user?.email || "";
+    if (!parsedData.personal.phone) parsedData.personal.phone = user?.phone || "";
+
+    // 5. Automatically sync all parsed resume details directly to User Profile
+    if (user) {
+      try {
+        await syncProfileFromResume(user, parsedData, resumeUrl, resumeName);
+      } catch (syncErr) {
+        console.error("Error syncing profile from parsed resume:", syncErr.message);
+      }
+    }
+
+    // 6. Save in Resume collection as primary resume
+    try {
+      await Resume.findOneAndUpdate(
+        { user: userId },
+        {
+          user: userId,
+          title: `${user?.fullName || "My"} Resume`,
+          selectedTemplate: "professional",
+          rawData: parsedData,
+          resumeUrl,
+          isPrimary: true,
+        },
+        { upsert: true, new: true }
+      );
+    } catch (resumeDbErr) {
+      console.warn("Resume document save warning:", resumeDbErr.message);
+    }
+
+    const updatedUser = await User.findById(userId);
+    let userPayloadFn = null;
+    try {
+      userPayloadFn = require("./authController").userPayload;
+    } catch (e) {
+      console.warn("Could not import userPayload:", e.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Resume uploaded, parsed by AI, and profile saved successfully!",
+      resumeUrl,
+      resumeName,
+      publicId,
+      parsedData,
+      user: userPayloadFn ? userPayloadFn(updatedUser) : updatedUser,
+    });
+  } catch (error) {
+    console.error("uploadAndParseResumeHandler error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload and parse resume",
+      error: error.message,
+    });
+  }
 };
 
 /**
  * POST /api/resume/parse
- * Uploads resume PDF, extracts text using pdf-parse, parses structured data with AI,
+ * Uploads resume PDF, extracts text, parses structured data with AI,
  * uploads PDF to Cloudinary, and returns parsed JSON for user review.
  */
 const parseResumeHandler = async (req, res) => {
@@ -1189,18 +1492,22 @@ const parseResumeHandler = async (req, res) => {
       });
     }
 
-    // 1. Extract text from PDF buffer using pdf-parse
+    // 1. Extract text from PDF buffer
     let extractedText = "";
     try {
-      const pdfData = await pdfParse(req.file.buffer);
-      extractedText = pdfData.text || "";
-      console.log(`[Resume Parse] pdf-parse extracted ${extractedText.length} characters from ${req.file.originalname}`);
+      extractedText = await extractTextFromPdfBuffer(req.file.buffer);
     } catch (parseErr) {
-      console.warn("pdf-parse extraction warning:", parseErr.message);
+      console.warn("PDF extraction warning:", parseErr.message);
     }
 
     // 2. Parse structured data from extracted text using AI / heuristic parser
-    const parsedData = await parseResumeText(extractedText);
+    let parsedData = null;
+    if (extractedText && extractedText.trim()) {
+      parsedData = await parseResumeTextWithAi(extractedText, req.user);
+    }
+    if (!parsedData) {
+      parsedData = await parseResumeText(extractedText);
+    }
 
     // If fullName is fallback "Candidate Name" and we have user info or filename, use better candidate name
     if ((!parsedData.personal?.fullName || parsedData.personal.fullName === "Candidate Name") && req.user?.fullName) {
@@ -1279,16 +1586,16 @@ const parseResumeHandler = async (req, res) => {
             skills: {
               programmingLanguages: userType === "student"
                 ? (profileDoc?.technicalSkills || []).join(", ")
-                : skillsToString(profileDoc?.skills?.programmingLanguages),
-              frameworks: userType === "student" ? "" : skillsToString(profileDoc?.skills?.frameworks),
-              tools: userType === "student" ? "" : skillsToString(profileDoc?.skills?.tools),
+                : (profileDoc?.skills?.programmingLanguages || []).map((s) => typeof s === "string" ? s : s.name || "").filter(Boolean).join(", "),
+              frameworks: userType === "student" ? "" : (profileDoc?.skills?.frameworks || []).map((s) => typeof s === "string" ? s : s.name || "").filter(Boolean).join(", "),
+              tools: userType === "student" ? "" : (profileDoc?.skills?.tools || []).map((s) => typeof s === "string" ? s : s.name || "").filter(Boolean).join(", "),
               other: userType === "student"
                 ? (profileDoc?.softSkills || []).join(", ")
-                : skillsToString([
+                : [
                     ...(profileDoc?.skills?.databases || []),
                     ...(profileDoc?.skills?.softSkills || []),
                     ...(profileDoc?.skills?.technical || []),
-                  ]),
+                  ].map((s) => typeof s === "string" ? s : s.name || "").filter(Boolean).join(", "),
             },
             projects: (profileDoc?.projects || []).map((p) => ({
               name: p.title || p.name || "",
@@ -1306,7 +1613,7 @@ const parseResumeHandler = async (req, res) => {
             ).map((exp) => ({
               company: exp.companyName || exp.organization || "",
               role: exp.role || exp.jobTitle || "",
-              duration: exp.startDate ? `${formatDate(exp.startDate)}${exp.endDate ? ` – ${formatDate(exp.endDate)}` : ""}` : "",
+              duration: exp.startDate ? `${new Date(exp.startDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}${exp.endDate ? ` – ${new Date(exp.endDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}` : ""}` : "",
               description: exp.description || "",
             })),
             certifications: (profileDoc?.certifications || []).map((c) => ({
@@ -2099,6 +2406,7 @@ module.exports = {
   deleteResume,
   saveManualEdit,
   uploadResumeHandler,
+  uploadAndParseResumeHandler,
   getProfileForResume,
   parseResumeHandler,
   confirmParsedProfileHandler,
