@@ -26,13 +26,22 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
-    if (
-      file.mimetype === "application/pdf" ||
-      file.originalname.toLowerCase().endsWith(".pdf")
-    ) {
+    const original = (file.originalname || "").toLowerCase();
+    const isAllowedExt =
+      original.endsWith(".pdf") ||
+      original.endsWith(".doc") ||
+      original.endsWith(".docx");
+    const isAllowedMime = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/octet-stream",
+    ].includes(file.mimetype);
+
+    if (isAllowedExt || isAllowedMime) {
       cb(null, true);
     } else {
-      cb(new Error("Only PDF files are allowed"));
+      cb(new Error("Only PDF, DOC, and DOCX files are allowed"));
     }
   },
 });

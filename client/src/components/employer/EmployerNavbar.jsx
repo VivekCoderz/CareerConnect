@@ -1,22 +1,15 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { logoutUser } from "../../services/authService";
-import { logout } from "../../redux/features/authSlice";
+import { useSelector } from "react-redux";
+import useLogout from "../../hooks/useLogout";
 
 const EmployerNavbar = ({ onOpenMobileSidebar, profile = {} }) => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
-  const handleLogout = async () => {
-    try {
-      await logoutUser();
-    } catch (e) {
-      // ignore
-    }
-    dispatch(logout());
-    navigate("/", { replace: true });
+  const handleLogout = () => {
+    logout();
   };
 
   return (

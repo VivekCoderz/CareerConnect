@@ -18,6 +18,8 @@ const ProfessionalSidebar = ({
   mobileOpen,
   onCloseMobile,
   onLogout,
+  collapsed = false,
+  onToggleCollapse,
 }) => {
   return (
     <>
@@ -31,27 +33,52 @@ const ProfessionalSidebar = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col justify-between transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed top-0 left-0 bottom-0 z-50 bg-white border-r border-slate-200 flex flex-col justify-between transition-all duration-300 ease-in-out ${
+          collapsed ? "lg:w-20" : "lg:w-64"
+        } w-64 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        {/* Top Branding */}
+        {/* Top Branding & Toggle */}
         <div>
-          <div className="h-16 px-6 flex items-center justify-between border-b border-slate-100">
-            <Link to="/professional/dashboard" className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#1e3a8a] flex items-center justify-center font-bold text-white shadow-md shadow-blue-900/20 text-base">
+          <div className="h-16 px-4 sm:px-5 flex items-center justify-between border-b border-slate-100">
+            <Link to="/professional/dashboard" className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-9 h-9 rounded-xl bg-[#1e3a8a] flex items-center justify-center font-bold text-white shadow-md shadow-blue-900/20 text-base shrink-0">
                 GU
               </div>
-              <div>
-                <span className="font-bold text-slate-900 tracking-tight text-base">CareerConnect</span>
-                <span className="block text-[10px] font-semibold text-purple-600 tracking-wider uppercase">
-                  Professional Hub
-                </span>
-              </div>
+              {!collapsed && (
+                <div className="transition-opacity duration-200 whitespace-nowrap">
+                  <span className="font-bold text-slate-900 tracking-tight text-base block leading-none">
+                    CareerConnect
+                  </span>
+                  <span className="block text-[10px] font-semibold text-purple-600 tracking-wider uppercase mt-0.5">
+                    Professional Hub
+                  </span>
+                </div>
+              )}
             </Link>
+
+            {/* Desktop Collapse/Expand Toggle Button ("Andar-Bahar") */}
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="hidden lg:flex w-7 h-7 rounded-lg border border-slate-200 text-slate-500 hover:text-purple-600 hover:bg-purple-50 items-center justify-center transition shadow-2xs"
+            >
+              <svg
+                className={`w-4 h-4 transition-transform duration-300 ${collapsed ? "rotate-180" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              </svg>
+            </button>
+
+            {/* Mobile Close Button */}
             <button
               onClick={onCloseMobile}
-              className="lg:hidden text-slate-400 hover:text-slate-600 p-1"
+              className="lg:hidden text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               aria-label="Close menu"
             >
               ✕
@@ -59,7 +86,7 @@ const ProfessionalSidebar = ({
           </div>
 
           {/* Nav List */}
-          <div className="py-4 px-3 space-y-1 overflow-y-auto max-h-[calc(100vh-180px)] scrollbar-thin">
+          <div className="py-4 px-2.5 space-y-1 overflow-y-auto max-h-[calc(100vh-180px)] scrollbar-thin">
             {NAV_ITEMS.map((item) => {
               const isActive = activeTab === item.id;
               if (item.link) {
@@ -68,12 +95,15 @@ const ProfessionalSidebar = ({
                     key={item.id}
                     to={item.link}
                     onClick={onCloseMobile}
-                    className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    title={collapsed ? item.label : undefined}
+                    className={`flex items-center ${
+                      collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-2.5"
+                    } rounded-xl text-sm font-medium transition text-slate-600 hover:bg-slate-50 hover:text-slate-900 group`}
                   >
-                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-slate-400 group-hover:text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d={item.icon} />
                     </svg>
-                    {item.label}
+                    {!collapsed && <span className="truncate">{item.label}</span>}
                   </Link>
                 );
               }
@@ -85,21 +115,24 @@ const ProfessionalSidebar = ({
                     onSelectTab(item.id);
                     onCloseMobile();
                   }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-left ${
+                  title={collapsed ? item.label : undefined}
+                  className={`w-full flex items-center ${
+                    collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-2.5"
+                  } rounded-xl text-sm font-medium transition text-left ${
                     isActive
                       ? "bg-[#1e3a8a] text-white font-semibold shadow-sm shadow-blue-900/20"
                       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
                   <svg
-                    className={`w-5 h-5 transition ${isActive ? "text-white" : "text-slate-400"}`}
+                    className={`w-5 h-5 shrink-0 transition ${isActive ? "text-white" : "text-slate-400"}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d={item.icon} />
                   </svg>
-                  {item.label}
+                  {!collapsed && <span className="truncate">{item.label}</span>}
                 </button>
               );
             })}
@@ -113,38 +146,47 @@ const ProfessionalSidebar = ({
             <Link
               to="/settings"
               onClick={onCloseMobile}
-              className="flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition"
+              title={collapsed ? "Settings" : undefined}
+              className={`flex items-center ${
+                collapsed ? "justify-center px-2 py-2" : "gap-3 px-3.5 py-2"
+              } rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition`}
             >
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              Settings
+              {!collapsed && <span>Settings</span>}
             </Link>
 
             <Link
               to="/help"
               onClick={onCloseMobile}
-              className="flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition"
+              title={collapsed ? "Help & Support" : undefined}
+              className={`flex items-center ${
+                collapsed ? "justify-center px-2 py-2" : "gap-3 px-3.5 py-2"
+              } rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition`}
             >
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Help & Support
+              {!collapsed && <span>Help & Support</span>}
             </Link>
           </div>
         </div>
 
         {/* Bottom Sign Out */}
-        <div className="p-4 border-t border-slate-100">
+        <div className="p-3 border-t border-slate-100">
           <button
             onClick={onLogout}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-rose-600 hover:bg-rose-50 transition text-left"
+            title={collapsed ? "Logout" : undefined}
+            className={`w-full flex items-center ${
+              collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-2.5"
+            } rounded-xl text-sm font-medium text-rose-600 hover:bg-rose-50 transition text-left`}
           >
-            <svg className="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            Logout
+            {!collapsed && <span>Logout</span>}
           </button>
         </div>
       </aside>

@@ -50,55 +50,69 @@ const InterviewScorecardModal = ({
     technicalSkills: 4,
     problemSolving: 4,
     communication: 4,
-    systemDesign: 3,
+    roleKnowledge: 4,
     cultureFit: 4,
   });
 
   const [strengths, setStrengths] = useState("");
-  const [weaknesses, setWeaknesses] = useState("");
-  const [comments, setComments] = useState("");
-  const [recommendation, setRecommendation] = useState("Move to Next Round");
+  const [areasForImprovement, setAreasForImprovement] = useState("");
+  const [feedbackNotes, setFeedbackNotes] = useState("");
+  const [recommendation, setRecommendation] = useState("Strong Hire");
+  const [markSelected, setMarkSelected] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (interview?.feedback?.ratings) {
+    if (interview?.scorecard) {
+      setRatings({
+        technicalSkills: interview.scorecard.technicalSkills || 4,
+        problemSolving: interview.scorecard.problemSolving || 4,
+        communication: interview.scorecard.communication || 4,
+        roleKnowledge: interview.scorecard.roleKnowledge || 4,
+        cultureFit: interview.scorecard.cultureFit || 4,
+      });
+      setStrengths(interview.scorecard.strengths || "");
+      setAreasForImprovement(interview.scorecard.areasForImprovement || "");
+      setFeedbackNotes(interview.scorecard.feedback || "");
+      setRecommendation(interview.scorecard.recommendation || "Strong Hire");
+    } else if (interview?.feedback?.ratings) {
       setRatings({
         technicalSkills: interview.feedback.ratings.technicalSkills || 4,
         problemSolving: interview.feedback.ratings.problemSolving || 4,
         communication: interview.feedback.ratings.communication || 4,
-        systemDesign: interview.feedback.ratings.systemDesign || 3,
+        roleKnowledge: interview.feedback.ratings.systemDesign || interview.feedback.ratings.roleKnowledge || 4,
         cultureFit: interview.feedback.ratings.cultureFit || 4,
       });
       setStrengths(interview.feedback.strengths || "");
-      setWeaknesses(interview.feedback.weaknesses || "");
-      setComments(interview.feedback.comments || "");
-      setRecommendation(interview.feedback.recommendation || "Move to Next Round");
+      setAreasForImprovement(interview.feedback.weaknesses || "");
+      setFeedbackNotes(interview.feedback.comments || "");
+      setRecommendation(interview.feedback.recommendation || "Strong Hire");
     } else {
       setRatings({
         technicalSkills: 4,
         problemSolving: 4,
         communication: 4,
-        systemDesign: 3,
+        roleKnowledge: 4,
         cultureFit: 4,
       });
       setStrengths("");
-      setWeaknesses("");
-      setComments("");
-      setRecommendation("Move to Next Round");
+      setAreasForImprovement("");
+      setFeedbackNotes("");
+      setRecommendation("Strong Hire");
+      setMarkSelected(false);
     }
   }, [interview]);
 
   if (!isOpen || !interview) return null;
 
   const candidateName = interview.candidateId?.fullName || "Candidate";
-  const jobTitle = interview.jobId?.title || "Role";
-  const roundName = interview.roundName || `Round ${interview.roundNumber} - ${interview.interviewType}`;
+  const jobTitle = interview.jobId?.title || interview.internshipId?.title || "Role";
+  const roundName = interview.roundName || `Round ${interview.roundNumber || 1} - ${interview.interviewType || "Interview"}`;
 
-  // Calculate live composite score
-  const { technicalSkills, problemSolving, communication, systemDesign, cultureFit } = ratings;
-  const ratingValues = [technicalSkills, problemSolving, communication, systemDesign, cultureFit].filter(
-    (v) => v > 0
+  // Calculate live composite score (1 - 5 scale)
+  const { technicalSkills, problemSolving, communication, roleKnowledge, cultureFit } = ratings;
+  const ratingValues = [technicalSkills, problemSolving, communication, roleKnowledge, cultureFit].filter(
+    (v) => typeof v === "number" && v > 0
   );
   const compositeScore = ratingValues.length > 0
     ? (ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length).toFixed(1)
@@ -106,9 +120,9 @@ const InterviewScorecardModal = ({
 
   const getScoreVerdict = (score) => {
     const num = Number(score);
-    if (num >= 4.5) return { text: "Outstanding Performance", color: "text-emerald-700 bg-emerald-50 border-emerald-200" };
+    if (num >= 4.5) return { text: "Outstanding (Top 5%)", color: "text-emerald-700 bg-emerald-50 border-emerald-200" };
     if (num >= 3.8) return { text: "Strong Performer", color: "text-blue-700 bg-blue-50 border-blue-200" };
-    if (num >= 3.0) return { text: "Meets Expectations", color: "text-amber-700 bg-amber-50 border-amber-200" };
+    if (num >= 3.0) return { text: "Meets Bar", color: "text-amber-700 bg-amber-50 border-amber-200" };
     return { text: "Below Bar", color: "text-rose-700 bg-rose-50 border-rose-200" };
   };
 
@@ -124,13 +138,40 @@ const InterviewScorecardModal = ({
       setSaving(true);
       setError("");
 
+      const isFailing = recommendation === "No Hire" || recommendation === "Reject";
+      const calculatedResult = isFailing ? "failed" : "passed";
+
       const payload = {
-        ratings,
+        scorecard: {
+          technicalSkills: Number(ratings.technicalSkills),
+          problemSolving: Number(ratings.problemSolving),
+          communication: Number(ratings.communication),
+          roleKnowledge: Number(ratings.roleKnowledge),
+          cultureFit: Number(ratings.cultureFit),
+          overallScore: Number(compositeScore),
+          strengths,
+          areasForImprovement,
+          feedback: feedbackNotes,
+          recommendation,
+        },
+        technicalSkills: Number(ratings.technicalSkills),
+        problemSolving: Number(ratings.problemSolving),
+        communication: Number(ratings.communication),
+        roleKnowledge: Number(ratings.roleKnowledge),
+        cultureFit: Number(ratings.cultureFit),
         overallScore: Number(compositeScore),
         strengths,
-        weaknesses,
-        comments,
+        areasForImprovement,
+        feedback: feedbackNotes,
         recommendation,
+        result: calculatedResult,
+        markSelected: markSelected || recommendation === "Hire / Select",
+        ratings: {
+          ...ratings,
+          systemDesign: ratings.roleKnowledge,
+        },
+        weaknesses: areasForImprovement,
+        comments: feedbackNotes,
       };
 
       await onSubmitScorecard(interview._id, payload);
@@ -174,7 +215,7 @@ const InterviewScorecardModal = ({
         </div>
 
         {/* Scorecard Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[72vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
           {error && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
               {error}
@@ -185,7 +226,7 @@ const InterviewScorecardModal = ({
           <div className="p-4 bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50 rounded-2xl border border-amber-200/80 flex items-center justify-between">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 block">
-                Aggregated Overall Score
+                Live Composite Overall Score
               </span>
               <div className="flex items-baseline gap-2 mt-0.5">
                 <span className="text-3xl font-black text-slate-900 font-mono">{compositeScore}</span>
@@ -196,21 +237,24 @@ const InterviewScorecardModal = ({
               </div>
             </div>
             <div className="text-right text-[11px] text-slate-500">
-              Evaluated By: <br />
-              <strong className="text-slate-800">{interview.interviewerName || "Interviewer Lead"}</strong>
+              Evaluator: <br />
+              <strong className="text-slate-800">{interview.interviewerName || interview.interviewerRole || "Lead Recruiter"}</strong>
             </div>
           </div>
 
-          {/* Rating Criteria Dimensions */}
+          {/* Rating Criteria Dimensions (5 Core Categories) */}
           <div className="space-y-2.5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              1. Multi-Competency Rating
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                1. Multi-Competency Scorecard (1 - 5 Scale)
+              </h4>
+              <span className="text-[11px] text-slate-400 font-medium">Click a star to grade</span>
+            </div>
 
             <div className="space-y-2">
               <ScoreCriteriaRow
-                label="Technical Skills & Fundamentals"
-                description="Core programming, algorithms, tools proficiency, and language knowledge"
+                label="Technical Skills & Execution"
+                description="Coding proficiency, algorithms, tech stack knowledge, code quality, and debugging"
                 icon="💻"
                 value={ratings.technicalSkills}
                 onChange={(val) => handleRatingChange("technicalSkills", val)}
@@ -218,7 +262,7 @@ const InterviewScorecardModal = ({
 
               <ScoreCriteriaRow
                 label="Problem Solving & Analytical Thinking"
-                description="Ability to break down complexity, debug edge cases, and reason clearly"
+                description="Ability to break down ambiguity, structural logic, and handling edge cases"
                 icon="🧩"
                 value={ratings.problemSolving}
                 onChange={(val) => handleRatingChange("problemSolving", val)}
@@ -226,23 +270,23 @@ const InterviewScorecardModal = ({
 
               <ScoreCriteriaRow
                 label="Communication & Articulation"
-                description="Clarity in explaining thought process, active listening, and structuring answers"
+                description="Clarity of thought, active listening, structured explanation, and conciseness"
                 icon="🗣️"
                 value={ratings.communication}
                 onChange={(val) => handleRatingChange("communication", val)}
               />
 
               <ScoreCriteriaRow
-                label="System Design & Architecture"
-                description="Scalability awareness, modularity, data modeling, and trade-off evaluation"
-                icon="🏗️"
-                value={ratings.systemDesign}
-                onChange={(val) => handleRatingChange("systemDesign", val)}
+                label="Role Knowledge & Domain Depth"
+                description="Understanding of role requirements, industry concepts, tools, and best practices"
+                icon="📚"
+                value={ratings.roleKnowledge}
+                onChange={(val) => handleRatingChange("roleKnowledge", val)}
               />
 
               <ScoreCriteriaRow
-                label="Culture, Team & Collaboration Fit"
-                description="Receptiveness to feedback, enthusiasm, work ethics, and alignment with values"
+                label="Culture Fit & Team Collaboration"
+                description="Work ethics, receptiveness to constructive feedback, curiosity, and cultural values"
                 icon="🤝"
                 value={ratings.cultureFit}
                 onChange={(val) => handleRatingChange("cultureFit", val)}
@@ -253,19 +297,19 @@ const InterviewScorecardModal = ({
           {/* Qualitative Feedback */}
           <div className="space-y-3 pt-2 border-t border-slate-100">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              2. Qualitative Feedback & Remarks
+              2. Qualitative Assessment & Notes
             </h4>
 
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  💪 Key Strengths
+                  💪 Candidate Strengths
                 </label>
                 <textarea
                   rows={2}
                   value={strengths}
                   onChange={(e) => setStrengths(e.target.value)}
-                  placeholder="e.g. Strong React mental model, clean code structure, quick on questions..."
+                  placeholder="e.g. Strong foundational fundamentals, clean code, highly structured thinking..."
                   className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium outline-none focus:border-[#f59e0b]"
                 />
               </div>
@@ -276,9 +320,9 @@ const InterviewScorecardModal = ({
                 </label>
                 <textarea
                   rows={2}
-                  value={weaknesses}
-                  onChange={(e) => setWeaknesses(e.target.value)}
-                  placeholder="e.g. Needs deeper familiarity with indexing in SQL, time complexity optimizations..."
+                  value={areasForImprovement}
+                  onChange={(e) => setAreasForImprovement(e.target.value)}
+                  placeholder="e.g. Needs more hands-on production deployment experience, time complexity speed..."
                   className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium outline-none focus:border-[#f59e0b]"
                 />
               </div>
@@ -286,45 +330,73 @@ const InterviewScorecardModal = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                💬 Detailed Interview Notes & Overall Comments
+                💬 Detailed Interviewer Summary
               </label>
               <textarea
                 rows={3}
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                placeholder="Candidate walked through a robust approach for the dynamic programming problem. High enthusiasm and very receptive to hints..."
+                value={feedbackNotes}
+                onChange={(e) => setFeedbackNotes(e.target.value)}
+                placeholder="Comprehensive notes summarizing candidate performance, key responses, and hire justification..."
                 className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium outline-none focus:border-[#f59e0b]"
               />
             </div>
           </div>
 
           {/* Hiring Verdict / Recommendation */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
+          <div className="space-y-3 pt-2 border-t border-slate-100">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
               3. Hiring Recommendation
             </h4>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                { id: "Move to Next Round", label: "Move to Next Round", icon: "⏩", color: "hover:border-blue-500" },
-                { id: "Hire / Select", label: "Hire / Select", icon: "🎉", color: "hover:border-emerald-500" },
-                { id: "Hold", label: "On Hold", icon: "⏸️", color: "hover:border-amber-500" },
-                { id: "Reject", label: "Reject", icon: "❌", color: "hover:border-rose-500" },
+                { id: "Strong Hire", label: "Strong Hire", icon: "⭐", sub: "Clear Yes", color: "hover:border-emerald-500" },
+                { id: "Hire", label: "Hire / Pass", icon: "✅", sub: "Meets Bar", color: "hover:border-blue-500" },
+                { id: "Hold", label: "On Hold", icon: "⏸️", sub: "Borderline", color: "hover:border-amber-500" },
+                { id: "No Hire", label: "No Hire", icon: "❌", sub: "Reject Round", color: "hover:border-rose-500" },
               ].map((verdict) => (
                 <button
                   key={verdict.id}
                   type="button"
-                  onClick={() => setRecommendation(verdict.id)}
-                  className={`p-2.5 rounded-2xl text-xs font-bold border transition flex flex-col items-center justify-center gap-1 text-center ${
+                  onClick={() => {
+                    setRecommendation(verdict.id);
+                    if (verdict.id === "Strong Hire") setMarkSelected(true);
+                  }}
+                  className={`p-3 rounded-2xl text-xs font-bold border transition flex flex-col items-center justify-center gap-1 text-center ${
                     recommendation === verdict.id
-                      ? "bg-slate-900 text-white border-slate-900 shadow-xs ring-2 ring-slate-900/10"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/10"
                       : `bg-white text-slate-700 border-slate-200 ${verdict.color}`
                   }`}
                 >
-                  <span className="text-base">{verdict.icon}</span>
-                  <span className="text-[11px] leading-tight">{verdict.label}</span>
+                  <span className="text-lg">{verdict.icon}</span>
+                  <span className="text-xs leading-tight font-bold">{verdict.label}</span>
+                  <span className={`text-[10px] font-normal ${recommendation === verdict.id ? "text-slate-300" : "text-slate-400"}`}>
+                    {verdict.sub}
+                  </span>
                 </button>
               ))}
+            </div>
+
+            {/* Mark as Final Round & Select Candidate Toggle */}
+            <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg">🏆</span>
+                <div>
+                  <h5 className="text-xs font-bold text-emerald-950">Final Round Passed — Select Candidate</h5>
+                  <p className="text-[11px] text-emerald-700">
+                    Advances application to <strong>"Selected"</strong>, unlocking Offer Letter generation.
+                  </p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={markSelected}
+                  onChange={(e) => setMarkSelected(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+              </label>
             </div>
           </div>
 
@@ -341,7 +413,7 @@ const InterviewScorecardModal = ({
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition"
+              className="px-5 py-2.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 disabled:opacity-50"
             >
               {saving ? "Recording Scorecard..." : "Submit Scorecard & Decision"}
             </button>
