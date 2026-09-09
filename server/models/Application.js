@@ -97,6 +97,29 @@ const applicationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    stageHistory: [
+      {
+        stage: String,
+        notes: String,
+        changedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        changedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    matchScore: {
+      type: mongoose.Schema.Types.Mixed,
+    },
+
+    matchingDetails: {
+      type: mongoose.Schema.Types.Mixed,
+    },
   },
   { timestamps: true }
 );
@@ -117,20 +140,14 @@ applicationSchema.index(
   }
 );
 
-applicationSchema.pre("validate", function (next) {
+applicationSchema.pre("validate", function () {
   if (this.opportunityType === "Internship" && !this.internshipId) {
-    return next(
-      new Error("internshipId is required for Internship applications")
-    );
+    throw new Error("internshipId is required for Internship applications");
   }
 
   if (this.opportunityType === "Job" && !this.jobId) {
-    return next(
-      new Error("jobId is required for Job applications")
-    );
+    throw new Error("jobId is required for Job applications");
   }
-
-  next();
 });
 
 module.exports = mongoose.model("Application", applicationSchema);

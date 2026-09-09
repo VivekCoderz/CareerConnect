@@ -63,6 +63,16 @@ exports.createInternship = async (req, res, next) => {
       status: req.body.status || "Published",
     });
 
+    // Real-time Mail Notification trigger
+    if (internship.status === "Published") {
+      try {
+        const { createOpportunityNotification } = require("../services/notificationService");
+        createOpportunityNotification({ type: "internship", item: internship });
+      } catch (notifErr) {
+        console.warn("Notification dispatch failed for new internship:", notifErr.message);
+      }
+    }
+
     return res.status(201).json({
       success: true,
       message: "Internship posted successfully",
@@ -95,7 +105,7 @@ exports.getInternships = async (req, res, next) => {
       status,
       sort = "latest",
       page = 1,
-      limit = 20,
+      limit = 10,
       program,
       specialization,
       opportunityType,
@@ -119,11 +129,30 @@ exports.getInternships = async (req, res, next) => {
           search,
           q,
         });
+
+        const liveList = [...(results.data || [])];
+        liveList.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+
+        const lPageNum = Math.max(1, parseInt(page, 10) || 1);
+        const lPageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+        const lTotal = liveList.length;
+        const lPaginated = liveList.slice((lPageNum - 1) * lPageSize, lPageNum * lPageSize);
+
         return res.status(200).json({
           success: true,
-          count: results.count,
-          data: results.data,
-          internships: results.data,
+          count: lPaginated.length,
+          data: lPaginated,
+          internships: lPaginated,
+          pagination: {
+            total: lTotal,
+            page: lPageNum,
+            limit: lPageSize,
+            totalPages: Math.ceil(lTotal / lPageSize) || 1,
+          },
           source: results.source,
         });
       } catch (aggError) {
@@ -248,7 +277,7 @@ exports.getInternships = async (req, res, next) => {
     if (sort === "deadline") sortOption = { deadline: 1 };
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 20));
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
     const skip = (pageNum - 1) * pageSize;
 
     // Try finding in Internship collection first
@@ -262,8 +291,7 @@ exports.getInternships = async (req, res, next) => {
           Internship.find(filter)
             .populate("employerId", "companyName logo headquarters website industry description")
             .sort(sortOption)
-            .skip(skip)
-            .limit(pageSize)
+            .limit(200)
             .lean(),
         ]);
 
@@ -278,8 +306,7 @@ exports.getInternships = async (req, res, next) => {
             Job.find(jobFilter)
               .populate("employerId", "companyName logo headquarters website industry description")
               .sort(sortOption)
-              .skip(skip)
-              .limit(pageSize)
+              .limit(200)
               .lean(),
           ]);
         }
@@ -294,6 +321,9 @@ exports.getInternships = async (req, res, next) => {
       const profile = await getUserProfileFromReq(req);
       if (profile) {
         filteredList = items.filter((item) => isEligibleForInternship(item, profile));
+        if (filteredList.length === 0 && items.length > 0) {
+          filteredList = items;
+        }
       }
     }
 
@@ -346,9 +376,8 @@ exports.getInternships = async (req, res, next) => {
     });
 
     let finalList = formattedList;
-    let finalTotal = total;
 
-    if (finalList.length === 0 && myPosts !== "true") {
+    if (myPosts !== "true" && source !== "campus") {
       try {
         let scraped = await getAggregatedOpportunities({
           opportunityType: opportunityType || "internship",
@@ -366,54 +395,91 @@ exports.getInternships = async (req, res, next) => {
           });
         }
 
-        const fallbackItems = (scraped.data || []).map((item, idx) => ({
-          _id: `scraped-int-${idx}`,
-          id: `scraped-int-${idx}`,
-          jobId: `scraped-int-${idx}`,
-          title: item.title,
-          company: item.company,
-          companyName: item.company,
-          companyId: "",
-          logo: "",
-          location: item.location,
-          city: item.location?.split(",")[0]?.trim() || "Delhi NCR",
-          category: category && category !== "All" ? category : "Software Development",
-          subCategory: "Engineering",
-          stipend: "Competitive Stipend / Package",
-          salary: "Competitive Package",
-          duration: "3-6 Months",
-          type: item.opportunityType || "Internship",
-          workMode: item.workMode || "Remote",
-          isPaid: true,
-          hasJobOffer: item.opportunityType === "Full-Time & Internship",
-          isInternational: !!item.location?.toLowerCase().includes("worldwide") || !item.location?.toLowerCase().includes("india"),
-          skillsRequired: [item.title.split(" ")[0] || "Development", "Problem Solving"],
-          postedAt: item.postedDate || "Recently Posted",
-          createdAt: new Date(),
-          deadline: "Open until filled",
-          description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
-          responsibilities: ["Contribute to ongoing development", "Collaborate with mentors and team"],
-          openings: 2,
-          applicantsCount: 5,
-          applyLink: item.applyLink,
-          applyUrl: item.applyLink,
-          isExternal: true,
-          platformSource: item.platformSource,
-          source: item.platformSource,
-        }));
+        const fallbackItems = (scraped.data || []).map((item, idx) => {
+          const itemDate = item.postedDate ? new Date(item.postedDate) : (item.createdAt ? new Date(item.createdAt) : new Date());
+          const validDate = isNaN(itemDate.getTime()) ? new Date() : itemDate;
+          return {
+            _id: `scraped-int-${idx}`,
+            id: `scraped-int-${idx}`,
+            jobId: `scraped-int-${idx}`,
+            title: item.title,
+            company: item.company,
+            companyName: item.company,
+            companyId: "",
+            logo: "",
+            location: item.location,
+            city: item.location?.split(",")[0]?.trim() || "Delhi NCR",
+            category: category && category !== "All" ? category : "Software Development",
+            subCategory: "Engineering",
+            stipend: "Competitive Stipend / Package",
+            salary: "Competitive Package",
+            duration: "3-6 Months",
+            type: item.opportunityType || "Internship",
+            workMode: item.workMode || "Remote",
+            isPaid: true,
+            hasJobOffer: item.opportunityType === "Full-Time & Internship",
+            isInternational: !!item.location?.toLowerCase().includes("worldwide") || !item.location?.toLowerCase().includes("india"),
+            skillsRequired: [item.title.split(" ")[0] || "Development", "Problem Solving"],
+            postedAt: item.postedDate || "Recently Posted",
+            createdAt: validDate,
+            postedDate: item.postedDate,
+            deadline: "Open until filled",
+            description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
+            responsibilities: ["Contribute to ongoing development", "Collaborate with mentors and team"],
+            openings: 2,
+            applicantsCount: 5,
+            applyLink: item.applyLink,
+            applyUrl: item.applyLink,
+            isExternal: true,
+            platformSource: item.platformSource,
+            source: item.platformSource,
+            status: "Published",
+          };
+        });
 
-        finalList = fallbackItems;
-        finalTotal = fallbackItems.length;
+        if (source === "external") {
+          finalList = fallbackItems;
+        } else {
+          finalList = [...formattedList, ...fallbackItems];
+        }
       } catch (e) {
         console.error("Live internships scraper fallback error:", e.message);
       }
     }
 
+    // Helper for robust timestamp comparison
+    const getTimestamp = (item) => {
+      if (item.createdAt) {
+        const t = new Date(item.createdAt).getTime();
+        if (!isNaN(t)) return t;
+      }
+      if (item.postedDate) {
+        const t = new Date(item.postedDate).getTime();
+        if (!isNaN(t)) return t;
+      }
+      return 0;
+    };
+
+    // Sort: Newest / latest first by default
+    if (sort === "stipend_high") {
+      finalList.sort((a, b) => (b.salaryRange?.min || b.stipendAmount?.min || 0) - (a.salaryRange?.min || a.stipendAmount?.min || 0));
+    } else if (sort === "stipend_low") {
+      finalList.sort((a, b) => (a.salaryRange?.min || a.stipendAmount?.min || 0) - (b.salaryRange?.min || b.stipendAmount?.min || 0));
+    } else if (sort === "deadline") {
+      finalList.sort((a, b) => new Date(a.deadline || 0).getTime() - new Date(b.deadline || 0).getTime());
+    } else {
+      // Default: latest first
+      finalList.sort((a, b) => getTimestamp(b) - getTimestamp(a));
+    }
+
+    const finalTotal = finalList.length;
+    const paginatedList = finalList.slice(skip, skip + pageSize);
+
     return res.status(200).json({
       success: true,
-      count: finalList.length,
-      data: finalList,
-      internships: finalList,
+      count: paginatedList.length,
+      data: paginatedList,
+      internships: paginatedList,
       pagination: {
         total: finalTotal,
         page: pageNum,

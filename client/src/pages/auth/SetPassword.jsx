@@ -82,7 +82,7 @@ const SetPassword = () => {
     if (user.hasPassword) {
       if (!user.phone?.trim()) {
         navigate(
-          user.role === "employer" ? "/onboarding/employer" : "/select-role",
+          user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile",
           { replace: true }
         );
       } else {
@@ -171,8 +171,10 @@ const SetPassword = () => {
       // - Candidates/Students → select role (Student / Fresher / Professional) -> then collect info (/onboarding/profile)
       if (updatedUser.role === "employer") {
         navigate("/onboarding/employer", { replace: true });
+      } else if (!updatedUser.phone?.trim()) {
+        navigate("/onboarding/profile", { replace: true });
       } else {
-        navigate("/select-role", { replace: true });
+        navigate(getDashboardPath(updatedUser.userType || "student", updatedUser), { replace: true });
       }
     } catch (err) {
       isSubmittingRef.current = false;

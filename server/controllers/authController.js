@@ -104,10 +104,22 @@ const userPayload = (user, extra = {}) => ({
   _id: user._id,
   id: user._id,
   fullName: user.fullName,
+  firstName: user.firstName || "",
+  lastName: user.lastName || "",
   username: user.username,
   email: user.email,
   countryCode: user.countryCode || "+91",
   phone: user.phone,
+  city: user.city || "",
+  gender: user.gender || "",
+  languages: user.languages || [],
+  interests: user.interests || [],
+  workExperience: user.workExperience || "",
+  college: user.college || "",
+  course: user.course || "",
+  stream: user.stream || "",
+  startYear: user.startYear || null,
+  endYear: user.endYear || null,
   profileImage: user.profileImage,
   role: user.role,
   userType: user.userType,
@@ -320,37 +332,54 @@ const createSession = (req, user) => {
 module.exports.registerUser = async (req, res, next) => {
   try {
     const {
+      firstName,
+      lastName,
       fullName,
       email,
       countryCode = "+91",
       phone,
+      city,
+      gender,
+      languages = [],
+      interests = [],
+      workExperience,
+      type,
+      userType, // student | fresher | professional
       password,
       confirmPassword,
       linkedin,
       github,
-      userType, // student | fresher | professional
       keepSignedIn = false,
 
-      // Student fields
+      // Education & Career fields
       college,
       course,
+      stream,
+      startYear,
+      endYear,
       year,
       graduationYear,
 
-      // Fresher fields
+      // Legacy Fresher fields
       highestQualification,
       passoutYear,
       skills,
 
-      // Professional fields
+      // Legacy Professional fields
       currentCompany,
       jobTitle,
       experienceYears,
       industry,
     } = req.body;
 
+    const finalFullName = (
+      fullName ||
+      `${firstName || ""} ${lastName || ""}`.trim() ||
+      "User"
+    ).trim();
+
     // -------------------- Validation --------------------
-    if (!fullName?.trim()) {
+    if (!finalFullName) {
       return res.status(400).json({
         success: false,
         field: "fullName",
@@ -422,15 +451,18 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
-    if (
-      !userType ||
-      !["student", "fresher", "professional"].includes(userType)
-    ) {
-      return res.status(400).json({
-        success: false,
-        field: "userType",
-        message: "Please select a valid user type",
-      });
+    // Normalize userType (map "College student" -> "student", "Working professional" -> "professional")
+    let resolvedUserType = (userType || type || "student").toString().toLowerCase();
+    if (resolvedUserType.includes("college") || resolvedUserType.includes("student")) {
+      resolvedUserType = "student";
+    } else if (resolvedUserType.includes("fresh")) {
+      resolvedUserType = "fresher";
+    } else if (resolvedUserType.includes("prof") || resolvedUserType.includes("work")) {
+      resolvedUserType = "professional";
+    }
+
+    if (!["student", "fresher", "professional"].includes(resolvedUserType)) {
+      resolvedUserType = "student";
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -454,14 +486,48 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
+    // Derive years and education values cleanly
+    const endYearNum =
+      Number(endYear || graduationYear || passoutYear) ||
+      new Date().getFullYear() + 2;
+    const startYearNum =
+      Number(startYear) ||
+      (year ? endYearNum - Number(year) : endYearNum - 4);
+    const resolvedCourse = course?.trim() || highestQualification?.trim() || "Degree";
+    const resolvedCollege = college?.trim() || "University";
+    const resolvedStream = stream?.trim() || "";
+    const resolvedWorkExp = workExperience || experienceYears || "0 years";
+
     // -------------------- Prepare user data --------------------
     const userData = {
-      fullName: fullName.trim(),
+      fullName: finalFullName,
+      firstName: firstName?.trim() || (finalFullName.split(" ")[0] || ""),
+      lastName:
+        lastName?.trim() ||
+        (finalFullName.split(" ").slice(1).join(" ") || ""),
       email: normalizedEmail,
       countryCode: cleanCountryCode,
       phone: cleanPhone,
+      city: city?.trim() || "",
+      gender: gender || "",
+      languages: Array.isArray(languages)
+        ? languages
+        : languages
+        ? [languages]
+        : [],
+      interests: Array.isArray(interests)
+        ? interests
+        : interests
+        ? [interests]
+        : [],
+      workExperience: resolvedWorkExp,
+      college: resolvedCollege,
+      course: resolvedCourse,
+      stream: resolvedStream,
+      startYear: startYearNum,
+      endYear: endYearNum,
       password,
-      userType,
+      userType: resolvedUserType,
       authProviders: ["email"],
       hasPassword: true,
       isEmailVerified: true,
@@ -473,57 +539,86 @@ module.exports.registerUser = async (req, res, next) => {
       username: await generateUniqueUsername(normalizedEmail),
     };
 
-    // -------------------- Validate type-specific data --------------------
-    if (userType === "student") {
-      if (!college || !course || !year || !graduationYear) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "College, course, year and graduation year are required for students",
-        });
-      }
-    } else if (userType === "fresher") {
-      if (!highestQualification || !passoutYear) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Highest qualification and passout year are required for freshers",
-        });
-      }
-    } else if (userType === "professional") {
-      if (!currentCompany || !jobTitle) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Current company and job title are required for professionals",
-        });
-      }
-    }
-
     // -------------------- Create user --------------------
     const user = await User.create(userData);
 
-    // -------------------- Create student profile if student --------------------
-    if (userType === "student") {
-      try {
+    // -------------------- Create role-specific profile --------------------
+    try {
+      if (resolvedUserType === "student") {
         await StudentProfile.create({
           userId: user._id,
+          gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
+            ? gender
+            : undefined,
+          location: {
+            city: city?.trim() || "",
+            country: "India",
+          },
+          interests: userData.interests,
+          technicalSkills: userData.interests,
           education: [
             {
-              institution: college.trim(),
-              degree: course.trim(),
-              startYear: Number(graduationYear) - Number(year),
-              endYear: Number(graduationYear),
+              institution: resolvedCollege,
+              degree: resolvedCourse,
+              fieldOfStudy: resolvedStream,
+              startYear: startYearNum,
+              endYear: endYearNum,
               currentlyStudying: true,
             },
           ],
         });
-      } catch (profileErr) {
-        console.error(
-          "Error creating student profile during registration:",
-          profileErr,
-        );
+      } else if (resolvedUserType === "fresher") {
+        await FresherProfile.create({
+          userId: user._id,
+          gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
+            ? gender
+            : "",
+          location: {
+            city: city?.trim() || "",
+            country: "India",
+          },
+          education: [
+            {
+              institution: resolvedCollege,
+              degree: resolvedCourse,
+              specialization: resolvedStream,
+              graduationYear: endYearNum,
+              isHighest: true,
+            },
+          ],
+        });
+      } else if (resolvedUserType === "professional") {
+        await ProfessionalProfile.create({
+          userId: user._id,
+          gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
+            ? gender
+            : "",
+          location: {
+            city: city?.trim() || "",
+            country: "India",
+          },
+          skills: userData.interests,
+          currentEmployment: {
+            company: currentCompany?.trim() || resolvedCollege || "Industry",
+            jobTitle: jobTitle?.trim() || "Working Professional",
+            industry: industry?.trim() || "Information Technology",
+          },
+          education: [
+            {
+              institution: resolvedCollege,
+              degree: resolvedCourse,
+              fieldOfStudy: resolvedStream,
+              startYear: startYearNum,
+              endYear: endYearNum,
+            },
+          ],
+        });
       }
+    } catch (profileErr) {
+      console.error(
+        "Error creating role profile during registration:",
+        profileErr.message
+      );
     }
 
     // Cleanup OTP after successful registration
@@ -1563,24 +1658,36 @@ module.exports.registerEmployer = async (req, res, next) => {
 module.exports.completeGoogleOnboarding = async (req, res, next) => {
   try {
     const {
+      firstName,
+      lastName,
+      fullName,
       countryCode = "+91",
       phone,
+      city,
+      gender,
+      languages = [],
+      interests = [],
+      workExperience,
+      type,
+      userType,
       linkedin,
       github,
-      userType,
 
-      // Student fields
+      // Education fields
       college,
       course,
+      stream,
+      startYear,
+      endYear,
       year,
       graduationYear,
 
-      // Fresher fields
+      // Legacy Fresher fields
       highestQualification,
       passoutYear,
       skills,
 
-      // Professional fields
+      // Legacy Professional fields
       currentCompany,
       jobTitle,
       experienceYears,
@@ -1624,50 +1731,57 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
       });
     }
 
-    const allowedTypes = ["student", "fresher", "professional"];
-    if (!userType || !allowedTypes.includes(userType)) {
-      return res.status(400).json({
-        success: false,
-        field: "userType",
-        message: "Invalid user type",
-      });
+    let resolvedUserType = (userType || type || "student").toString().toLowerCase();
+    if (resolvedUserType.includes("college") || resolvedUserType.includes("student")) {
+      resolvedUserType = "student";
+    } else if (resolvedUserType.includes("fresh")) {
+      resolvedUserType = "fresher";
+    } else if (resolvedUserType.includes("prof") || resolvedUserType.includes("work")) {
+      resolvedUserType = "professional";
     }
 
-    // -------- Role-specific Validation --------
-    if (userType === "student") {
-      if (!college?.trim() || !course?.trim() || !year || !graduationYear) {
-        return res.status(400).json({
-          success: false,
-          message: "College, course, year and graduation year are required for students",
-        });
-      }
-    } else if (userType === "fresher") {
-      if (!highestQualification?.trim() || !passoutYear) {
-        return res.status(400).json({
-          success: false,
-          message: "Highest qualification and passout year are required",
-        });
-      }
-    } else if (userType === "professional") {
-      if (!currentCompany?.trim() || !jobTitle?.trim()) {
-        return res.status(400).json({
-          success: false,
-          message: "Current company and job title are required",
-        });
-      }
+    if (!["student", "fresher", "professional"].includes(resolvedUserType)) {
+      resolvedUserType = "student";
     }
+
+    const endYearNum =
+      Number(endYear || graduationYear || passoutYear) ||
+      new Date().getFullYear() + 2;
+    const startYearNum =
+      Number(startYear) ||
+      (year ? endYearNum - Number(year) : endYearNum - 4);
+    const resolvedCourse = course?.trim() || highestQualification?.trim() || "Degree";
+    const resolvedCollege = college?.trim() || "University";
+    const resolvedStream = stream?.trim() || "";
+    const resolvedWorkExp = workExperience || experienceYears || "0 years";
 
     // -------- Update User document --------
     const updateData = {
       countryCode: cleanCountryCode,
       phone: cleanPhone,
-      userType,
+      userType: resolvedUserType,
+      city: city?.trim() || "",
+      gender: gender || "",
+      languages: Array.isArray(languages) ? languages : (languages ? [languages] : []),
+      interests: Array.isArray(interests) ? interests : (interests ? [interests] : []),
+      workExperience: resolvedWorkExp,
+      college: resolvedCollege,
+      course: resolvedCourse,
+      stream: resolvedStream,
+      startYear: startYearNum,
+      endYear: endYearNum,
       socialLinks: {
         linkedin: linkedin?.trim() || "",
         github: github?.trim() || "",
       },
-      profileCompletion: 50,
+      profileCompletion: 90,
+      isProfileComplete: true,
     };
+
+    if (firstName) updateData.firstName = firstName.trim();
+    if (lastName) updateData.lastName = lastName.trim();
+    if (fullName) updateData.fullName = fullName.trim();
+    if (resumeUrl) updateData.resumeUrl = resumeUrl.trim();
 
     const user = await User.findByIdAndUpdate(userId, updateData, { new: true });
 
@@ -1678,70 +1792,109 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
       });
     }
 
-    // -------- Create role-specific profile --------
+    // -------- Create or Update role-specific profile --------
     try {
-      if (userType === "student") {
-        // Check if profile already exists (idempotent)
+      if (resolvedUserType === "student") {
         const existing = await StudentProfile.findOne({ userId });
         if (!existing) {
           await StudentProfile.create({
             userId,
+            gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
+              ? gender
+              : undefined,
+            location: {
+              city: city?.trim() || "",
+              country: "India",
+            },
+            interests: updateData.interests,
+            technicalSkills: updateData.interests,
             education: [
               {
-                institution: college.trim(),
-                degree: course.trim(),
-                startYear: Number(graduationYear) - Number(year),
-                endYear: Number(graduationYear),
+                institution: resolvedCollege,
+                degree: resolvedCourse,
+                fieldOfStudy: resolvedStream,
+                startYear: startYearNum,
+                endYear: endYearNum,
                 currentlyStudying: true,
               },
             ],
           });
         } else {
-          // Update education if blank
+          existing.location = existing.location || {};
+          if (city) existing.location.city = city.trim();
+          if (gender) existing.gender = gender;
+          if (updateData.interests.length) {
+            existing.interests = updateData.interests;
+            existing.technicalSkills = updateData.interests;
+          }
           if (!existing.education?.length) {
             existing.education = [
               {
-                institution: college.trim(),
-                degree: course.trim(),
-                startYear: Number(graduationYear) - Number(year),
-                endYear: Number(graduationYear),
+                institution: resolvedCollege,
+                degree: resolvedCourse,
+                fieldOfStudy: resolvedStream,
+                startYear: startYearNum,
+                endYear: endYearNum,
                 currentlyStudying: true,
               },
             ];
-            await existing.save();
           }
+          await existing.save();
         }
-      } else if (userType === "fresher") {
+      } else if (resolvedUserType === "fresher") {
         const existing = await FresherProfile.findOne({ userId });
         if (!existing) {
           await FresherProfile.create({
             userId,
-            // Use the education sub-schema
+            gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
+              ? gender
+              : "",
+            location: {
+              city: city?.trim() || "",
+              country: "India",
+            },
             education: [
               {
-                degree: highestQualification.trim(),
-                institution: "Not specified",
-                graduationYear: Number(passoutYear),
+                institution: resolvedCollege,
+                degree: resolvedCourse,
+                specialization: resolvedStream,
+                graduationYear: endYearNum,
                 isHighest: true,
               },
             ],
           });
         }
-      } else if (userType === "professional") {
+      } else if (resolvedUserType === "professional") {
         const existing = await ProfessionalProfile.findOne({ userId });
         if (!existing) {
           await ProfessionalProfile.create({
             userId,
+            gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
+              ? gender
+              : "",
+            location: {
+              city: city?.trim() || "",
+              country: "India",
+            },
+            skills: updateData.interests,
             currentEmployment: {
-              company: currentCompany.trim(),
-              jobTitle: jobTitle.trim(),
+              company: currentCompany?.trim() || resolvedCollege || "Industry",
+              jobTitle: jobTitle?.trim() || "Working Professional",
               industry: industry?.trim() || "Information Technology",
             },
+            education: [
+              {
+                institution: resolvedCollege,
+                degree: resolvedCourse,
+                fieldOfStudy: resolvedStream,
+                startYear: startYearNum,
+                endYear: endYearNum,
+              },
+            ],
           });
         }
       }
     } catch (profileErr) {
-      // Profile creation failure is non-fatal — user can complete later
       console.error("[GoogleOnboarding] Profile creation error:", profileErr.message);
     }
 
@@ -1877,3 +2030,6 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
     next(error);
   }
 };
+
+module.exports.userPayload = userPayload;
+

@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import internshipService from "../../services/internshipService";
 import { applyOpportunity, saveOpportunity } from "../../services/studentDashboardService";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
+import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 
 const InternshipDiscoveryPage = () => {
   const { city: cityParam, category: categoryParam } = useParams();
@@ -23,6 +24,8 @@ const InternshipDiscoveryPage = () => {
   const [internships, setInternships] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [savedIds, setSavedIds] = useState([]);
   const [toast, setToast] = useState(null);
 
@@ -55,11 +58,13 @@ const InternshipDiscoveryPage = () => {
   }, [pathname, cityParam, categoryParam, isWorkFromHome, isPaidOnly, isJobOfferOnly]);
 
   // Fetch Internships
-  const fetchInternships = async () => {
+  const fetchInternships = async (pageToFetch = currentPage) => {
     try {
       setLoading(true);
       const params = {
         sort: sortBy,
+        page: pageToFetch,
+        limit: 10,
       };
 
       if (searchQuery.trim()) params.search = searchQuery.trim();
@@ -74,7 +79,9 @@ const InternshipDiscoveryPage = () => {
       const res = await internshipService.getInternships(params);
       if (res?.success) {
         setInternships(res.internships || res.data || []);
-        setTotalCount(res.pagination?.total || (res.internships || res.data || []).length);
+        const total = res.pagination?.total ?? (res.internships || res.data || []).length;
+        setTotalCount(total);
+        setTotalPages(res.pagination?.totalPages || Math.ceil(total / 10) || 1);
       }
     } catch (err) {
       console.error("Failed to load internships:", err);
@@ -85,12 +92,22 @@ const InternshipDiscoveryPage = () => {
   };
 
   useEffect(() => {
-    fetchInternships();
+    setCurrentPage(1);
+    fetchInternships(1);
   }, [selectedCity, selectedCategory, selectedWorkMode, selectedPaid, selectedJobOffer, sortBy, isInternational, selectedOppType]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+      fetchInternships(newPage);
+      window.scrollTo({ top: 200, behavior: "smooth" });
+    }
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchInternships();
+    setCurrentPage(1);
+    fetchInternships(1);
   };
 
   // Quick Apply
@@ -184,14 +201,21 @@ const InternshipDiscoveryPage = () => {
             </div>
           </Link>
 
-          {/* Internshala-style Category Dropdown Menu */}
-          <div className="hidden sm:block">
+          {/* Category Dropdown Menus */}
+          <div className="hidden sm:flex items-center gap-2">
             <InternshipDiscoveryMenu studentCity={user?.location || "Bangalore"} />
+            <JobDiscoveryMenu />
           </div>
         </div>
 
         {/* Right Navigation */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <Link
+            to="/jobs"
+            className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition hidden md:inline-block"
+          >
+            💼 Explore Jobs
+          </Link>
           {user ? (
             <Link
               to={user.role === "employer" ? "/employer/dashboard" : "/student/dashboard"}
@@ -483,8 +507,67 @@ const InternshipDiscoveryPage = () => {
                 </div>
               );
             })}
-          </div>
-        ) : (
+
+            {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+              <p className="text-xs font-semibold text-slate-500">
+                Showing <span className="text-slate-900 font-bold">{((currentPage - 1) * 10) + 1}</span>–<span className="text-slate-900 font-bold">{Math.min(currentPage * 10, totalCount)}</span> of <span className="text-slate-900 font-bold">{totalCount}</span> internships
+              </p>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage <= 1 || loading}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                >
+                  ← Previous
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                    .reduce((acc, p, idx, arr) => {
+                      if (idx > 0 && p - arr[idx - 1] > 1) {
+                        acc.push("...");
+                      }
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, idx) =>
+                      p === "..." ? (
+                        <span key={`dots-${idx}`} className="px-2 text-slate-400 text-xs font-bold select-none">
+                          ...
+                        </span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => handlePageChange(p)}
+                          disabled={loading}
+                          className={`min-w-[36px] h-9 px-2.5 rounded-xl text-xs font-bold transition ${
+                            currentPage === p
+                              ? "bg-blue-600 text-white shadow-xs"
+                              : "text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+                </div>
+
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage >= totalPages || loading}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
           <div className="p-16 rounded-3xl bg-white border border-dashed border-slate-200 text-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto text-xl font-bold">
               🔍

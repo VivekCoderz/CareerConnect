@@ -146,13 +146,11 @@ const Login = () => {
       dispatch(loginSuccess({ user, token }));
 
       // Step 3: Route based on account status
-      if (requiresPasswordSetup) {
-        // First-time Google user → set password first, then onboarding
-        navigate("/set-password", { replace: true });
-      } else if (!user.phone?.trim()) {
-        // User already has password, but hasn't completed their info!
+      if (!user.phone?.trim() || !user.isProfileComplete) {
         navigate(
-          user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile",
+          user.role === "employer" || loginType === "employer"
+            ? "/onboarding/employer"
+            : "/onboarding/profile",
           { replace: true }
         );
       } else {

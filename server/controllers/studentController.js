@@ -245,17 +245,17 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     let finalRecommendedInternships = recommendedInternships;
     let finalRecommendedJobs = recommendedJobs;
 
-    if (finalRecommendedInternships.length === 0 || finalRecommendedJobs.length === 0) {
+    if (finalRecommendedInternships.length < 10 || finalRecommendedJobs.length < 10) {
       const searchTarget = profile?.careerGoal || "Full Stack Developer";
       try {
         const [scrapedInt, scrapedJobs] = await Promise.all([
-          finalRecommendedInternships.length === 0
+          finalRecommendedInternships.length < 10
             ? getAggregatedOpportunities({
                 opportunityType: "internship",
                 search: searchTarget,
               })
             : Promise.resolve({ data: [] }),
-          finalRecommendedJobs.length === 0
+          finalRecommendedJobs.length < 10
             ? getAggregatedOpportunities({
                 opportunityType: "all",
                 search: searchTarget,
@@ -263,7 +263,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             : Promise.resolve({ data: [] }),
         ]);
 
-        if (finalRecommendedInternships.length === 0) {
+        if (finalRecommendedInternships.length < 10) {
           let intList = scrapedInt?.data || [];
           if (intList.length === 0) {
             const backupInt = await getAggregatedOpportunities({
@@ -273,7 +273,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             intList = backupInt?.data || [];
           }
 
-          finalRecommendedInternships = intList.slice(0, 30).map((job, idx) => ({
+          const mappedInt = intList.slice(0, 20).map((job, idx) => ({
             _id: `scraped-rec-int-${idx}`,
             id: `scraped-rec-int-${idx}`,
             jobId: `scraped-rec-int-${idx}`,
@@ -295,9 +295,10 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             isExternal: true,
             platformSource: job.platformSource,
           }));
+          finalRecommendedInternships = [...recommendedInternships, ...mappedInt];
         }
 
-        if (finalRecommendedJobs.length === 0) {
+        if (finalRecommendedJobs.length < 10) {
           let jobList = scrapedJobs?.data || [];
           if (jobList.length === 0) {
             const backupJobs = await getAggregatedOpportunities({
@@ -307,7 +308,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             jobList = backupJobs?.data || [];
           }
 
-          finalRecommendedJobs = jobList.slice(0, 30).map((job, idx) => ({
+          const mappedJobs = jobList.slice(0, 20).map((job, idx) => ({
             _id: `scraped-rec-job-${idx}`,
             id: `scraped-rec-job-${idx}`,
             jobId: `scraped-rec-job-${idx}`,
@@ -320,13 +321,14 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             workMode: job.workMode || "On-Site",
             skillsRequired: [job.title.split(" ")[0] || "Engineering", "Problem Solving"],
             postedAt: job.postedDate || "Recently",
-            deadline: "Open",
+            deadline: "Open until filled",
             description: `${job.title} at ${job.company}. Apply directly at ${job.applyLink}`,
             applyLink: job.applyLink,
             applyUrl: job.applyLink,
             isExternal: true,
             platformSource: job.platformSource,
           }));
+          finalRecommendedJobs = [...recommendedJobs, ...mappedJobs];
         }
       } catch (e) {
         console.warn("Aggregated opportunities fallback error:", e.message);
@@ -635,10 +637,14 @@ module.exports.applyOpportunity = async (req, res, next) => {
 
     const Internship = require("../models/Internship");
     let job = null;
+    let isInternship = false;
     if (mongoose.Types.ObjectId.isValid(targetJobId)) {
       job = await Job.findById(targetJobId).populate("employerId");
       if (!job) {
         job = await Internship.findById(targetJobId).populate("employerId");
+        if (job) {
+          isInternship = true;
+        }
       }
     }
 
@@ -656,7 +662,11 @@ module.exports.applyOpportunity = async (req, res, next) => {
       });
     }
 
-    const existing = await Application.findOne({ jobId: targetJobId, candidateId });
+    const existing = await Application.findOne(
+      isInternship
+        ? { internshipId: targetJobId, candidateId }
+        : { jobId: targetJobId, candidateId }
+    );
     if (existing) {
       return res.status(409).json({
         success: false,
@@ -676,12 +686,19 @@ module.exports.applyOpportunity = async (req, res, next) => {
 
     const matchOverall = Math.min(100, Math.max(40, Math.round(50 + (strongSkills.length * 15))));
 
+    const companyName = job.companyName || job.employerId?.companyName || company || "Partner Employer";
+
     const application = await Application.create({
-      jobId: targetJobId,
+      jobId: isInternship ? null : targetJobId,
+      internshipId: isInternship ? targetJobId : null,
+      opportunityType: isInternship ? "Internship" : "Job",
+      opportunityTitle: job.title || title || "",
+      companyName,
       candidateId,
       employerId: job.employerId?._id || job.employerId,
       resumeUrl: studentProf?.resume?.resumeUrl || "",
       status: "Applied",
+      stage: "Applied",
       stageHistory: [
         {
           stage: "Applied",
@@ -705,8 +722,6 @@ module.exports.applyOpportunity = async (req, res, next) => {
     job.applicantsCount += 1;
     await job.save();
 
-    const companyName = job.employerId?.companyName || company || "Partner Employer";
-
     return res.status(201).json({
       success: true,
       message: `✓ Application submitted successfully for "${job.title}" at ${companyName}!`,
@@ -716,7 +731,7 @@ module.exports.applyOpportunity = async (req, res, next) => {
         jobId: job._id.toString(),
         title: job.title,
         company: companyName,
-        type: job.employmentType,
+        type: job.employmentType || (isInternship ? "Internship" : "Job"),
         appliedDate: "Today",
         status: "Applied",
         lastUpdated: "Just now",

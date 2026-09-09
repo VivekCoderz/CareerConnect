@@ -581,18 +581,18 @@ module.exports.getProfessionalDashboard = async (req, res, next) => {
       };
     });
 
-    if (recommendedJobs.length === 0) {
+    if (recommendedJobs.length < 10) {
       try {
         const targetSearch =
           profile?.careerGoal?.targetRole ||
           profile?.jobPreferences?.preferredRoles?.[0] ||
           "Senior Developer";
         const scraped = await getAggregatedOpportunities({
-          opportunityType: "job",
+          opportunityType: "fulltime",
           search: targetSearch,
         });
 
-        recommendedJobs = (scraped.data || []).slice(0, 20).map((job, idx) => ({
+        const mappedJobs = (scraped.data || []).slice(0, 20).map((job, idx) => ({
           _id: `scraped-prof-job-${idx}`,
           id: `scraped-prof-job-${idx}`,
           jobId: `scraped-prof-job-${idx}`,
@@ -605,16 +605,18 @@ module.exports.getProfessionalDashboard = async (req, res, next) => {
           experienceRequired: "3+ Years",
           skillsRequired: [job.title.split(" ")[0] || "Engineering", "Architecture"],
           postedAt: job.postedDate || "Recently",
-          deadline: "Open",
+          deadline: "Open until filled",
           matchPercentage: calculateJobMatch(
             profile,
             [job.title.split(" ")[0] || "Engineering"],
             job.title
           ),
           applyLink: job.applyLink,
+          applyUrl: job.applyLink,
           isExternal: true,
           platformSource: job.platformSource,
         }));
+        recommendedJobs = [...recommendedJobs, ...mappedJobs];
       } catch (scrapErr) {
         console.warn("Professional scraped jobs fallback error:", scrapErr.message);
       }

@@ -25,6 +25,7 @@ import CertificationsCard from "../../components/student-dashboard/Certification
 import InternshipRecommendationsCard from "../../components/student-dashboard/InternshipRecommendationsCard";
 import JobRecommendationsCard from "../../components/student-dashboard/JobRecommendationsCard";
 import CourseRecommendationsCard from "../../components/student-dashboard/CourseRecommendationsCard";
+import InternshalaDashboardRecommendations from "../../components/student-dashboard/InternshalaDashboardRecommendations";
 import StudentCoursesPage from "../courses/StudentCoursesPage";
 import ApplicationTrackerCard from "../../components/student-dashboard/ApplicationTrackerCard";
 import SavedOpportunitiesCard from "../../components/student-dashboard/SavedOpportunitiesCard";
@@ -281,81 +282,17 @@ const StudentDashboard = () => {
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-7 max-w-7xl w-full mx-auto">
-          {/* Quick actions only on home dashboard */}
-          {activeTab === "dashboard" && (
-            <QuickActionsCard onNavigateTab={handleSelectTab} />
-          )}
-
           {/* ================= DASHBOARD HOME ================= */}
           {activeTab === "dashboard" && (
-            <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ProfileCompletionCard
-                  profile={profile}
-                  user={user}
-                  completion={profileCompletion}
-                />
-                <CareerReadinessCard readiness={careerReadiness} />
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ProfileSummaryCard user={user} profile={profile} />
-                <EducationSummaryCard education={education} />
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SkillsSectionCard
-                  technicalSkills={technicalSkills}
-                  softSkills={softSkills}
-                />
-                <SkillGapCard skillGap={skillGap} />
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ResumeStatusCard resume={resume} profile={profile} />
-                <CareerGoalCard
-                  careerGoal={careerGoal}
-                  preferences={jobPreferences}
-                />
-              </div>
-
-              <ProjectsPortfolioCard projects={projects} />
-              <CertificationsCard certifications={certifications} />
-
-              <InternshipRecommendationsCard
-                internships={filteredInternships}
-                onSave={handleSaveToggle}
-                onApply={handleApply}
-                savedIds={savedIds}
-                onViewAll={() => handleSelectTab("internships")}
-              />
-
-              <JobRecommendationsCard
-                jobs={filteredJobs}
-                onSave={handleSaveToggle}
-                onApply={handleApply}
-                savedIds={savedIds}
-              />
-
-              <CourseRecommendationsCard courses={filteredCourses} />
-
-              <ApplicationTrackerCard
-                applications={applicationsData}
-                onViewAll={() => handleSelectTab("applications")}
-              />
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SavedOpportunitiesCard
-                  savedItems={savedList}
-                  onRemove={(id) => {
-                    setSavedIds((prev) => prev.filter((item) => item !== id));
-                    setSavedList((prev) => prev.filter((item) => item.id !== id));
-                  }}
-                  onApply={handleApply}
-                />
-                <UpcomingDeadlinesCard deadlines={upcomingDeadlines} />
-              </div>
-            </>
+            <InternshalaDashboardRecommendations
+              jobs={filteredJobs}
+              internships={filteredInternships}
+              courses={filteredCourses}
+              savedIds={savedIds}
+              onSave={handleSaveToggle}
+              onApply={handleApply}
+              onNavigateTab={handleSelectTab}
+            />
           )}
 
           {/* ================= RESUME ================= */}
@@ -425,6 +362,7 @@ const StudentDashboard = () => {
               onSave={handleSaveToggle}
               onApply={handleApply}
               savedIds={savedIds}
+              limit={0}
             />
           )}
 

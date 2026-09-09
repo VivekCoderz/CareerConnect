@@ -12,6 +12,7 @@ const {
   deleteResume,
   saveManualEdit,
   uploadResumeHandler,
+  uploadAndParseResumeHandler,
   getProfileForResume,
 } = require("../controllers/resumeController.js");
 
@@ -39,6 +40,7 @@ router.use(protect);
 router.get("/", getAllResumes);
 router.post("/save", saveFinalResume);
 router.post("/upload", upload.single("resume"), uploadResumeHandler);
+router.post("/upload-and-parse", upload.single("resume"), uploadAndParseResumeHandler);
 router.post("/generate", generateResumeHandler);
 router.post("/update", updateResumeHandler);
 router.get("/me", getMyResume);

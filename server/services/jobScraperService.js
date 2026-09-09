@@ -224,6 +224,7 @@ const INDIAN_GEO_KEYWORDS = [
 // 3. GEETA UNIVERSITY ON-CAMPUS DRIVES
 // ==========================================
 const CAMPUS_DRIVES = [
+ 
 ];
 
 const searchCache = {};
@@ -239,7 +240,7 @@ const USER_AGENTS = [
 // ==========================================
 
 async function scrapeLinkedIn(queryKeywords, targetLocation, jobTypeParam) {
-  const startOffsets = [0, 25, 50, 75, 100];
+  const startOffsets = [0, 25];
   const results = [];
 
   const cleanQuery = queryKeywords
@@ -257,9 +258,10 @@ async function scrapeLinkedIn(queryKeywords, targetLocation, jobTypeParam) {
       cleanQuery,
     )}&location=${encodeURIComponent(targetLocation || "India")}&start=${start}`;
 
-    if (jobTypeParam === "internship") searchUrl += "&f_JT=I";
-    if (jobTypeParam === "fulltime") searchUrl += "&f_JT=F";
-    if (jobTypeParam === "parttime") searchUrl += "&f_JT=P";
+    const normalizedParam = (jobTypeParam || "").toLowerCase().replace(/[-_ ]/g, "");
+    if (normalizedParam === "internship" || normalizedParam === "intern") searchUrl += "&f_JT=I";
+    if (normalizedParam === "fulltime" || normalizedParam === "job") searchUrl += "&f_JT=F";
+    if (normalizedParam === "parttime") searchUrl += "&f_JT=P";
 
     try {
       const response = await axios.get(searchUrl, {
@@ -503,18 +505,28 @@ async function getAggregatedOpportunities({
     queryKeywords = "Developer OR Engineer OR Analyst OR Trainee";
   }
 
-  if (opportunityType === "internship") {
+  const rawOppType = (opportunityType || "all").toLowerCase().replace(/[-_ ]/g, "");
+  let normalizedOppType = "all";
+  if (rawOppType === "internship" || rawOppType === "intern") {
+    normalizedOppType = "internship";
+  } else if (rawOppType === "fulltime" || rawOppType === "job") {
+    normalizedOppType = "fulltime";
+  } else if (rawOppType === "parttime") {
+    normalizedOppType = "parttime";
+  }
+
+  if (normalizedOppType === "internship") {
     if (!queryKeywords.toLowerCase().includes("intern")) {
       queryKeywords += " Intern";
     }
-  } else if (opportunityType === "fulltime") {
+  } else if (normalizedOppType === "fulltime") {
     if (
       !queryKeywords.toLowerCase().includes("associate") &&
       !queryKeywords.toLowerCase().includes("engineer")
     ) {
       queryKeywords += " Associate";
     }
-  } else if (opportunityType === "parttime") {
+  } else if (normalizedOppType === "parttime") {
     queryKeywords += " Part-Time";
   }
 
@@ -533,7 +545,7 @@ async function getAggregatedOpportunities({
     targetLocation = "India";
   }
 
-  const cacheKey = `${queryKeywords}_${targetLocation}_${scope}_${workMode}_${opportunityType}_${source}_${region}`;
+  const cacheKey = `${queryKeywords}_${targetLocation}_${scope}_${workMode}_${normalizedOppType}_${source}_${region}`;
 
   if (
     searchCache[cacheKey] &&
@@ -554,7 +566,7 @@ async function getAggregatedOpportunities({
 
     if (source === "all" || source === "linkedin") {
       scraperPromises.push(
-        scrapeLinkedIn(queryKeywords, targetLocation, opportunityType),
+        scrapeLinkedIn(queryKeywords, targetLocation, normalizedOppType),
       );
     }
     if (
@@ -570,8 +582,12 @@ async function getAggregatedOpportunities({
       scraperPromises.push(fetchArbeitnowJobs(queryKeywords));
     }
 
-    const resultsArray = await Promise.all(scraperPromises);
-    resultsArray.forEach((arr) => scrapedResults.push(...arr));
+    const settled = await Promise.allSettled(scraperPromises);
+    settled.forEach((res) => {
+      if (res.status === "fulfilled" && Array.isArray(res.value)) {
+        scrapedResults.push(...res.value);
+      }
+    });
 
     // Remove Duplicates
     scrapedResults = Array.from(
@@ -673,19 +689,19 @@ async function getAggregatedOpportunities({
   }
 
   // STRICT OPPORTUNITY TYPE FILTER
-  if (opportunityType !== "all") {
+  if (normalizedOppType !== "all") {
     scrapedResults = scrapedResults.filter((job) => {
       const t = (job.title || "").toLowerCase();
       const oppType = (job.opportunityType || "").toLowerCase();
 
-      if (opportunityType === "internship") {
+      if (normalizedOppType === "internship") {
         return (
           oppType.includes("intern") ||
           t.includes("intern") ||
           t.includes("trainee")
         );
       }
-      if (opportunityType === "fulltime") {
+      if (normalizedOppType === "fulltime") {
         return (
           !t.includes("intern") &&
           !oppType.includes("intern") &&
@@ -693,7 +709,7 @@ async function getAggregatedOpportunities({
           !oppType.includes("part-time")
         );
       }
-      if (opportunityType === "parttime") {
+      if (normalizedOppType === "parttime") {
         return (
           t.includes("part-time") ||
           t.includes("part time") ||
@@ -711,7 +727,18 @@ async function getAggregatedOpportunities({
     if (source === "all" || source === "campus") {
       const filteredDrives = CAMPUS_DRIVES.filter((drive) => {
         if (region === "International") return false;
-        if (workMode === "Remote") return false;
+        if (workMode === "Remote" && drive.workMode !== "Remote") return false;
+        if (workMode === "On-Site" && drive.workMode === "Remote") return false;
+        if (normalizedOppType === "internship" && drive.opportunityType !== "Internship") return false;
+        if (normalizedOppType === "fulltime" && drive.opportunityType !== "Full-Time Job") return false;
+        if (customQuery) {
+          const qLower = customQuery.toLowerCase();
+          const match =
+            drive.title.toLowerCase().includes(qLower) ||
+            drive.company.toLowerCase().includes(qLower) ||
+            drive.location.toLowerCase().includes(qLower);
+          if (!match) return false;
+        }
         return true;
       });
       combinedResults = [...filteredDrives, ...scrapedResults];

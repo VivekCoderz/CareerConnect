@@ -13,7 +13,7 @@ try {
     const { GoogleGenerativeAI } = require("@google/generative-ai");
     genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     geminiModel = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
       generationConfig: {
         temperature: 0.4,
         responseMimeType: "application/json",
