@@ -4,12 +4,16 @@ import { useSelector } from "react-redux";
 import internshipService from "../../services/internshipService";
 import { applyOpportunity, saveOpportunity } from "../../services/studentDashboardService";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 
 const InternshipDiscoveryPage = () => {
   const { city: cityParam, category: categoryParam } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
+
+  const [selectedOpportunityForApply, setSelectedOpportunityForApply] = useState(null);
+  const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
 
   // Parse path context
   const pathname = location.pathname;
@@ -94,28 +98,24 @@ const InternshipDiscoveryPage = () => {
   };
 
   // Quick Apply
-  const handleApply = async (intItem) => {
+  const handleApply = (intItem) => {
     if (!user) {
       navigate("/login?redirect=" + encodeURIComponent(location.pathname));
       return;
     }
 
-    try {
-      const res = await applyOpportunity({
-        opportunityId: intItem._id || intItem.id,
-        jobId: intItem._id || intItem.id,
-        title: intItem.title,
-        company: intItem.company,
-        type: "Internship",
-      });
-
-      if (res?.success) {
-        showToast(res.message || `Application submitted for "${intItem.title}"!`, "success");
-      }
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || "Application could not be submitted.";
-      showToast(msg, "error");
-    }
+    setSelectedOpportunityForApply({
+      ...intItem,
+      _id: intItem._id || intItem.id,
+      id: intItem._id || intItem.id,
+      company: intItem.company || intItem.companyName,
+      companyName: intItem.company || intItem.companyName,
+      type: "Internship",
+      opportunityType: "Internship",
+      requiredSkills: intItem.skillsRequired || intItem.requiredSkills || [],
+      skills: intItem.skillsRequired || intItem.requiredSkills || [],
+    });
+    setIsResumeModalOpen(true);
   };
 
   // Save Bookmark
@@ -504,6 +504,20 @@ const InternshipDiscoveryPage = () => {
           </div>
         )}
       </main>
+
+      {/* Resume Selection & Application Modal */}
+      <TailoredResumeApplicationModal
+        isOpen={isResumeModalOpen}
+        onClose={() => {
+          setIsResumeModalOpen(false);
+          setSelectedOpportunityForApply(null);
+        }}
+        opportunity={selectedOpportunityForApply}
+        opportunityType="Internship"
+        onApplicationSubmitted={() => {
+          showToast(`Application submitted for "${selectedOpportunityForApply?.title || "internship"}"!`, "success");
+        }}
+      />
     </div>
   );
 };

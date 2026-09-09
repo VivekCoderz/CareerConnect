@@ -427,7 +427,16 @@ module.exports.getStudentProfile = async (req, res, next) => {
     if (profile.profileCompletion !== completion) {
       profile.profileCompletion = completion;
       profile.isProfileComplete = completion >= 80;
-      await profile.save();
+      try {
+        await StudentProfile.findByIdAndUpdate(profile._id, {
+          $set: {
+            profileCompletion: completion,
+            isProfileComplete: completion >= 80,
+          },
+        });
+      } catch (saveErr) {
+        console.warn("Could not sync profile completion in getStudentProfile:", saveErr.message);
+      }
     }
 
     return res.status(200).json({
@@ -436,6 +445,7 @@ module.exports.getStudentProfile = async (req, res, next) => {
       profileCompletion: completion,
     });
   } catch (error) {
+    console.error("getStudentProfile error:", error);
     next(error);
   }
 };
@@ -486,14 +496,24 @@ module.exports.updateStudentProfile = async (req, res, next) => {
     const profile = await StudentProfile.findOneAndUpdate(
       { userId },
       { $set: updateData },
-      { new: true, upsert: true, runValidators: true }
+      { new: true, upsert: true, runValidators: false }
     ).populate("userId", "fullName email username phone profileImage socialLinks");
 
     const updatedUser = await User.findById(userId).lean();
     const completion = calculateProfileCompletion(profile, updatedUser || req.user);
     profile.profileCompletion = completion;
     profile.isProfileComplete = completion >= 80;
-    await profile.save();
+
+    try {
+      await StudentProfile.findByIdAndUpdate(profile._id, {
+        $set: {
+          profileCompletion: completion,
+          isProfileComplete: completion >= 80,
+        },
+      });
+    } catch (saveErr) {
+      console.warn("Could not save profile completion in updateStudentProfile:", saveErr.message);
+    }
 
     await User.findByIdAndUpdate(userId, {
       profileCompletion: completion,
@@ -507,6 +527,7 @@ module.exports.updateStudentProfile = async (req, res, next) => {
       profileCompletion: completion,
     });
   } catch (error) {
+    console.error("updateStudentProfile error:", error);
     next(error);
   }
 };
@@ -666,7 +687,10 @@ module.exports.applyOpportunity = async (req, res, next) => {
 
     const applicationPayload = {
       candidateId,
-      employerId: resolvedEmployerId,
+      employerId: job.employerId?._id || job.employerId,
+      resumeUrl: req.body.resumeUrl || studentProf?.resume?.resumeUrl || "",
+      coverNote: req.body.coverNote ? String(req.body.coverNote).trim() : "",
+      
       opportunityType: isInternship ? "Internship" : "Job",
       status: "Applied",
       appliedAt: new Date(),

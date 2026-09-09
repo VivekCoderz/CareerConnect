@@ -34,6 +34,7 @@ import QuickActionsCard from "../../components/student-dashboard/QuickActionsCar
 import Internships from "./Internships";
 import InternshipDetail from "./InternshipDetail";
 import MyApplications from "./MyApplications";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import Jobs from "./Jobs";
 
 // Courses module (embedded)
@@ -50,6 +51,8 @@ const StudentDashboard = () => {
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [selectedOpportunityForTailoring, setSelectedOpportunityForTailoring] = useState(null);
+  const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -147,36 +150,34 @@ const StudentDashboard = () => {
     }
   };
 
-  const handleApply = async (item) => {
-    try {
-      const res = await applyOpportunity({
-        opportunityId: item._id || item.id,
-        jobId: item._id || item.id,
-        title: item.title,
-        company: item.company || item.companyName,
-        type: item.type || "Internship",
-      });
+  const handleApply = (item) => {
+    setSelectedOpportunityForTailoring({
+      _id: item._id || item.id,
+      id: item._id || item.id,
+      title: item.title,
+      company: item.company || item.companyName,
+      companyName: item.company || item.companyName,
+      type: item.type || "Internship",
+      opportunityType: (item.type?.toLowerCase().includes("intern") || !item.type) ? "Internship" : "Job",
+      description: item.description || item.aboutRole || "",
+      requirements: item.requirements || [],
+      skillsRequired: item.skillsRequired || item.skills || [],
+    });
+    setIsTailoredModalOpen(true);
+  };
 
-      if (res?.success && res?.application) {
-        setApplicationsData((prev) => {
-          if (!prev) return { stats: { applied: 1 }, recent: [res.application] };
-          return {
-            stats: {
-              ...prev.stats,
-              applied: (prev.stats?.applied || 0) + 1,
-            },
-            recent: [res.application, ...(prev.recent || [])],
-          };
-        });
-        showToast(res.message || `Applied for "${item.title}"!`, "success");
-      }
-    } catch (err) {
-      const errMsg =
-        err.response?.data?.message ||
-        err.message ||
-        "Application could not be submitted.";
-      showToast(errMsg, "error");
-    }
+  const handleApplicationSuccess = (application) => {
+    setApplicationsData((prev) => {
+      if (!prev) return { stats: { applied: 1 }, recent: [application] };
+      return {
+        stats: {
+          ...prev.stats,
+          applied: (prev.stats?.applied || 0) + 1,
+        },
+        recent: [application, ...(prev.recent || [])],
+      };
+    });
+    showToast(`Applied for "${selectedOpportunityForTailoring?.title || "opportunity"}"!`, "success");
   };
 
   const filteredInternships = useMemo(() => {
@@ -558,6 +559,17 @@ const StudentDashboard = () => {
           )}
         </main>
       </div>
+
+      {/* Tailored Resume Application Modal */}
+      <TailoredResumeApplicationModal
+        isOpen={isTailoredModalOpen}
+        onClose={() => {
+          setIsTailoredModalOpen(false);
+          setSelectedOpportunityForTailoring(null);
+        }}
+        opportunity={selectedOpportunityForTailoring}
+        onAppliedSuccess={handleApplicationSuccess}
+      />
 
       {/* Toast */}
       {toast && (

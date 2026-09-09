@@ -4,6 +4,8 @@ import { useDispatch, useSelector } from "react-redux";
 import api from "../../api/api";
 import { updateUserProfile } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import { parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
+import ParsedResumeReviewModal from "../../components/resume-builder/ParsedResumeReviewModal";
 import ResumeUploadInput from "../../components/common/ResumeUploadInput";
 import PhoneInput from "../../components/common/PhoneInput";
 
@@ -63,6 +65,9 @@ const GoogleOnboarding = () => {
   const [resumeUrl, setResumeUrl] = useState("");
   const [resumeName, setResumeName] = useState("");
   const [resumeUploaded, setResumeUploaded] = useState(false);
+  const [parsedResult, setParsedResult] = useState(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const isOnboardingActiveRef = useRef(true);
 
   const [formData, setFormData] = useState({
@@ -237,6 +242,46 @@ const GoogleOnboarding = () => {
     if (meta?.fileName) setResumeName(meta.fileName);
     setResumeUploaded(!!url);
     setSubmitError("");
+  };
+
+  const handleResumeUpload = async () => {
+    if (!resumeFile) return;
+    setResumeUploading(true);
+    setSubmitError("");
+
+    try {
+      const res = await parseResumeAPI(resumeFile);
+      if (res?.parsedData) {
+        setParsedResult(res);
+        setIsReviewOpen(true);
+      } else {
+        setSubmitError("Failed to parse resume details. You may continue to your dashboard.");
+      }
+    } catch (err) {
+      console.error("[GoogleOnboarding] Resume parse failed:", err);
+      setSubmitError(
+        err.response?.data?.message || "Failed to parse resume. Please try again."
+      );
+    } finally {
+      setResumeUploading(false);
+    }
+  };
+
+  const handleConfirmParsedProfile = async ({ parsedData, resumeUrl, resumeName }) => {
+    try {
+      setIsSavingProfile(true);
+      setSubmitError("");
+      const res = await confirmParsedProfileAPI({ parsedData, resumeUrl, resumeName });
+      if (res?.profile) {
+        setResumeUploaded(true);
+      }
+      setIsReviewOpen(false);
+      handleFinish();
+    } catch (err) {
+      setSubmitError(err.response?.data?.message || "Failed to save verified profile details.");
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   // ─── Finish Onboarding ───────────────────────────────────────────────────────
@@ -756,6 +801,19 @@ const GoogleOnboarding = () => {
           )}
         </div>
       </div>
+
+      {/* Review Parsed Resume Modal */}
+      {parsedResult?.parsedData && (
+        <ParsedResumeReviewModal
+          isOpen={isReviewOpen}
+          initialData={parsedResult.parsedData}
+          resumeUrl={parsedResult.resumeUrl}
+          resumeName={parsedResult.resumeName}
+          onConfirm={handleConfirmParsedProfile}
+          onCancel={handleFinish}
+          isSaving={isSavingProfile}
+        />
+      )}
     </div>
   );
 };

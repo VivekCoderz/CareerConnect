@@ -20,9 +20,14 @@ import {
   setActiveResumeId,
   fetchProfileForResume,
   saveManualEdit,
+  updateRawData,
 } from "../../redux/features/resumeSlice";
 import { updateUserProfile } from "../../redux/features/authSlice";
-import { uploadResumeAPI } from "../../services/resumeService";
+import {
+  uploadResumeAPI,
+  parseResumeAPI,
+  confirmParsedProfileAPI,
+} from "../../services/resumeService";
 import { updateStudentProfile } from "../../services/studentProfileService";
 import ResumeUploadInput from "../../components/common/ResumeUploadInput";
 import { validateRawData, extractSkillsList } from "../../utils/resumeHelpers";
@@ -34,6 +39,7 @@ import ResumePreview from "../../components/resume-builder/ResumePreview";
 import ReviewActions from "../../components/resume-builder/ReviewActions";
 import AIChangeRequest from "../../components/resume-builder/AIChangeRequest";
 import ManualEditor from "../../components/resume-builder/ManualEditor";
+import ParsedResumeReviewModal from "../../components/resume-builder/ParsedResumeReviewModal";
 
 // ─── Step indicator for AI flow ──────────────────────────────────────────────
 const FLOW_STEPS = [
@@ -168,6 +174,9 @@ const ResumeBuilder = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [parsedResumeData, setParsedResumeData] = useState(null);
+  const [existingProfileData, setExistingProfileData] = useState(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   // Initial data load: fetch saved resume, all saved resumes & profile
@@ -342,25 +351,82 @@ const ResumeBuilder = () => {
     setUploadError("");
 
     try {
-      const finalName = uploadedResumeName || "My_Resume.pdf";
-      dispatch(
-        updateUserProfile({
-          resumeUrl: uploadedResumeUrl,
-          resumeName: finalName,
-        }),
-      );
-      await updateStudentProfile({
-        resume: {
-          resumeUrl: uploadedResumeUrl,
-          resumeName: finalName,
-          uploadedAt: new Date(),
-        },
-      });
-      setUploadSuccess(true);
+      // First attempt to parse the resume so the user can import it to their profile & builder
+      const parseRes = await parseResumeAPI(selectedFile);
+      if (parseRes?.success && parseRes?.parsedData) {
+        setParsedResumeData(parseRes.parsedData);
+        if (parseRes.existingProfile) {
+          setExistingProfileData(parseRes.existingProfile);
+        }
+        if (parseRes.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: parseRes.resumeUrl,
+              resumeName: parseRes.resumeName || selectedFile.name,
+            })
+          );
+        }
+        setIsReviewModalOpen(true);
+      } else {
+        // Fallback to standard upload
+        const res = await uploadResumeAPI(selectedFile);
+        setUploadSuccess(true);
+        if (res?.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: res.resumeUrl,
+              resumeName: res.resumeName || selectedFile.name,
+            }),
+          );
+        }
+      }
     } catch (err) {
-      setUploadError(err.response?.data?.message || err.message || "Failed to save resume. Please try again.");
+      // If parse fails, attempt upload directly
+      try {
+        const res = await uploadResumeAPI(selectedFile);
+        setUploadSuccess(true);
+        if (res?.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: res.resumeUrl,
+              resumeName: res.resumeName || selectedFile.name,
+            }),
+          );
+        }
+      } catch (uploadErr) {
+        setUploadError(uploadErr.message || err.message || "Failed to upload resume. Please try again.");
+      }
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleConfirmParsedData = async (confirmedData) => {
+    try {
+      await confirmParsedProfileAPI(confirmedData);
+      dispatch(fetchProfileForResume());
+      dispatch(fetchAllSavedResumes());
+
+      // Pre-fill rawData for AI builder
+      dispatch(
+        updateRawData({
+          personal: confirmedData.personal || {},
+          education: confirmedData.education || [],
+          experience: confirmedData.experience || [],
+          projects: confirmedData.projects || [],
+          skills: confirmedData.skills || [],
+          certifications: confirmedData.certifications || [],
+          achievements: confirmedData.achievements || [],
+        })
+      );
+
+      setIsReviewModalOpen(false);
+      setUploadSuccess(true);
+      // Seamlessly transition to AI builder step 0 or template selection
+      setViewMode("ai");
+      dispatch(setStep(0));
+    } catch (err) {
+      alert(err.message || "Failed to save parsed profile data");
     }
   };
 
@@ -475,6 +541,11 @@ const ResumeBuilder = () => {
                           </div>
 
                           <div className="shrink-0 flex flex-col items-end gap-1.5">
+                            {resItem.isTailored && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
+                                <span>🎯</span> {resItem.targetOpportunityTitle ? `Tailored for ${resItem.targetOpportunityTitle}` : "Tailored Version"}
+                              </span>
+                            )}
                             {resItem.isPrimary ? (
                               <div className="flex flex-col items-end gap-0.5">
                                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
@@ -1172,6 +1243,17 @@ const ResumeBuilder = () => {
             )}
           </div>
         )}
+
+        {/* Parsed Resume Review Modal */}
+        <ParsedResumeReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          parsedData={parsedResumeData}
+          existingProfile={existingProfileData}
+          resumeName={selectedFile?.name}
+          onConfirm={handleConfirmParsedData}
+          title="Review Imported Resume Information"
+        />
 
       </div>
 

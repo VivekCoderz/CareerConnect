@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import { getFresherDashboardData } from "../../services/fresherDashboardService";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 
 // Fresher Dashboard Components
 import FresherSidebar from "../../components/fresher-dashboard/FresherSidebar";
@@ -29,6 +30,8 @@ const FresherDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedOpportunityForTailoring, setSelectedOpportunityForTailoring] = useState(null);
+  const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
 
   const fetchDashboard = async () => {
     setLoading(true);
@@ -137,6 +140,10 @@ const FresherDashboard = () => {
           <FresherRecommendedJobs
             jobs={recommendedJobs}
             targetRole={careerTarget.targetRole}
+            onApplyJob={(job) => {
+              setSelectedOpportunityForTailoring(job);
+              setIsTailoredModalOpen(true);
+            }}
           />
 
           {/* 2-Column Grid: Skills & Recommendations */}
@@ -186,6 +193,20 @@ const FresherDashboard = () => {
           </div>
         </main>
       </div>
+
+      {/* Tailored Resume Application Modal */}
+      <TailoredResumeApplicationModal
+        isOpen={isTailoredModalOpen}
+        onClose={() => {
+          setIsTailoredModalOpen(false);
+          setSelectedOpportunityForTailoring(null);
+        }}
+        opportunity={selectedOpportunityForTailoring}
+        opportunityType={selectedOpportunityForTailoring?.type?.toLowerCase().includes("intern") ? "Internship" : "Job"}
+        onApplicationSubmitted={() => {
+          fetchDashboard();
+        }}
+      />
     </div>
   );
 };
