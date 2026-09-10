@@ -37,6 +37,10 @@ const generateToken = (userId, keepSignedIn = false) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn });
 };
 
+// Determine production environment (checks standard NODE_ENV and Render environment)
+const isProduction =
+  process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+
 // Set HTTP-only cookie with dynamic maxAge
 const setTokenCookie = (res, token, keepSignedIn = false) => {
   const maxAge = keepSignedIn
@@ -45,8 +49,8 @@ const setTokenCookie = (res, token, keepSignedIn = false) => {
 
   res.cookie("token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
     maxAge,
   });
 };
@@ -1099,16 +1103,16 @@ module.exports.logoutUser = async (req, res) => {
   // 1. Clear token cookie
   res.clearCookie("token", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
   });
 
   // 2. Clear session cookie
   res.clearCookie("sid", {
     path: "/",
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
   });
 
   // 3. Destroy session in Redis

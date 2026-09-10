@@ -44,7 +44,7 @@ export const deleteNotification = async (id) => {
  * Real-time SSE subscription with auto-reconnect and polling fallback
  */
 export const subscribeToNotifications = (onNotification, onConnected) => {
-  const baseURL = api.defaults.baseURL || "http://localhost:5000/api";
+  const baseURL = (api.defaults.baseURL || "http://localhost:5000/api").replace(/\/+$/, "");
   const streamUrl = `${baseURL}/notifications/stream`;
 
   let eventSource = null;
