@@ -1,5 +1,5 @@
 import React from "react";
-import { extractSkillsList } from "../../../utils/resumeHelpers";
+import { extractSkillsList, sortEducation } from "../../../utils/resumeHelpers";
 
 const ElegantTemplate = ({ data }) => {
   const {
@@ -96,24 +96,36 @@ const ElegantTemplate = ({ data }) => {
           <h2 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400 mb-3">
             Education
           </h2>
-          {education.map((e, i) => (
-            <div key={i} className="flex justify-between mb-1">
-              <div>
-                <span className="font-medium">{e.college}</span>
-                <span className="text-gray-500">
-                  {" "}
-                  — {e.degree}
-                  {e.branch ? `, ${e.branch}` : ""}
-                </span>
-                {e.cgpa && (
-                  <span className="text-xs text-gray-400 ml-2">CGPA {e.cgpa}</span>
+          {sortEducation(education).map((e, i) => {
+            const instName = e.college || e.school || e.institution || "";
+            const degreeName = e.degree || (e.level === "10th" ? "10th / Secondary" : e.level === "12th" ? "12th / Senior Secondary" : "");
+            const branchName = e.branch || e.stream || e.specialization || "";
+            const branchText = branchName ? (e.level === "12th" ? ` — Stream: ${branchName}` : `, ${branchName}`) : "";
+            const scoreText = e.cgpa ? (String(e.cgpa).includes("%") ? e.cgpa : `CGPA ${e.cgpa}`) : "";
+            const yearText = e.startYear && e.endYear ? `${e.startYear}–${e.endYear}` : (e.endYear || e.passingYear || e.startYear || "");
+
+            return (
+              <div key={i} className="flex justify-between mb-1">
+                <div>
+                  <span className="font-medium">{instName}</span>
+                  {degreeName && (
+                    <span className="text-gray-500">
+                      {" "}
+                      — {degreeName}{branchText}
+                    </span>
+                  )}
+                  {scoreText && (
+                    <span className="text-xs text-gray-400 ml-2">{scoreText}</span>
+                  )}
+                </div>
+                {yearText && (
+                  <span className="text-xs text-gray-400 whitespace-nowrap">
+                    {yearText}
+                  </span>
                 )}
               </div>
-              <span className="text-xs text-gray-400 whitespace-nowrap">
-                {e.startYear}–{e.endYear}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </section>
       )}
 

@@ -1,13 +1,21 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import InternshipDiscoveryMenu from "../internships/InternshipDiscoveryMenu";
+import NotificationInboxDrawer from "../notifications/NotificationInboxDrawer";
+import {
+  fetchNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
+  subscribeToNotifications,
+} from "../../services/notificationService";
 
 const DashboardHeader = ({
   user,
   profile,
   searchQuery,
   onSearchChange,
-  notifications = [],
+  notifications: propNotifications = [],
   onOpenMobileSidebar,
   onToggleSidebar,
   onLogout,
@@ -17,10 +25,73 @@ const DashboardHeader = ({
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
+  // Live Notification State
+  const [notifList, setNotifList] = useState([]);
+  const [liveUnreadCount, setLiveUnreadCount] = useState(0);
+
   const studentName = user?.fullName || "Student";
   const profileImage = user?.profileImage || profile?.userId?.profileImage;
   const initial = studentName.charAt(0).toUpperCase();
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  // Load notifications from API
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await fetchNotifications({ limit: 30 });
+      if (data?.notifications) {
+        setNotifList(data.notifications);
+        setLiveUnreadCount(data.unreadCount || 0);
+      }
+    } catch (err) {
+      console.warn("Could not load notifications:", err.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+
+    // Subscribe to real-time SSE notification stream
+    const unsubscribe = subscribeToNotifications((newNotif) => {
+      setNotifList((prev) => [newNotif, ...prev.filter((item) => (item._id || item.id) !== (newNotif._id || newNotif.id))]);
+      setLiveUnreadCount((c) => c + 1);
+    });
+
+    return () => unsubscribe();
+  }, [loadNotifications]);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifList((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setLiveUnreadCount(0);
+    } catch (e) {
+      console.warn("Failed to mark all read:", e);
+    }
+  };
+
+  const handleNotificationClick = async (notif) => {
+    try {
+      if (!notif.isRead) {
+        await markNotificationRead(notif._id || notif.id);
+        setNotifList((prev) =>
+          prev.map((n) =>
+            (n._id || n.id) === (notif._id || notif.id) ? { ...n, isRead: true } : n
+          )
+        );
+        setLiveUnreadCount((c) => Math.max(0, c - 1));
+      }
+    } catch (e) {
+      console.warn("Failed to mark read:", e);
+    }
+  };
+
+  const handleDeleteNotif = async (id) => {
+    try {
+      await deleteNotification(id);
+      setNotifList((prev) => prev.filter((n) => (n._id || n.id) !== id));
+    } catch (e) {
+      console.warn("Failed to delete notification:", e);
+    }
+  };
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -91,46 +162,30 @@ const DashboardHeader = ({
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setShowNotifs((v) => !v)}
-              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
-              aria-label="Notifications"
+              className="relative p-2.5 rounded-2xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition"
+              aria-label="Notification Inbox"
+              title="Notification Inbox"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-blue-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center animate-pulse">
-                  {unreadCount}
+              {liveUnreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-rose-600 text-white rounded-full text-[10px] font-black flex items-center justify-center animate-pulse shadow-xs">
+                  {liveUnreadCount > 9 ? "9+" : liveUnreadCount}
                 </span>
               )}
             </button>
 
-            {showNotifs && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <span className="text-sm font-bold text-slate-900">Notifications</span>
-                  <span className="text-[11px] font-semibold text-blue-600 cursor-pointer hover:underline">
-                    Mark all read
-                  </span>
-                </div>
-                <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto mt-2">
-                  {notifications.length > 0 ? (
-                    notifications.map((n) => (
-                      <div key={n.id} className="py-3 first:pt-1 last:pb-1">
-                        <div className="flex justify-between items-start gap-2">
-                          <h4 className="text-xs font-bold text-slate-900">{n.title}</h4>
-                          <span className="text-[10px] text-slate-400 shrink-0">{n.date}</span>
-                        </div>
-                        <p className="text-xs text-slate-600 mt-1">{n.message}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="py-6 text-center text-xs text-slate-400">
-                      No notifications yet
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            <NotificationInboxDrawer
+              isOpen={showNotifs}
+              onClose={() => setShowNotifs(false)}
+              notifications={notifList}
+              unreadCount={liveUnreadCount}
+              onNotificationClick={handleNotificationClick}
+              onMarkAllRead={handleMarkAllRead}
+              onDeleteNotification={handleDeleteNotif}
+              onRefresh={loadNotifications}
+            />
           </div>
 
           {/* User Profile Avatar & Menu */}

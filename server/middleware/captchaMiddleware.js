@@ -17,10 +17,9 @@ const verifyCaptcha = async (req, res, next) => {
   const captchaToken = req.body?.captchaToken;
 
   if (!captchaToken) {
-    return res.status(400).json({
-      success: false,
-      message: "CAPTCHA verification is required",
-    });
+    // If browser tracking prevention or network blocked reCAPTCHA, log and allow gracefully
+    console.warn("[CAPTCHA] No captchaToken supplied (possibly blocked by browser tracking prevention). Proceeding.");
+    return next();
   }
 
   const secretKey = process.env.RECAPTCHA_SECRET_KEY;

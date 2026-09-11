@@ -24,6 +24,8 @@ import CertificationsCard from "../../components/student-dashboard/Certification
 import InternshipRecommendationsCard from "../../components/student-dashboard/InternshipRecommendationsCard";
 import JobRecommendationsCard from "../../components/student-dashboard/JobRecommendationsCard";
 import CourseRecommendationsCard from "../../components/student-dashboard/CourseRecommendationsCard";
+import InternshalaDashboardRecommendations from "../../components/student-dashboard/InternshalaDashboardRecommendations";
+// import StudentCoursesPage from "../courses/StudentCoursesPage";
 import ApplicationTrackerCard from "../../components/student-dashboard/ApplicationTrackerCard";
 import SavedOpportunitiesCard from "../../components/student-dashboard/SavedOpportunitiesCard";
 import UpcomingDeadlinesCard from "../../components/student-dashboard/UpcomingDeadlinesCard";
@@ -34,6 +36,7 @@ import QuickActionsCard from "../../components/student-dashboard/QuickActionsCar
 import Internships from "./Internships";
 import InternshipDetail from "./InternshipDetail";
 import MyApplications from "./MyApplications";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import Jobs from "./Jobs";
 
 // Courses module (embedded)
@@ -50,6 +53,8 @@ const StudentDashboard = () => {
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [selectedOpportunityForTailoring, setSelectedOpportunityForTailoring] = useState(null);
+  const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -147,36 +152,34 @@ const StudentDashboard = () => {
     }
   };
 
-  const handleApply = async (item) => {
-    try {
-      const res = await applyOpportunity({
-        opportunityId: item._id || item.id,
-        jobId: item._id || item.id,
-        title: item.title,
-        company: item.company || item.companyName,
-        type: item.type || "Internship",
-      });
+  const handleApply = (item) => {
+    setSelectedOpportunityForTailoring({
+      _id: item._id || item.id,
+      id: item._id || item.id,
+      title: item.title,
+      company: item.company || item.companyName,
+      companyName: item.company || item.companyName,
+      type: item.type || "Internship",
+      opportunityType: (item.type?.toLowerCase().includes("intern") || !item.type) ? "Internship" : "Job",
+      description: item.description || item.aboutRole || "",
+      requirements: item.requirements || [],
+      skillsRequired: item.skillsRequired || item.skills || [],
+    });
+    setIsTailoredModalOpen(true);
+  };
 
-      if (res?.success && res?.application) {
-        setApplicationsData((prev) => {
-          if (!prev) return { stats: { applied: 1 }, recent: [res.application] };
-          return {
-            stats: {
-              ...prev.stats,
-              applied: (prev.stats?.applied || 0) + 1,
-            },
-            recent: [res.application, ...(prev.recent || [])],
-          };
-        });
-        showToast(res.message || `Applied for "${item.title}"!`, "success");
-      }
-    } catch (err) {
-      const errMsg =
-        err.response?.data?.message ||
-        err.message ||
-        "Application could not be submitted.";
-      showToast(errMsg, "error");
-    }
+  const handleApplicationSuccess = (application) => {
+    setApplicationsData((prev) => {
+      if (!prev) return { stats: { applied: 1 }, recent: [application] };
+      return {
+        stats: {
+          ...prev.stats,
+          applied: (prev.stats?.applied || 0) + 1,
+        },
+        recent: [application, ...(prev.recent || [])],
+      };
+    });
+    showToast(`Applied for "${selectedOpportunityForTailoring?.title || "opportunity"}"!`, "success");
   };
 
   const filteredInternships = useMemo(() => {
@@ -297,90 +300,17 @@ const StudentDashboard = () => {
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-7 max-w-7xl w-full mx-auto">
-          {/* Quick actions only on home dashboard */}
-          {activeTab === "dashboard" && (
-            <QuickActionsCard onNavigateTab={handleSelectTab} />
-          )}
-
           {/* ================= DASHBOARD HOME ================= */}
           {activeTab === "dashboard" && (
-            <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ProfileCompletionCard
-                  profile={profile}
-                  user={user}
-                  completion={profileCompletion}
-                />
-                <CareerReadinessCard readiness={careerReadiness} />
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ProfileSummaryCard user={user} profile={profile} />
-                <EducationSummaryCard education={education} />
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SkillsSectionCard
-                  technicalSkills={technicalSkills}
-                  softSkills={softSkills}
-                />
-                <SkillGapCard skillGap={skillGap} />
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ResumeStatusCard resume={resume} profile={profile} />
-                <CareerGoalCard
-                  careerGoal={careerGoal}
-                  preferences={jobPreferences}
-                />
-              </div>
-
-              <ProjectsPortfolioCard projects={projects} />
-              <CertificationsCard certifications={certifications} />
-
-              <InternshipRecommendationsCard
-                internships={filteredInternships}
-                onSave={handleSaveToggle}
-                onApply={handleApply}
-                savedIds={savedIds}
-                onViewAll={() => handleSelectTab("internships")}
-              />
-
-              <JobRecommendationsCard
-                jobs={filteredJobs}
-                onSave={handleSaveToggle}
-                onApply={handleApply}
-                savedIds={savedIds}
-                onViewAll={() => handleSelectTab("jobs")}
-              />
-
-              <CourseRecommendationsCard
-                courses={filteredCourses}
-                onViewAll={() => handleSelectTab("courses")}
-                onSelectCourse={(id) => {
-                  setSelectedCourseId(id);
-                  setCoursesView("detail");
-                  setActiveTab("courses");
-                }}
-              />
-
-              <ApplicationTrackerCard
-                applications={applicationsData}
-                onViewAll={() => handleSelectTab("applications")}
-              />
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SavedOpportunitiesCard
-                  savedItems={savedList}
-                  onRemove={(id) => {
-                    setSavedIds((prev) => prev.filter((item) => item !== id));
-                    setSavedList((prev) => prev.filter((item) => item.id !== id));
-                  }}
-                  onApply={handleApply}
-                />
-                <UpcomingDeadlinesCard deadlines={upcomingDeadlines} />
-              </div>
-            </>
+            <InternshalaDashboardRecommendations
+              jobs={filteredJobs}
+              internships={filteredInternships}
+              courses={filteredCourses}
+              savedIds={savedIds}
+              onSave={handleSaveToggle}
+              onApply={handleApply}
+              onNavigateTab={handleSelectTab}
+            />
           )}
 
           {/* ================= RESUME ================= */}
@@ -445,15 +375,13 @@ const StudentDashboard = () => {
 
           {/* ================= JOBS (full module) ================= */}
           {activeTab === "jobs" && (
-            <div className="animate-fade-in">
-              <Jobs
-                embedded
-                studentProfile={profile}
-                onApply={handleApply}
-                onSave={handleSaveToggle}
-                savedIds={savedIds}
-              />
-            </div>
+            <JobRecommendationsCard
+              jobs={filteredJobs}
+              onSave={handleSaveToggle}
+              onApply={handleApply}
+              savedIds={savedIds}
+              limit={0}
+            />
           )}
 
           {/* ================= COURSES (full module) ================= */}
@@ -558,6 +486,17 @@ const StudentDashboard = () => {
           )}
         </main>
       </div>
+
+      {/* Tailored Resume Application Modal */}
+      <TailoredResumeApplicationModal
+        isOpen={isTailoredModalOpen}
+        onClose={() => {
+          setIsTailoredModalOpen(false);
+          setSelectedOpportunityForTailoring(null);
+        }}
+        opportunity={selectedOpportunityForTailoring}
+        onAppliedSuccess={handleApplicationSuccess}
+      />
 
       {/* Toast */}
       {toast && (

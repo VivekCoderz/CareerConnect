@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getById } from "../../services/internshipService";
 import { applyToInternship } from "../../services/applicationService";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { getStudentProfile } from "../../services/studentProfileService";
 import ResumeUploadInput from "../../components/common/ResumeUploadInput";
 
@@ -16,6 +17,9 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
   const [error, setError] = useState("");
   const [applying, setApplying] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
+  const [coverNote, setCoverNote] = useState("");
+  const [resumeUrl, setResumeUrl] = useState("");
+  const [isTailorModalOpen, setIsTailorModalOpen] = useState(false);
 
   // Comprehensive student form fields
   const [formData, setFormData] = useState({
@@ -543,6 +547,17 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
           </section>
         </div>
       </div>
+
+      <TailoredResumeApplicationModal
+        isOpen={isTailorModalOpen}
+        onClose={() => setIsTailorModalOpen(false)}
+        opportunity={internship}
+        opportunityType="Internship"
+        onApplicationSubmitted={() => {
+          setSuccessMsg("Application submitted successfully with your tailored resume!");
+          setIsTailorModalOpen(false);
+        }}
+      />
     </>
   );
 
