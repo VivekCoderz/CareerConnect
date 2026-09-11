@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useSelector,useDispatch } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../components/jobs/JobDiscoveryMenu";
 import { getDashboardPath } from "../utils/dashboardRedirect";
