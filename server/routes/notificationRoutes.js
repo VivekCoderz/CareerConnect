@@ -1,62 +1,51 @@
 const express = require("express");
 const router = express.Router();
+const notificationController = require("../controllers/notificationController");
 const protect = require("../middleware/authMiddleware");
-const notificationService = require("../services/notificationService");
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
-/**
- * GET /api/notifications
- * Get authenticated user's notifications and unread count
- */
-router.get("/", protect, async (req, res, next) => {
+// Optional auth helper for SSE stream where cookies or query token might be passed
+const authOrQuery = async (req, res, next) => {
   try {
-    const { limit, page, unreadOnly } = req.query;
-    const result = await notificationService.getUserNotifications(req.user._id, {
-      limit: limit ? Number(limit) : 30,
-      page: page ? Number(page) : 1,
-      unreadOnly: unreadOnly === "true",
-    });
-    return res.status(200).json(result);
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * PATCH /api/notifications/read-all
- * Mark all notifications for the authenticated user as read
- */
-router.patch("/read-all", protect, async (req, res, next) => {
-  try {
-    await notificationService.markAllAsRead(req.user._id);
-    return res.status(200).json({
-      success: true,
-      message: "All notifications marked as read",
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * PATCH /api/notifications/:id/read
- * Mark a specific notification as read
- */
-router.patch("/:id/read", protect, async (req, res, next) => {
-  try {
-    const notif = await notificationService.markAsRead(req.params.id, req.user._id);
-    if (!notif) {
-      return res.status(404).json({
-        success: false,
-        message: "Notification not found",
-      });
+    if (req.session?.user?.userId) {
+      const user = await User.findById(req.session.user.userId).select("-password");
+      if (user) {
+        req.user = user;
+        return next();
+      }
     }
-    return res.status(200).json({
-      success: true,
-      notification: notif,
-    });
-  } catch (error) {
-    next(error);
+
+    const token = req.cookies?.token || req.headers.authorization?.split(" ")[1] || req.query.token;
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_secret_key");
+      const user = await User.findById(decoded.id || decoded.userId).select("-password");
+      if (user) {
+        req.user = user;
+      }
+    }
+  } catch (e) {
+    // allow fallback for public broadcast stream
   }
-});
+  next();
+};
+
+// Real-time SSE stream endpoint
+router.get("/stream", authOrQuery, notificationController.streamNotifications);
+
+// Protected notification management routes
+router.use(protect);
+
+router.get("/", notificationController.getNotifications);
+router.get("/:id", notificationController.getNotificationById);
+
+// Support both PUT and PATCH for read operations
+router.put("/read-all", notificationController.markAllAsRead);
+router.patch("/read-all", notificationController.markAllAsRead);
+
+router.put("/:id/read", notificationController.markAsRead);
+router.patch("/:id/read", notificationController.markAsRead);
+
+router.delete("/:id", notificationController.deleteNotification);
 
 module.exports = router;

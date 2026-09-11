@@ -64,6 +64,15 @@ exports.createInternship = async (req, res, next) => {
       status: req.body.status || "Published",
     });
 
+    // Real-time Mail Notification trigger
+    if (internship.status === "Published") {
+      try {
+        const { createOpportunityNotification } = require("../services/notificationService");
+        createOpportunityNotification({ type: "internship", item: internship });
+      } catch (notifErr) {
+        console.warn("Notification dispatch failed for new internship:", notifErr.message);
+      }
+    }
     clearSearchCache();
 
     return res.status(201).json({
@@ -98,7 +107,7 @@ exports.getInternships = async (req, res, next) => {
       status,
       sort = "latest",
       page = 1,
-      limit = 20,
+      limit = 10,
       program,
       specialization,
       opportunityType,
@@ -122,11 +131,30 @@ exports.getInternships = async (req, res, next) => {
           search,
           q,
         });
+
+        const liveList = [...(results.data || [])];
+        liveList.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+
+        const lPageNum = Math.max(1, parseInt(page, 10) || 1);
+        const lPageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+        const lTotal = liveList.length;
+        const lPaginated = liveList.slice((lPageNum - 1) * lPageSize, lPageNum * lPageSize);
+
         return res.status(200).json({
           success: true,
-          count: results.count,
-          data: results.data,
-          internships: results.data,
+          count: lPaginated.length,
+          data: lPaginated,
+          internships: lPaginated,
+          pagination: {
+            total: lTotal,
+            page: lPageNum,
+            limit: lPageSize,
+            totalPages: Math.ceil(lTotal / lPageSize) || 1,
+          },
           source: results.source,
         });
       } catch (aggError) {
@@ -251,7 +279,8 @@ exports.getInternships = async (req, res, next) => {
     if (sort === "deadline") sortOption = { deadline: 1 };
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const skip = (pageNum - 1) * pageSize;
 
     // 1. Fetch Campus Internships from MongoDB (unless source is explicitly "external")
     let campusList = [];
@@ -266,6 +295,7 @@ exports.getInternships = async (req, res, next) => {
           Internship.find(filter)
             .populate("employerId", "companyName logo headquarters website industry description")
             .sort(sortOption)
+            .limit(200)
             .lean(),
           myPosts !== "true"
             ? Job.find(jobInternFilter)
@@ -371,7 +401,7 @@ exports.getInternships = async (req, res, next) => {
             companyName: item.company,
             companyId: "",
             logo: "",
-            location: item.location,
+            location: item.location || "Remote",
             city: item.location?.split(",")[0]?.trim() || "Delhi NCR",
             category: category && category !== "All" ? category : "Software Development",
             subCategory: "Engineering",

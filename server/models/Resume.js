@@ -32,6 +32,32 @@ const resumeSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    targetJobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Job",
+      default: null,
+      index: true,
+    },
+    targetInternshipId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Internship",
+      default: null,
+      index: true,
+    },
+    opportunityType: {
+      type: String,
+      enum: ["Job", "Internship", null],
+      default: null,
+    },
+    targetOpportunityTitle: {
+      type: String,
+      default: "",
+    },
+    isTailored: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   { timestamps: true }
 );

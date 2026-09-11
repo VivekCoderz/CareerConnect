@@ -1,30 +1,35 @@
-const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], onViewAll }) => {
+import { Link } from "react-router-dom";
+
+const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], limit = 1 }) => {
+  const displayedJobs = limit ? jobs.slice(0, limit) : jobs;
+
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs">
-      <div className="flex justify-between items-center mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-slate-900">Recommended Jobs</h2>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-              {jobs.length} Opportunities
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xl">🔥</span>
+            <h2 className="text-lg font-bold text-slate-900">Trending & Recommended Job</h2>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+              Top #1 Pick
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">Entry-level & campus hiring opportunities</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Top trending full-time opportunity curated for entry-level and campus graduates
+          </p>
         </div>
-        {onViewAll && (
-          <button
-            type="button"
-            onClick={onViewAll}
-            className="text-xs font-bold text-[#1e3a8a] hover:text-[#1e40af] transition"
-          >
-            View All Jobs →
-          </button>
-        )}
+        <Link
+          to="/jobs"
+          className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 transition whitespace-nowrap self-start sm:self-center"
+        >
+          <span>Explore All Jobs</span>
+          <span>&rarr;</span>
+        </Link>
       </div>
 
-      {jobs && jobs.length > 0 ? (
+      {displayedJobs && displayedJobs.length > 0 ? (
         <div className="space-y-4">
-          {jobs.map((job) => {
+          {displayedJobs.map((job) => {
             const isSaved = savedIds.includes(job.id);
             return (
               <div
@@ -33,6 +38,9 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], onV
               >
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                      🔥 Trending Now
+                    </span>
                     <h3 className="text-base font-bold text-slate-900">{job.title}</h3>
                     <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
                       {job.type} • {job.workMode}

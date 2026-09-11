@@ -419,6 +419,19 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       );
     }
 
+    // Fallback sync: if profile has no resumeUrl, but req.user has resumeUrl, sync it now
+    if ((!profile.resume || !profile.resume.resumeUrl) && req.user?.resumeUrl) {
+      profile.resume = {
+        resumeUrl: req.user.resumeUrl,
+        resumeName: req.user.resumeName || "Uploaded Resume.pdf",
+        uploadedAt: new Date(),
+        isGenerated: false,
+      };
+      await FresherProfile.findByIdAndUpdate(profile._id, {
+        $set: { resume: profile.resume },
+      });
+    }
+
     const completion = calculateFresherProfileCompletion(profile, req.user);
     const readiness = calculateFresherJobReadiness(profile, completion);
 
@@ -499,13 +512,13 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     });
 
     let finalRecommendedJobs = recommendedJobs;
-    if (finalRecommendedJobs.length === 0) {
+    if (finalRecommendedJobs.length < 10) {
       try {
         const scraped = await getAggregatedOpportunities({
           opportunityType: "all",
           search: profile.targetRole || "Software Developer",
         });
-        finalRecommendedJobs = (scraped.data || []).slice(0, 25).map((job, idx) => ({
+        const mappedJobs = (scraped.data || []).slice(0, 20).map((job, idx) => ({
           _id: `scraped-fresher-job-${idx}`,
           id: `scraped-fresher-job-${idx}`,
           jobId: `scraped-fresher-job-${idx}`,
@@ -518,26 +531,27 @@ module.exports.getFresherDashboard = async (req, res, next) => {
           experienceRequired: "Fresher / 0-1 Yr",
           skillsRequired: [job.title.split(" ")[0] || "Engineering", "Problem Solving"],
           postedAt: job.postedDate || "Recently",
-          deadline: "Open",
+          deadline: "Open until filled",
           matchPercentage: calculateJobMatch(profile, [job.title.split(" ")[0] || "Development"], job.title),
           applyLink: job.applyLink,
           applyUrl: job.applyLink,
           isExternal: true,
           platformSource: job.platformSource,
         }));
+        finalRecommendedJobs = [...recommendedJobs, ...mappedJobs];
       } catch (e) {
         console.warn("Fresher scraped jobs fallback error:", e.message);
       }
     }
 
     let finalRecommendedInternships = recommendedInternships;
-    if (finalRecommendedInternships.length === 0) {
+    if (finalRecommendedInternships.length < 10) {
       try {
         const scraped = await getAggregatedOpportunities({
           opportunityType: "internship",
           search: profile.targetRole || "Developer",
         });
-        finalRecommendedInternships = (scraped.data || []).slice(0, 25).map((job, idx) => ({
+        const mappedInt = (scraped.data || []).slice(0, 20).map((job, idx) => ({
           _id: `scraped-fresher-int-${idx}`,
           id: `scraped-fresher-int-${idx}`,
           jobId: `scraped-fresher-int-${idx}`,
@@ -555,6 +569,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
           isExternal: true,
           platformSource: job.platformSource,
         }));
+        finalRecommendedInternships = [...recommendedInternships, ...mappedInt];
       } catch (e) {
         console.warn("Fresher scraped internships fallback error:", e.message);
       }

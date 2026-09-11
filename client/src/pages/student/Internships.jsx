@@ -9,28 +9,53 @@ export default function Internships({
 }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [q, setQ] = useState("");
   const [source, setSource] = useState("");
   const [workMode, setWorkMode] = useState("");
 
+  const fetchList = async (pageToFetch = currentPage) => {
+    try {
+      setLoading(true);
+      const params = {
+        opportunityType: "internship",
+        page: pageToFetch,
+        limit: 10,
+      };
+      if (q) params.q = q;
+      if (source) params.source = source;
+      if (workMode) params.workMode = workMode;
+      const res = await getInternships(params);
+      const items = res?.internships || res?.data || [];
+      setList(items);
+      const total = res?.pagination?.total ?? items.length;
+      setTotalCount(total);
+      setTotalPages(res?.pagination?.totalPages || Math.ceil(total / 10) || 1);
+    } catch {
+      setList([]);
+      setTotalCount(0);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const t = setTimeout(async () => {
-      try {
-        setLoading(true);
-        const params = { opportunityType: "internship" };
-        if (q) params.q = q;
-        if (source) params.source = source;
-        if (workMode) params.workMode = workMode;
-        const res = await getInternships(params);
-        setList(res?.internships || []);
-      } catch {
-        setList([]);
-      } finally {
-        setLoading(false);
-      }
+    const t = setTimeout(() => {
+      setCurrentPage(1);
+      fetchList(1);
     }, 300);
     return () => clearTimeout(t);
   }, [q, source, workMode]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+      fetchList(newPage);
+    }
+  };
 
   const openDetail = (id) => {
     if (onSelectInternship) onSelectInternship(id);
@@ -116,7 +141,7 @@ export default function Internships({
 
       {!loading && (
         <p className="text-xs font-semibold text-slate-500 mb-4">
-          {list.length} internship{list.length !== 1 ? "s" : ""} found
+          Showing <span className="text-slate-900 font-bold">{totalCount > 0 ? `${((currentPage - 1) * 10) + 1}–${Math.min(currentPage * 10, totalCount)} of ${totalCount}` : list.length}</span> internship{totalCount !== 1 ? "s" : ""}
         </p>
       )}
 
@@ -213,6 +238,65 @@ export default function Internships({
               </div>
             </article>
           ))}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+          <p className="text-xs font-semibold text-slate-500">
+            Page <span className="text-slate-900 font-bold">{currentPage}</span> of <span className="text-slate-900 font-bold">{totalPages}</span>
+          </p>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage <= 1 || loading}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+            >
+              ← Previous
+            </button>
+
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                .reduce((acc, p, idx, arr) => {
+                  if (idx > 0 && p - arr[idx - 1] > 1) {
+                    acc.push("...");
+                  }
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, idx) =>
+                  p === "..." ? (
+                    <span key={`dots-${idx}`} className="px-2 text-slate-400 text-xs font-bold select-none">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => handlePageChange(p)}
+                      disabled={loading}
+                      className={`min-w-[36px] h-9 px-2.5 rounded-xl text-xs font-bold transition ${
+                        currentPage === p
+                          ? "bg-[#1e3a8a] text-white shadow-xs"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+            </div>
+
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages || loading}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+            >
+              Next →
+            </button>
+          </div>
         </div>
       )}
     </>

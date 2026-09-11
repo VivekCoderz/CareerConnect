@@ -41,6 +41,13 @@ router.post(
 // ==========================================
 // Called after Google user has: set password → selected role → fills profile info
 router.post(
+  "/google-onboarding",
+  authMiddleware,
+  sanitizeInputs,
+  authControllers.completeGoogleOnboarding
+);
+
+router.post(
   "/complete-google-onboarding",
   authMiddleware,
   sanitizeInputs,

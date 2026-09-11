@@ -151,6 +151,29 @@ const applicationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    stageHistory: [
+      {
+        stage: String,
+        notes: String,
+        changedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        changedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    matchScore: {
+      type: mongoose.Schema.Types.Mixed,
+    },
+
+    matchingDetails: {
+      type: mongoose.Schema.Types.Mixed,
+    },
   },
   { timestamps: true }
 );

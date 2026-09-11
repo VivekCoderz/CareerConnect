@@ -1,28 +1,43 @@
+import { Link } from "react-router-dom";
+
 const InternshipRecommendationsCard = ({
   internships = [],
   onSave,
   onApply,
   savedIds = [],
+  onViewAll,
+  limit = 1,
 }) => {
+  const displayedInternships = limit ? internships.slice(0, limit) : internships;
+
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs">
-      <div className="flex justify-between items-center mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-slate-900">Recommended Internships</h2>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
-              {internships.length} Matched
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xl">🔥</span>
+            <h2 className="text-lg font-bold text-slate-900">Trending & Recommended Internship</h2>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+              Top #1 Pick
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Internships tailored to your engineering branch, year, and skill proficiencies
+          <p className="text-xs text-slate-500 mt-1">
+            Top trending internship tailored to your branch, year, and skill proficiencies
           </p>
         </div>
+        <Link
+          to="/internships"
+          onClick={onViewAll}
+          className="text-xs font-bold text-[#1e3a8a] hover:text-blue-700 flex items-center gap-1.5 transition whitespace-nowrap self-start sm:self-center"
+        >
+          <span>Explore All Internships</span>
+          <span>&rarr;</span>
+        </Link>
       </div>
 
-      {internships && internships.length > 0 ? (
+      {displayedInternships && displayedInternships.length > 0 ? (
         <div className="space-y-4">
-          {internships.map((int) => {
+          {displayedInternships.map((int) => {
             const isSaved = savedIds.includes(int.id);
             return (
               <div
@@ -31,6 +46,9 @@ const InternshipRecommendationsCard = ({
               >
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                      🔥 Trending Now
+                    </span>
                     <h3 className="text-base font-bold text-slate-900">{int.title}</h3>
                     <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
                       {int.workMode}

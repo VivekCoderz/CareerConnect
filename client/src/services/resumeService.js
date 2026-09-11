@@ -11,11 +11,13 @@ export const generateResumeAPI = async (
   rawData,
   template,
   syncProfile = false,
+  resumeId = null,
 ) => {
   const res = await api.post("/resume/generate", {
     rawData,
     template,
     syncProfile,
+    resumeId,
   });
   return res.data;
 };
@@ -23,10 +25,11 @@ export const generateResumeAPI = async (
 /**
  * Update resume based on user instruction
  */
-export const updateResumeAPI = async (currentResume, instruction) => {
+export const updateResumeAPI = async (currentResume, instruction, resumeId = null) => {
   const res = await api.post("/resume/update", {
     currentResume,
     instruction,
+    resumeId,
   });
   return res.data;
 };
@@ -109,6 +112,46 @@ export const setPrimaryResumeAPI = async (id) => {
  */
 export const deleteResumeAPI = async (id) => {
   const res = await api.delete(`/resume/${id}`);
+  return res.data;
+};
+
+/**
+ * Upload and parse resume PDF with AI
+ */
+export const parseResumeAPI = async (file) => {
+  const formData = new FormData();
+  formData.append("resume", file);
+
+  const res = await api.post("/resume/parse", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+
+  return res.data;
+};
+
+/**
+ * Confirm and save verified parsed resume data into user profile
+ */
+export const confirmParsedProfileAPI = async (payload) => {
+  const res = await api.post("/resume/confirm-parsed", payload);
+  return res.data;
+};
+
+/**
+ * Generate an opportunity-tailored resume (zero hallucination, verified profile/resume data only)
+ */
+export const tailorResumeAPI = async (payload) => {
+  const res = await api.post("/resume/tailor", payload);
+  return res.data;
+};
+
+/**
+ * Fetch existing tailored resume for a specific job or internship
+ */
+export const fetchTailoredResumeAPI = async (opportunityType, id) => {
+  const res = await api.get(`/resume/tailored/${opportunityType}/${id}`);
   return res.data;
 };
 

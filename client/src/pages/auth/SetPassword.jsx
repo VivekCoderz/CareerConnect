@@ -82,7 +82,7 @@ const SetPassword = () => {
     if (user.hasPassword) {
       if (!user.phone?.trim()) {
         navigate(
-          user.role === "employer" ? "/onboarding/employer" : "/select-role",
+          user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile",
           { replace: true }
         );
       } else {
@@ -108,50 +108,57 @@ const SetPassword = () => {
     setLoading(true);
 
     try {
-      const firebaseUser = auth.currentUser;
-
-      if (!firebaseUser) {
-        setError("No active Firebase session. Please sign in with Google again.");
-        navigate("/login");
-        return;
-      }
-
-      // Step 1: Link email+password credential to the existing Firebase user.
-      // This does NOT create a new Firebase user — it adds a second provider
-      // to the same user. Firebase UID remains unchanged.
-      const credential = EmailAuthProvider.credential(
-        firebaseUser.email,
-        password
-      );
-
-      try {
-        await linkWithCredential(firebaseUser, credential);
-      } catch (linkErr) {
-        if (linkErr.code === "auth/provider-already-linked") {
-          console.info("[SetPassword] Password provider already linked, confirming with backend.");
-        } else if (linkErr.code === "auth/email-already-in-use") {
-          setError(
-            "This email already has a separate password account. Please sign in with that account or contact support."
-          );
-          setLoading(false);
-          return;
-        } else if (linkErr.code === "auth/weak-password") {
-          setError("Password is too weak. Please choose a stronger password.");
-          setLoading(false);
-          return;
-        } else {
-          console.warn("[SetPassword] Client linkWithCredential warning:", linkErr.message);
-          // Backend Firebase Admin SDK will set password directly
+      let firebaseUser = auth.currentUser;
+      if (!firebaseUser && typeof auth.authStateReady === "function") {
+        try {
+          await auth.authStateReady();
+          firebaseUser = auth.currentUser;
+        } catch (e) {
+          console.warn("[SetPassword] authStateReady wait warning:", e.message);
         }
       }
 
-      // Step 2: Get fresh Firebase ID token (force-refresh after linking)
-      const newIdToken = await firebaseUser.getIdToken(true);
+      let newIdToken = "";
 
-      // Step 3: Confirm with backend — verifies and saves password in MongoDB
+      // Step 1: Link email+password credential to the existing Firebase user if session is active
+      if (firebaseUser) {
+        const credential = EmailAuthProvider.credential(
+          firebaseUser.email || user?.email,
+          password
+        );
+
+        try {
+          await linkWithCredential(firebaseUser, credential);
+        } catch (linkErr) {
+          if (linkErr.code === "auth/provider-already-linked") {
+            console.info("[SetPassword] Password provider already linked, confirming with backend.");
+          } else if (linkErr.code === "auth/email-already-in-use") {
+            setError(
+              "This email already has a separate password account. Please sign in with that account or contact support."
+            );
+            setLoading(false);
+            return;
+          } else if (linkErr.code === "auth/weak-password") {
+            setError("Password is too weak. Please choose a stronger password.");
+            setLoading(false);
+            return;
+          } else {
+            console.warn("[SetPassword] Client linkWithCredential warning:", linkErr.message);
+            // Backend Firebase Admin SDK will set password directly
+          }
+        }
+
+        try {
+          newIdToken = await firebaseUser.getIdToken(true);
+        } catch (idTokenErr) {
+          console.warn("[SetPassword] getIdToken warning:", idTokenErr.message);
+        }
+      }
+
+      // Step 2: Confirm with backend — verifies and saves password in MongoDB
       // and Firebase Admin, sets hasPassword=true, issues full-duration JWT.
       const response = await api.post("/auth/complete-password-setup", {
-        idToken: newIdToken,
+        idToken: newIdToken || undefined,
         password,
         keepSignedIn,
       });
@@ -171,8 +178,10 @@ const SetPassword = () => {
       // - Candidates/Students → select role (Student / Fresher / Professional) -> then collect info (/onboarding/profile)
       if (updatedUser.role === "employer") {
         navigate("/onboarding/employer", { replace: true });
+      } else if (!updatedUser.phone?.trim()) {
+        navigate("/onboarding/profile", { replace: true });
       } else {
-        navigate("/select-role", { replace: true });
+        navigate(getDashboardPath(updatedUser.userType || "student", updatedUser), { replace: true });
       }
     } catch (err) {
       isSubmittingRef.current = false;
