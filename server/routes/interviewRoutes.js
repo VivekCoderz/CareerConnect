@@ -45,4 +45,7 @@ router.put("/:id/result", requireEmployer, interviewController.updateInterviewRe
 // 11. Generic Status update (backward compatibility)
 router.patch("/:id/status", requireEmployer, interviewController.updateInterviewStatus || interviewController.rescheduleInterview);
 
+// 12. Delete Interview (Drafts only; non-drafts rejected for auditability)
+router.delete("/:id", requireEmployer, interviewController.deleteInterview);
+
 module.exports = router;
