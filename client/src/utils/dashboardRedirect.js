@@ -12,6 +12,10 @@ export const getDashboardPath = (userType, user = null) => {
         userType ||
         (user?.role && user.role !== "user" ? user.role : null);
 
+  if (user?.role === "admin" || roleOrType === "admin") {
+    return "/admin/dashboard";
+  }
+
   switch (roleOrType) {
     case "employer":
       return "/employer/dashboard";

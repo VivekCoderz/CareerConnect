@@ -43,7 +43,7 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
   }
 
   // 1c. Profile information not collected yet (phone empty) → redirect to onboarding
-  if (!user.phone?.trim()) {
+  if (user.role !== "admin" && !user.phone?.trim()) {
     if (user.role === "employer") {
       return <Navigate to="/onboarding/employer" replace />;
     }
@@ -52,11 +52,13 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
 
   // 2. Determine effective role
   const effectiveRole =
-    user.role === "employer"
+    user.role === "admin"
+      ? "admin"
+      : user.role === "employer"
       ? "employer"
       : user.userType || (user.role && user.role !== "user" ? user.role : null);
 
-  const validRoles = ["student", "fresher", "professional", "employer"];
+  const validRoles = ["student", "fresher", "professional", "employer", "admin"];
   if (!effectiveRole || !validRoles.includes(effectiveRole)) {
     return <Navigate to="/select-role" replace />;
   }

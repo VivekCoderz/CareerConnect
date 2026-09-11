@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import InternshipDiscoveryMenu from "../internships/InternshipDiscoveryMenu";
+import recruitmentService from "../../services/recruitmentService";
 
 const DashboardHeader = ({
   user,
@@ -11,16 +12,87 @@ const DashboardHeader = ({
   onOpenMobileSidebar,
   onToggleSidebar,
   onLogout,
+  onNavigateTab,
 }) => {
+  const navigate = useNavigate();
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [liveNotifications, setLiveNotifications] = useState(notifications);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
   const studentName = user?.fullName || "Student";
   const profileImage = user?.profileImage || profile?.userId?.profileImage;
   const initial = studentName.charAt(0).toUpperCase();
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const fetchLiveNotifications = async () => {
+    try {
+      setLoadingNotifs(true);
+      const res = await recruitmentService.getNotifications();
+      if (res?.success && Array.isArray(res.notifications)) {
+        setLiveNotifications(res.notifications);
+      }
+    } catch (err) {
+      // Keep existing notifications on background error
+    } finally {
+      setLoadingNotifs(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveNotifications();
+    // Refresh periodically every 45s
+    const interval = setInterval(fetchLiveNotifications, 45000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (notifications && notifications.length > 0) {
+      setLiveNotifications(notifications);
+    }
+  }, [notifications]);
+
+  const unreadCount = liveNotifications.filter((n) => !n.isRead).length;
+
+  const handleMarkAllRead = async () => {
+    try {
+      setLiveNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await recruitmentService.markAllNotificationsRead();
+    } catch (err) {
+      console.error("Failed to mark all read:", err);
+    }
+  };
+
+  const handleNotificationClick = async (n) => {
+    try {
+      if (!n.isRead) {
+        setLiveNotifications((prev) =>
+          prev.map((item) => (item._id === n._id ? { ...item, isRead: true } : item))
+        );
+        await recruitmentService.markNotificationRead(n._id);
+      }
+    } catch (err) {
+      console.error("Failed to mark notification read:", err);
+    }
+
+    setShowNotifs(false);
+
+    if (
+      n.notificationType?.startsWith("INTERVIEW") ||
+      n.relatedInterviewId ||
+      n.actionUrl?.includes("interviews") ||
+      n.title?.toLowerCase().includes("interview")
+    ) {
+      if (onNavigateTab) {
+        onNavigateTab("interviews");
+      } else {
+        navigate("/student/dashboard?tab=interviews");
+      }
+    } else if (n.actionUrl) {
+      navigate(n.actionUrl);
+    }
+  };
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -90,8 +162,11 @@ const DashboardHeader = ({
           {/* Notifications Dropdown */}
           <div className="relative" ref={notifRef}>
             <button
-              onClick={() => setShowNotifs((v) => !v)}
-              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
+              onClick={() => {
+                setShowNotifs((v) => !v);
+                if (!showNotifs) fetchLiveNotifications();
+              }}
+              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
               aria-label="Notifications"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,7 +174,7 @@ const DashboardHeader = ({
               </svg>
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 w-4 h-4 bg-blue-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center animate-pulse">
-                  {unreadCount}
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </button>
@@ -107,27 +182,106 @@ const DashboardHeader = ({
             {showNotifs && (
               <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <span className="text-sm font-bold text-slate-900">Notifications</span>
-                  <span className="text-[11px] font-semibold text-blue-600 cursor-pointer hover:underline">
-                    Mark all read
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-900">Notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleMarkAllRead}
+                      className="text-[11px] font-semibold text-blue-600 cursor-pointer hover:underline"
+                    >
+                      Mark all read
+                    </button>
+                  )}
                 </div>
-                <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto mt-2">
-                  {notifications.length > 0 ? (
-                    notifications.map((n) => (
-                      <div key={n.id} className="py-3 first:pt-1 last:pb-1">
-                        <div className="flex justify-between items-start gap-2">
-                          <h4 className="text-xs font-bold text-slate-900">{n.title}</h4>
-                          <span className="text-[10px] text-slate-400 shrink-0">{n.date}</span>
+
+                <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto mt-2">
+                  {liveNotifications.length > 0 ? (
+                    liveNotifications.map((n) => {
+                      const isInterview = n.notificationType?.startsWith("INTERVIEW");
+                      const notifDate = n.createdAt
+                        ? new Date(n.createdAt).toLocaleDateString([], {
+                            month: "short",
+                            day: "numeric",
+                          })
+                        : n.date || "";
+
+                      return (
+                        <div
+                          key={n._id || n.id}
+                          onClick={() => handleNotificationClick(n)}
+                          className={`p-3 rounded-xl cursor-pointer transition flex items-start gap-2.5 ${
+                            !n.isRead
+                              ? "bg-blue-50/50 hover:bg-blue-50"
+                              : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="pt-0.5">
+                            <span
+                              className={`w-2 h-2 rounded-full block ${
+                                !n.isRead ? "bg-blue-600" : "bg-transparent"
+                              }`}
+                            />
+                          </div>
+
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <div className="flex items-center justify-between gap-1">
+                              <h4
+                                className={`text-xs truncate ${
+                                  !n.isRead
+                                    ? "font-extrabold text-slate-900"
+                                    : "font-semibold text-slate-700"
+                                }`}
+                              >
+                                {n.title}
+                              </h4>
+                              <span className="text-[10px] text-slate-400 shrink-0 font-mono">
+                                {notifDate}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                              {n.message}
+                            </p>
+                            {isInterview && (
+                              <span className="inline-block text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 mt-1">
+                                Interview Update →
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-xs text-slate-600 mt-1">{n.message}</p>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
-                    <div className="py-6 text-center text-xs text-slate-400">
-                      No notifications yet
+                    <div className="py-8 text-center space-y-1">
+                      <div className="text-2xl">🔔</div>
+                      <p className="text-xs text-slate-500 font-medium">No notifications yet</p>
                     </div>
                   )}
+                </div>
+
+                {/* Footer Quick Link */}
+                <div className="pt-3 border-t border-slate-100 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNotifs(false);
+                      if (onNavigateTab) {
+                        onNavigateTab("interviews");
+                      } else {
+                        navigate("/student/dashboard?tab=interviews");
+                      }
+                    }}
+                    className="text-xs font-bold text-[#1e3a8a] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>View Interview Schedule</span>
+                    <span>→</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -137,7 +291,7 @@ const DashboardHeader = ({
           <div className="relative" ref={profileRef}>
             <button
               onClick={() => setShowProfileMenu((v) => !v)}
-              className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 transition"
+              className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 transition cursor-pointer"
             >
               {profileImage ? (
                 <img
@@ -183,7 +337,7 @@ const DashboardHeader = ({
                       setShowProfileMenu(false);
                       onLogout();
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition text-left cursor-pointer"
                   >
                     Sign Out
                   </button>

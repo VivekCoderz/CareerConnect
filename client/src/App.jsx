@@ -56,6 +56,12 @@ import EditInternship from "./pages/employer/EditInternship";
 // Resume Builder
 import ResumeBuilder from "./pages/resume/ResumeBuilder";
 
+// Admin
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
+import NotFound from "./pages/NotFound";
+
 // Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
 
@@ -68,6 +74,9 @@ import { getDashboardPath } from "./utils/dashboardRedirect";
 const RootRoute = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
+  if (user?.role === "admin") {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
   if (user && user.hasPassword !== false && user.phone?.trim()) {
     return <Navigate to={getDashboardPath(user.userType, user)} replace />;
   }
@@ -77,6 +86,9 @@ const RootRoute = () => {
 const PublicOnlyRoute = ({ children }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
+  if (user?.role === "admin") {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
   if (user && user.hasPassword !== false && user.phone?.trim()) {
     return <Navigate to={getDashboardPath(user.userType, user)} replace />;
   }
@@ -294,13 +306,30 @@ function App() {
           </Route>
 
           {/* =================================================
+              ADMIN AUTHENTICATION & DASHBOARD
+          ================================================= */}
+          {/* Public Admin Login only */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+
+          {/* 404 Security: /admin and public-facing fake routes return generic 404 */}
+          <Route path="/admin" element={<NotFound />} />
+          <Route path="/admin/register" element={<NotFound />} />
+          <Route path="/admin/signup" element={<NotFound />} />
+          <Route path="/admin/create" element={<NotFound />} />
+
+          {/* Strictly Protected Admin Dashboard */}
+          <Route element={<AdminProtectedRoute />}>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          </Route>
+
+          {/* =================================================
               RESUME BUILDER
           ================================================= */}
           <Route path="/resume-builder" element={<ResumeBuilder />} />
 
-          {/* ========== DEFAULT ========== */}
+          {/* ========== DEFAULT & 404 ========== */}
           <Route path="/" element={<Home />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </AuthInitializer>
     </BrowserRouter>
