@@ -36,6 +36,7 @@ app.set("trust proxy", 1);
 
 // Allowed origins for CORS (loaded from CLIENT_URL in .env + local development fallbacks)
 const allowedOrigins = [
+    "https://careerconnect-v1.vercel.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
