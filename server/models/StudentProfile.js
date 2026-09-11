@@ -8,15 +8,15 @@ const educationSchema = new mongoose.Schema(
   {
     institution: {
       type: String,
-      required: [true, "Institution name is required"],
       trim: true,
+      default: "Institution",
       maxlength: [150, "Institution name cannot exceed 150 characters"],
     },
 
     degree: {
       type: String,
-      required: [true, "Degree is required"],
       trim: true,
+      default: "Degree",
       maxlength: [100, "Degree cannot exceed 100 characters"],
     },
 
@@ -75,9 +75,9 @@ const projectSchema = new mongoose.Schema(
 
     description: {
       type: String,
-      required: [true, "Project description is required"],
       trim: true,
-      maxlength: [1500, "Project description cannot exceed 1500 characters"],
+      default: "",
+      maxlength: [3000, "Project description cannot exceed 3000 characters"],
     },
 
     technologies: [
@@ -137,8 +137,8 @@ const certificationSchema = new mongoose.Schema(
 
     issuingOrganization: {
       type: String,
-      required: [true, "Issuing organization is required"],
       trim: true,
+      default: "Independent",
       maxlength: [150, "Organization name cannot exceed 150 characters"],
     },
 
@@ -218,15 +218,15 @@ const experienceSchema = new mongoose.Schema(
   {
     organization: {
       type: String,
-      required: [true, "Organization name is required"],
       trim: true,
+      default: "Organization",
       maxlength: [150, "Organization name cannot exceed 150 characters"],
     },
 
     role: {
       type: String,
-      required: [true, "Role is required"],
       trim: true,
+      default: "Intern",
       maxlength: [100, "Role cannot exceed 100 characters"],
     },
 
@@ -330,7 +330,7 @@ const studentProfileSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
-      maxlength: [500, "Bio cannot exceed 500 characters"],
+      maxlength: [2000, "Bio cannot exceed 2000 characters"],
     },
 
     // ==================================================

@@ -36,30 +36,30 @@ export default function OpportunitiesPage() {
   const [specialization, setSpecialization] = useState(
     searchParams.get("specialization") || "all"
   );
-  const [opportunityType, setOpportunityType] = useState(
-    searchParams.get("type") || searchParams.get("opportunityType") || "all"
-  );
+  const getInitialOppType = () => {
+    const raw = (searchParams.get("type") || searchParams.get("opportunityType") || "all").toLowerCase().replace(/[-_ ]/g, "");
+    if (raw === "job" || raw === "fulltime") return "fulltime";
+    if (raw === "internship" || raw === "intern") return "internship";
+    if (raw === "parttime") return "parttime";
+    return "all";
+  };
+  const getInitialWorkMode = () => {
+    if (searchParams.get("remote") === "true") return "Remote";
+    return searchParams.get("workMode") || "all";
+  };
+
+  const [opportunityType, setOpportunityType] = useState(getInitialOppType);
   const [source, setSource] = useState(searchParams.get("source") || "all");
   const [region, setRegion] = useState(searchParams.get("region") || "all");
-  const [workMode, setWorkMode] = useState(searchParams.get("workMode") || "all");
+  const [workMode, setWorkMode] = useState(getInitialWorkMode);
   const [scope, setScope] = useState(searchParams.get("scope") || "all");
 
   // Data States
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [appliedMap, setAppliedMap] = useState({});
-  const [selectedOpportunity, setSelectedOpportunity] = useState(null);
-  const [applying, setApplying] = useState(false);
-  const [coverNote, setCoverNote] = useState("");
-  const [appFormData, setAppFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    education: "",
-    skills: "",
-    experience: "",
-    resumeUrl: "",
-  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [metadata, setMetadata] = useState({
     programs: [],
     specializations: [],
@@ -110,7 +110,7 @@ export default function OpportunitiesPage() {
   }, []);
 
   // Fetch Opportunities
-  const fetchOpportunities = async () => {
+  const fetchOpportunities = async (pageToFetch = currentPage) => {
     try {
       setLoading(true);
       const params = {
@@ -121,18 +121,27 @@ export default function OpportunitiesPage() {
         region: region !== "all" ? region : undefined,
         workMode: workMode !== "all" ? workMode : undefined,
         scope: scope !== "all" ? scope : undefined,
-        search: searchQuery.trim() || undefined
+        search: searchQuery.trim() || undefined,
+        page: pageToFetch,
+        limit: 10,
       };
 
       const res = await opportunityService.getOpportunities(params);
       if (res?.success && Array.isArray(res.data)) {
         setOpportunities(res.data);
+        const total = res.pagination?.total ?? res.count ?? res.data.length;
+        setTotalCount(total);
+        setTotalPages(res.pagination?.totalPages || Math.ceil(total / 10) || 1);
       } else {
         setOpportunities([]);
+        setTotalCount(0);
+        setTotalPages(1);
       }
     } catch (error) {
       console.error("Failed to load opportunities:", error);
       setOpportunities([]);
+      setTotalCount(0);
+      setTotalPages(1);
       showToast("Unable to fetch live opportunities at the moment", "error");
     } finally {
       setLoading(false);
@@ -140,12 +149,22 @@ export default function OpportunitiesPage() {
   };
 
   useEffect(() => {
-    fetchOpportunities();
+    setCurrentPage(1);
+    fetchOpportunities(1);
   }, [program, specialization, opportunityType, source, region, workMode, scope]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+      fetchOpportunities(newPage);
+      window.scrollTo({ top: 300, behavior: "smooth" });
+    }
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchOpportunities();
+    setCurrentPage(1);
+    fetchOpportunities(1);
   };
 
   const handleResetFilters = () => {
@@ -157,6 +176,7 @@ export default function OpportunitiesPage() {
     setRegion("all");
     setWorkMode("all");
     setScope("all");
+    setCurrentPage(1);
   };
 
   // Save Bookmark
@@ -524,9 +544,9 @@ export default function OpportunitiesPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between text-xs text-slate-600 px-1">
               <span className="font-semibold">
-                Showing <strong className="text-slate-900">{opportunities.length}</strong> matching opportunities
+                Showing <strong className="text-slate-900">{totalCount > 0 ? `${((currentPage - 1) * 10) + 1}–${Math.min(currentPage * 10, totalCount)} of ${totalCount}` : opportunities.length}</strong> matching opportunities
               </span>
-              <span className="text-slate-400">Sorted by relevance & freshness</span>
+              <span className="text-slate-400">Sorted by latest & freshness</span>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
@@ -671,6 +691,65 @@ export default function OpportunitiesPage() {
                 );
               })}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+                <p className="text-xs font-semibold text-slate-500">
+                  Showing <span className="text-slate-900 font-bold">{((currentPage - 1) * 10) + 1}</span>–<span className="text-slate-900 font-bold">{Math.min(currentPage * 10, totalCount)}</span> of <span className="text-slate-900 font-bold">{totalCount}</span> opportunities
+                </p>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage <= 1 || loading}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                  >
+                    ← Previous
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                      .reduce((acc, p, idx, arr) => {
+                        if (idx > 0 && p - arr[idx - 1] > 1) {
+                          acc.push("...");
+                        }
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((p, idx) =>
+                        p === "..." ? (
+                          <span key={`dots-${idx}`} className="px-2 text-slate-400 text-xs font-bold select-none">
+                            ...
+                          </span>
+                        ) : (
+                          <button
+                            key={p}
+                            onClick={() => handlePageChange(p)}
+                            disabled={loading}
+                            className={`min-w-[36px] h-9 px-2.5 rounded-xl text-xs font-bold transition ${
+                              currentPage === p
+                                ? "bg-blue-600 text-white shadow-xs"
+                                : "text-slate-600 hover:bg-slate-100"
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        )
+                      )}
+                  </div>
+
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage >= totalPages || loading}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-16 text-center bg-white rounded-3xl border border-slate-200/80 shadow-xs space-y-4">

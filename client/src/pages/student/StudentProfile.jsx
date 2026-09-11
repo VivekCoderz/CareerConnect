@@ -28,7 +28,7 @@ const StudentProfile = () => {
       }
     } catch (err) {
       console.error("Failed to fetch profile:", err);
-      setError("Unable to load profile data. Please try again.");
+      setError(err?.response?.data?.message || "Unable to load profile data. Please try again.");
     } finally {
       setLoading(false);
     }

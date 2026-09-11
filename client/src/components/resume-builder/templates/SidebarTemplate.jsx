@@ -1,5 +1,5 @@
 import React from "react";
-import { extractSkillsList } from "../../../utils/resumeHelpers";
+import { extractSkillsList, sortEducation } from "../../../utils/resumeHelpers";
 
 const SidebarTemplate = ({ data }) => {
   const { personal, summary, education, skills, projects, experience, certifications, achievements } = data || {};
@@ -65,14 +65,23 @@ const SidebarTemplate = ({ data }) => {
         {education?.length > 0 && (
           <div className="mb-4">
             <h2 className="text-[11px] font-bold uppercase tracking-wider border-b border-slate-500 pb-1 mb-2">Education</h2>
-            {education.map((e, i) => (
-              <div key={i} className="mb-2 text-[11px]">
-                <div className="font-semibold">{e.college}</div>
-                <div className="text-slate-300">{e.degree}{e.branch ? ` · ${e.branch}` : ""}</div>
-                <div className="text-slate-400">{e.startYear}–{e.endYear}</div>
-                {e.cgpa && <div className="text-slate-400">CGPA {e.cgpa}</div>}
-              </div>
-            ))}
+            {sortEducation(education).map((e, i) => {
+              const instName = e.college || e.school || e.institution || "";
+              const degreeName = e.degree || (e.level === "10th" ? "10th / Secondary" : e.level === "12th" ? "12th / Senior Secondary" : "");
+              const branchName = e.branch || e.stream || e.specialization || "";
+              const branchText = branchName ? (e.level === "12th" ? ` · Stream: ${branchName}` : ` · ${branchName}`) : "";
+              const scoreText = e.cgpa ? (String(e.cgpa).includes("%") ? e.cgpa : `CGPA ${e.cgpa}`) : "";
+              const yearText = e.startYear && e.endYear ? `${e.startYear}–${e.endYear}` : (e.endYear || e.passingYear || e.startYear || "");
+
+              return (
+                <div key={i} className="mb-2 text-[11px]">
+                  <div className="font-semibold">{instName}</div>
+                  <div className="text-slate-300">{degreeName}{branchText}</div>
+                  {yearText && <div className="text-slate-400">{yearText}</div>}
+                  {scoreText && <div className="text-slate-400">{scoreText}</div>}
+                </div>
+              );
+            })}
           </div>
         )}
 

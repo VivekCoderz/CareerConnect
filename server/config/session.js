@@ -109,7 +109,8 @@ class MongooseStore extends session.Store {
   }
 }
 
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction =
+  process.env.NODE_ENV === "production" || process.env.RENDER === "true";
 
 /**
  * Production-ready Express Session Configuration with Mongoose

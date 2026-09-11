@@ -13,7 +13,6 @@ const employerRoutes = require("./routes/employerRoutes.js");
 const courseRoutes = require("./routes/courseRoutes.js");
 const courseContentRoutes = require("./routes/courseContentRoutes");
 
-
 // Employer & Jobs / Internships feature routes
 const jobRoutes = require("./routes/jobRoutes.js");
 const internshipRoutes = require("./routes/internshipRoutes.js");
@@ -30,16 +29,13 @@ const resumeRoutes = require("./routes/resumeRoutes.js");
 const opportunityRoutes = require("./routes/opportunityRoutes.js");
 const recommendationRoutes = require("./routes/recommendationRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
+const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
 
 const app = express();
 app.set("trust proxy", 1);
 
-if (process.env.NODE_ENV === "production") {
-  app.set("trust proxy", 1);
-}
-
-// Middlewares
+// Allowed origins for CORS (loaded from CLIENT_URL in .env + local development fallbacks)
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
@@ -50,20 +46,35 @@ const allowedOrigins = [
   "http://127.0.0.1:5175",
 ];
 
+// Dynamically load allowed origins from CLIENT_URL in environment (supports comma-separated list)
+if (process.env.CLIENT_URL) {
+  process.env.CLIENT_URL.split(",").forEach((url) => {
+    const trimmed = url.trim().replace(/\/+$/, "");
+    if (trimmed && !allowedOrigins.includes(trimmed)) {
+      allowedOrigins.push(trimmed);
+    }
+  });
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Allow requests with no origin (e.g., mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
-      if (
+      
+      const isAllowed =
         allowedOrigins.includes(origin) ||
         /^http:\/\/localhost:[0-9]+$/.test(origin) ||
-        /^http:\/\/127\.0\.0\.1:[0-9]+$/.test(origin)
-      ) {
+        /^http:\/\/127\.0\.0\.1:[0-9]+$/.test(origin);
+
+      if (isAllowed) {
         return callback(null, true);
       }
-      return callback(new Error("Not allowed by CORS"));
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
   })
 );
 
@@ -105,10 +116,20 @@ app.use("/api/feed", opportunityRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/fresher/recommendations", recommendationRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/ai", aiAssistantRoutes);
 app.use("/api/admin", adminRoutes);
+
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
 
 // Gateway Health Check Endpoint
+app.get("/", (req, res) => {
+  return res.status(200).json({
+    status: "active",
+    message: "CareerConnect API Gateway is running smoothly 🚀",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get("/health", (req, res) => {
   return res.status(200).json({ status: "active", node: "GU Gateway Matrix Engine" });
 });

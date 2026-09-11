@@ -25,6 +25,7 @@ import PrivacyModal from "../../components/professional-dashboard/PrivacyModal";
 import ApplyReviewModal from "../../components/professional-dashboard/ApplyReviewModal";
 import ApplicationSuccessModal from "../../components/professional-dashboard/ApplicationSuccessModal";
 import ExternalApplicationFollowupModal from "../../components/professional-dashboard/ExternalApplicationFollowupModal";
+import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 
 const INITIAL_APPLICATIONS = [
   {
@@ -97,6 +98,10 @@ const ProfessionalDashboard = () => {
   const [showExternalFollowupModal, setShowExternalFollowupModal] = useState(false);
   const [pendingExternalOpportunity, setPendingExternalOpportunity] = useState(null);
 
+  // Tailored Resume Modal State
+  const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
+  const [tailoringOpportunity, setTailoringOpportunity] = useState(null);
+
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = "success") => {
@@ -132,11 +137,20 @@ const ProfessionalDashboard = () => {
     if (!opp) return;
     const preparedOpp = {
       ...opp,
+      _id: opp.id || opp._id,
       company: opp.company || opp.companyName || "Technology Enterprise",
       companyName: opp.company || opp.companyName || "Technology Enterprise",
+      type: "Job",
+      description: opp.description || opp.aboutRole || "Senior engineering leadership role.",
+      requiredSkills: opp.tags || opp.skills || [],
     };
-    setReviewingOpportunity(preparedOpp);
-    setShowApplyReviewModal(true);
+    if (opp.isExternal || opp.applyType === "external" || opp.url?.startsWith("http")) {
+      setReviewingOpportunity(preparedOpp);
+      setShowApplyReviewModal(true);
+    } else {
+      setTailoringOpportunity(preparedOpp);
+      setIsTailoredModalOpen(true);
+    }
   };
 
   // Direct Apply via CareerConnect
@@ -596,6 +610,38 @@ const ProfessionalDashboard = () => {
         profile={profile}
         onSubmitDirect={handleDirectSubmit}
         onContinueExternal={handleContinueExternal}
+      />
+
+      {/* Step 1B: Tailored Resume Application Modal for Direct Opportunities */}
+      <TailoredResumeApplicationModal
+        isOpen={isTailoredModalOpen}
+        onClose={() => {
+          setIsTailoredModalOpen(false);
+          setTailoringOpportunity(null);
+        }}
+        opportunity={tailoringOpportunity}
+        opportunityType="Job"
+        onApplicationSubmitted={(res) => {
+          const compName = tailoringOpportunity?.company || tailoringOpportunity?.companyName || "Technology Enterprise";
+          const newApp = {
+            id: `app-${Date.now()}`,
+            title: tailoringOpportunity?.title || "Role",
+            company: compName,
+            appliedDate: "Today",
+            status: "Under Review ⏳",
+            statusType: "review",
+            source: "direct",
+            location: tailoringOpportunity?.location || "Remote",
+          };
+          setApplicationsList((prev) => [newApp, ...prev]);
+          setLastSubmittedApplication({
+            title: tailoringOpportunity?.title,
+            company: compName,
+          });
+          setIsTailoredModalOpen(false);
+          setShowSuccessModal(true);
+          showToast("✓ Application submitted with your tailored resume!", "success");
+        }}
       />
 
       {/* Step 2A: Direct Application Success Modal */}
