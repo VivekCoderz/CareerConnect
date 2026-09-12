@@ -222,11 +222,12 @@ const EmployerRegister = () => {
     dispatch(clearMessages());
 
     try {
-      const captchaToken = await getCaptchaToken("google_employer_signup");
+      const captchaPromise = getCaptchaToken("google_employer_signup");
 
-      // Firebase Google popup
+      // Firebase Google popup - triggered directly on user click
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
+      const captchaToken = await captchaPromise;
 
       // Send to backend with role=employer so new users get employer role
       const response = await api.post("/auth/google-auth", {
@@ -239,10 +240,10 @@ const EmployerRegister = () => {
       const { user, requiresPasswordSetup, token } = response.data;
       dispatch(loginSuccess({ user, token }));
 
-      if (requiresPasswordSetup) {
+      if (requiresPasswordSetup || user.hasPassword === false) {
         // New employer Google user → set password → collect company details
         navigate("/set-password", { replace: true });
-      } else if (!user.phone?.trim()) {
+      } else if (!user.phone?.trim() || !user.isProfileComplete) {
         // Has password, but hasn't completed company details!
         navigate("/onboarding/employer", { replace: true });
       } else {
@@ -255,13 +256,17 @@ const EmployerRegister = () => {
         err.code === "auth/cancelled-popup-request"
       ) {
         // User dismissed popup — silent
+      } else if (err.code === "auth/popup-blocked") {
+        setGoogleError(
+          "Sign-in popup was blocked by your browser. Please allow popups for this site and try again."
+        );
       } else if (err.code === "auth/account-exists-with-different-credential") {
         setGoogleError(
           "This email is already registered with a different sign-in method. Please use email + password."
         );
       } else {
         setGoogleError(
-          err.response?.data?.message || "Google sign-up failed. Please try again."
+          err.response?.data?.message || err.message || "Google sign-up failed. Please try again."
         );
       }
     } finally {

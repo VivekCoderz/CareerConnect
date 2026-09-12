@@ -913,18 +913,8 @@ module.exports.googleAuth = async (req, res, next) => {
         });
       }
 
-      if (user.firebaseUid && user.firebaseUid !== uid) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "This email is associated with a different account. Please contact support.",
-        });
-      }
-
-      // Upgrade legacy user: link Firebase UID
-      if (!user.firebaseUid) {
-        user.firebaseUid = uid;
-      }
+      // Update or link Firebase UID for this Google authenticated account
+      user.firebaseUid = uid;
 
       // Add google to providers if not present
       if (!user.authProviders.includes("google")) {
