@@ -157,6 +157,19 @@ const StudentMyCoursesPage = () => {
     <div className="space-y-6">
     
  {/* Tab Switcher Buttons */}
+    
+      {/* Tab Switcher & Status Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+        <div>
+          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            My Courses Workspace
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            View pending course applications, continue active curriculum, and track completions.
+          </p>
+        </div>
+
+        {/* Tab Switcher Buttons */}
         <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80">
           <button
             type="button"
@@ -197,7 +210,7 @@ const StudentMyCoursesPage = () => {
             <span>Completed ({completedCourses.length})</span>
           </button>
         </div>
-    
+    </div>
 
       {error && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-700 flex items-center gap-2">

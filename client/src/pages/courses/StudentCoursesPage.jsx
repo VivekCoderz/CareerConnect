@@ -27,8 +27,8 @@ import CourseDetailsPage from "./CourseDetailsPage";
  * (No duplicate inner navbar, notification bell, profile header, or logout button).
  */
 
-const StudentCoursesPage = () => {
-  const { user } = useSelector((state) => state.auth || {});
+
+const StudentCoursesPage = ({ onViewDetails }) => {
 
   // Navigation tab state:
   // "recommended" | "my-courses" | "all" | "details"
@@ -41,6 +41,7 @@ const StudentCoursesPage = () => {
   const [myApplications, setMyApplications] = useState([]);
   const [applicationStatusMap, setApplicationStatusMap] = useState({});
   const [studentProfile, setStudentProfile] = useState(null);
+
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -303,6 +304,7 @@ const StudentCoursesPage = () => {
 
   return (
     <div className="space-y-6">
+
 
       {/* ================= PAGE CONTROL & NAVIGATION ================= */}
 
