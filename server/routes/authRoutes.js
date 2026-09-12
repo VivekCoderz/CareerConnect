@@ -28,6 +28,13 @@ router.post("/google-auth", sanitizeInputs, authControllers.googleAuth);
 // ==========================================
 // PROTECTED — Password Setup (Google users only)
 // ==========================================
+// Called when user clicks Back to Home / Cancel during first-time Google signup
+router.post(
+  "/cancel-google-signup",
+  authMiddleware,
+  authControllers.cancelGoogleSignup
+);
+
 // Called after linkWithCredential(firebaseUser, EmailAuthProvider.credential(...))
 // to confirm Firebase has the password provider and update MongoDB.
 router.post(
