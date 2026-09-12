@@ -135,7 +135,7 @@ exports.getJobs = async (req, res, next) => {
       }
     }
 
-    let allJobs = jobs;
+    let allJobs = campusJobs;
     if (myJobs !== "true" && source !== "campus") {
       try {
         const scraped = await getAggregatedOpportunities({
@@ -176,7 +176,7 @@ exports.getJobs = async (req, res, next) => {
         if (source === "external") {
           allJobs = formattedScraped;
         } else {
-          allJobs = [...jobs, ...formattedScraped];
+          allJobs = [...campusJobs, ...formattedScraped];
         }
       } catch (e) {
         console.error("Live jobs scraper error:", e.message);

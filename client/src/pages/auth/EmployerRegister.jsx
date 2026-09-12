@@ -12,6 +12,7 @@ import {
 } from "../../redux/features/authSlice";
 import api from "../../api/api";
 import { getCaptchaToken } from "../../utils/captcha";
+import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 
 
 const EmployerRegister = () => {
@@ -25,7 +26,8 @@ const EmployerRegister = () => {
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState("");
-
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaError, setCaptchaError] = useState("");
 
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
@@ -275,9 +277,15 @@ const EmployerRegister = () => {
     }
     if (!validateStep2()) return;
 
+    if (!captchaToken) {
+      setCaptchaError("Please verify that you are not a robot.");
+      return;
+    }
+    setCaptchaError("");
+
     dispatch(signupStart());
     try {
-      const captchaToken = await getCaptchaToken("employer_signup");
+      const finalCaptchaToken = captchaToken || (await getCaptchaToken("employer_signup"));
 
       const payload = {
         companyName: formData.companyName.trim(),
@@ -293,7 +301,7 @@ const EmployerRegister = () => {
         location: formData.location.trim(),
         role: "employer",
         keepSignedIn,
-        captchaToken,
+        captchaToken: finalCaptchaToken,
       };
 
 
@@ -863,6 +871,18 @@ const EmployerRegister = () => {
                     </span>
                   </span>
                 </label>
+
+                {/* ReCAPTCHA "I'm not a robot" */}
+                <div className="py-2 flex justify-center">
+                  <ReCaptchaCheckbox
+                    onChange={(token) => {
+                      setCaptchaToken(token);
+                      setCaptchaError("");
+                    }}
+                    onExpired={() => setCaptchaToken("")}
+                    error={captchaError}
+                  />
+                </div>
 
                 <button
                   type="submit"

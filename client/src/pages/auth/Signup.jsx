@@ -14,6 +14,7 @@ import api from "../../api/api";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
 import { generateStrongPassword } from "../../utils/passwordGenerator";
+import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 
 const EyeIcon = ({ hidden = false }) => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -135,6 +136,8 @@ const Signup = () => {
   const [interestSearchQuery, setInterestSearchQuery] = useState("");
   const [customInterestInput, setCustomInterestInput] = useState("");
   const [extraInterests, setExtraInterests] = useState([]);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaError, setCaptchaError] = useState("");
 
   // Form State
   const [formData, setFormData] = useState({
@@ -489,9 +492,15 @@ const Signup = () => {
       return;
     }
 
+    if (!captchaToken) {
+      setCaptchaError("Please verify that you are not a robot.");
+      return;
+    }
+    setCaptchaError("");
+
     dispatch(signupStart());
     try {
-      const captchaToken = await getCaptchaToken("signup");
+      const finalCaptchaToken = captchaToken || (await getCaptchaToken("signup"));
 
       const payload = {
         firstName: formData.firstName.trim(),
@@ -517,7 +526,7 @@ const Signup = () => {
         linkedin: formData.linkedin?.trim() || "",
         github: formData.github?.trim() || "",
         keepSignedIn,
-        captchaToken,
+        captchaToken: finalCaptchaToken,
       };
 
       const res = await api.post("/auth/register", payload);
@@ -1569,6 +1578,18 @@ const Signup = () => {
                     Keep me signed in on this device
                   </span>
                 </label>
+
+                {/* ReCAPTCHA "I'm not a robot" */}
+                <div className="py-2 flex justify-center">
+                  <ReCaptchaCheckbox
+                    onChange={(token) => {
+                      setCaptchaToken(token);
+                      setCaptchaError("");
+                    }}
+                    onExpired={() => setCaptchaToken("")}
+                    error={captchaError}
+                  />
+                </div>
 
                 {/* Submit button */}
                 <div className="pt-3 flex items-center justify-between">

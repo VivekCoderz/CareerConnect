@@ -13,6 +13,7 @@ import {
 } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
+import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,8 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaError, setCaptchaError] = useState("");
 
   // Show expired banner from URL param or Redux state
   const showExpiredBanner = isExpired || sessionExpired;
@@ -93,10 +96,15 @@ const Login = () => {
   // ─── Database Email / Username + Password Submit ────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!captchaToken) {
+      setCaptchaError("Please verify that you are not a robot.");
+      return;
+    }
+    setCaptchaError("");
     dispatch(loginStart());
 
     try {
-      const captchaToken = await getCaptchaToken("login");
+      const finalCaptchaToken = captchaToken || (await getCaptchaToken("login"));
 
       // Check details directly from MongoDB database (not from Firebase)
       const response = await api.post("/auth/login", {
@@ -104,7 +112,7 @@ const Login = () => {
         password: formData.password,
         role: loginType,
         keepSignedIn,
-        captchaToken,
+        captchaToken: finalCaptchaToken,
       });
 
       const { user, token } = response.data;
@@ -361,6 +369,18 @@ const Login = () => {
                 </span>
               </span>
             </label>
+
+            {/* ReCAPTCHA "I'm not a robot" */}
+            <div className="py-2 flex justify-center">
+              <ReCaptchaCheckbox
+                onChange={(token) => {
+                  setCaptchaToken(token);
+                  setCaptchaError("");
+                }}
+                onExpired={() => setCaptchaToken("")}
+                error={captchaError}
+              />
+            </div>
 
             {/* Sign In button */}
             <button
