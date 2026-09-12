@@ -279,6 +279,64 @@ const Signup = () => {
     }
   };
 
+  // ─── Google Candidate Sign-Up ────────────────────────────────────────────────
+  const handleGoogleSignup = async () => {
+    setGoogleLoading(true);
+    setGoogleError("");
+    dispatch(clearMessages());
+
+    try {
+      const captchaPromise = getCaptchaToken("google_candidate_signup");
+
+      // Firebase Google popup - triggered directly on user click
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
+      const captchaToken = await captchaPromise;
+
+      // Send to backend with role=user (candidate)
+      const response = await api.post("/auth/google-auth", {
+        idToken,
+        keepSignedIn: false,
+        captchaToken,
+        role: "user",
+      });
+
+      const { user, requiresPasswordSetup, token } = response.data;
+      dispatch(loginSuccess({ user, token }));
+
+      if (requiresPasswordSetup || user.hasPassword === false) {
+        navigate("/set-password", { replace: true });
+      } else if (!user.phone?.trim() || !user.isProfileComplete) {
+        navigate("/onboarding/profile", { replace: true });
+      } else {
+        navigate(getDashboardPath(user.userType, user), { replace: true });
+      }
+    } catch (err) {
+      if (
+        err.code === "auth/popup-closed-by-user" ||
+        err.code === "auth/cancelled-popup-request"
+      ) {
+        // User closed popup
+      } else if (err.code === "auth/popup-blocked") {
+        setGoogleError(
+          "Sign-in popup was blocked by your browser. Please allow popups for this site and try again."
+        );
+      } else if (err.code === "auth/account-exists-with-different-credential") {
+        setGoogleError(
+          "This email is already registered with a different sign-in method. Please use email + password."
+        );
+      } else {
+        setGoogleError(
+          err.response?.data?.message ||
+            err.message ||
+            "Google sign-up failed. Please try again."
+        );
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   // ─── Step 1 Validation & Proceed ───────────────────────────────────────────
   const handleStep1Next = async () => {
     const errors = {};
@@ -429,49 +487,6 @@ const Signup = () => {
       }));
     }
     setCustomInterestInput("");
-  };
-
-  // ─── Google Sign-Up ──────────────────────────────────────────────────────────
-  const handleGoogleSignup = async () => {
-    setGoogleLoading(true);
-    setGoogleError("");
-    dispatch(clearMessages());
-
-    try {
-      const captchaToken = await getCaptchaToken("google_signup");
-      const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
-
-      const response = await api.post("/auth/google-auth", {
-        idToken,
-        keepSignedIn: false,
-        captchaToken,
-      });
-
-      const { user, requiresPasswordSetup, token } = response.data;
-      dispatch(loginSuccess({ user, token }));
-
-      if (requiresPasswordSetup || user.hasPassword === false) {
-        navigate("/set-password", { replace: true });
-      } else if (!user.phone?.trim() || !user.isProfileComplete) {
-        navigate("/onboarding/profile", { replace: true });
-      } else {
-        navigate(getDashboardPath(user.userType, user), { replace: true });
-      }
-    } catch (err) {
-      if (
-        err.code === "auth/popup-closed-by-user" ||
-        err.code === "auth/cancelled-popup-request"
-      ) {
-        // dismissed popup
-      } else if (err.code === "auth/account-exists-with-different-credential") {
-        setGoogleError("This email is already registered with a different sign-in method.");
-      } else {
-        setGoogleError(err.response?.data?.message || "Google sign-up failed.");
-      }
-    } finally {
-      setGoogleLoading(false);
-    }
   };
 
   // Resume Upload State for Step 4
