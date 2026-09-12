@@ -13,6 +13,24 @@ const connectDB = async () => {
       serverSelectionTimeoutMS: 8000,
     });
     console.log(`MongoDB Connected successfully 🎉 (${conn.connection.host})`);
+
+    // Clean up any legacy indexes without partialFilterExpression
+    try {
+      const collections = await conn.connection.db.listCollections().toArray();
+      const collNames = collections.map((c) => c.name.toLowerCase());
+      
+      for (const name of ["jobs", "internships"]) {
+        const actualName = collections.find((c) => c.name.toLowerCase() === name)?.name;
+        if (actualName) {
+          const indexes = await conn.connection.db.collection(actualName).indexes();
+          const legacyIdx = indexes.find((i) => i.name === "source_1_externalId_1" && !i.partialFilterExpression);
+          if (legacyIdx) {
+            await conn.connection.db.collection(actualName).dropIndex("source_1_externalId_1");
+            console.log(` Cleaned legacy ${actualName} index without partialFilterExpression`);
+          }
+        }
+      }
+    } catch (idxErr) {}
   } catch (error) {
     console.error("MongoDB connection failed:", error.message);
     

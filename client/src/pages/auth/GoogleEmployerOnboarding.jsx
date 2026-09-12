@@ -46,6 +46,10 @@ const GoogleEmployerOnboarding = () => {
       navigate("/login", { replace: true });
       return;
     }
+    if (user.hasPassword === false) {
+      navigate("/set-password", { replace: true });
+      return;
+    }
     // If already has phone → already onboarded
     if (user.phone?.trim()) {
       navigate("/employer/dashboard", { replace: true });

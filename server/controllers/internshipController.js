@@ -8,8 +8,9 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
+const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
-const { getAggregatedOpportunities, CAMPUS_DRIVES } = require("../services/jobScraperService");
+const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require("../services/jobScraperService");
 
 // Helper to normalize URL slugs to category names
 const formatCategorySlug = (slug = "") => {
@@ -63,6 +64,17 @@ exports.createInternship = async (req, res, next) => {
       status: req.body.status || "Published",
     });
 
+    // Real-time Mail Notification trigger
+    if (internship.status === "Published") {
+      try {
+        const { createOpportunityNotification } = require("../services/notificationService");
+        createOpportunityNotification({ type: "internship", item: internship });
+      } catch (notifErr) {
+        console.warn("Notification dispatch failed for new internship:", notifErr.message);
+      }
+    }
+    clearSearchCache();
+
     return res.status(201).json({
       success: true,
       message: "Internship posted successfully",
@@ -95,7 +107,7 @@ exports.getInternships = async (req, res, next) => {
       status,
       sort = "latest",
       page = 1,
-      limit = 20,
+      limit = 10,
       program,
       specialization,
       opportunityType,
@@ -119,11 +131,30 @@ exports.getInternships = async (req, res, next) => {
           search,
           q,
         });
+
+        const liveList = [...(results.data || [])];
+        liveList.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+
+        const lPageNum = Math.max(1, parseInt(page, 10) || 1);
+        const lPageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+        const lTotal = liveList.length;
+        const lPaginated = liveList.slice((lPageNum - 1) * lPageSize, lPageNum * lPageSize);
+
         return res.status(200).json({
           success: true,
-          count: results.count,
-          data: results.data,
-          internships: results.data,
+          count: lPaginated.length,
+          data: lPaginated,
+          internships: lPaginated,
+          pagination: {
+            total: lTotal,
+            page: lPageNum,
+            limit: lPageSize,
+            totalPages: Math.ceil(lTotal / lPageSize) || 1,
+          },
           source: results.source,
         });
       } catch (aggError) {
@@ -248,165 +279,171 @@ exports.getInternships = async (req, res, next) => {
     if (sort === "deadline") sortOption = { deadline: 1 };
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 20));
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
     const skip = (pageNum - 1) * pageSize;
 
-    // Try finding in Internship collection first
-    let total = 0;
-    let items = [];
-
-    if (mongoose.connection.readyState === 1) {
+    // 1. Fetch Campus Internships from MongoDB (unless source is explicitly "external")
+    let campusList = [];
+    if (source !== "external" && mongoose.connection.readyState === 1) {
       try {
-        [total, items] = await Promise.all([
-          Internship.countDocuments(filter),
+        const jobInternFilter = {
+          ...filter,
+          employmentType: { $regex: /^internship$/i },
+        };
+
+        const [intDocs, jobDocs] = await Promise.all([
           Internship.find(filter)
             .populate("employerId", "companyName logo headquarters website industry description")
             .sort(sortOption)
-            .skip(skip)
-            .limit(pageSize)
+            .limit(200)
             .lean(),
+          myPosts !== "true"
+            ? Job.find(jobInternFilter)
+                .populate("employerId", "companyName logo headquarters website industry description")
+                .sort(sortOption)
+                .lean()
+            : Job.find({ employerId: filter.employerId, employmentType: { $regex: /^internship$/i } })
+                .populate("employerId", "companyName logo headquarters website industry description")
+                .sort(sortOption)
+                .lean(),
         ]);
 
-        // Fallback/Supplement from Job collection if Internship collection is empty or fewer records
-        if (total === 0 && myPosts !== "true") {
-          const jobFilter = {
-            ...filter,
-            employmentType: "Internship",
+        const combined = [...(intDocs || []), ...(jobDocs || [])];
+
+        campusList = combined.map((int) => {
+          const stipendStr =
+            int.stipend ||
+            (int.salaryRange?.min > 0
+              ? `₹${int.salaryRange.min.toLocaleString("en-IN")}/month`
+              : int.stipendAmount?.min > 0
+              ? `₹${int.stipendAmount.min.toLocaleString("en-IN")}/month`
+              : int.isPaid ? "Paid Stipend" : "Unpaid / Academic");
+
+          return {
+            ...int,
+            _id: int._id,
+            id: int._id.toString(),
+            jobId: int._id.toString(),
+            title: int.title,
+            company: int.employerId?.companyName || int.companyName || "Partner Employer",
+            companyName: int.employerId?.companyName || int.companyName || "Partner Employer",
+            companyId: int.employerId?._id || "",
+            logo: int.employerId?.logo || "",
+            location: int.location,
+            city: int.city || "Bangalore",
+            category: int.category || "Web Development",
+            subCategory: int.subCategory || "Full Stack",
+            stipend: stipendStr,
+            salary: stipendStr,
+            duration: int.duration || "3-6 Months",
+            type: "Internship",
+            opportunityType: "Internship",
+            workMode: int.workMode || "Remote",
+            isPaid: int.isPaid !== false,
+            hasJobOffer: !!int.hasJobOffer,
+            isInternational: !!int.isInternational,
+            isExclusive: int.isExclusive !== undefined ? int.isExclusive : true,
+            isExternal: false,
+            requiredSkills: int.requiredSkills || int.skillsRequired || [],
+            skillsRequired: int.skillsRequired || int.requiredSkills || [],
+            skills: int.requiredSkills || int.skillsRequired || [],
+            description: int.description || "",
+            responsibilities: int.responsibilities || [],
+            deadline: int.applicationDeadline || int.deadline ? new Date(int.applicationDeadline || int.deadline).toLocaleDateString() : "Open",
+            postedAt: int.createdAt ? new Date(int.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Recently",
+            openings: int.openings || 1,
+            applicantsCount: int.applicantsCount || 0,
           };
-          [total, items] = await Promise.all([
-            Job.countDocuments(jobFilter),
-            Job.find(jobFilter)
-              .populate("employerId", "companyName logo headquarters website industry description")
-              .sort(sortOption)
-              .skip(skip)
-              .limit(pageSize)
-              .lean(),
-          ]);
-        }
+        });
       } catch (dbErr) {
-        console.warn("MongoDB Internship.find error, using live scraper fallback:", dbErr.message);
+        console.warn("MongoDB Internship.find error:", dbErr.message);
       }
     }
 
-    // Optional profile eligibility filtering for student/fresher
-    let filteredList = items;
-    if (myPosts !== "true") {
-      const profile = await getUserProfileFromReq(req);
-      if (profile) {
-        filteredList = items.filter((item) => isEligibleForInternship(item, profile));
-      }
-    }
-
-    const formattedList = filteredList.map((int) => {
-      const stipendStr =
-        int.stipend ||
-        (int.salaryRange?.min > 0
-          ? `₹${int.salaryRange.min.toLocaleString("en-IN")}/month`
-          : int.stipendAmount?.min > 0
-          ? `₹${int.stipendAmount.min.toLocaleString("en-IN")}/month`
-          : int.isPaid ? "Paid Stipend" : "Unpaid / Academic");
-
-      return {
-        ...int,
-        _id: int._id,
-        id: int._id.toString(),
-        jobId: int._id.toString(),
-        title: int.title,
-        company: int.employerId?.companyName || int.companyName || "Partner Employer",
-        companyName: int.employerId?.companyName || int.companyName || "Partner Employer",
-        companyId: int.employerId?._id || "",
-        logo: int.employerId?.logo || "",
-        location: int.location,
-        city: int.city || "Bangalore",
-        category: int.category || "Web Development",
-        subCategory: int.subCategory || "Full Stack",
-        stipend: stipendStr,
-        salary: stipendStr,
-        duration: int.duration || "3-6 Months",
-        type: "Internship",
-        workMode: int.workMode || "Remote",
-        isPaid: int.isPaid !== false,
-        hasJobOffer: !!int.hasJobOffer,
-        isInternational: !!int.isInternational,
-        skillsRequired: int.requiredSkills || [],
-        postedAt: "Recently Posted",
-        createdAt: int.createdAt,
-        deadline: int.deadline
-          ? new Date(int.deadline).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "Open until filled",
-        description: int.description,
-        responsibilities: int.responsibilities || [],
-        openings: int.openings || 1,
-        applicantsCount: int.applicantsCount || 0,
-      };
-    });
-
-    let finalList = formattedList;
-    let finalTotal = total;
-
-    if (finalList.length === 0 && myPosts !== "true") {
+    // 2. Fetch External Internships via Scraper Service (unless source is explicitly "campus" or myPosts is true)
+    let externalList = [];
+    if (source !== "campus" && myPosts !== "true") {
       try {
         let scraped = await getAggregatedOpportunities({
-          opportunityType: opportunityType || "internship",
+          opportunityType: "internship",
+          source: "external",
           workMode: workMode && workMode !== "All" ? workMode : "all",
           region: isInternational === "true" ? "International" : (city || "all"),
-          search: search || q || category || "",
+          search: searchTerm || category || "",
         });
 
         if (!scraped?.data || scraped.data.length === 0) {
           scraped = await getAggregatedOpportunities({
             opportunityType: "internship",
+            source: "external",
             workMode: "all",
             region: "all",
             search: "",
           });
         }
 
-        const fallbackItems = (scraped.data || []).map((item, idx) => ({
-          _id: `scraped-int-${idx}`,
-          id: `scraped-int-${idx}`,
-          jobId: `scraped-int-${idx}`,
-          title: item.title,
-          company: item.company,
-          companyName: item.company,
-          companyId: "",
-          logo: "",
-          location: item.location,
-          city: item.location?.split(",")[0]?.trim() || "Delhi NCR",
-          category: category && category !== "All" ? category : "Software Development",
-          subCategory: "Engineering",
-          stipend: "Competitive Stipend / Package",
-          salary: "Competitive Package",
-          duration: "3-6 Months",
-          type: item.opportunityType || "Internship",
-          workMode: item.workMode || "Remote",
-          isPaid: true,
-          hasJobOffer: item.opportunityType === "Full-Time & Internship",
-          isInternational: !!item.location?.toLowerCase().includes("worldwide") || !item.location?.toLowerCase().includes("india"),
-          skillsRequired: [item.title.split(" ")[0] || "Development", "Problem Solving"],
-          postedAt: item.postedDate || "Recently Posted",
-          createdAt: new Date(),
-          deadline: "Open until filled",
-          description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
-          responsibilities: ["Contribute to ongoing development", "Collaborate with mentors and team"],
-          openings: 2,
-          applicantsCount: 5,
-          applyLink: item.applyLink,
-          applyUrl: item.applyLink,
-          isExternal: true,
-          platformSource: item.platformSource,
-          source: item.platformSource,
-        }));
+        const campusKeys = new Set(
+          campusList.map((c) => `${(c.title || "").toLowerCase().trim()}_${(c.company || c.companyName || "").toLowerCase().trim()}`)
+        );
 
-        finalList = fallbackItems;
-        finalTotal = fallbackItems.length;
+        externalList = (scraped.data || [])
+          .filter((item) => {
+            if (item.isExternal === false || item.platformSource === "GU Placement Cell") return false;
+            const key = `${(item.title || "").toLowerCase().trim()}_${(item.company || "").toLowerCase().trim()}`;
+            return !campusKeys.has(key);
+          })
+          .map((item, idx) => ({
+            _id: `scraped-int-${idx}`,
+            id: `scraped-int-${idx}`,
+            jobId: `scraped-int-${idx}`,
+            title: item.title,
+            company: item.company,
+            companyName: item.company,
+            companyId: "",
+            logo: "",
+            location: item.location || "Remote",
+            city: item.location?.split(",")[0]?.trim() || "Delhi NCR",
+            category: category && category !== "All" ? category : "Software Development",
+            subCategory: "Engineering",
+            stipend: item.stipend || "Competitive Stipend",
+            salary: item.stipend || "Competitive Stipend",
+            duration: item.duration || "3-6 Months",
+            type: item.opportunityType || "Internship",
+            opportunityType: "Internship",
+            workMode: item.workMode || "Remote",
+            isPaid: true,
+            hasJobOffer: item.opportunityType === "Full-Time & Internship",
+            isInternational: !!item.location?.toLowerCase().includes("worldwide") || !item.location?.toLowerCase().includes("india"),
+            isExclusive: false,
+            isExternal: true,
+            skillsRequired: [item.title.split(" ")[0] || "Development", "Problem Solving"],
+            requiredSkills: [item.title.split(" ")[0] || "Development", "Problem Solving"],
+            postedAt: item.postedDate || "Recently Posted",
+            createdAt: new Date(),
+            deadline: "Open until filled",
+            description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
+            responsibilities: ["Contribute to ongoing development", "Collaborate with mentors and team"],
+            openings: 2,
+            applicantsCount: 5,
+            applyLink: item.applyLink,
+            applyUrl: item.applyLink,
+            platformSource: item.platformSource,
+            source: item.platformSource,
+          }));
       } catch (e) {
-        console.error("Live internships scraper fallback error:", e.message);
+        console.error("Live internships scraper error:", e.message);
       }
+    }
+
+    // 3. Combine results based on source filter
+    let finalList = [];
+    if (source === "campus") {
+      finalList = campusList;
+    } else if (source === "external") {
+      finalList = externalList;
+    } else {
+      // "all" or empty -> Show BOTH campus (at top) and curated external
+      finalList = [...campusList, ...externalList];
     }
 
     return res.status(200).json({
@@ -415,10 +452,10 @@ exports.getInternships = async (req, res, next) => {
       data: finalList,
       internships: finalList,
       pagination: {
-        total: finalTotal,
+        total: finalList.length,
         page: pageNum,
         limit: pageSize,
-        totalPages: Math.ceil(finalTotal / pageSize) || 1,
+        totalPages: Math.ceil(finalList.length / pageSize) || 1,
       },
     });
   } catch (error) {
@@ -632,6 +669,7 @@ exports.updateInternship = async (req, res, next) => {
 
     Object.assign(internship, req.body);
     await internship.save();
+    clearSearchCache();
 
     return res.json({ success: true, message: "Updated", internship, data: internship });
   } catch (error) {
@@ -659,6 +697,8 @@ exports.updateInternshipStatus = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Internship not found" });
     }
 
+    clearSearchCache();
+
     return res.json({ success: true, internship, data: internship });
   } catch (error) {
     next(error);
@@ -669,14 +709,32 @@ exports.updateInternshipStatus = async (req, res, next) => {
 exports.deleteInternship = async (req, res, next) => {
   try {
     const profile = await EmployerProfile.findOne({ userId: req.user._id });
-    const internship = await Internship.findOneAndDelete({
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Employer profile not found" });
+    }
+
+    let deleted = await Internship.findOneAndDelete({
       _id: req.params.id,
-      employerId: profile?._id,
+      employerId: profile._id,
     });
 
-    if (!internship) {
+    if (!deleted) {
+      deleted = await Job.findOneAndDelete({
+        _id: req.params.id,
+        employerId: profile._id,
+        employmentType: { $regex: /^internship$/i },
+      });
+    }
+
+    if (!deleted) {
       return res.status(404).json({ success: false, message: "Internship not found" });
     }
+
+    await Application.deleteMany({
+      $or: [{ internshipId: req.params.id }, { jobId: req.params.id }],
+    });
+
+    clearSearchCache();
 
     return res.json({ success: true, message: "Internship deleted" });
   } catch (error) {

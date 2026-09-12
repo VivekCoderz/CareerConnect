@@ -1,108 +1,165 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector,useDispatch } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
+import JobDiscoveryMenu from "../components/jobs/JobDiscoveryMenu";
 import { getDashboardPath } from "../utils/dashboardRedirect";
 import { logout } from "../redux/features/authSlice";
 import { logoutUser } from "../services/authService";
-import opportunityService from "../services/opportunityService";
+import internshipService from "../services/internshipService";
+import jobService from "../services/jobService";
 
 const Home = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [featuredJobs, setFeaturedJobs] = useState([]);
-  const [featuredLoading, setFeaturedLoading] = useState(true);
+  const { user, isInitialized } = useSelector((state) => state.auth);
 
   useEffect(() => {
-    const loadFeatured = async () => {
+    if (isInitialized && user) {
+      if (user.hasPassword === false) {
+        navigate("/set-password", { replace: true });
+      } else if (!user.phone?.trim() || !user.isProfileComplete) {
+        navigate(user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile", { replace: true });
+      } else {
+        navigate(getDashboardPath(user.userType || user.role, user), { replace: true });
+      }
+    }
+  }, [user, isInitialized, navigate]);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [internships, setInternships] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const sampleFeaturedOpportunities = [
+    {
+      id: "sample-1",
+      title: "Full Stack Developer (E2E Test)",
+      company: "TechCorp Global",
+      opportunityType: "Full-time",
+      salary: "Competitive Package",
+      location: "Panipat / Remote",
+    },
+    {
+      id: "sample-2",
+      title: "MVP Test Job",
+      company: "Geeta University",
+      opportunityType: "Full-time",
+      salary: "₹0.3 - 0.3 LPA",
+      location: "On-Campus",
+    },
+    {
+      id: "sample-3",
+      title: "Frontend Engineering Intern (E2E Test)",
+      company: "TechCorp Global",
+      opportunityType: "Internship",
+      salary: "₹25000 INR/month",
+      location: "Remote",
+    },
+  ];
+
+  const featuredJobs = jobs && jobs.length > 0 ? jobs : sampleFeaturedOpportunities;
+
+  useEffect(() => {
+    const loadHomeData = async () => {
       try {
-        setFeaturedLoading(true);
-        const res = await opportunityService.getOpportunities();
-        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
-          setFeaturedJobs(res.data.slice(0, 6));
+        setLoading(true);
+        const [intRes, jobRes] = await Promise.all([
+          internshipService.getInternships({ limit: 8, sort: "latest" }).catch(() => ({ internships: [] })),
+          jobService.getJobs({ limit: 8, sort: "latest" }).catch(() => ({ jobs: [] })),
+        ]);
+
+        if (intRes?.success && Array.isArray(intRes.internships || intRes.data)) {
+          setInternships((intRes.internships || intRes.data).slice(0, 8));
         }
-      } catch (e) {
-        console.warn("Featured jobs load error:", e.message);
+        if (jobRes?.success && Array.isArray(jobRes.jobs || jobRes.data)) {
+          setJobs((jobRes.jobs || jobRes.data).slice(0, 8));
+        }
+      } catch (err) {
+        console.warn("Home data fetch error:", err.message);
       } finally {
-        setFeaturedLoading(false);
+        setLoading(false);
       }
     };
-    loadFeatured();
+    loadHomeData();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await logoutUser();
-    } catch {
-      // Ignore
+  const handleLogout = () => {
+    logout();
+  };
+
+  const handleHeroSearchSubmit = (e) => {
+    e?.preventDefault?.();
+    if (searchQuery.trim()) {
+      navigate(`/opportunities?q=${encodeURIComponent(searchQuery.trim())}`);
+    } else {
+      navigate("/opportunities");
     }
-    dispatch(logout());
-    navigate("/", { replace: true });
   };
 
   const dashboardUrl = user ? getDashboardPath(user.userType, user) : "/home";
 
+  if (!isInitialized || user) {
+    return null;
+  }
+
   return (
-    <div className="min-h-screen bg-white text-slate-900">
-      {/* ================= NAVBAR ================= */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200/80">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans">
+      {/* ================= 1. INTERNSHALA-STYLE NAVBAR ================= */}
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200/90 shadow-2xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-[68px]">
-            {/* Logo - Geeta University */}
-            <div className="flex items-center gap-4">
-              <Link to="/" className="flex items-center gap-2.5">
+          <div className="flex items-center justify-between h-[68px] gap-4">
+            {/* Left: Logo & Dropdowns */}
+            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+              <Link to="/" className="flex items-center gap-2">
                 <img
                   src="/geeta-university-logo.png"
-                  alt="Geeta University"
+                  alt="Geeta University CareerConnect"
                   className="h-10 w-auto object-contain"
                   onError={(e) => {
                     e.currentTarget.style.display = "none";
                     e.currentTarget.nextSibling.style.display = "flex";
                   }}
                 />
-                {/* Fallback if image not loaded */}
+                {/* Fallback Branding */}
                 <div className="hidden items-center gap-2">
-                  <div className="w-10 h--10 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-sm">
+                  <div className="w-9 h-9 rounded-xl bg-[#1e3a8a] text-white flex items-center justify-center font-black text-sm shadow-xs">
                     GU
                   </div>
                   <div className="leading-tight">
-                    <p className="text-sm font-bold text-[#1e3a8a]">GEETA</p>
-                    <p className="text-[10px] font-semibold text-[#f59e0b] tracking-wide">UNIVERSITY</p>
+                    <p className="text-sm font-black text-[#1e3a8a] tracking-tight">GEETA</p>
+                    <p className="text-[10px] font-bold text-[#f59e0b] tracking-wider uppercase">UNIVERSITY</p>
                   </div>
                 </div>
               </Link>
 
-              {/* Discovery Menu Dropdown */}
-              <div className="hidden md:block">
+              {/* Navigation Dropdowns like Internshala */}
+              <div className="hidden md:flex items-center gap-2">
+                <JobDiscoveryMenu />
                 <InternshipDiscoveryMenu />
+                <Link
+                  to="/courses"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
+                >
+                  <span>Courses</span>
+                  <span className="px-1.5 py-0.2 rounded text-[9.5px] font-extrabold bg-[#ea580c] text-white uppercase tracking-wider">
+                    OFFER
+                  </span>
+                </Link>
               </div>
             </div>
 
-            {/* Nav */}
-            <nav className="hidden lg:flex items-center gap-6 text-[13px] font-semibold text-slate-600">
-              <Link to="/opportunities" className="text-[#1e3a8a] font-bold flex items-center gap-1.5 hover:text-[#1e40af] transition">
-                <span>Jobs & Opportunities</span>
-                <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-extrabold tracking-wider">160+ LIVE</span>
-              </Link>
-              <Link to="/opportunities?source=campus" className="hover:text-[#1e3a8a] transition">Campus Drives</Link>
-              <Link to="/opportunities?workMode=Remote" className="hover:text-[#1e3a8a] transition">Remote Jobs</Link>
-              <Link to="/internships" className="hover:text-[#1e3a8a] transition">Internships</Link>
-            </nav>
 
-            {/* Auth */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            {/* Right: Auth / Actions */}
+            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
               {user ? (
                 <>
                   <div className="hidden sm:flex items-center gap-2 pr-1">
-                    <div className="w-8 h-8 rounded-full bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-xs uppercase shadow-sm">
+                    <div className="w-8 h-8 rounded-full bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-xs uppercase shadow-xs">
                       {user.fullName?.charAt(0) || "U"}
                     </div>
                     <div className="text-left leading-none">
-                      <p className="text-xs font-semibold text-slate-800">
-                        {user.fullName || "User"}
-                      </p>
+                      <p className="text-xs font-semibold text-slate-800">{user.fullName || "User"}</p>
                       <span className="text-[10px] text-slate-400 font-medium capitalize">
                         {user.role === "employer" ? "Employer" : (user.userType || "Student")}
                       </span>
@@ -111,17 +168,14 @@ const Home = () => {
 
                   <Link
                     to={dashboardUrl}
-                    className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-[13px] font-semibold transition shadow-sm"
+                    className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#008bdc] hover:bg-[#0074b7] text-white text-xs font-bold transition shadow-xs"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
-                    Dashboard
+                    <span>Dashboard</span>
                   </Link>
 
                   <button
                     onClick={handleLogout}
-                    className="hidden md:inline-flex items-center h-9 px-3 rounded-lg border border-slate-200 text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 text-[12px] font-semibold transition"
+                    className="hidden md:inline-flex items-center h-9 px-3 rounded-xl border border-slate-200 text-slate-600 hover:text-red-600 hover:bg-red-50 text-xs font-semibold transition"
                   >
                     Sign Out
                   </button>
@@ -130,22 +184,29 @@ const Home = () => {
                 <>
                   <Link
                     to="/login"
-                    className="hidden sm:inline-flex text-[13px] font-semibold text-slate-600 hover:text-[#1e3a8a] transition px-2"
+                    className="h-9 px-4 rounded-xl border border-[#008bdc] text-[#008bdc] hover:bg-[#008bdc]/5 text-xs font-bold transition inline-flex items-center justify-center"
                   >
                     Login
                   </Link>
-                  <Link
-                    to="/register/student"
-                    className="inline-flex items-center h-9 px-4 rounded-lg bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-[13px] font-semibold transition"
-                  >
-                    Student Register
-                  </Link>
-                  <Link
-                    to="/register/employer"
-                    className="hidden md:inline-flex items-center h-9 px-4 rounded-lg border-2 border-[#f59e0b] text-[#b45309] hover:bg-[#fffbeb] text-[13px] font-semibold transition"
-                  >
-                    Employer Register
-                  </Link>
+
+                  <div className="relative group">
+                    <Link
+                      to="/register/student"
+                      className="h-9 px-4 rounded-xl bg-[#008bdc] hover:bg-[#0074b7] text-white text-xs font-bold transition inline-flex items-center justify-center shadow-xs"
+                    >
+                      Register
+                    </Link>
+                  </div>
+
+                  <div className="hidden sm:block pl-1">
+                    <Link
+                      to="/register/employer"
+                      className="text-xs font-bold text-[#008bdc] hover:text-[#005f96] transition flex items-center gap-1"
+                    >
+                      <span>For Employers</span>
+                      <span className="text-sm font-normal">›</span>
+                    </Link>
+                  </div>
                 </>
               )}
             </div>
@@ -153,8 +214,8 @@ const Home = () => {
         </div>
       </header>
 
-      {/* ================= HERO ================= */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#eff6ff] via-white to-white">
+      {/* ================= 2. MODERN HERO BANNER SECTION (LIGHT THEME) ================= */}
+   <section className="relative overflow-hidden bg-gradient-to-b from-[#eff6ff] via-white to-white">
         <div className="absolute inset-0 opacity-[0.03]" style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231e3a8a' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
         }} />
@@ -178,8 +239,8 @@ const Home = () => {
               </p>
 
               {/* Search */}
-              <div className="mt-8 max-w-xl">
-                <div className="flex flex-col sm:flex-row gap-2 p-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/60">
+              <form onSubmit={handleHeroSearchSubmit} className="mt-8 max-w-xl">
+                <div className="flex flex-col sm:flex-row gap-2 p-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/60 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition">
                   <div className="flex-1 flex items-center gap-3 px-3">
                     <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -189,28 +250,28 @@ const Home = () => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search internships, jobs, companies..."
-                      className="w-full h-11 text-sm outline-none placeholder:text-slate-400"
+                      className="w-full h-11 text-sm outline-none placeholder:text-slate-400 bg-transparent"
                     />
                   </div>
-                  <Link
-                    to={searchQuery ? `/opportunities?q=${encodeURIComponent(searchQuery)}` : "/opportunities"}
-                    className="h-11 px-6 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-semibold transition flex items-center justify-center"
+                  <button
+                    type="submit"
+                    className="h-11 px-6 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-semibold transition flex items-center justify-center cursor-pointer shadow-sm"
                   >
                     Search
-                  </Link>
+                  </button>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-3">
                   {["Internship", "Remote", "Fresher", "Part-time", "Work from Home"].map((tag) => (
                     <Link
                       key={tag}
-                      to={`/opportunities?type=${tag.toLowerCase()}`}
-                      className="px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-semibold text-slate-600 hover:border-[#1e3a8a] hover:text-[#1e40af] transition"
+                      to={`/opportunities?type=${encodeURIComponent(tag.toLowerCase())}`}
+                      className="px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-semibold text-slate-600 hover:border-[#1e3a8a] hover:text-[#1e40af] transition shadow-2xs"
                     >
                       {tag}
                     </Link>
                   ))}
                 </div>
-              </div>
+              </form>
 
               {/* Dual CTA */}
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
@@ -262,174 +323,25 @@ const Home = () => {
                       i === 1 ? "ml-8" : i === 2 ? "ml-4" : ""
                     }`}
                   >
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#eff6ff] text-[#1e3a8a]">
+                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#eff6ff] text-[#1e3a8a]">
                           {job.opportunityType || job.type || "Live Opportunity"}
                         </span>
                         <p className="mt-2 text-[15px] font-semibold text-slate-900 line-clamp-1">{job.title}</p>
-                        <p className="text-sm text-slate-500">{job.company}</p>
+                        <p className="text-sm text-slate-500">{job.company?.name || job.company || "Verified Company"}</p>
                       </div>
-                      <p className="text-sm font-bold text-[#1e3a8a]">{job.salary || "Verified"}</p>
+                      <p className="text-sm font-bold text-[#1e3a8a] shrink-0">{job.salary || (job.stipend?.amount ? `₹${job.stipend.amount}/month` : "Verified")}</p>
                     </div>
                   </div>
                 ))}
-                {featuredJobs.length === 0 && (
-                  <>
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-5 animate-pulse ${
-                          i === 2 ? "ml-8" : i === 3 ? "ml-4" : ""
-                        }`}
-                      >
-                        <div className="h-4 bg-slate-200 rounded w-24 mb-3" />
-                        <div className="h-5 bg-slate-200 rounded w-48 mb-2" />
-                        <div className="h-4 bg-slate-100 rounded w-32" />
-                      </div>
-                    ))}
-                  </>
-                )}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= STATS ================= */}
-      <section className="border-y border-slate-100 bg-slate-50/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {[
-              { value: "500+", label: "Live Opportunities" },
-              { value: "2,000+", label: "Students Registered" },
-              { value: "120+", label: "Hiring Partners" },
-              { value: "1,500+", label: "Applications" },
-            ].map((s) => (
-              <div key={s.label}>
-                <p className="text-2xl sm:text-3xl font-bold text-[#1e3a8a]">{s.value}</p>
-                <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">{s.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ================= CATEGORIES ================= */}
-      <section id="internships" className="py-16 lg:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-                Explore by category
-              </h2>
-              <p className="mt-1.5 text-slate-500 text-sm">Find what fits your goals</p>
-            </div>
-            <Link to="/opportunities" className="hidden sm:inline text-sm font-semibold text-[#1e3a8a] hover:underline">
-              View all →
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { title: "Internships", count: "180+", emoji: "🎓", path: "/opportunities?type=internship" },
-              { title: "Fresher Jobs", count: "95+", emoji: "💼", path: "/opportunities?type=job" },
-              { title: "Work from Home", count: "70+", emoji: "🏠", path: "/opportunities?remote=true" },
-              { title: "Part-time", count: "45+", emoji: "⏰", path: "/opportunities?type=part-time" },
-            ].map((c) => (
-              <Link
-                key={c.title}
-                to={c.path}
-                className="group p-5 rounded-2xl border border-slate-200 bg-white hover:border-[#1e3a8a]/40 hover:shadow-md transition"
-              >
-                <span className="text-2xl">{c.emoji}</span>
-                <h3 className="mt-3 text-[15px] font-bold text-slate-900 group-hover:text-[#1e3a8a] transition">
-                  {c.title}
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 font-medium">{c.count} openings</p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ================= FEATURED OPPORTUNITIES ================= */}
-      <section id="jobs" className="py-16 lg:py-20 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold mb-2">
-                <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                Live Multi-Source Scraper Feed
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-                Featured opportunities
-              </h2>
-              <p className="mt-1.5 text-slate-500 text-sm">
-                Real-time active openings from LinkedIn, Internshala, Remotive & GU Campus Drives
-              </p>
-            </div>
-            <Link to="/opportunities" className="inline-flex items-center gap-1 text-sm font-bold text-[#1e3a8a] hover:underline">
-              View all 160+ live →
-            </Link>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {featuredLoading ? (
-              [...Array(6)].map((_, i) => (
-                <div key={i} className="p-5 rounded-2xl bg-white border border-slate-200 animate-pulse">
-                  <div className="h-4 bg-slate-200 rounded w-24 mb-3" />
-                  <div className="h-5 bg-slate-200 rounded w-4/5 mb-2" />
-                  <div className="h-4 bg-slate-100 rounded w-1/2 mb-4" />
-                  <div className="h-8 bg-slate-100 rounded mt-4" />
-                </div>
-              ))
-            ) : featuredJobs.length > 0 ? (
-              featuredJobs.map((job, idx) => (
-                <div
-                  key={job.id || job._id || idx}
-                  className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-[#1e3a8a]/40 hover:shadow-md transition flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                      <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[#eff6ff] text-[#1e3a8a]">
-                        {job.opportunityType || job.type || "Opportunity"}
-                      </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                        {job.platformSource || "Verified"}
-                      </span>
-                    </div>
-                    <h3 className="text-[15px] font-bold text-slate-900 line-clamp-1">
-                      {job.title}
-                    </h3>
-                    <p className="text-xs font-semibold text-slate-600 mt-0.5">{job.company}</p>
-                    <p className="text-xs text-slate-400 mt-1">📍 {job.location}</p>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-                    <span className="text-xs font-bold text-slate-800">{job.salary || "Competitive Pay"}</span>
-                    <a
-                      href={job.applyLink || "/opportunities"}
-                      target={job.applyLink?.startsWith("http") ? "_blank" : "_self"}
-                      rel="noopener noreferrer"
-                      className="px-3.5 py-1.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold transition shadow-xs"
-                    >
-                      Apply Now ↗
-                    </a>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-full py-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
-                <p className="text-base font-semibold text-slate-700">No live opportunities found at this moment</p>
-                <p className="text-sm mt-1">Please explore campus drives or check back shortly</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ================= COMPANIES MARQUEE ================= */}
+    {/* ================= COMPANIES MARQUEE ================= */}
       <section id="companies" className="py-14 lg:py-16 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
           <div className="text-center">
@@ -471,7 +383,321 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ================= HOW IT WORKS ================= */}
+
+      {/* ================= 4. TRENDING NOW SECTION ================= */}
+      <section className="py-10 bg-slate-50/60 border-b border-slate-200/80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Trending now
+            </h2>
+            <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
+              📈
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Banner 1: Internships */}
+            <Link
+              to="/internships"
+              className="group p-5 rounded-3xl bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#334155] text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col justify-between min-h-[160px]"
+            >
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                  INTERNSHIPS
+                </span>
+                <h3 className="text-base font-bold mt-2.5 group-hover:text-blue-300 transition leading-snug">
+                  Summer Internship Fair 2026
+                </h3>
+                <p className="text-xs text-slate-300 mt-1">Stipend up to ₹45,000/month</p>
+              </div>
+              <span className="text-xs font-bold text-blue-400 mt-4 inline-flex items-center gap-1">
+                Apply now →
+              </span>
+            </Link>
+
+            {/* Banner 2: Jobs */}
+            <Link
+              to="/jobs"
+              className="group p-5 rounded-3xl bg-gradient-to-br from-[#0284c7] via-[#0369a1] to-[#075985] text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col justify-between min-h-[160px]"
+            >
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-white/20 text-white border border-white/30">
+                  JOBS
+                </span>
+                <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-300 transition leading-snug">
+                  Fresher Tech Hiring Fest
+                </h3>
+                <p className="text-xs text-sky-100 mt-1">Min CTC ₹6 LPA - ₹15 LPA</p>
+              </div>
+              <span className="text-xs font-bold text-sky-200 mt-4 inline-flex items-center gap-1">
+                Explore 85+ Jobs →
+              </span>
+            </Link>
+
+            {/* Banner 3: Campus Drives */}
+            <Link
+              to="/opportunities?source=campus"
+              className="group p-5 rounded-3xl bg-gradient-to-br from-[#78350f] via-[#92400e] to-[#b45309] text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col justify-between min-h-[160px]"
+            >
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-200 border border-amber-300/30">
+                  CAMPUS DRIVES
+                </span>
+                <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-200 transition leading-snug">
+                  Geeta University Recruitment
+                </h3>
+                <p className="text-xs text-amber-100 mt-1">120+ Partner Companies On-Campus</p>
+              </div>
+              <span className="text-xs font-bold text-amber-200 mt-4 inline-flex items-center gap-1">
+                View On-Campus Drives →
+              </span>
+            </Link>
+
+            {/* Banner 4: Courses */}
+            <Link
+              to="/courses"
+              className="group p-5 rounded-3xl bg-gradient-to-br from-[#4c1d95] via-[#5b21b6] to-[#6d28d9] text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col justify-between min-h-[160px]"
+            >
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-400/20 text-purple-200 border border-purple-300/30">
+                  COURSES
+                </span>
+                <h3 className="text-base font-bold mt-2.5 group-hover:text-purple-200 transition leading-snug">
+                  Job Oriented Certifications
+                </h3>
+                <p className="text-xs text-purple-100 mt-1">With Live Industry Projects</p>
+              </div>
+              <span className="text-xs font-bold text-purple-300 mt-4 inline-flex items-center gap-1">
+                Enroll with 55% OFF →
+              </span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= 5. LATEST INTERNSHIPS ON CAREERCONNECT ================= */}
+      <section className="py-12 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                Latest internships on CareerConnect
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                POPULAR CATEGORIES:{" "}
+                <Link to="/internships/work-from-home" className="text-blue-600 font-semibold hover:underline">
+                  Work from home
+                </Link>{" "}
+                •{" "}
+                <Link to="/internships/in/delhi" className="text-blue-600 font-semibold hover:underline">
+                  Delhi/NCR
+                </Link>{" "}
+                •{" "}
+                <Link to="/internships/in/bangalore" className="text-blue-600 font-semibold hover:underline">
+                  Bangalore
+                </Link>{" "}
+                •{" "}
+                <Link to="/internships/category/data-science" className="text-blue-600 font-semibold hover:underline">
+                  Data Science
+                </Link>
+              </p>
+            </div>
+            <Link
+              to="/internships"
+              className="text-xs font-bold text-blue-600 hover:text-blue-800 transition inline-flex items-center gap-1 shrink-0"
+            >
+              <span>View all internships (10/page)</span>
+              <span>→</span>
+            </Link>
+          </div>
+
+          {/* Internships Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {loading ? (
+              [...Array(4)].map((_, i) => (
+                <div key={i} className="p-5 rounded-2xl bg-white border border-slate-200 animate-pulse space-y-3">
+                  <div className="h-4 bg-slate-200 rounded w-24" />
+                  <div className="h-5 bg-slate-200 rounded w-4/5" />
+                  <div className="h-4 bg-slate-100 rounded w-1/2" />
+                </div>
+              ))
+            ) : internships.length > 0 ? (
+              internships.slice(0, 4).map((item, idx) => (
+                <div
+                  key={item._id || item.id || idx}
+                  className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-md transition flex flex-col justify-between gap-3 group"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                        {item.workMode || "Remote"}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {item.postedAt || "Recently"}
+                      </span>
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition line-clamp-1">
+                      {item.title}
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-600 line-clamp-1">{item.company}</p>
+                    <p className="text-[11px] text-slate-400">📍 {item.location}</p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="font-bold text-emerald-700">{item.stipend || "Paid"}</span>
+                    <Link
+                      to="/internships"
+                      className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
+                    >
+                      Apply ›
+                    </Link>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full py-8 text-center text-slate-400 text-xs">
+                No internships found right now.
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= 6. LATEST JOBS ON CAREERCONNECT ================= */}
+      <section className="py-12 bg-slate-50/70 border-y border-slate-200/70">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-200/80 pb-4">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                Latest jobs on CareerConnect
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                POPULAR STREAMS:{" "}
+                <Link to="/jobs/category/software-development" className="text-blue-600 font-semibold hover:underline">
+                  Software Engineer
+                </Link>{" "}
+                •{" "}
+                <Link to="/jobs/category/data-science" className="text-blue-600 font-semibold hover:underline">
+                  Data Analyst
+                </Link>{" "}
+                •{" "}
+                <Link to="/jobs/category/marketing" className="text-blue-600 font-semibold hover:underline">
+                  Marketing
+                </Link>{" "}
+                •{" "}
+                <Link to="/jobs/work-from-home" className="text-blue-600 font-semibold hover:underline">
+                  Remote Jobs
+                </Link>
+              </p>
+            </div>
+            <Link
+              to="/jobs"
+              className="text-xs font-bold text-blue-600 hover:text-blue-800 transition inline-flex items-center gap-1 shrink-0"
+            >
+              <span>View all jobs (10/page)</span>
+              <span>→</span>
+            </Link>
+          </div>
+
+          {/* Jobs Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {loading ? (
+              [...Array(4)].map((_, i) => (
+                <div key={i} className="p-5 rounded-2xl bg-white border border-slate-200 animate-pulse space-y-3">
+                  <div className="h-4 bg-slate-200 rounded w-24" />
+                  <div className="h-5 bg-slate-200 rounded w-4/5" />
+                  <div className="h-4 bg-slate-100 rounded w-1/2" />
+                </div>
+              ))
+            ) : jobs.length > 0 ? (
+              jobs.slice(0, 4).map((jobItem, idx) => (
+                <div
+                  key={jobItem._id || jobItem.id || idx}
+                  className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-md transition flex flex-col justify-between gap-3 group"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
+                        {jobItem.employmentType || "Full Time"}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {jobItem.postedAt || "Recently"}
+                      </span>
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition line-clamp-1">
+                      {jobItem.title}
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-600 line-clamp-1">{jobItem.company}</p>
+                    <p className="text-[11px] text-slate-400">📍 {jobItem.location}</p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-800">{jobItem.salary || "Competitive"}</span>
+                    <Link
+                      to="/jobs"
+                      className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
+                    >
+                      Apply ›
+                    </Link>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full py-8 text-center text-slate-400 text-xs">
+                No jobs found right now.
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= 7. CERTIFICATION COURSES BANNER ================= */}
+      <section className="py-12 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10.5px] font-extrabold mb-1">
+                <span>⚡ PLACEMENT ASSISTANCE</span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                Certification courses for students & freshers
+              </h2>
+            </div>
+            <Link to="/courses" className="text-xs font-bold text-blue-600 hover:underline">
+              View all courses →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { title: "Full Stack Web Development", icon: "💻", duration: "8 Weeks", tag: "Most Popular" },
+              { title: "Python with AI & Machine Learning", icon: "🤖", duration: "6 Weeks", tag: "Trending" },
+              { title: "Data Science & PowerBI", icon: "📊", duration: "6 Weeks", tag: "High Demand" },
+              { title: "Digital Marketing & Growth", icon: "📈", duration: "4 Weeks", tag: "Beginner Friendly" },
+            ].map((course, idx) => (
+              <Link
+                key={idx}
+                to="/courses"
+                className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md transition space-y-3 group"
+              >
+                <div className="text-2xl">{course.icon}</div>
+                <div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                    {course.tag}
+                  </span>
+                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition mt-2">
+                    {course.title}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">Duration: {course.duration}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+        {/* ================= HOW IT WORKS ================= */}
       <section id="how-it-works" className="py-16 lg:py-20 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-xl mx-auto mb-12">
@@ -499,102 +725,119 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ================= DUAL CTA: Student + Employer ================= */}
-      <section className="py-16 lg:py-20">
+      {/* ================= 8. STATS & NUMBERS STRIP ================= */}
+      <section className="border-t border-slate-100 bg-[#0a2540] text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 gap-5">
-            {/* Student card */}
-            <div className="rounded-3xl bg-[#1e3a8a] p-8 sm:p-10 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full blur-2xl" />
-              <p className="text-[12px] font-semibold text-blue-200 uppercase tracking-wider mb-2">
-                For Students & Freshers
-              </p>
-              <h3 className="text-2xl font-bold leading-snug">
-                Find internships & jobs that match your skills
-              </h3>
-              <p className="mt-3 text-blue-100 text-sm leading-relaxed">
-                Build profile, apply easily, track applications — all in one place.
-              </p>
-              <Link
-                to="/register/student"
-                className="inline-flex mt-6 h-11 px-6 rounded-xl bg-white text-[#1e3a8a] text-sm font-bold hover:bg-blue-50 transition"
-              >
-                Student Register
-              </Link>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            <div>
+              <p className="text-3xl sm:text-4xl font-black text-[#facc15]">300K+</p>
+              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">Companies hiring</p>
             </div>
-
-            {/* Employer card */}
-            <div className="rounded-3xl bg-[#fffbeb] border border-[#fde68a] p-8 sm:p-10 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-40 h-40 bg-[#f59e0b]/10 rounded-full blur-2xl" />
-              <p className="text-[12px] font-semibold text-[#b45309] uppercase tracking-wider mb-2">
-                For Employers & Recruiters
-              </p>
-              <h3 className="text-2xl font-bold text-slate-900 leading-snug">
-                Hire verified talent from Geeta University
-              </h3>
-              <p className="mt-3 text-slate-600 text-sm leading-relaxed">
-                Post opportunities, review applications, and hire the right candidates faster.
-              </p>
-              <Link
-                to="/register/employer"
-                className="inline-flex mt-6 h-11 px-6 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-sm font-bold transition"
-              >
-                Employer Sign-up
-              </Link>
+            <div>
+              <p className="text-3xl sm:text-4xl font-black text-white">10K+</p>
+              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">New openings monthly</p>
+            </div>
+            <div>
+              <p className="text-3xl sm:text-4xl font-black text-[#facc15]">21Mn+</p>
+              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">Active candidates</p>
+            </div>
+            <div>
+              <p className="text-3xl sm:text-4xl font-black text-white">100%</p>
+              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">Verified opportunities</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= FOOTER ================= */}
-      <footer className="border-t border-slate-200 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-xs">
-                  GU
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-[#1e3a8a]">GEETA UNIVERSITY</p>
-                  <p className="text-[10px] text-[#f59e0b] font-semibold">CareerConnect</p>
-                </div>
-              </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Official career & opportunity platform for Geeta University students, alumni and recruiters.
+      {/* ================= 9. INTERNSHALA STYLE FOOTER ================= */}
+      <footer className="bg-[#121b2b] text-slate-300 border-t border-slate-800 text-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8">
+            {/* Col 1: Internships by Place */}
+            <div className="space-y-2.5">
+              <p className="font-bold text-white uppercase tracking-wider text-[11px]">
+                Internships by places
               </p>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Platform</p>
-              <ul className="space-y-2 text-sm text-slate-500">
-                <li><a href="#internships" className="hover:text-[#1e3a8a]">Internships</a></li>
-                <li><a href="#jobs" className="hover:text-[#1e3a8a]">Jobs</a></li>
-                <li><a href="#companies" className="hover:text-[#1e3a8a]">Companies</a></li>
+              <ul className="space-y-1.5 text-slate-400">
+                <li><Link to="/internships/in/delhi" className="hover:text-white">Internship in Delhi</Link></li>
+                <li><Link to="/internships/in/bangalore" className="hover:text-white">Internship in Bangalore</Link></li>
+                <li><Link to="/internships/in/hyderabad" className="hover:text-white">Internship in Hyderabad</Link></li>
+                <li><Link to="/internships/in/mumbai" className="hover:text-white">Internship in Mumbai</Link></li>
+                <li><Link to="/internships/in/chennai" className="hover:text-white">Internship in Chennai</Link></li>
+                <li><Link to="/internships/in/pune" className="hover:text-white">Internship in Pune</Link></li>
+                <li><Link to="/internships/work-from-home" className="hover:text-white">Virtual internship</Link></li>
               </ul>
             </div>
-            <div>
-              <p className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Candidates</p>
-              <ul className="space-y-2 text-sm text-slate-500">
-                <li><Link to="/login" className="hover:text-[#1e3a8a]">Login</Link></li>
-                <li><Link to="/signup" className="hover:text-[#1e3a8a]">Sign-up</Link></li>
+
+            {/* Col 2: Internships by Stream */}
+            <div className="space-y-2.5">
+              <p className="font-bold text-white uppercase tracking-wider text-[11px]">
+                Internship by Stream
+              </p>
+              <ul className="space-y-1.5 text-slate-400">
+                <li><Link to="/internships/category/computer-science" className="hover:text-white">Computer Science</Link></li>
+                <li><Link to="/internships/category/web-development" className="hover:text-white">Web Development</Link></li>
+                <li><Link to="/internships/category/data-science" className="hover:text-white">Data Science</Link></li>
+                <li><Link to="/internships/category/marketing" className="hover:text-white">Marketing</Link></li>
+                <li><Link to="/internships/category/finance" className="hover:text-white">Finance</Link></li>
+                <li><Link to="/internships/category/graphic-design" className="hover:text-white">Graphic Design</Link></li>
+                <li><Link to="/internships/category/hr" className="hover:text-white">Human Resources</Link></li>
               </ul>
             </div>
-            <div>
-              <p className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Employers</p>
-              <ul className="space-y-2 text-sm text-slate-500">
-                <li><Link to="/login?type=employer" className="hover:text-[#1e3a8a]">Employer Login</Link></li>
-                <li><Link to="/register/employer" className="hover:text-[#1e3a8a]">Employer Sign-up</Link></li>
+
+            {/* Col 3: Jobs by Places */}
+            <div className="space-y-2.5">
+              <p className="font-bold text-white uppercase tracking-wider text-[11px]">
+                Jobs by Places
+              </p>
+              <ul className="space-y-1.5 text-slate-400">
+                <li><Link to="/jobs/in/delhi" className="hover:text-white">Jobs in Delhi</Link></li>
+                <li><Link to="/jobs/in/bangalore" className="hover:text-white">Jobs in Bangalore</Link></li>
+                <li><Link to="/jobs/in/mumbai" className="hover:text-white">Jobs in Mumbai</Link></li>
+                <li><Link to="/jobs/in/hyderabad" className="hover:text-white">Jobs in Hyderabad</Link></li>
+                <li><Link to="/jobs/in/pune" className="hover:text-white">Jobs in Pune</Link></li>
+                <li><Link to="/jobs/work-from-home" className="hover:text-white">Remote Jobs</Link></li>
+              </ul>
+            </div>
+
+            {/* Col 4: Jobs by Stream */}
+            <div className="space-y-2.5">
+              <p className="font-bold text-white uppercase tracking-wider text-[11px]">
+                Jobs by Stream
+              </p>
+              <ul className="space-y-1.5 text-slate-400">
+                <li><Link to="/jobs/category/software-development" className="hover:text-white">Software Engineer</Link></li>
+                <li><Link to="/jobs/category/data-science" className="hover:text-white">Data Analyst</Link></li>
+                <li><Link to="/jobs/category/marketing" className="hover:text-white">Digital Marketing</Link></li>
+                <li><Link to="/jobs/category/sales" className="hover:text-white">Sales & Business Dev</Link></li>
+                <li><Link to="/jobs/category/finance" className="hover:text-white">Finance Executive</Link></li>
+              </ul>
+            </div>
+
+            {/* Col 5: About & Campus */}
+            <div className="space-y-2.5">
+              <p className="font-bold text-white uppercase tracking-wider text-[11px]">
+                About CareerConnect
+              </p>
+              <ul className="space-y-1.5 text-slate-400">
+                <li><Link to="/home" className="hover:text-white">About Geeta University</Link></li>
+                <li><Link to="/opportunities?source=campus" className="hover:text-white">Placement Cell</Link></li>
+                <li><Link to="/courses" className="hover:text-white">Training & Certifications</Link></li>
+                <li><Link to="/register/employer" className="hover:text-white">Hire from Campus</Link></li>
+                <li><Link to="/login" className="hover:text-white">Candidate Login</Link></li>
               </ul>
             </div>
           </div>
 
-          <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-slate-400">
-              © {new Date().getFullYear()} Geeta University · CareerConnect
-            </p>
-            <p className="text-xs text-slate-400">
-              Panipat, Delhi NCR, India
-            </p>
+          <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
+            <p>© {new Date().getFullYear()} Geeta University · CareerConnect. All rights reserved.</p>
+            <div className="flex items-center gap-4">
+              <Link to="/home" className="hover:text-slate-300">Privacy Policy</Link>
+              <span>•</span>
+              <Link to="/home" className="hover:text-slate-300">Terms & Conditions</Link>
+              <span>•</span>
+              <Link to="/home" className="hover:text-slate-300">Sitemap</Link>
+            </div>
           </div>
         </div>
       </footer>

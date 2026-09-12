@@ -27,6 +27,7 @@ import RoleProtectedRoute from "./components/RoleProtectedRoute";
 import SelectRole from "./pages/SelectRole";
 import Home from "./pages/Home.jsx";
 import InternshipDiscoveryPage from "./pages/internships/InternshipDiscoveryPage";
+import JobDiscoveryPage from "./pages/jobs/JobDiscoveryPage";
 import OpportunitiesPage from "./pages/OpportunitiesPage";
 
 // Student
@@ -39,6 +40,7 @@ import MyApplications from "./pages/student/MyApplications";
 // Fresher
 import FresherDashboard from "./pages/fresher/FresherDashboard";
 import FresherProfile from "./pages/fresher/FresherProfile";
+import CareerRecommendationsPage from "./pages/fresher/CareerRecommendationsPage";
 
 // Professional
 import ProfessionalDashboard from "./pages/professional/ProfessionalDashboard";
@@ -57,6 +59,7 @@ import ResumeBuilder from "./pages/resume/ResumeBuilder";
 
 // Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
+import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
 
 // Redux
 import { getCurrentUser } from "./services/authService";
@@ -67,17 +70,29 @@ import { getDashboardPath } from "./utils/dashboardRedirect";
 const RootRoute = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
-  if (user && user.hasPassword !== false && user.phone?.trim()) {
-    return <Navigate to={getDashboardPath(user.userType, user)} replace />;
+  if (user) {
+    if (user.hasPassword === false) {
+      return <Navigate to="/set-password" replace />;
+    }
+    if (!user.phone?.trim() || !user.isProfileComplete) {
+      return <Navigate to={user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile"} replace />;
+    }
+    return <Navigate to={getDashboardPath(user.userType || user.role, user)} replace />;
   }
-  return <Navigate to="/home" replace />;
+  return <Home />;
 };
 
 const PublicOnlyRoute = ({ children }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
-  if (user && user.hasPassword !== false && user.phone?.trim()) {
-    return <Navigate to={getDashboardPath(user.userType, user)} replace />;
+  if (user) {
+    if (user.hasPassword === false) {
+      return <Navigate to="/set-password" replace />;
+    }
+    if (!user.phone?.trim() || !user.isProfileComplete) {
+      return <Navigate to={user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile"} replace />;
+    }
+    return <Navigate to={getDashboardPath(user.userType || user.role, user)} replace />;
   }
   return children;
 };
@@ -141,6 +156,7 @@ function App() {
   return (
     <BrowserRouter>
       <RateLimitWarningModal />
+      <FloatingAiAssistant />
       <AuthInitializer>
         <Routes>
           {/* =================================================
@@ -172,7 +188,14 @@ function App() {
           />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/select-role" element={<SelectRole />} />
-          <Route path="/home" element={<Home />} />
+          <Route
+            path="/home"
+            element={
+              <PublicOnlyRoute>
+                <Home />
+              </PublicOnlyRoute>
+            }
+          />
           <Route path="/companies/:companyId" element={<CompanyPublicProfile />} />
 
           {/* =================================================
@@ -181,10 +204,18 @@ function App() {
           <Route path="/set-password" element={<SetPassword />} />
 
           {/* =================================================
+              JOB DISCOVERY
+          ================================================= */}
+          <Route path="/jobs" element={<JobDiscoveryPage />} />
+          <Route path="/jobs/work-from-home" element={<JobDiscoveryPage />} />
+          <Route path="/jobs/latest" element={<JobDiscoveryPage />} />
+          <Route path="/jobs/in/:city" element={<JobDiscoveryPage />} />
+          <Route path="/jobs/category/:category" element={<JobDiscoveryPage />} />
+
+          {/* =================================================
               LIVE OPPORTUNITIES MATRIX & DISCOVERY
           ================================================= */}
           <Route path="/opportunities" element={<OpportunitiesPage />} />
-          <Route path="/jobs" element={<OpportunitiesPage />} />
 
           {/* =================================================
               INTERNSHIP DISCOVERY
@@ -251,6 +282,7 @@ function App() {
             <Route path="/fresher/dashboard" element={<FresherDashboard />} />
             <Route path="/fresher/profile" element={<FresherProfile />} />
             <Route path="/fresher/profile/setup" element={<FresherProfile />} />
+            <Route path="/fresher/career-recommendations" element={<CareerRecommendationsPage />} />
           </Route>
 
           {/* =================================================
@@ -297,7 +329,7 @@ function App() {
           <Route path="/resume-builder" element={<ResumeBuilder />} />
 
           {/* ========== DEFAULT ========== */}
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<RootRoute />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthInitializer>

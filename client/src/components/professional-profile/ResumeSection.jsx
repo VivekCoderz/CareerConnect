@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ResumeUploadInput from "../common/ResumeUploadInput";
 
 const ResumeSection = ({ profile, user, onChange }) => {
   const [resumeUrl, setResumeUrl] = useState(profile?.resume?.resumeUrl || "");
@@ -55,7 +56,7 @@ const ResumeSection = ({ profile, user, onChange }) => {
             onClick={() => setViewMode(viewMode === "preview" ? "custom_link" : "preview")}
             className="px-3.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition"
           >
-            {viewMode === "preview" ? "🔗 Attach External Cloud Link" : "📄 View Auto-Compiled ATS Resume"}
+            {viewMode === "preview" ? "📁 Upload / Attach Custom Resume" : "📄 View Auto-Compiled ATS Resume"}
           </button>
 
           <button
@@ -73,24 +74,26 @@ const ResumeSection = ({ profile, user, onChange }) => {
 
       {viewMode === "custom_link" ? (
         <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-          <h3 className="text-sm font-bold text-slate-900">Attach Custom Resume File Link</h3>
-          <p className="text-xs text-slate-500">
-            Paste a link to your Google Drive, Dropbox, or hosted PDF resume.
-          </p>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Custom Executive Resume</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Upload your custom resume file (PDF, DOC, DOCX up to 10MB) or link your hosted resume URL.
+            </p>
+          </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
+            <ResumeUploadInput
+              value={resumeUrl}
+              onChange={(url, meta) => {
+                const newName = meta?.fileName || resumeName;
+                handleUpdate(url, newName, false);
+              }}
+              label="Resume File or URL"
+              helperText="Files are securely uploaded and linked directly to your professional profile."
+            />
+
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Resume Document URL</label>
-              <input
-                type="url"
-                value={resumeUrl}
-                onChange={(e) => handleUpdate(e.target.value, resumeName, false)}
-                placeholder="https://drive.google.com/file/d/..."
-                className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white text-xs outline-none focus:border-violet-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Document Label</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Document Label / Name</label>
               <input
                 type="text"
                 value={resumeName}

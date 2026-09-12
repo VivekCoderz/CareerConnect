@@ -1,5 +1,9 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
+const mongoose = require("mongoose");
+const Job = require("../models/Job");
+const Internship = require("../models/Internship");
+const EmployerProfile = require("../models/EmployerProfile");
 
 // =========================================================================
 // 1. CLEAN DEGREE KEYWORD MAP (SIMPLIFIED NAMES)
@@ -224,9 +228,16 @@ const INDIAN_GEO_KEYWORDS = [
 // 3. GEETA UNIVERSITY ON-CAMPUS DRIVES
 // ==========================================
 const CAMPUS_DRIVES = [
+ 
 ];
 
 const searchCache = {};
+
+function clearSearchCache() {
+  for (const key in searchCache) {
+    delete searchCache[key];
+  }
+}
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -239,7 +250,7 @@ const USER_AGENTS = [
 // ==========================================
 
 async function scrapeLinkedIn(queryKeywords, targetLocation, jobTypeParam) {
-  const startOffsets = [0, 25, 50, 75, 100];
+  const startOffsets = [0, 25];
   const results = [];
 
   const cleanQuery = queryKeywords
@@ -257,9 +268,10 @@ async function scrapeLinkedIn(queryKeywords, targetLocation, jobTypeParam) {
       cleanQuery,
     )}&location=${encodeURIComponent(targetLocation || "India")}&start=${start}`;
 
-    if (jobTypeParam === "internship") searchUrl += "&f_JT=I";
-    if (jobTypeParam === "fulltime") searchUrl += "&f_JT=F";
-    if (jobTypeParam === "parttime") searchUrl += "&f_JT=P";
+    const normalizedParam = (jobTypeParam || "").toLowerCase().replace(/[-_ ]/g, "");
+    if (normalizedParam === "internship" || normalizedParam === "intern") searchUrl += "&f_JT=I";
+    if (normalizedParam === "fulltime" || normalizedParam === "job") searchUrl += "&f_JT=F";
+    if (normalizedParam === "parttime") searchUrl += "&f_JT=P";
 
     try {
       const response = await axios.get(searchUrl, {
@@ -503,18 +515,28 @@ async function getAggregatedOpportunities({
     queryKeywords = "Developer OR Engineer OR Analyst OR Trainee";
   }
 
-  if (opportunityType === "internship") {
+  const rawOppType = (opportunityType || "all").toLowerCase().replace(/[-_ ]/g, "");
+  let normalizedOppType = "all";
+  if (rawOppType === "internship" || rawOppType === "intern") {
+    normalizedOppType = "internship";
+  } else if (rawOppType === "fulltime" || rawOppType === "job") {
+    normalizedOppType = "fulltime";
+  } else if (rawOppType === "parttime") {
+    normalizedOppType = "parttime";
+  }
+
+  if (normalizedOppType === "internship") {
     if (!queryKeywords.toLowerCase().includes("intern")) {
       queryKeywords += " Intern";
     }
-  } else if (opportunityType === "fulltime") {
+  } else if (normalizedOppType === "fulltime") {
     if (
       !queryKeywords.toLowerCase().includes("associate") &&
       !queryKeywords.toLowerCase().includes("engineer")
     ) {
       queryKeywords += " Associate";
     }
-  } else if (opportunityType === "parttime") {
+  } else if (normalizedOppType === "parttime") {
     queryKeywords += " Part-Time";
   }
 
@@ -533,7 +555,7 @@ async function getAggregatedOpportunities({
     targetLocation = "India";
   }
 
-  const cacheKey = `${queryKeywords}_${targetLocation}_${scope}_${workMode}_${opportunityType}_${source}_${region}`;
+  const cacheKey = `${queryKeywords}_${targetLocation}_${scope}_${workMode}_${normalizedOppType}_${source}_${region}`;
 
   if (
     searchCache[cacheKey] &&
@@ -552,26 +574,30 @@ async function getAggregatedOpportunities({
   if (scope !== "on-campus") {
     const scraperPromises = [];
 
-    if (source === "all" || source === "linkedin") {
+    if (source === "all" || source === "external" || source === "linkedin") {
       scraperPromises.push(
-        scrapeLinkedIn(queryKeywords, targetLocation, opportunityType),
+        scrapeLinkedIn(queryKeywords, targetLocation, normalizedOppType),
       );
     }
     if (
-      (source === "all" || source === "internshala") &&
+      (source === "all" || source === "external" || source === "internshala") &&
       region !== "International"
     ) {
       scraperPromises.push(scrapeInternshala(queryKeywords));
     }
-    if (source === "all" || source === "remotive") {
+    if (source === "all" || source === "external" || source === "remotive") {
       scraperPromises.push(fetchRemotiveJobs(queryKeywords));
     }
-    if (source === "all" || source === "arbeitnow") {
+    if (source === "all" || source === "external" || source === "arbeitnow") {
       scraperPromises.push(fetchArbeitnowJobs(queryKeywords));
     }
 
-    const resultsArray = await Promise.all(scraperPromises);
-    resultsArray.forEach((arr) => scrapedResults.push(...arr));
+    const settled = await Promise.allSettled(scraperPromises);
+    settled.forEach((res) => {
+      if (res.status === "fulfilled" && Array.isArray(res.value)) {
+        scrapedResults.push(...res.value);
+      }
+    });
 
     // Remove Duplicates
     scrapedResults = Array.from(
@@ -673,19 +699,19 @@ async function getAggregatedOpportunities({
   }
 
   // STRICT OPPORTUNITY TYPE FILTER
-  if (opportunityType !== "all") {
+  if (normalizedOppType !== "all") {
     scrapedResults = scrapedResults.filter((job) => {
       const t = (job.title || "").toLowerCase();
       const oppType = (job.opportunityType || "").toLowerCase();
 
-      if (opportunityType === "internship") {
+      if (normalizedOppType === "internship") {
         return (
           oppType.includes("intern") ||
           t.includes("intern") ||
           t.includes("trainee")
         );
       }
-      if (opportunityType === "fulltime") {
+      if (normalizedOppType === "fulltime") {
         return (
           !t.includes("intern") &&
           !oppType.includes("intern") &&
@@ -693,7 +719,7 @@ async function getAggregatedOpportunities({
           !oppType.includes("part-time")
         );
       }
-      if (opportunityType === "parttime") {
+      if (normalizedOppType === "parttime") {
         return (
           t.includes("part-time") ||
           t.includes("part time") ||
@@ -705,21 +731,154 @@ async function getAggregatedOpportunities({
     });
   }
 
-  // Merge On-Campus Drives
-  let combinedResults = [];
-  if (scope === "all" || scope === "on-campus") {
-    if (source === "all" || source === "campus") {
-      const filteredDrives = CAMPUS_DRIVES.filter((drive) => {
-        if (region === "International") return false;
-        if (workMode === "Remote") return false;
-        return true;
-      });
-      combinedResults = [...filteredDrives, ...scrapedResults];
-    } else {
-      combinedResults = scrapedResults;
+  // Query Real MongoDB Opportunities
+  let dbOpportunities = [];
+  if (mongoose.connection.readyState === 1) {
+    try {
+      const jobFilter = { status: "Published" };
+      const internFilter = { status: "Published" };
+
+      if (customQuery) {
+        const sRegex = new RegExp(customQuery, "i");
+        jobFilter.$or = [
+          { title: sRegex },
+          { description: sRegex },
+          { requiredSkills: { $in: [sRegex] } },
+        ];
+        internFilter.$or = [
+          { title: sRegex },
+          { description: sRegex },
+          { skillsRequired: { $in: [sRegex] } },
+        ];
+      }
+
+      if (workMode && workMode !== "all") {
+        jobFilter.workMode = workMode === "Remote" ? "Remote" : { $ne: "Remote" };
+        internFilter.workMode = workMode;
+      }
+
+      const isInternshipRequested =
+        opportunityType === "internship" ||
+        opportunityType === "internships";
+      const isJobRequested =
+        opportunityType === "job" ||
+        opportunityType === "jobs" ||
+        opportunityType === "fulltime" ||
+        opportunityType === "full-time" ||
+        opportunityType === "parttime" ||
+        opportunityType === "part-time";
+
+      let dbJobs = [];
+      let dbInterns = [];
+
+      if (!isInternshipRequested) {
+        // Query jobs (exclude internships)
+        const pureJobFilter = {
+          ...jobFilter,
+          employmentType: { $not: /^internship$/i },
+        };
+        if (opportunityType === "parttime" || opportunityType === "part-time") {
+          pureJobFilter.employmentType = { $regex: /part-time/i };
+        } else if (opportunityType === "fulltime" || opportunityType === "full-time") {
+          pureJobFilter.employmentType = { $regex: /full-time/i };
+        }
+        dbJobs = await Job.find(pureJobFilter)
+          .populate("employerId", "companyName logo headquarters industry")
+          .sort({ createdAt: -1 })
+          .lean();
+      }
+
+      if (!isJobRequested) {
+        // Query internships from both Internship collection and Job collection with employmentType=Internship
+        const [internDocs, jobInternDocs] = await Promise.all([
+          Internship.find(internFilter)
+            .populate("employerId", "companyName logo headquarters industry")
+            .sort({ createdAt: -1 })
+            .lean(),
+          Job.find({
+            ...jobFilter,
+            employmentType: { $regex: /^internship$/i },
+          })
+            .populate("employerId", "companyName logo headquarters industry")
+            .sort({ createdAt: -1 })
+            .lean(),
+        ]);
+        dbInterns = [...(internDocs || []), ...(jobInternDocs || [])];
+      }
+
+      const formattedJobs = dbJobs.map((j) => ({
+        _id: j._id.toString(),
+        id: j._id.toString(),
+        title: j.title,
+        company: j.employerId?.companyName || "CareerConnect Partner",
+        location: j.location || "On-Campus / Hybrid",
+        opportunityType: j.employmentType || "Full-Time",
+        workMode: j.workMode || "On-Site",
+        salary: j.salaryRange?.max
+          ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
+          : "Competitive Package",
+        stipend: j.salaryRange?.max
+          ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
+          : "Competitive Package",
+        description: j.description,
+        skills: j.requiredSkills || [],
+        skillsRequired: j.requiredSkills || [],
+        deadline: j.deadline ? new Date(j.deadline).toLocaleDateString() : "Open",
+        postedDate: j.createdAt
+          ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+          : "Recently",
+        applyLink: `/jobs/${j._id}`,
+        isExclusive: true,
+        isExternal: false,
+        platformSource: "GU Placement Cell",
+        type: "job",
+        employerId: j.employerId?._id || j.employerId,
+      }));
+
+      const formattedInterns = dbInterns.map((i) => ({
+        _id: i._id.toString(),
+        id: i._id.toString(),
+        title: i.title,
+        company: i.companyName || i.employerId?.companyName || "CareerConnect Partner",
+        location: i.location || "Panipat / Remote",
+        opportunityType: "Internship",
+        workMode: i.workMode || "On-Site",
+        salary: i.stipend ? `₹${i.stipend}/month` : "Paid Internship",
+        stipend: i.stipend ? `₹${i.stipend}/month` : "Paid Internship",
+        description: i.description,
+        skills: i.skillsRequired || i.requiredSkills || [],
+        skillsRequired: i.skillsRequired || i.requiredSkills || [],
+        deadline: i.applicationDeadline || i.deadline
+          ? new Date(i.applicationDeadline || i.deadline).toLocaleDateString()
+          : "Open",
+        postedDate: i.createdAt
+          ? new Date(i.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+          : "Recently",
+        applyLink: `/internships/${i._id}`,
+        isExclusive: true,
+        isExternal: false,
+        platformSource: "GU Placement Cell",
+        type: "internship",
+        employerId: i.employerId?._id || i.employerId,
+      }));
+
+      dbOpportunities = [...formattedJobs, ...formattedInterns];
+    } catch (err) {
+      console.warn("Error querying MongoDB opportunities:", err.message);
     }
+  }
+
+  // Merge On-Campus Drives & Database Opportunities
+  let combinedResults = [];
+  if (source === "external") {
+    // Strictly external scraped opportunities only (NO campus / DB items)
+    combinedResults = [...scrapedResults];
+  } else if (source === "campus" || scope === "on-campus") {
+    // Strictly employer-listed campus opportunities only (NO external scrapers)
+    combinedResults = [...dbOpportunities];
   } else {
-    combinedResults = scrapedResults;
+    // All sources: Campus listings first, followed by external scraped listings
+    combinedResults = [...dbOpportunities, ...scrapedResults];
   }
 
   searchCache[cacheKey] = {
@@ -781,4 +940,5 @@ module.exports = {
   fetchArbeitnowJobs,
   getAggregatedOpportunities,
   getFilterMetadata,
+  clearSearchCache,
 };

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ResumeUploadInput from "../common/ResumeUploadInput";
 
 const ApplyReviewModal = ({
   isOpen,
@@ -11,6 +12,9 @@ const ApplyReviewModal = ({
 }) => {
   const [coverNote, setCoverNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customResumeOpen, setCustomResumeOpen] = useState(false);
+  const [customResumeUrl, setCustomResumeUrl] = useState(user?.resumeUrl || profile?.resume?.resumeUrl || "");
+  const [customResumeName, setCustomResumeName] = useState(user?.resumeName || profile?.resume?.resumeName || "");
 
   if (!isOpen || !opportunity) return null;
 
@@ -28,14 +32,14 @@ const ApplyReviewModal = ({
     e.preventDefault();
     if (isExternal) {
       if (onContinueExternal) {
-        onContinueExternal(opportunity, coverNote);
+        onContinueExternal(opportunity, coverNote, customResumeUrl);
       }
     } else {
       setIsSubmitting(true);
       setTimeout(() => {
         setIsSubmitting(false);
         if (onSubmitDirect) {
-          onSubmitDirect(opportunity, coverNote);
+          onSubmitDirect(opportunity, coverNote, customResumeUrl);
         }
       }, 400);
     }
@@ -105,22 +109,51 @@ const ApplyReviewModal = ({
           </div>
 
           {/* Attached Resume */}
-          <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
-                📄
-              </div>
-              <div>
-                <span className="text-xs font-bold text-slate-900 block">
-                  {candidateName.replace(/\s+/g, "_")}_Executive_Resume.pdf
-                </span>
-                <span className="text-[11px] text-purple-800 font-semibold flex items-center gap-1">
-                  <span>✓</span> ATS Optimized & Verified
-                </span>
-              </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Resume Attachment
+              </span>
+              <button
+                type="button"
+                onClick={() => setCustomResumeOpen(!customResumeOpen)}
+                className="text-[11px] font-semibold text-purple-700 hover:underline"
+              >
+                {customResumeOpen ? "Use Standard Profile Resume" : "Upload / Link Different Resume"}
+              </button>
             </div>
 
-            <span className="text-[11px] font-semibold text-purple-700">Auto-Attached</span>
+            {customResumeOpen ? (
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                <ResumeUploadInput
+                  value={customResumeUrl}
+                  onChange={(url, meta) => {
+                    setCustomResumeUrl(url);
+                    if (meta?.fileName) setCustomResumeName(meta.fileName);
+                  }}
+                  label="Custom Application Resume"
+                  helperText="Upload PDF, DOC, DOCX up to 10MB or paste an online link."
+                />
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
+                    📄
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block truncate max-w-[220px]">
+                      {customResumeName || `${candidateName.replace(/\s+/g, "_")}_Executive_Resume.pdf`}
+                    </span>
+                    <span className="text-[11px] text-purple-800 font-semibold flex items-center gap-1">
+                      <span>✓</span> ATS Optimized & Verified
+                    </span>
+                  </div>
+                </div>
+
+                <span className="text-[11px] font-semibold text-purple-700">Auto-Attached</span>
+              </div>
+            )}
           </div>
 
           {/* Optional Cover Note */}

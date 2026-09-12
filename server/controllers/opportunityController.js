@@ -1,3 +1,6 @@
+const mongoose = require("mongoose");
+const Job = require("../models/Job");
+const Internship = require("../models/Internship");
 const {
   getAggregatedOpportunities,
   getFilterMetadata,
@@ -6,15 +9,45 @@ const {
 
 /**
  * GET /api/opportunities
- * Fetches multi-source aggregated opportunities (LinkedIn, Internshala, Remotive, Arbeitnow, GU Campus Drives)
+ * Fetches multi-source aggregated opportunities (MongoDB Jobs, Internships, LinkedIn, Internshala, Remotive, Arbeitnow, GU Campus Drives)
  */
 exports.getOpportunities = async (req, res, next) => {
   try {
+    const { page = 1, limit = 10 } = req.query;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const skip = (pageNum - 1) * pageSize;
+
     const results = await getAggregatedOpportunities(req.query);
+    const allList = [...(results.data || [])];
+
+    const getTimestamp = (item) => {
+      if (item.createdAt) {
+        const t = new Date(item.createdAt).getTime();
+        if (!isNaN(t)) return t;
+      }
+      if (item.postedDate) {
+        const t = new Date(item.postedDate).getTime();
+        if (!isNaN(t)) return t;
+      }
+      return 0;
+    };
+
+    allList.sort((a, b) => getTimestamp(b) - getTimestamp(a));
+
+    const total = allList.length;
+    const paginatedList = allList.slice(skip, skip + pageSize);
+
     return res.status(200).json({
       success: true,
-      count: results.count,
-      data: results.data,
+      count: paginatedList.length,
+      data: paginatedList,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: pageSize,
+        totalPages: Math.ceil(total / pageSize) || 1,
+      },
       source: results.source
     });
   } catch (error) {
@@ -24,6 +57,126 @@ exports.getOpportunities = async (req, res, next) => {
       message: "Failed to process multi-source feed",
       data: CAMPUS_DRIVES
     });
+  }
+};
+
+/**
+ * GET /api/opportunities/:id
+ * Fetches single opportunity by database ID (Job, Internship or Campus Drive)
+ */
+exports.getOpportunityById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      // 1. Search in Jobs
+      const job = await Job.findById(id).populate(
+        "employerId",
+        "companyName logo headquarters industry description website officialEmail mobile"
+      );
+
+      if (job) {
+        return res.status(200).json({
+          success: true,
+          opportunityType: "job",
+          opportunity: {
+            _id: job._id,
+            id: job._id,
+            title: job.title,
+            company: job.employerId?.companyName || "CareerConnect Partner",
+            employerId: job.employerId?._id || job.employerId,
+            location: job.location,
+            workMode: job.workMode,
+            employmentType: job.employmentType,
+            opportunityType: job.employmentType || "Full-Time",
+            salary: job.salaryRange?.max
+              ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
+              : "Competitive Package",
+            stipend: job.salaryRange?.max
+              ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
+              : "Competitive Package",
+            description: job.description,
+            responsibilities: job.responsibilities || [],
+            skills: job.requiredSkills || [],
+            skillsRequired: job.requiredSkills || [],
+            preferredSkills: job.preferredSkills || [],
+            bonusSkills: job.bonusSkills || [],
+            education: job.education,
+            experience: job.experience,
+            openings: job.openings,
+            deadline: job.deadline ? new Date(job.deadline).toLocaleDateString() : "Open",
+            postedDate: job.createdAt
+              ? new Date(job.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : "Recently",
+            isExclusive: true,
+            isExternal: false,
+            platformSource: "GU Placement Cell",
+            status: job.status,
+            employer: job.employerId,
+          },
+        });
+      }
+
+      // 2. Search in Internships
+      const internship = await Internship.findById(id).populate(
+        "employerId",
+        "companyName logo headquarters industry description website officialEmail mobile"
+      );
+
+      if (internship) {
+        return res.status(200).json({
+          success: true,
+          opportunityType: "internship",
+          opportunity: {
+            _id: internship._id,
+            id: internship._id,
+            title: internship.title,
+            company: internship.companyName || internship.employerId?.companyName || "CareerConnect Partner",
+            employerId: internship.employerId?._id || internship.employerId,
+            location: internship.location,
+            workMode: internship.workMode,
+            opportunityType: "Internship",
+            employmentType: "Internship",
+            stipend: internship.stipend ? `₹${internship.stipend}/month` : "Paid Internship",
+            salary: internship.stipend ? `₹${internship.stipend}/month` : "Paid Internship",
+            duration: internship.duration,
+            description: internship.description,
+            responsibilities: internship.responsibilities || [],
+            skills: internship.skillsRequired || [],
+            skillsRequired: internship.skillsRequired || [],
+            perks: internship.perks || [],
+            openings: internship.openings,
+            deadline: internship.applicationDeadline ? new Date(internship.applicationDeadline).toLocaleDateString() : "Open",
+            postedDate: internship.createdAt
+              ? new Date(internship.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : "Recently",
+            isExclusive: true,
+            isExternal: internship.isExternal,
+            applyUrl: internship.applyUrl,
+            platformSource: "GU Placement Cell",
+            status: internship.status,
+            employer: internship.employerId,
+          },
+        });
+      }
+    }
+
+    // 3. Fallback: Search in Campus Drives
+    const drive = CAMPUS_DRIVES.find((d) => d.id === id || d._id === id);
+    if (drive) {
+      return res.status(200).json({
+        success: true,
+        opportunityType: drive.opportunityType?.toLowerCase() || "job",
+        opportunity: drive,
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      message: "Opportunity not found or expired",
+    });
+  } catch (error) {
+    next(error);
   }
 };
 

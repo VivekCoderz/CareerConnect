@@ -2,7 +2,7 @@ const Course = require("../models/Course");
 const CourseContent = require("../models/CourseContent");
 const CourseApplication = require("../models/CourseApplication");
 const CourseProgress = require("../models/CourseProgress");
-const cloudinary = require("../config/cloudinary");
+const { cloudinary } = require("../config/cloudinary");
 
 
 // ==========================================

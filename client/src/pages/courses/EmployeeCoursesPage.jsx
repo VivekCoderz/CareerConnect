@@ -1,120 +1,100 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 import { useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
-import api from "../../services/api";
+
+import {
+  getEmployerCourses,
+  deleteCourse,
+  updateCourseStatus,
+} from "../../services/courseService";
+
+import api from "../../api/api";
 import "./EmployeeCoursesPage.css";
 
-// ============================================================
-// STATUS CONFIG — matches exact backend enum values
-// CourseApplication status: "Applied" | "Enrolled" | "Completed" | "Rejected"
-// ============================================================
+/* =========================================================
+   APPLICATION STATUS CONFIG
+========================================================= */
+
 const STATUS_CONFIG = {
   Applied: {
-    label: "Pending Review",
-    color: "#1d4ed8",
-    bg: "#eff6ff",
-    border: "#bfdbfe",
-    dot: "#3b82f6",
+    label: "Applied",
+    className: "bg-blue-100 text-blue-700",
   },
   Enrolled: {
     label: "Enrolled",
-    color: "#065f46",
-    bg: "#d1fae5",
-    border: "#6ee7b7",
-    dot: "#10b981",
+    className: "bg-green-100 text-green-700",
   },
   Completed: {
     label: "Completed",
-    color: "#0f766e",
-    bg: "#ccfbf1",
-    border: "#5eead4",
-    dot: "#14b8a6",
+    className: "bg-purple-100 text-purple-700",
   },
   Rejected: {
     label: "Rejected",
-    color: "#991b1b",
-    bg: "#fee2e2",
-    border: "#fca5a5",
-    dot: "#ef4444",
+    className: "bg-red-100 text-red-700",
   },
 };
 
-// ============================================================
-// STATUS BADGE
-// ============================================================
+/* =========================================================
+   STATUS BADGE
+========================================================= */
+
 const StatusBadge = ({ status }) => {
-  const cfg = STATUS_CONFIG[status] || {
-    label: status,
-    color: "#374151",
-    bg: "#f3f4f6",
-    border: "#e5e7eb",
-    dot: "#9ca3af",
+  const config = STATUS_CONFIG[status] || {
+    label: status || "Unknown",
+    className: "bg-gray-100 text-gray-700",
   };
+
   return (
     <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "5px",
-        padding: "4px 10px",
-        borderRadius: "20px",
-        fontSize: "10px",
-        fontWeight: 700,
-        color: cfg.color,
-        background: cfg.bg,
-        border: `1px solid ${cfg.border}`,
-        whiteSpace: "nowrap",
-      }}
+      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${config.className}`}
     >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: cfg.dot,
-          flexShrink: 0,
-        }}
-      />
-      {cfg.label}
+      {config.label}
     </span>
   );
 };
 
-// ============================================================
-// APPLICATIONS PANEL — fetches grouped applications and handles
-// Accept / Reject actions. Fully backend-driven; refresh-safe.
-// ============================================================
+/* =========================================================
+   APPLICATIONS PANEL
+========================================================= */
+
 const ApplicationsPanel = () => {
   const [courseGroups, setCourseGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
+
   const [expandedCourses, setExpandedCourses] = useState({});
   const [filterStatus, setFilterStatus] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ---- Fetch all employer applications (grouped by course) ----
+  /* ---------------------------------------------------------
+     FETCH APPLICATIONS
+  --------------------------------------------------------- */
+
   const fetchApplications = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
-      const res = await api.get("/courses/my-applications");
-      if (res.data?.success) {
-        const groups = res.data.courseGroups || [];
-        setCourseGroups(groups);
-        // Expand all courses that have applications by default
-        const defaultExpanded = {};
-        groups.forEach((g) => {
-          if (g.applications?.length > 0) {
-            defaultExpanded[g._id] = true;
-          }
-        });
-        setExpandedCourses(defaultExpanded);
-      }
+
+      const response = await api.get("/courses/my-applications");
+
+      const data =
+        response?.data?.applications ||
+        response?.data?.data ||
+        response?.data ||
+        [];
+
+      setCourseGroups(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Fetch Employer Applications Error:", err);
+      console.error("Failed to fetch course applications:", err);
+
       setError(
-        err?.response?.data?.message || "Unable to load course applications."
+        err?.response?.data?.message ||
+          "Failed to load course applications."
       );
     } finally {
       setLoading(false);
@@ -125,39 +105,110 @@ const ApplicationsPanel = () => {
     fetchApplications();
   }, [fetchApplications]);
 
-  // ---- Accept or Reject an application ----
-  const handleUpdateStatus = async (courseId, applicationId, newStatus) => {
+  /* ---------------------------------------------------------
+     UPDATE APPLICATION STATUS
+  --------------------------------------------------------- */
+
+  const handleUpdateStatus = async (
+    courseId,
+    applicationId,
+    newStatus
+  ) => {
     try {
       setUpdatingId(applicationId);
-      const res = await api.patch(
+
+      await api.patch(
         `/courses/${courseId}/applications/${applicationId}/status`,
-        { status: newStatus }
+        {
+          status: newStatus,
+        }
       );
-      if (res.data?.success) {
-        // Update local state so UI reflects immediately (refresh-safe because
-        // the source of truth is the backend — a page reload will show the
-        // same state since we persisted via the API call above).
-        setCourseGroups((prev) =>
-          prev.map((group) => {
-            if (group._id.toString() !== courseId.toString()) return group;
-            return {
-              ...group,
-              applications: group.applications.map((app) =>
-                app._id.toString() === applicationId.toString()
-                  ? { ...app, status: newStatus }
-                  : app
-              ),
-            };
-          })
-        );
-      }
+
+      await fetchApplications();
     } catch (err) {
-      console.error("Update Application Status Error:", err);
-      alert(err?.response?.data?.message || "Failed to update application status.");
+      console.error("Failed to update application:", err);
+
+      alert(
+        err?.response?.data?.message ||
+          "Failed to update application status."
+      );
     } finally {
       setUpdatingId(null);
     }
   };
+
+  /* ---------------------------------------------------------
+     STATS
+  --------------------------------------------------------- */
+
+  const stats = useMemo(() => {
+    const allApplications = courseGroups.flatMap(
+      (group) => group.applications || []
+    );
+
+    return {
+      total: allApplications.length,
+      applied: allApplications.filter(
+        (application) => application.status === "Applied"
+      ).length,
+      enrolled: allApplications.filter(
+        (application) => application.status === "Enrolled"
+      ).length,
+      completed: allApplications.filter(
+        (application) => application.status === "Completed"
+      ).length,
+      rejected: allApplications.filter(
+        (application) => application.status === "Rejected"
+      ).length,
+    };
+  }, [courseGroups]);
+
+  /* ---------------------------------------------------------
+     FILTER APPLICATIONS
+  --------------------------------------------------------- */
+
+  const filteredGroups = useMemo(() => {
+    return courseGroups
+      .map((group) => {
+        const applications = (group.applications || []).filter(
+          (application) => {
+            const matchesStatus =
+              filterStatus === "All" ||
+              application.status === filterStatus;
+
+            const studentName =
+              application.student?.name ||
+              application.user?.name ||
+              application.studentName ||
+              "";
+
+            const studentEmail =
+              application.student?.email ||
+              application.user?.email ||
+              application.studentEmail ||
+              "";
+
+            const matchesSearch =
+              !searchQuery.trim() ||
+              `${studentName} ${studentEmail}`
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase());
+
+            return matchesStatus && matchesSearch;
+          }
+        );
+
+        return {
+          ...group,
+          applications,
+        };
+      })
+      .filter((group) => group.applications.length > 0);
+  }, [courseGroups, filterStatus, searchQuery]);
+
+  /* ---------------------------------------------------------
+     TOGGLE COURSE
+  --------------------------------------------------------- */
 
   const toggleCourse = (courseId) => {
     setExpandedCourses((prev) => ({
@@ -166,779 +217,406 @@ const ApplicationsPanel = () => {
     }));
   };
 
-  // ---- Aggregate stats ----
-  const totalStats = useMemo(() => {
-    let total = 0, applied = 0, enrolled = 0, rejected = 0;
-    courseGroups.forEach((g) => {
-      g.applications?.forEach((app) => {
-        total++;
-        if (app.status === "Applied") applied++;
-        else if (app.status === "Enrolled") enrolled++;
-        else if (app.status === "Rejected") rejected++;
-      });
-    });
-    return { total, applied, enrolled, rejected };
-  }, [courseGroups]);
-
-  // ---- Filter groups based on status + search ----
-  const filteredGroups = useMemo(() => {
-    return courseGroups
-      .map((group) => {
-        const apps = (group.applications || []).filter((app) => {
-          const matchStatus = filterStatus === "All" || app.status === filterStatus;
-          const q = searchQuery.toLowerCase();
-          const matchSearch =
-            !q ||
-            (app.student?.fullName || "").toLowerCase().includes(q) ||
-            (app.student?.email || "").toLowerCase().includes(q) ||
-            (app.student?.username || "").toLowerCase().includes(q);
-          return matchStatus && matchSearch;
-        });
-        return { ...group, applications: apps };
-      })
-      .filter((g) => g.applications.length > 0 || (!filterStatus || filterStatus === "All"));
-  }, [courseGroups, filterStatus, searchQuery]);
+  /* ---------------------------------------------------------
+     LOADING
+  --------------------------------------------------------- */
 
   if (loading) {
     return (
-      <div className="courses-loading" style={{ minHeight: 200 }}>
-        <div className="loading-spinner" />
-        <p>Loading student applications...</p>
+      <div className="flex min-h-[300px] items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
+          <p className="text-sm text-gray-500">
+            Loading applications...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------------------------------------------------------
+     ERROR
+  --------------------------------------------------------- */
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+        <p className="font-semibold text-red-700">{error}</p>
+
+        <button
+          onClick={fetchApplications}
+          className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+        >
+          Retry
+        </button>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-      {/* ── Section Header ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 16,
-          marginBottom: 18,
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#172033" }}>
-            Course Applications
-          </h2>
-          <p style={{ margin: "5px 0 0", fontSize: 12, color: "#788397" }}>
-            Review and manage student applications for all your courses.
+    <div className="space-y-6">
+      {/* =====================================================
+          APPLICATION STATS
+      ===================================================== */}
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <p className="text-sm text-gray-500">Total</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900">
+            {stats.total}
           </p>
         </div>
-        <button
-          onClick={fetchApplications}
-          style={{
-            border: "1px solid #e0e4eb",
-            background: "white",
-            borderRadius: 10,
-            padding: "8px 14px",
-            fontSize: 11,
-            fontWeight: 700,
-            color: "#5a6478",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-          }}
+
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <p className="text-sm text-gray-500">Applied</p>
+          <p className="mt-1 text-2xl font-bold text-blue-600">
+            {stats.applied}
+          </p>
+        </div>
+
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <p className="text-sm text-gray-500">Enrolled</p>
+          <p className="mt-1 text-2xl font-bold text-green-600">
+            {stats.enrolled}
+          </p>
+        </div>
+
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <p className="text-sm text-gray-500">Completed</p>
+          <p className="mt-1 text-2xl font-bold text-purple-600">
+            {stats.completed}
+          </p>
+        </div>
+
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          <p className="text-sm text-gray-500">Rejected</p>
+          <p className="mt-1 text-2xl font-bold text-red-600">
+            {stats.rejected}
+          </p>
+        </div>
+      </div>
+
+      {/* =====================================================
+          SEARCH + FILTER
+      ===================================================== */}
+
+      <div className="flex flex-col gap-3 rounded-xl border bg-white p-4 shadow-sm md:flex-row">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search student by name or email..."
+          className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+        />
+
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-indigo-500"
         >
-          ↻ Refresh
-        </button>
+          <option value="All">All Status</option>
+          <option value="Applied">Applied</option>
+          <option value="Enrolled">Enrolled</option>
+          <option value="Completed">Completed</option>
+          <option value="Rejected">Rejected</option>
+        </select>
       </div>
 
-      {/* ── Stats Row ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
-        {[
-          { label: "Total Applications", value: totalStats.total, color: "#1b2537" },
-          { label: "Pending Review", value: totalStats.applied, color: "#1d4ed8" },
-          { label: "Enrolled", value: totalStats.enrolled, color: "#065f46" },
-          { label: "Rejected", value: totalStats.rejected, color: "#991b1b" },
-        ].map((s) => (
-          <div
-            key={s.label}
-            className="stat-card"
-            style={{ cursor: "default" }}
-          >
-            <div>
-              <span>{s.label}</span>
-              <strong style={{ color: s.color }}>{s.value}</strong>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* =====================================================
+          APPLICATION LIST
+      ===================================================== */}
 
-      {/* ── Filter & Search Bar ── */}
-      <div
-        style={{
-          padding: "13px 16px",
-          background: "white",
-          border: "1px solid #e8ebf1",
-          borderRadius: 14,
-          marginBottom: 18,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 14,
-          flexWrap: "wrap",
-        }}
-      >
-        <div className="course-filters">
-          {["All", "Applied", "Enrolled", "Completed", "Rejected"].map((s) => (
-            <button
-              key={s}
-              className={filterStatus === s ? "active" : ""}
-              onClick={() => setFilterStatus(s)}
-            >
-              {s === "Applied" ? "Pending" : s}
-            </button>
-          ))}
-        </div>
-        <div className="course-search" style={{ width: 220 }}>
-          <span>⌕</span>
-          <input
-            type="text"
-            placeholder="Search student name or email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
+      {filteredGroups.length === 0 ? (
+        <div className="rounded-xl border bg-white p-10 text-center shadow-sm">
+          <p className="text-lg font-semibold text-gray-800">
+            No applications found
+          </p>
 
-      {/* ── Error ── */}
-      {error && (
-        <div className="course-error" style={{ marginBottom: 18 }}>
-          <div>
-            <strong>Failed to load applications</strong>
-            <p>{error}</p>
-          </div>
-          <button onClick={fetchApplications}>Try Again</button>
-        </div>
-      )}
-
-      {/* ── No data ── */}
-      {!error && filteredGroups.every((g) => g.applications.length === 0) && (
-        <div className="empty-courses">
-          <div className="empty-icon">📋</div>
-          <h3>No applications found</h3>
-          <p>
-            {searchQuery || filterStatus !== "All"
-              ? "No applications match your current filters."
-              : "No students have applied for your courses yet. Publish a course and share it!"}
+          <p className="mt-1 text-sm text-gray-500">
+            There are no applications matching your current filters.
           </p>
         </div>
-      )}
+      ) : (
+        <div className="space-y-4">
+          {filteredGroups.map((group) => {
+            const course = group.course || group;
 
-      {/* ── Course Groups ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {filteredGroups.map((group) => {
-          if (group.applications.length === 0) return null;
-          const isExpanded = expandedCourses[group._id] !== false;
-          const pendingCount = group.applications.filter(
-            (a) => a.status === "Applied"
-          ).length;
+            const courseId = course?._id;
 
-          return (
-            <div
-              key={group._id}
-              style={{
-                background: "white",
-                border: "1px solid #e7eaf0",
-                borderRadius: 18,
-                overflow: "hidden",
-              }}
-            >
-              {/* Course Header */}
-              <button
-                onClick={() => toggleCourse(group._id)}
-                style={{
-                  width: "100%",
-                  padding: "16px 20px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  borderBottom: isExpanded ? "1px solid #f0f2f6" : "none",
-                }}
+            const isExpanded =
+              expandedCourses[courseId] ?? true;
+
+            return (
+              <div
+                key={courseId}
+                className="overflow-hidden rounded-xl border bg-white shadow-sm"
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    minWidth: 0,
-                  }}
+                {/* Course Header */}
+
+                <button
+                  type="button"
+                  onClick={() => toggleCourse(courseId)}
+                  className="flex w-full items-center justify-between gap-4 p-5 text-left hover:bg-gray-50"
                 >
-                  <div
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 11,
-                      background: "#eef3ff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 18,
-                      flexShrink: 0,
-                    }}
-                  >
-                    🎓
-                  </div>
-                  <div style={{ textAlign: "left", minWidth: 0 }}>
-                    <h3
-                      style={{
-                        margin: 0,
-                        fontSize: 14,
-                        fontWeight: 800,
-                        color: "#172033",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {group.title}
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {course?.title || "Untitled Course"}
                     </h3>
-                    <p
-                      style={{
-                        margin: "2px 0 0",
-                        fontSize: 10,
-                        color: "#8892a2",
-                      }}
-                    >
-                      {group.domain} · {group.applications.length} application
-                      {group.applications.length !== 1 ? "s" : ""}
-                      {pendingCount > 0 && (
-                        <span
-                          style={{
-                            marginLeft: 8,
-                            padding: "2px 7px",
-                            borderRadius: 20,
-                            background: "#eff6ff",
-                            color: "#1d4ed8",
-                            fontWeight: 800,
-                          }}
-                        >
-                          {pendingCount} pending
-                        </span>
-                      )}
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      {group.applications.length} application
+                      {group.applications.length !== 1
+                        ? "s"
+                        : ""}
                     </p>
                   </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: 16,
-                    color: "#a0aab8",
-                    transition: "transform 0.2s",
-                    transform: isExpanded ? "rotate(180deg)" : "none",
-                    flexShrink: 0,
-                  }}
-                >
-                  ▼
-                </span>
-              </button>
 
-              {/* Applications List */}
-              {isExpanded && (
-                <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-                  {group.applications.map((app) => {
-                    const student = app.student || {};
-                    const isUpdating = updatingId === app._id;
-                    const initials = student.fullName
-                      ? student.fullName
-                          .split(" ")
-                          .map((w) => w[0])
-                          .slice(0, 2)
-                          .join("")
-                          .toUpperCase()
-                      : (student.username?.[0] || "S").toUpperCase();
+                  <span className="text-xl text-gray-500">
+                    {isExpanded ? "−" : "+"}
+                  </span>
+                </button>
 
-                    return (
-                      <div
-                        key={app._id}
-                        style={{
-                          background: "#fafbfc",
-                          border: "1px solid #edf0f4",
-                          borderRadius: 14,
-                          padding: 14,
-                          transition: "border-color 0.2s",
-                        }}
-                      >
-                        {/* Top row: avatar + info + status + actions */}
+                {/* Applications */}
+
+                {isExpanded && (
+                  <div className="border-t">
+                    {group.applications.map((application) => {
+                      const student =
+                        application.student ||
+                        application.user ||
+                        {};
+
+                      const studentName =
+                        student.name ||
+                        application.studentName ||
+                        "Student";
+
+                      const studentEmail =
+                        student.email ||
+                        application.studentEmail ||
+                        "No email";
+
+                      return (
                         <div
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: 12,
-                            flexWrap: "wrap",
-                          }}
+                          key={application._id}
+                          className="flex flex-col gap-4 border-b p-5 last:border-b-0 lg:flex-row lg:items-center lg:justify-between"
                         >
-                          {/* Avatar */}
-                          <div
-                            style={{
-                              width: 42,
-                              height: 42,
-                              borderRadius: 13,
-                              background: student.profileImage
-                                ? "transparent"
-                                : "#182f58",
-                              color: "white",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontWeight: 800,
-                              fontSize: 14,
-                              flexShrink: 0,
-                              overflow: "hidden",
-                            }}
-                          >
-                            {student.profileImage ? (
-                              <img
-                                src={student.profileImage}
-                                alt={student.fullName}
-                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                              />
-                            ) : (
-                              initials
+                          <div className="min-w-0">
+                            <h4 className="font-semibold text-gray-900">
+                              {studentName}
+                            </h4>
+
+                            <p className="text-sm text-gray-500">
+                              {studentEmail}
+                            </p>
+
+                            {application.appliedAt && (
+                              <p className="mt-1 text-xs text-gray-400">
+                                Applied:{" "}
+                                {new Date(
+                                  application.appliedAt
+                                ).toLocaleDateString()}
+                              </p>
                             )}
                           </div>
 
-                          {/* Student details */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <h4
-                                style={{
-                                  margin: 0,
-                                  fontSize: 13,
-                                  fontWeight: 800,
-                                  color: "#172033",
-                                }}
-                              >
-                                {student.fullName || student.username || "Student"}
-                              </h4>
-                              <StatusBadge status={app.status} />
-                            </div>
-                            <p
-                              style={{
-                                margin: "2px 0 0",
-                                fontSize: 11,
-                                color: "#788397",
-                              }}
-                            >
-                              {student.email}
-                              {student.username && student.username !== student.email && (
-                                <span style={{ color: "#a0aab8" }}>
-                                  {" "}· @{student.username}
-                                </span>
-                              )}
-                            </p>
-                            <p
-                              style={{
-                                margin: "2px 0 0",
-                                fontSize: 10,
-                                color: "#a0aab8",
-                              }}
-                            >
-                              Applied:{" "}
-                              {new Date(app.createdAt).toLocaleDateString("en-IN", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                            </p>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <StatusBadge
+                              status={application.status}
+                            />
+
+                            {application.status ===
+                              "Applied" && (
+                              <>
+                                <button
+                                  disabled={
+                                    updatingId ===
+                                    application._id
+                                  }
+                                  onClick={() =>
+                                    handleUpdateStatus(
+                                      courseId,
+                                      application._id,
+                                      "Enrolled"
+                                    )
+                                  }
+                                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {updatingId ===
+                                  application._id
+                                    ? "Updating..."
+                                    : "Accept"}
+                                </button>
+
+                                <button
+                                  disabled={
+                                    updatingId ===
+                                    application._id
+                                  }
+                                  onClick={() =>
+                                    handleUpdateStatus(
+                                      courseId,
+                                      application._id,
+                                      "Rejected"
+                                    )
+                                  }
+                                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            )}
                           </div>
-
-                          {/* Accept / Reject buttons — only for Applied */}
-                          {app.status === "Applied" && (
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: 7,
-                                flexShrink: 0,
-                                alignSelf: "center",
-                              }}
-                            >
-                              <button
-                                disabled={isUpdating}
-                                onClick={() =>
-                                  handleUpdateStatus(group._id, app._id, "Enrolled")
-                                }
-                                style={{
-                                  border: "none",
-                                  borderRadius: 9,
-                                  padding: "8px 14px",
-                                  background: "#059669",
-                                  color: "white",
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  cursor: isUpdating ? "not-allowed" : "pointer",
-                                  opacity: isUpdating ? 0.55 : 1,
-                                  transition: "background 0.2s",
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (!isUpdating) e.target.style.background = "#047857";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.target.style.background = "#059669";
-                                }}
-                              >
-                                {isUpdating ? "Updating..." : "✓ Accept"}
-                              </button>
-                              <button
-                                disabled={isUpdating}
-                                onClick={() =>
-                                  handleUpdateStatus(group._id, app._id, "Rejected")
-                                }
-                                style={{
-                                  border: "1px solid #fca5a5",
-                                  borderRadius: 9,
-                                  padding: "8px 14px",
-                                  background: "#fff5f5",
-                                  color: "#991b1b",
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  cursor: isUpdating ? "not-allowed" : "pointer",
-                                  opacity: isUpdating ? 0.55 : 1,
-                                  transition: "background 0.2s",
-                                }}
-                              >
-                                ✕ Reject
-                              </button>
-                            </div>
-                          )}
                         </div>
-
-                        {/* Student Profile Detail Row */}
-                        <div
-                          style={{
-                            marginTop: 10,
-                            paddingTop: 10,
-                            borderTop: "1px solid #edf0f4",
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: 16,
-                          }}
-                        >
-                          {/* Technical Skills */}
-                          {student.technicalSkills?.length > 0 && (
-                            <div style={{ minWidth: 0 }}>
-                              <p
-                                style={{
-                                  margin: "0 0 4px",
-                                  fontSize: 9,
-                                  fontWeight: 800,
-                                  color: "#8892a2",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.5px",
-                                }}
-                              >
-                                Technical Skills
-                              </p>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexWrap: "wrap",
-                                  gap: 4,
-                                }}
-                              >
-                                {student.technicalSkills.slice(0, 6).map((skill, i) => (
-                                  <span
-                                    key={i}
-                                    style={{
-                                      padding: "3px 8px",
-                                      borderRadius: 6,
-                                      background: "#fff4dd",
-                                      color: "#a35f00",
-                                      fontSize: 9,
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    {skill}
-                                  </span>
-                                ))}
-                                {student.technicalSkills.length > 6 && (
-                                  <span
-                                    style={{
-                                      padding: "3px 8px",
-                                      borderRadius: 6,
-                                      background: "#f1f3f7",
-                                      color: "#788397",
-                                      fontSize: 9,
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    +{student.technicalSkills.length - 6} more
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Education */}
-                          {student.education?.length > 0 && (
-                            <div style={{ minWidth: 0 }}>
-                              <p
-                                style={{
-                                  margin: "0 0 4px",
-                                  fontSize: 9,
-                                  fontWeight: 800,
-                                  color: "#8892a2",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.5px",
-                                }}
-                              >
-                                Education
-                              </p>
-                              {student.education.slice(0, 1).map((edu, i) => (
-                                <p
-                                  key={i}
-                                  style={{
-                                    margin: 0,
-                                    fontSize: 11,
-                                    color: "#4a5568",
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {edu.degree}
-                                  {edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ""}
-                                  {edu.institution ? ` · ${edu.institution}` : ""}
-                                  {edu.endYear ? ` (${edu.endYear})` : ""}
-                                </p>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Career Goal */}
-                          {student.careerGoal && (
-                            <div style={{ minWidth: 0 }}>
-                              <p
-                                style={{
-                                  margin: "0 0 4px",
-                                  fontSize: 9,
-                                  fontWeight: 800,
-                                  color: "#8892a2",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.5px",
-                                }}
-                              >
-                                Career Goal
-                              </p>
-                              <p
-                                style={{
-                                  margin: 0,
-                                  fontSize: 11,
-                                  color: "#4a5568",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {student.careerGoal}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Bio */}
-                          {student.bio && (
-                            <div style={{ minWidth: 0, flexBasis: "100%" }}>
-                              <p
-                                style={{
-                                  margin: "0 0 4px",
-                                  fontSize: 9,
-                                  fontWeight: 800,
-                                  color: "#8892a2",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.5px",
-                                }}
-                              >
-                                About
-                              </p>
-                              <p
-                                style={{
-                                  margin: 0,
-                                  fontSize: 11,
-                                  color: "#4a5568",
-                                  lineHeight: 1.5,
-                                }}
-                              >
-                                {student.bio}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Experience */}
-                          {student.experience?.length > 0 && (
-                            <div style={{ minWidth: 0 }}>
-                              <p
-                                style={{
-                                  margin: "0 0 4px",
-                                  fontSize: 9,
-                                  fontWeight: 800,
-                                  color: "#8892a2",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.5px",
-                                }}
-                              >
-                                Experience
-                              </p>
-                              {student.experience.slice(0, 1).map((exp, i) => (
-                                <p
-                                  key={i}
-                                  style={{
-                                    margin: 0,
-                                    fontSize: 11,
-                                    color: "#4a5568",
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {exp.role} at {exp.organization}
-                                </p>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Location */}
-                          {(student.location?.city || student.location?.country) && (
-                            <div style={{ minWidth: 0 }}>
-                              <p
-                                style={{
-                                  margin: "0 0 4px",
-                                  fontSize: 9,
-                                  fontWeight: 800,
-                                  color: "#8892a2",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.5px",
-                                }}
-                              >
-                                Location
-                              </p>
-                              <p
-                                style={{
-                                  margin: 0,
-                                  fontSize: 11,
-                                  color: "#4a5568",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                📍{" "}
-                                {[
-                                  student.location.city,
-                                  student.location.state,
-                                  student.location.country,
-                                ]
-                                  .filter(Boolean)
-                                  .join(", ")}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
 
-// ============================================================
-// MAIN PAGE
-// ============================================================
-const EmployeeCoursesPage = () => {
-  const navigate = useNavigate();
-  const { user } = useSelector((state) => state.auth);
+/* =========================================================
+   MAIN EMPLOYEE COURSES PAGE
+========================================================= */
 
-  // "courses" | "applications"
+const EmployeeCoursesPage = ({
+  embedded = false,
+  onCreateCourse,
+  onEditCourse,
+  onManageContent,
+  onViewDetails,
+}) => {
+  const navigate = useNavigate();
+
   const [activeTab, setActiveTab] = useState("courses");
 
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
-  const [deletingId, setDeletingId] = useState(null);
-  const [statusLoading, setStatusLoading] = useState(null);
 
-  const loadCourses = async () => {
+  const [deletingId, setDeletingId] = useState(null);
+  const [statusLoading, setStatusLoading] =
+    useState(null);
+
+  /* =======================================================
+     LOAD COURSES
+  ======================================================= */
+
+  const loadCourses = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
-      const response = await api.get("/courses/my-courses");
+      const response = await getEmployerCourses();
 
-      const data = response?.data;
+      const data =
+        response?.data?.courses ||
+        response?.data?.data ||
+        response?.data ||
+        [];
 
-      setCourses(
-        data?.courses ||
-          data?.data?.courses ||
-          (Array.isArray(data) ? data : [])
-      );
+      setCourses(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load courses:", err);
+
       setError(
         err?.response?.data?.message ||
-          "Unable to load your courses. Please try again."
+          "Failed to load courses."
       );
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadCourses();
-  }, []);
+  }, [loadCourses]);
+
+  /* =======================================================
+     FILTERED COURSES
+  ======================================================= */
 
   const filteredCourses = useMemo(() => {
-    return courses.filter((course) => {
-      const matchesSearch =
-        course.title?.toLowerCase().includes(search.toLowerCase()) ||
-        course.description?.toLowerCase().includes(search.toLowerCase()) ||
-        course.domain?.toLowerCase().includes(search.toLowerCase());
+    const query = search.trim().toLowerCase();
 
-      const status = course.status || "Draft";
+    return courses.filter((course) => {
+      const title =
+        course?.title?.toLowerCase() || "";
+
+      const description =
+        course?.description?.toLowerCase() || "";
+
+      const domain =
+        course?.domain?.toLowerCase() || "";
+
+      const category =
+        course?.category?.toLowerCase() || "";
+
+      const matchesSearch =
+        !query ||
+        title.includes(query) ||
+        description.includes(query) ||
+        domain.includes(query) ||
+        category.includes(query);
+
+      const status =
+        course?.status ||
+        course?.courseStatus ||
+        "Draft";
 
       const matchesFilter =
-        filter === "All" || status.toLowerCase() === filter.toLowerCase();
+        filter === "All" || status === filter;
 
       return matchesSearch && matchesFilter;
     });
   }, [courses, search, filter]);
 
+  /* =======================================================
+     STATS
+  ======================================================= */
+
   const stats = useMemo(() => {
     const published = courses.filter(
-      (course) => course.status === "Published"
+      (course) =>
+        course?.status === "Published"
     ).length;
 
-    const drafts = courses.filter(
-      (course) => course.status !== "Published"
+    const draft = courses.filter(
+      (course) =>
+        course?.status === "Draft"
     ).length;
+
+    const totalStudents = courses.reduce(
+      (total, course) =>
+        total +
+        Number(
+          course?.enrolledStudents ||
+            course?.studentsCount ||
+            0
+        ),
+      0
+    );
 
     return {
       total: courses.length,
       published,
-      drafts,
+      draft,
+      totalStudents,
     };
   }, [courses]);
+
+  /* =======================================================
+     DELETE COURSE
+  ======================================================= */
 
   const handleDelete = async (courseId) => {
     const confirmed = window.confirm(
@@ -950,500 +628,594 @@ const EmployeeCoursesPage = () => {
     try {
       setDeletingId(courseId);
 
-      await api.delete(`/courses/${courseId}`);
+      await deleteCourse(courseId);
 
       setCourses((prev) =>
-        prev.filter((course) => course._id !== courseId)
+        prev.filter(
+          (course) => course._id !== courseId
+        )
       );
     } catch (err) {
-      console.error("Delete course error:", err);
+      console.error("Failed to delete course:", err);
+
       alert(
         err?.response?.data?.message ||
-          "Unable to delete the course."
+          "Failed to delete course."
       );
     } finally {
       setDeletingId(null);
     }
   };
 
+  /* =======================================================
+     TOGGLE PUBLISH STATUS
+  ======================================================= */
+
   const handleToggleStatus = async (course) => {
+    const currentStatus =
+      course?.status || "Draft";
+
     const newStatus =
-      course.status === "Published" ? "Draft" : "Published";
+      currentStatus === "Published"
+        ? "Draft"
+        : "Published";
 
     try {
       setStatusLoading(course._id);
 
-      const response = await api.patch(
-        `/courses/${course._id}/status`,
-        {
-          status: newStatus,
-        }
+      await updateCourseStatus(
+        course._id,
+        newStatus
       );
-
-      const updatedCourse =
-        response?.data?.course ||
-        response?.data?.data?.course;
 
       setCourses((prev) =>
         prev.map((item) =>
           item._id === course._id
-            ? updatedCourse || { ...item, status: newStatus }
+            ? {
+                ...item,
+                status: newStatus,
+              }
             : item
         )
       );
     } catch (err) {
-      console.error("Status update error:", err);
+      console.error(
+        "Failed to update course status:",
+        err
+      );
+
       alert(
         err?.response?.data?.message ||
-          "Unable to update course status."
+          "Failed to update course status."
       );
     } finally {
       setStatusLoading(null);
     }
   };
 
-  const getInitials = (name = "") => {
-    const words = name.trim().split(" ");
+  /* =======================================================
+     CREATE
+  ======================================================= */
 
-    if (words.length >= 2) {
-      return `${words[0][0]}${words[1][0]}`.toUpperCase();
+  const handleCreateClick = () => {
+    if (onCreateCourse) {
+      onCreateCourse();
+    } else {
+      navigate("/employer/courses/create");
     }
-
-    return name.slice(0, 2).toUpperCase() || "GU";
   };
 
-  // ── Back to Dashboard — uses getDashboardPath logic:
-  // employer role → /employer/dashboard
+  /* =======================================================
+     EDIT
+  ======================================================= */
+
+  const handleEditClick = (courseId) => {
+    if (onEditCourse) {
+      onEditCourse(courseId);
+    } else {
+      navigate(`/employer/courses/${courseId}/edit`);
+    }
+  };
+
+  /* =======================================================
+     MANAGE CONTENT
+  ======================================================= */
+
+  const handleManageContentClick = (courseId) => {
+    if (onManageContent) {
+      onManageContent(courseId);
+    } else {
+      navigate(
+        `/employer/courses/${courseId}/content`
+      );
+    }
+  };
+
+  /* =======================================================
+     VIEW DETAILS
+  ======================================================= */
+
+  const handleViewDetailsClick = (courseId) => {
+    if (onViewDetails) {
+      onViewDetails(courseId);
+    } else {
+      navigate(`/courses/${courseId}`);
+    }
+  };
+
+  /* =======================================================
+     BACK TO DASHBOARD
+  ======================================================= */
+
   const handleBackToDashboard = () => {
     navigate("/employer/dashboard");
   };
 
-  if (loading) {
-    return (
-      <div className="employee-courses-page">
-        <div className="courses-loading">
-          <div className="loading-spinner"></div>
-          <h3>Loading your courses...</h3>
-          <p>Please wait while we fetch your course workspace.</p>
-        </div>
-      </div>
-    );
-  }
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
-    <div className="employee-courses-page">
+    <div
+      className={
+        embedded
+          ? "space-y-6 animate-fade-in"
+          : "employee-courses-page"
+      }
+    >
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
 
-      {/* ================= HEADER ================= */}
-      <header className="courses-header">
-        <div>
-          {/* Back to Dashboard */}
+      <div className="mb-6">
+        {!embedded && (
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-500">
+            CareerConnect{" "}
+            <span className="mx-1 text-gray-300">
+              ·
+            </span>{" "}
+            Course Management
+          </div>
+        )}
+
+        {!embedded && (
           <button
             onClick={handleBackToDashboard}
-            style={{
-              border: "none",
-              background: "none",
-              padding: "0 0 8px",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              fontSize: 11,
-              fontWeight: 700,
-              color: "#788397",
-              transition: "color 0.2s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#172033")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#788397")}
+            className="mb-4 text-sm font-medium text-indigo-600 hover:text-indigo-700"
           >
             ← Back to Dashboard
           </button>
+        )}
 
-          <div className="breadcrumb">
-            Dashboard <span>/</span> Courses
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Course Management Workspace
+            </h1>
+
+            <p className="mt-1 text-sm text-gray-500">
+              Create, manage curriculum, publish
+              video/PDF lessons, and track learner
+              enrollments.
+            </p>
           </div>
 
-          <h1>Course Management</h1>
+          {activeTab === "courses" && (
+            <button
+              onClick={handleCreateClick}
+              className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            >
+              + Create Course
+            </button>
+          )}
+        </div>
+      </div>
 
-          <p>
-            Create, manage and publish learning content for
-            CareerConnect learners.
+      {/* =====================================================
+          STATS
+      ===================================================== */}
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <p className="text-sm text-gray-500">
+            Total Courses
+          </p>
+
+          <p className="mt-1 text-2xl font-bold text-gray-900">
+            {stats.total}
           </p>
         </div>
 
-        <button
-          className="create-course-btn"
-          onClick={() => navigate("/employer/courses/create")}
-        >
-          <span>+</span>
-          Create New Course
-        </button>
-      </header>
+        <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <p className="text-sm text-gray-500">
+            Published
+          </p>
 
-      {/* ================= WELCOME CARD ================= */}
-      <section className="welcome-card">
-        <div className="welcome-content">
-          <div className="welcome-avatar">
-            {user?.profileImage ? (
-              <img
-                src={user.profileImage}
-                alt="Profile"
-              />
-            ) : (
-              getInitials(user?.fullName || user?.name)
-            )}
-          </div>
-
-          <div>
-            <p className="welcome-small">Welcome back</p>
-
-            <h2>
-              {user?.fullName || user?.name || "Course Creator"}
-            </h2>
-
-            <p>
-              Manage your courses and keep your learning content
-              up to date.
-            </p>
-          </div>
+          <p className="mt-1 text-2xl font-bold text-green-600">
+            {stats.published}
+          </p>
         </div>
 
-        <div className="welcome-decoration">
-          <div>🎓</div>
-        </div>
-      </section>
+        <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <p className="text-sm text-gray-500">
+            Drafts
+          </p>
 
-      {/* ================= STATS ================= */}
-      <section className="course-stats">
-
-        <div className="stat-card">
-          <div className="stat-icon total">📚</div>
-          <div>
-            <span>Total Courses</span>
-            <strong>{stats.total}</strong>
-          </div>
+          <p className="mt-1 text-2xl font-bold text-orange-600">
+            {stats.draft}
+          </p>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon published">✓</div>
-          <div>
-            <span>Published</span>
-            <strong>{stats.published}</strong>
-          </div>
+        <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <p className="text-sm text-gray-500">
+            Enrolled Learners
+          </p>
+
+          <p className="mt-1 text-2xl font-bold text-indigo-600">
+            {stats.totalStudents}
+          </p>
         </div>
+      </div>
 
-        <div className="stat-card">
-          <div className="stat-icon draft">📝</div>
-          <div>
-            <span>Drafts</span>
-            <strong>{stats.drafts}</strong>
-          </div>
-        </div>
+      {/* =====================================================
+          TABS
+      ===================================================== */}
 
-        <div className="stat-card">
-          <div className="stat-icon learners">👥</div>
-          <div>
-            <span>Learning Hub</span>
-            <strong>Active</strong>
-          </div>
-        </div>
+      <div className="border-b border-gray-200">
+        <div className="flex gap-6">
+          <button
+            type="button"
+            onClick={() => setActiveTab("courses")}
+            className={`border-b-2 px-2 py-3 text-sm font-semibold transition ${
+              activeTab === "courses"
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            My Courses
+          </button>
 
-      </section>
-
-      {/* ================= TAB NAV ================= */}
-      <section
-        style={{
-          maxWidth: 1280,
-          margin: "0 auto 20px",
-          display: "flex",
-          gap: 4,
-          padding: "4px",
-          background: "#f2f4f7",
-          borderRadius: 12,
-          width: "fit-content",
-        }}
-      >
-        <button
-          onClick={() => setActiveTab("courses")}
-          style={{
-            border: "none",
-            borderRadius: 9,
-            padding: "8px 18px",
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: "pointer",
-            transition: "all 0.2s",
-            background: activeTab === "courses" ? "white" : "transparent",
-            color: activeTab === "courses" ? "#172033" : "#7c8798",
-            boxShadow:
-              activeTab === "courses" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
-          }}
-        >
-          📚 My Courses
-        </button>
-        <button
-          onClick={() => setActiveTab("applications")}
-          style={{
-            border: "none",
-            borderRadius: 9,
-            padding: "8px 18px",
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: "pointer",
-            transition: "all 0.2s",
-            background: activeTab === "applications" ? "white" : "transparent",
-            color: activeTab === "applications" ? "#172033" : "#7c8798",
-            boxShadow:
+          <button
+            type="button"
+            onClick={() =>
+              setActiveTab("applications")
+            }
+            className={`border-b-2 px-2 py-3 text-sm font-semibold transition ${
               activeTab === "applications"
-                ? "0 2px 6px rgba(0,0,0,0.06)"
-                : "none",
-          }}
-        >
-          📋 Course Applications
-        </button>
-      </section>
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            Course Applications
+          </button>
+        </div>
+      </div>
 
-      {/* ================= TAB: MY COURSES ================= */}
+      {/* =====================================================
+          COURSES TAB
+      ===================================================== */}
+
       {activeTab === "courses" && (
-        <>
-          {/* ── TOOLBAR ── */}
-          <section className="course-toolbar">
+        <div className="space-y-6">
+          {/* SEARCH + FILTER */}
 
-            <div className="toolbar-left">
-              <h2>My Courses</h2>
-              <span>{filteredCourses.length} courses</span>
+          <div className="flex flex-col gap-3 rounded-xl border bg-white p-4 shadow-sm md:flex-row">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) =>
+                setSearch(e.target.value)
+              }
+              placeholder="Search courses..."
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            />
+
+            <select
+              value={filter}
+              onChange={(e) =>
+                setFilter(e.target.value)
+              }
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-indigo-500"
+            >
+              <option value="All">
+                All Courses
+              </option>
+
+              <option value="Published">
+                Published
+              </option>
+
+              <option value="Draft">
+                Draft
+              </option>
+            </select>
+          </div>
+
+          {/* LOADING */}
+
+          {loading && (
+            <div className="flex min-h-[250px] items-center justify-center rounded-xl border bg-white">
+              <div className="text-center">
+                <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
+
+                <p className="text-sm text-gray-500">
+                  Loading courses...
+                </p>
+              </div>
             </div>
+          )}
 
-            <div className="toolbar-right">
+          {/* ERROR */}
 
-              <div className="course-search">
-                <span>⌕</span>
+          {!loading && error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+              <p className="font-semibold text-red-700">
+                {error}
+              </p>
 
-                <input
-                  type="text"
-                  placeholder="Search courses..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-
-              <div className="course-filters">
-
-                {["All", "Published", "Draft"].map((item) => (
-                  <button
-                    key={item}
-                    className={filter === item ? "active" : ""}
-                    onClick={() => setFilter(item)}
-                  >
-                    {item}
-                  </button>
-                ))}
-
-              </div>
-
-            </div>
-          </section>
-
-          {/* ── ERROR ── */}
-          {error && (
-            <div className="course-error">
-              <div>
-                <strong>Something went wrong</strong>
-                <p>{error}</p>
-              </div>
-
-              <button onClick={loadCourses}>
-                Try Again
+              <button
+                onClick={loadCourses}
+                className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Retry
               </button>
             </div>
           )}
 
-          {/* ── EMPTY ── */}
-          {!error && filteredCourses.length === 0 && (
-            <div className="empty-courses">
+          {/* EMPTY */}
 
-              <div className="empty-icon">📚</div>
+          {!loading &&
+            !error &&
+            filteredCourses.length === 0 && (
+              <div className="rounded-xl border bg-white p-10 text-center shadow-sm">
+                <h3 className="text-lg font-bold text-gray-800">
+                  No courses found
+                </h3>
 
-              <h3>
-                {search || filter !== "All"
-                  ? "No matching courses"
-                  : "No courses yet"}
-              </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {courses.length === 0
+                    ? "Create your first course to get started."
+                    : "Try changing your search or filter."}
+                </p>
 
-              <p>
-                {search || filter !== "All"
-                  ? "Try changing your search or filter."
-                  : "Create your first course and start building your learning content."}
-              </p>
-
-              {!search && filter === "All" && (
-                <button
-                  onClick={() =>
-                    navigate("/employer/courses/create")
-                  }
-                >
-                  + Create Your First Course
-                </button>
-              )}
-
-            </div>
-          )}
-
-          {/* ── COURSE GRID ── */}
-          {filteredCourses.length > 0 && (
-            <section className="course-grid">
-
-              {filteredCourses.map((course) => {
-
-                const isPublished =
-                  course.status === "Published";
-
-                return (
-                  <article
-                    className="course-card"
-                    key={course._id}
+                {courses.length === 0 && (
+                  <button
+                    onClick={handleCreateClick}
+                    className="mt-5 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
                   >
+                    Create Course
+                  </button>
+                )}
+              </div>
+            )}
 
-                    {/* Thumbnail */}
-                    <div className="course-thumbnail">
+          {/* =================================================
+              COURSE GRID
+          ================================================= */}
 
-                      {course.thumbnail ? (
-                        <img
-                          src={course.thumbnail}
-                          alt={course.title}
-                        />
-                      ) : (
-                        <div className="thumbnail-placeholder">
-                          <span>🎓</span>
-                        </div>
-                      )}
+          {!loading &&
+            !error &&
+            filteredCourses.length > 0 && (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {filteredCourses.map((course) => {
+                  const courseStatus =
+                    course?.status || "Draft";
 
-                      <span
-                        className={`course-status ${
-                          isPublished
-                            ? "published-status"
-                            : "draft-status"
-                        }`}
-                      >
-                        {isPublished
-                          ? "● Published"
-                          : "● Draft"}
-                      </span>
+                  const isPublished =
+                    courseStatus === "Published";
 
-                    </div>
+                  return (
+                    <div
+                      key={course._id}
+                      className="group overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                    >
+                      {/* THUMBNAIL */}
 
-                    {/* Content */}
-                    <div className="course-card-content">
-
-                      <div className="course-domain">
-                        {course.domain || "General"}
-                      </div>
-
-                      <h3>{course.title}</h3>
-
-                      <p className="course-description">
-                        {course.description ||
-                          "No course description available."}
-                      </p>
-
-                      <div className="course-meta">
-
-                        <span>
-                          📖 Course
-                        </span>
-
-                        {course.duration && (
-                          <span>
-                            ⏱ {course.duration}
-                            {course.durationUnit
-                              ? ` ${course.durationUnit}`
-                              : ""}
-                          </span>
+                      <div className="relative h-44 overflow-hidden bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
+                        {course?.thumbnail ? (
+                          <img
+                            src={course.thumbnail}
+                            alt={course.title}
+                            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center">
+                            <span className="text-5xl">
+                              📚
+                            </span>
+                          </div>
                         )}
 
-                      </div>
+                        {/* STATUS */}
 
-                      <div className="course-divider"></div>
-
-                      {/* Actions */}
-                      <div className="course-actions">
-
-                        <button
-                          className="manage-btn"
-                          onClick={() =>
-                            navigate(
-                              `/employer/courses/${course._id}/content`
-                            )
-                          }
-                        >
-                          Manage Content
-                          <span>→</span>
-                        </button>
-
-                        <div className="secondary-actions">
-
-                          <button
-                            title="Edit Course"
-                            onClick={() =>
-                              navigate(
-                                `/employer/courses/${course._id}/edit`
-                              )
-                            }
-                          >
-                            ✏️
-                          </button>
-
-                          <button
-                            title={
+                        <div className="absolute left-3 top-3">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-bold ${
                               isPublished
-                                ? "Unpublish"
-                                : "Publish"
-                            }
-                            disabled={
-                              statusLoading === course._id
-                            }
-                            onClick={() =>
-                              handleToggleStatus(course)
-                            }
+                                ? "bg-green-100 text-green-700"
+                                : "bg-orange-100 text-orange-700"
+                            }`}
                           >
-                            {statusLoading === course._id
-                              ? "..."
-                              : isPublished
-                              ? "↩"
-                              : "🚀"}
-                          </button>
-
-                          <button
-                            title="Delete Course"
-                            disabled={
-                              deletingId === course._id
-                            }
-                            onClick={() =>
-                              handleDelete(course._id)
-                            }
-                          >
-                            {deletingId === course._id
-                              ? "..."
-                              : "🗑️"}
-                          </button>
-
+                            {courseStatus}
+                          </span>
                         </div>
 
+                        {/* DURATION */}
+
+                        {course?.duration && (
+                          <div className="absolute bottom-3 right-3 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
+                            {course.duration}{" "}
+                            {course.durationUnit ||
+                              "hours"}
+                          </div>
+                        )}
                       </div>
 
+                      {/* CONTENT */}
+
+                      <div className="p-5">
+                        {/* CATEGORY */}
+
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          {course?.category && (
+                            <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-600">
+                              {course.category}
+                            </span>
+                          )}
+
+                          {course?.domain && (
+                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-600">
+                              {course.domain}
+                            </span>
+                          )}
+
+                          {course?.level && (
+                            <span className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-semibold text-purple-600">
+                              {course.level}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* TITLE */}
+
+                        <h3 className="line-clamp-2 text-lg font-bold text-gray-900">
+                          {course?.title ||
+                            "Untitled Course"}
+                        </h3>
+
+                        {/* DESCRIPTION */}
+
+                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-500">
+                          {course?.description ||
+                            "No course description available."}
+                        </p>
+
+                        {/* SKILLS */}
+
+                        {Array.isArray(
+                          course?.skills
+                        ) &&
+                          course.skills.length > 0 && (
+                            <div className="mt-4 flex flex-wrap gap-1.5">
+                              {course.skills
+                                .slice(0, 4)
+                                .map(
+                                  (skill, index) => (
+                                    <span
+                                      key={`${skill}-${index}`}
+                                      className="rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600"
+                                    >
+                                      {skill}
+                                    </span>
+                                  )
+                                )}
+
+                              {course.skills.length >
+                                4 && (
+                                <span className="px-1 py-1 text-[11px] text-gray-400">
+                                  +
+                                  {course.skills.length -
+                                    4}{" "}
+                                  more
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                        {/* ACTIONS */}
+
+                        <div className="mt-5 grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() =>
+                              handleManageContentClick(
+                                course._id
+                              )
+                            }
+                            className="rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                          >
+                            🎥 Manage Content
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              handleViewDetailsClick(
+                                course._id
+                              )
+                            }
+                            className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                          >
+                            View Details
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              handleToggleStatus(
+                                course
+                              )
+                            }
+                            disabled={
+                              statusLoading ===
+                              course._id
+                            }
+                            className={`rounded-lg px-3 py-2.5 text-xs font-semibold ${
+                              isPublished
+                                ? "bg-orange-50 text-orange-700 hover:bg-orange-100"
+                                : "bg-green-50 text-green-700 hover:bg-green-100"
+                            } disabled:cursor-not-allowed disabled:opacity-50`}
+                          >
+                            {statusLoading ===
+                            course._id
+                              ? "Updating..."
+                              : isPublished
+                              ? "Unpublish"
+                              : "Publish"}
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              handleEditClick(
+                                course._id
+                              )
+                            }
+                            className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                          >
+                            ✏️ Edit
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              handleDelete(
+                                course._id
+                              )
+                            }
+                            disabled={
+                              deletingId ===
+                              course._id
+                            }
+                            className="col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {deletingId ===
+                            course._id
+                              ? "Deleting..."
+                              : "🗑️ Delete Course"}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-
-                  </article>
-                );
-              })}
-
-            </section>
-          )}
-        </>
+                  );
+                })}
+              </div>
+            )}
+        </div>
       )}
 
-      {/* ================= TAB: APPLICATIONS ================= */}
-      {activeTab === "applications" && <ApplicationsPanel />}
+      {/* =====================================================
+          APPLICATIONS TAB
+      ===================================================== */}
 
+      {activeTab === "applications" && (
+        <ApplicationsPanel />
+      )}
     </div>
   );
 };

@@ -18,6 +18,12 @@ import {
   Building2
 } from "lucide-react";
 import opportunityService from "../services/opportunityService";
+import {
+  applyToJob,
+  applyToInternship,
+  getMyApplications,
+} from "../services/applicationService";
+import ResumeUploadInput from "../components/common/ResumeUploadInput";
 
 export default function OpportunitiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -30,17 +36,30 @@ export default function OpportunitiesPage() {
   const [specialization, setSpecialization] = useState(
     searchParams.get("specialization") || "all"
   );
-  const [opportunityType, setOpportunityType] = useState(
-    searchParams.get("type") || searchParams.get("opportunityType") || "all"
-  );
+  const getInitialOppType = () => {
+    const raw = (searchParams.get("type") || searchParams.get("opportunityType") || "all").toLowerCase().replace(/[-_ ]/g, "");
+    if (raw === "job" || raw === "fulltime") return "fulltime";
+    if (raw === "internship" || raw === "intern") return "internship";
+    if (raw === "parttime") return "parttime";
+    return "all";
+  };
+  const getInitialWorkMode = () => {
+    if (searchParams.get("remote") === "true") return "Remote";
+    return searchParams.get("workMode") || "all";
+  };
+
+  const [opportunityType, setOpportunityType] = useState(getInitialOppType);
   const [source, setSource] = useState(searchParams.get("source") || "all");
   const [region, setRegion] = useState(searchParams.get("region") || "all");
-  const [workMode, setWorkMode] = useState(searchParams.get("workMode") || "all");
+  const [workMode, setWorkMode] = useState(getInitialWorkMode);
   const [scope, setScope] = useState(searchParams.get("scope") || "all");
 
   // Data States
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [metadata, setMetadata] = useState({
     programs: [],
     specializations: [],
@@ -56,6 +75,24 @@ export default function OpportunitiesPage() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  // Load candidate applications if logged in
+  useEffect(() => {
+    if (user && ["student", "fresher", "professional", "user"].includes(user.role || user.userType)) {
+      getMyApplications()
+        .then((res) => {
+          if (res?.success && Array.isArray(res.applications)) {
+            const map = {};
+            res.applications.forEach((app) => {
+              if (app.jobId?._id) map[app.jobId._id.toString()] = app.status;
+              if (app.internshipId?._id) map[app.internshipId._id.toString()] = app.status;
+            });
+            setAppliedMap(map);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user]);
 
   // Fetch Metadata (Programs, Specializations list)
   useEffect(() => {
@@ -73,7 +110,7 @@ export default function OpportunitiesPage() {
   }, []);
 
   // Fetch Opportunities
-  const fetchOpportunities = async () => {
+  const fetchOpportunities = async (pageToFetch = currentPage) => {
     try {
       setLoading(true);
       const params = {
@@ -84,18 +121,27 @@ export default function OpportunitiesPage() {
         region: region !== "all" ? region : undefined,
         workMode: workMode !== "all" ? workMode : undefined,
         scope: scope !== "all" ? scope : undefined,
-        search: searchQuery.trim() || undefined
+        search: searchQuery.trim() || undefined,
+        page: pageToFetch,
+        limit: 10,
       };
 
       const res = await opportunityService.getOpportunities(params);
       if (res?.success && Array.isArray(res.data)) {
         setOpportunities(res.data);
+        const total = res.pagination?.total ?? res.count ?? res.data.length;
+        setTotalCount(total);
+        setTotalPages(res.pagination?.totalPages || Math.ceil(total / 10) || 1);
       } else {
         setOpportunities([]);
+        setTotalCount(0);
+        setTotalPages(1);
       }
     } catch (error) {
       console.error("Failed to load opportunities:", error);
       setOpportunities([]);
+      setTotalCount(0);
+      setTotalPages(1);
       showToast("Unable to fetch live opportunities at the moment", "error");
     } finally {
       setLoading(false);
@@ -103,12 +149,22 @@ export default function OpportunitiesPage() {
   };
 
   useEffect(() => {
-    fetchOpportunities();
+    setCurrentPage(1);
+    fetchOpportunities(1);
   }, [program, specialization, opportunityType, source, region, workMode, scope]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+      fetchOpportunities(newPage);
+      window.scrollTo({ top: 300, behavior: "smooth" });
+    }
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchOpportunities();
+    setCurrentPage(1);
+    fetchOpportunities(1);
   };
 
   const handleResetFilters = () => {
@@ -120,6 +176,7 @@ export default function OpportunitiesPage() {
     setRegion("all");
     setWorkMode("all");
     setScope("all");
+    setCurrentPage(1);
   };
 
   // Save Bookmark
@@ -487,9 +544,9 @@ export default function OpportunitiesPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between text-xs text-slate-600 px-1">
               <span className="font-semibold">
-                Showing <strong className="text-slate-900">{opportunities.length}</strong> matching opportunities
+                Showing <strong className="text-slate-900">{totalCount > 0 ? `${((currentPage - 1) * 10) + 1}–${Math.min(currentPage * 10, totalCount)} of ${totalCount}` : opportunities.length}</strong> matching opportunities
               </span>
-              <span className="text-slate-400">Sorted by relevance & freshness</span>
+              <span className="text-slate-400">Sorted by latest & freshness</span>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
@@ -581,24 +638,118 @@ export default function OpportunitiesPage() {
                         <Share2 className="w-4 h-4" />
                       </button>
 
-                      <a
-                        href={item.applyLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`px-5 py-2.5 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 ${
-                          isCampusDrive
-                            ? "bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/20"
-                            : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20"
-                        }`}
-                      >
-                        <span>Apply Online</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
+                      {appliedMap[item._id] ? (
+                        <span className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                          <CheckCircle className="w-4 h-4 text-emerald-600" />
+                          <span>{appliedMap[item._id]}</span>
+                        </span>
+                      ) : !item.isExternal && item._id ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!user) {
+                              navigate("/login");
+                              return;
+                            }
+                            setSelectedOpportunity(item);
+                            setAppFormData({
+                              fullName: user.fullName || "",
+                              email: user.email || "",
+                              phone: user.phone || "",
+                              education: user.education || "B.Tech",
+                              skills: Array.isArray(item.skills) ? item.skills.join(", ") : "React, Node.js",
+                              experience: "Fresher",
+                              resumeUrl: user.resumeUrl || "",
+                            });
+                          }}
+                          className={`px-5 py-2.5 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 ${
+                            isCampusDrive
+                              ? "bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/20"
+                              : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20"
+                          }`}
+                        >
+                          <span>Apply Now</span>
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <a
+                          href={item.applyLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`px-5 py-2.5 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 ${
+                            isCampusDrive
+                              ? "bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/20"
+                              : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20"
+                          }`}
+                        >
+                          <span>Apply Online</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+                <p className="text-xs font-semibold text-slate-500">
+                  Showing <span className="text-slate-900 font-bold">{((currentPage - 1) * 10) + 1}</span>–<span className="text-slate-900 font-bold">{Math.min(currentPage * 10, totalCount)}</span> of <span className="text-slate-900 font-bold">{totalCount}</span> opportunities
+                </p>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage <= 1 || loading}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                  >
+                    ← Previous
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                      .reduce((acc, p, idx, arr) => {
+                        if (idx > 0 && p - arr[idx - 1] > 1) {
+                          acc.push("...");
+                        }
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((p, idx) =>
+                        p === "..." ? (
+                          <span key={`dots-${idx}`} className="px-2 text-slate-400 text-xs font-bold select-none">
+                            ...
+                          </span>
+                        ) : (
+                          <button
+                            key={p}
+                            onClick={() => handlePageChange(p)}
+                            disabled={loading}
+                            className={`min-w-[36px] h-9 px-2.5 rounded-xl text-xs font-bold transition ${
+                              currentPage === p
+                                ? "bg-blue-600 text-white shadow-xs"
+                                : "text-slate-600 hover:bg-slate-100"
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        )
+                      )}
+                  </div>
+
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage >= totalPages || loading}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-16 text-center bg-white rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
@@ -618,6 +769,241 @@ export default function OpportunitiesPage() {
           </div>
         )}
       </main>
+
+      {/* Opportunity Details & Application Modal */}
+      {selectedOpportunity && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-3xl border border-slate-200 shadow-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-6 bg-gradient-to-r from-blue-900 to-indigo-900 text-white relative">
+              <button
+                onClick={() => setSelectedOpportunity(null)}
+                className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition"
+              >
+                ✕
+              </button>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  {selectedOpportunity.opportunityType || "Full-Time"}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-white border border-white/20">
+                  {selectedOpportunity.workMode || "On-Site"}
+                </span>
+              </div>
+              <h2 className="text-xl font-bold">{selectedOpportunity.title}</h2>
+              <p className="text-xs font-semibold text-blue-200 mt-1 flex items-center gap-2">
+                <span>{selectedOpportunity.company}</span>
+                <span>•</span>
+                <span>{selectedOpportunity.location}</span>
+              </p>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+              {/* Highlights row */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+                <div>
+                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Compensation</span>
+                  <span className="font-bold text-slate-800">{selectedOpportunity.salary || selectedOpportunity.stipend || "Competitive"}</span>
+                </div>
+                <div>
+                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Deadline</span>
+                  <span className="font-bold text-slate-800">{selectedOpportunity.deadline || "Open"}</span>
+                </div>
+                <div>
+                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Posted</span>
+                  <span className="font-bold text-slate-800">{selectedOpportunity.postedDate || "Recently"}</span>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-1.5">Opportunity Description</h4>
+                <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
+                  {selectedOpportunity.description || "No specific description provided."}
+                </p>
+              </div>
+
+              {/* Required Skills */}
+              {(selectedOpportunity.skills?.length > 0 || selectedOpportunity.skillsRequired?.length > 0) && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Required Skills</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(selectedOpportunity.skills || selectedOpportunity.skillsRequired || []).map((skill, idx) => (
+                      <span key={idx} className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100">
+                        ✓ {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Student Application Form Fields */}
+              <div className="pt-3 border-t border-slate-100 space-y-3">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Applicant Information</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      value={appFormData.fullName}
+                      onChange={(e) => setAppFormData((p) => ({ ...p, fullName: e.target.value }))}
+                      placeholder="e.g. Rahul Sharma"
+                      className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Email *</label>
+                    <input
+                      type="email"
+                      value={appFormData.email}
+                      onChange={(e) => setAppFormData((p) => ({ ...p, email: e.target.value }))}
+                      placeholder="email@example.com"
+                      className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Phone Number *</label>
+                    <input
+                      type="tel"
+                      value={appFormData.phone}
+                      onChange={(e) => setAppFormData((p) => ({ ...p, phone: e.target.value }))}
+                      placeholder="9876543210"
+                      className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Degree / Education</label>
+                    <input
+                      type="text"
+                      value={appFormData.education}
+                      onChange={(e) => setAppFormData((p) => ({ ...p, education: e.target.value }))}
+                      placeholder="e.g. B.Tech CSE"
+                      className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Skills (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={appFormData.skills}
+                    onChange={(e) => setAppFormData((p) => ({ ...p, skills: e.target.value }))}
+                    placeholder="e.g. React, Node.js, MongoDB"
+                    className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs outline-none focus:border-blue-600"
+                  />
+                </div>
+
+                <div className="pt-1">
+                  <ResumeUploadInput
+                    value={appFormData.resumeUrl}
+                    onChange={(url) => setAppFormData((p) => ({ ...p, resumeUrl: url }))}
+                    label="Resume / CV"
+                    helperText="Upload your resume document or paste a viewable link."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                    Cover Note / Pitch (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={coverNote}
+                    onChange={(e) => setCoverNote(e.target.value)}
+                    placeholder="Introduce yourself and explain why you're a great fit for this role..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs outline-none focus:border-blue-600 focus:bg-white transition"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedOpportunity(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200/60 transition"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={applying}
+                onClick={async () => {
+                  try {
+                    setApplying(true);
+                    const oppId = selectedOpportunity._id;
+                    const isIntern =
+                      selectedOpportunity.type === "internship" ||
+                      (selectedOpportunity.opportunityType &&
+                        selectedOpportunity.opportunityType.toLowerCase().includes("intern"));
+
+                    const payload = {
+                      fullName: appFormData.fullName.trim(),
+                      email: appFormData.email.trim(),
+                      phone: appFormData.phone.trim(),
+                      education: appFormData.education.trim(),
+                      degree: appFormData.education.trim(),
+                      skills: appFormData.skills.includes(",")
+                        ? appFormData.skills.split(",").map((s) => s.trim()).filter(Boolean)
+                        : appFormData.skills ? [appFormData.skills.trim()] : [],
+                      experience: appFormData.experience?.trim() || "",
+                      resumeUrl: appFormData.resumeUrl.trim(),
+                      coverLetter: coverNote.trim(),
+                      coverNote: coverNote.trim(),
+                      applicationData: {
+                        ...appFormData,
+                        coverNote: coverNote.trim(),
+                      },
+                    };
+
+                    const res = isIntern
+                      ? await applyToInternship(oppId, payload)
+                      : await applyToJob(oppId, payload);
+
+                    if (res?.success) {
+                      showToast("Application submitted successfully! Track it in My Applications.", "success");
+                      setAppliedMap((prev) => ({ ...prev, [oppId]: "Applied" }));
+                      setSelectedOpportunity(null);
+                      setCoverNote("");
+                    } else {
+                      showToast(res?.message || "Failed to submit application", "error");
+                    }
+                  } catch (err) {
+                    const msg = err.response?.data?.message || "Application could not be submitted. You may have already applied.";
+                    showToast(msg, "error");
+                    if (err.response?.status === 409 && selectedOpportunity?._id) {
+                      setAppliedMap((prev) => ({ ...prev, [selectedOpportunity._id]: "Applied" }));
+                      setSelectedOpportunity(null);
+                    }
+                  } finally {
+                    setApplying(false);
+                  }
+                }}
+                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition flex items-center gap-2"
+              >
+                {applying ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Submitting Application...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>Submit Real Application</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

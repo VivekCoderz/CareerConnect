@@ -11,6 +11,8 @@ const ApplicationTrackerCard = ({ applications }) => {
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
+      case "approved":
+        return "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold";
       case "selected":
         return "bg-emerald-100 text-emerald-800 border-emerald-200";
       case "interview":
@@ -54,8 +56,10 @@ const ApplicationTrackerCard = ({ applications }) => {
           <div className="text-[11px] font-semibold text-purple-800 mt-0.5">Interview</div>
         </div>
         <div className="p-3 bg-emerald-50/70 border border-emerald-200/70 rounded-2xl text-center">
-          <div className="text-xl font-extrabold text-emerald-700">{stats.selected}</div>
-          <div className="text-[11px] font-semibold text-emerald-800 mt-0.5">Selected</div>
+          <div className="text-xl font-extrabold text-emerald-700">
+            {stats.approved !== undefined ? stats.approved : stats.selected}
+          </div>
+          <div className="text-[11px] font-semibold text-emerald-800 mt-0.5">Approved</div>
         </div>
         <div className="p-3 bg-rose-50/70 border border-rose-200/70 rounded-2xl text-center">
           <div className="text-xl font-extrabold text-rose-700">{stats.rejected}</div>

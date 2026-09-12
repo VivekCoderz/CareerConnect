@@ -19,13 +19,14 @@ const FresherRecommendedJobs = ({ jobs = [], targetRole = "Full Stack Developer"
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-slate-900 tracking-tight">Recommended Jobs</h2>
-            <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-[#1e3a8a] text-[11px] font-bold border border-blue-100">
-              {jobs.length} Matches
+            <span className="text-xl">🔥</span>
+            <h2 className="text-lg font-bold text-slate-900 tracking-tight">Trending & Recommended Job</h2>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-200">
+              Top #1 Pick
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Entry-level openings curated for <span className="font-semibold text-slate-700">{targetRole}</span>
+            Top trending entry-level opening curated for <span className="font-semibold text-slate-700">{targetRole}</span>
           </p>
         </div>
 
@@ -54,8 +55,8 @@ const FresherRecommendedJobs = ({ jobs = [], targetRole = "Full Stack Developer"
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {jobs.slice(0, 4).map((job) => {
+        <div className="grid grid-cols-1 gap-4">
+          {jobs.slice(0, 1).map((job) => {
             const isSaved = savedIds.has(job.id || job._id);
             const isTargetMatch = (job.title || "").toLowerCase().includes(targetRole.toLowerCase().split(" ")[0]);
 
@@ -164,7 +165,15 @@ const FresherRecommendedJobs = ({ jobs = [], targetRole = "Full Stack Developer"
                       View Job
                     </Link>
 
-                    {job.applyUrl || job.applyLink ? (
+                    {onApplyJob ? (
+                      <button
+                        type="button"
+                        onClick={() => onApplyJob(job)}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-semibold transition shadow-xs cursor-pointer"
+                      >
+                        Apply Now
+                      </button>
+                    ) : job.applyUrl || job.applyLink ? (
                       <a
                         href={job.applyUrl || job.applyLink}
                         target="_blank"

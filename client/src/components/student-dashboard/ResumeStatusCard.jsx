@@ -1,8 +1,11 @@
 import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { uploadResumeAPI } from "../../services/resumeService";
+import { uploadResumeAPI, parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
 import { updateUserProfile } from "../../redux/features/authSlice";
+import ParsedResumeReviewModal from "../resume-builder/ParsedResumeReviewModal";
+import { updateStudentProfile } from "../../services/studentProfileService";
+import ResumeUploadInput from "../common/ResumeUploadInput";
 
 const ResumeStatusCard = ({ resume, profile }) => {
   const navigate = useNavigate();
@@ -14,6 +17,13 @@ const ResumeStatusCard = ({ resume, profile }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [parsedData, setParsedData] = useState(null);
+  const [existingProfileData, setExistingProfileData] = useState(null);
+  const [parsedResumeUrl, setParsedResumeUrl] = useState("");
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isSavingParsed, setIsSavingParsed] = useState(false);
+  const [modalResumeUrl, setModalResumeUrl] = useState("");
+  const [modalResumeName, setModalResumeName] = useState("");
   const fileInputRef = useRef(null);
 
   const hasResume = !!(resume?.resumeName || resume?.resumeUrl);
@@ -56,18 +66,100 @@ const ResumeStatusCard = ({ resume, profile }) => {
     setUploading(true);
     setUploadError("");
     try {
-      const res = await uploadResumeAPI(selectedFile);
+      // First parse resume to extract information
+      const parseRes = await parseResumeAPI(selectedFile);
+      if (parseRes?.success && parseRes?.parsedData) {
+        setParsedData(parseRes.parsedData);
+        setExistingProfileData(parseRes.existingProfile || null);
+        setParsedResumeUrl(parseRes.resumeUrl || "");
+        if (parseRes.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: parseRes.resumeUrl,
+              resumeName: parseRes.resumeName || selectedFile.name,
+            }),
+          );
+        }
+        setShowModal(false);
+        setIsReviewModalOpen(true);
+      } else {
+        const res = await uploadResumeAPI(selectedFile);
+        setUploadSuccess(true);
+        if (res?.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: res.resumeUrl,
+              resumeName: res.resumeName || selectedFile.name,
+            }),
+          );
+        }
+      }
+    } catch (err) {
+      try {
+        const res = await uploadResumeAPI(selectedFile);
+        setUploadSuccess(true);
+        if (res?.resumeUrl) {
+          dispatch(
+            updateUserProfile({
+              resumeUrl: res.resumeUrl,
+              resumeName: res.resumeName || selectedFile.name,
+            }),
+          );
+        }
+      } catch (uploadErr) {
+        setUploadError(uploadErr.message || err.message || "Failed to upload resume.");
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleConfirmParsedProfile = async (payload) => {
+    try {
+      setIsSavingParsed(true);
+      await confirmParsedProfileAPI(payload);
+      setIsReviewModalOpen(false);
       setUploadSuccess(true);
-      if (res?.resumeUrl) {
+      if (payload.resumeUrl) {
         dispatch(
           updateUserProfile({
-            resumeUrl: res.resumeUrl,
-            resumeName: res.resumeName || selectedFile.name,
+            resumeUrl: payload.resumeUrl,
+            resumeName: payload.resumeName || selectedFile?.name || "Uploaded Resume.pdf",
           }),
         );
       }
     } catch (err) {
-      setUploadError(err.message || "Failed to upload resume.");
+      alert(err.message || "Failed to save parsed resume details to profile.");
+    } finally {
+      setIsSavingParsed(false);
+    }
+  };
+
+  const handleSaveModalResume = async () => {
+    if (!modalResumeUrl) {
+      setUploadError("Please select a file or paste a valid resume URL.");
+      return;
+    }
+    setUploading(true);
+    setUploadError("");
+    try {
+      const finalName = modalResumeName || "Student_Professional_Resume.pdf";
+      dispatch(
+        updateUserProfile({
+          resumeUrl: modalResumeUrl,
+          resumeName: finalName,
+        }),
+      );
+      await updateStudentProfile({
+        resume: {
+          resumeUrl: modalResumeUrl,
+          resumeName: finalName,
+          uploadedAt: new Date(),
+        },
+      });
+      setUploadSuccess(true);
+    } catch (err) {
+      setUploadError(err.response?.data?.message || err.message || "Failed to update resume.");
     } finally {
       setUploading(false);
     }
@@ -77,6 +169,8 @@ const ResumeStatusCard = ({ resume, profile }) => {
     setShowModal(true);
     setModalStep("choice");
     setSelectedFile(null);
+    setModalResumeUrl("");
+    setModalResumeName("");
     setUploadError("");
     setUploadSuccess(false);
   };
@@ -85,6 +179,8 @@ const ResumeStatusCard = ({ resume, profile }) => {
     setShowModal(false);
     setModalStep("choice");
     setSelectedFile(null);
+    setModalResumeUrl("");
+    setModalResumeName("");
     setUploadError("");
     setUploadSuccess(false);
   };
@@ -290,10 +386,10 @@ const ResumeStatusCard = ({ resume, profile }) => {
 
                 <div className="text-center mb-5">
                   <h3 className="text-lg font-bold text-slate-900">
-                    Upload Your Resume
+                    Upload or Link Resume
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    Upload your resume in PDF format
+                    Select a resume file from your device (PDF, DOC, DOCX) or paste a hosted link
                   </p>
                 </div>
 
@@ -309,7 +405,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
                       ✓
                     </div>
                     <p className="text-xs font-bold text-emerald-900">
-                      Resume uploaded successfully!
+                      Resume saved successfully!
                     </p>
                     <p className="text-[11px] text-emerald-700">
                       Attached to your profile and ready for applications.
@@ -324,38 +420,15 @@ const ResumeStatusCard = ({ resume, profile }) => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer transition bg-slate-50/50"
-                    >
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        accept="application/pdf,.pdf"
-                        className="hidden"
-                      />
-                      <div className="text-2xl mb-2">📄</div>
-                      {selectedFile ? (
-                        <div>
-                          <p className="text-xs font-bold text-slate-800 truncate max-w-xs mx-auto">
-                            {selectedFile.name}
-                          </p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • Click to change
-                          </p>
-                        </div>
-                      ) : (
-                        <div>
-                          <p className="text-xs font-semibold text-slate-700">
-                            Click to browse PDF resume
-                          </p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            PDF only, up to 10MB
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                    <ResumeUploadInput
+                      value={modalResumeUrl}
+                      onChange={(url, meta) => {
+                        setModalResumeUrl(url);
+                        if (meta?.fileName) setModalResumeName(meta.fileName);
+                      }}
+                      label="Resume File or URL"
+                      helperText="Supported: PDF, DOC, DOCX up to 10MB or direct URLs."
+                    />
 
                     <div className="flex justify-end gap-2 pt-2">
                       <button
@@ -367,14 +440,15 @@ const ResumeStatusCard = ({ resume, profile }) => {
                       </button>
                       <button
                         type="button"
-                        disabled={!selectedFile || uploading}
-                        onClick={handleUpload}
+                        disabled={!modalResumeUrl || uploading}
+                        onClick={handleSaveModalResume}
                         className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition disabled:opacity-50 inline-flex items-center gap-2 cursor-pointer"
                       >
                         {uploading && (
                           <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         )}
-                        {uploading ? "Uploading..." : "Upload Resume"}
+                        {uploading ? "Uploading & Parsing..." : "Upload & Review"}
+                        {uploading ? "Saving..." : "Save to Profile"}
                       </button>
                     </div>
                   </div>
@@ -384,6 +458,19 @@ const ResumeStatusCard = ({ resume, profile }) => {
           </div>
         </div>
       )}
+
+      {/* Parsed Resume Review Modal */}
+      <ParsedResumeReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        parsedData={parsedData}
+        existingProfile={existingProfileData}
+        resumeUrl={parsedResumeUrl}
+        resumeName={selectedFile?.name}
+        isSaving={isSavingParsed}
+        onConfirm={handleConfirmParsedProfile}
+        title="Review & Confirm Resume Auto-Fill"
+      />
     </div>
   );
 };

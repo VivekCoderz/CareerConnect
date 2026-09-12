@@ -14,7 +14,6 @@ import {
 
 import api from "../../api/api";
 import { getCaptchaToken } from "../../utils/captcha";
-import PhoneInput from "../../components/common/PhoneInput";
 
 // ======================================================
 // Helper: Generate Strong Password
@@ -132,10 +131,10 @@ const EmployerRegister = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+
   const [formData, setFormData] = useState({
     companyName: "",
     email: "",
-    countryCode: "+91",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -210,47 +209,18 @@ const EmployerRegister = () => {
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)
     ) {
       errors.email = "Please enter a valid email";
-    } else if (!emailVerified) {
-      errors.email =
-        "Please verify your official email before continuing";
     }
-
-    // Phone
-    if (!formData.phone.trim()) {
-      errors.phone = "Mobile number is required";
-    } else {
-      const digits = formData.phone.replace(/\D/g, "");
-
-      if (formData.countryCode === "+91") {
-        const indianNumber = digits.slice(-10);
-
-        if (!/^[6-9]\d{9}$/.test(indianNumber)) {
-          errors.phone =
-            "Please enter a valid 10-digit mobile number";
-        }
-      } else if (digits.length < 6 || digits.length > 15) {
-        errors.phone =
-          "Please enter a valid mobile number (6-15 digits)";
-      }
-    }
-
-    // Password
-    if (!formData.password) {
-      errors.password = "Password is required";
-    } else if (formData.password.length < 6) {
-      errors.password =
-        "Password must be at least 6 characters";
-    }
-
-    // Confirm Password
-    if (!formData.confirmPassword) {
-      errors.confirmPassword = "Please confirm password";
-    } else if (
-      formData.password !== formData.confirmPassword
-    ) {
+    else if (!emailVerified)
+      errors.email = "Please verify your official email before continuing";
+    if (!formData.phone.trim()) errors.phone = "Mobile number is required";
+    else if (!/^[6-9]\d{9}$/.test(formData.phone.replace(/\D/g, "").slice(-10)))
+      errors.phone = "Please enter a valid 10-digit mobile number";
+    if (!formData.password) errors.password = "Password is required";
+    else if (formData.password.length < 6)
+      errors.password = "Password must be at least 6 characters";
+    if (!formData.confirmPassword) errors.confirmPassword = "Please confirm password";
+    else if (formData.password !== formData.confirmPassword)
       errors.confirmPassword = "Passwords do not match";
-    }
-
     setFieldErrors(errors);
 
     return Object.keys(errors).length === 0;
@@ -425,11 +395,7 @@ const EmployerRegister = () => {
     }
   };
 
-  // ======================================================
-  // Step 1 Next
-  // ======================================================
-  const handleStep1Next = async () => {
-    // Email must be verified
+  const handleStep1Next = () => {
     if (!emailVerified) {
       const emailToVerify =
         formData.email.trim().toLowerCase();
@@ -455,33 +421,6 @@ const EmployerRegister = () => {
 
     // Validate form
     if (!validateStep1()) return;
-
-    // Check phone uniqueness
-    try {
-      const checkRes = await api.post(
-        "/auth/check-phone",
-        {
-          phone: formData.phone.trim(),
-          countryCode:
-            formData.countryCode || "+91",
-        }
-      );
-
-      if (checkRes.data?.exists) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          phone:
-            "This mobile number is already registered with another account",
-        }));
-
-        return;
-      }
-    } catch (err) {
-      console.warn(
-        "Phone check warning:",
-        err.message
-      );
-    }
 
     goNext(2);
   };
@@ -624,42 +563,17 @@ const EmployerRegister = () => {
       );
 
       const payload = {
-        companyName:
-          formData.companyName.trim(),
-
-        email:
-          formData.email.trim().toLowerCase(),
-
-        countryCode:
-          formData.countryCode || "+91",
-
-        phone:
-          formData.phone.trim(),
-
-        password:
-          formData.password,
-
-        confirmPassword:
-          formData.confirmPassword,
-
-        contactPerson:
-          formData.contactPerson.trim(),
-
-        designation:
-          formData.designation.trim(),
-
-        website:
-          formData.website.trim(),
-
-        companyType:
-          formData.companyType,
-
-        industry:
-          formData.industry.trim(),
-
-        location:
-          formData.location.trim(),
-
+        companyName: formData.companyName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim(),
+        password: formData.password,
+        confirmPassword: formData.confirmPassword,
+        contactPerson: formData.contactPerson.trim(),
+        designation: formData.designation.trim(),
+        website: formData.website.trim(),
+        companyType: formData.companyType,
+        industry: formData.industry.trim(),
+        location: formData.location.trim(),
         role: "employer",
 
         keepSignedIn,
@@ -694,13 +608,6 @@ const EmployerRegister = () => {
           [err.response.data.field]:
             err.response.data.message,
         });
-
-        if (
-          err.response.data.field === "phone" ||
-          err.response.data.field === "email"
-        ) {
-          setStep(1);
-        }
       }
     }
   };
@@ -865,25 +772,6 @@ const EmployerRegister = () => {
                 </p>
               </div>
 
-              {/* Prevent browser autofill */}
-              <input
-                type="text"
-                name="fake_username_prevent_autofill"
-                style={{ display: "none" }}
-                tabIndex={-1}
-                aria-hidden="true"
-                autoComplete="off"
-              />
-
-              <input
-                type="password"
-                name="fake_password_prevent_autofill"
-                style={{ display: "none" }}
-                tabIndex={-1}
-                aria-hidden="true"
-                autoComplete="new-password"
-              />
-
               <div className="space-y-4">
 
                 {/* Company Name */}
@@ -896,8 +784,7 @@ const EmployerRegister = () => {
                     name="companyName"
                     value={formData.companyName}
                     onChange={handleChange}
-                    autoComplete="off"
-                    placeholder="Enter company name"
+                    placeholder="Your company name"
                     className={inputClass("companyName")}
                   />
 
@@ -942,13 +829,8 @@ const EmployerRegister = () => {
                         }
                       }}
                       disabled={emailVerified}
-                      autoComplete="off"
-                      placeholder="Enter official email address"
-                      className={`${inputClass("email")} ${
-                        emailVerified
-                          ? "bg-slate-50 border-emerald-400 text-slate-700 pr-10"
-                          : ""
-                      }`}
+                      placeholder="hr@company.com"
+                      className={`${inputClass("email")} ${emailVerified ? "bg-slate-50 border-emerald-400 text-slate-700 pr-10" : ""}`}
                     />
 
                     {emailVerified && (
@@ -1065,7 +947,10 @@ const EmployerRegister = () => {
                     <div className="mt-2 flex items-center justify-between">
 
                       <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-semibold">
-                        ✓ Email verified successfully
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Official email verified successfully
                       </div>
 
                       <button
@@ -1094,144 +979,54 @@ const EmployerRegister = () => {
                 <div>
 
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                    Mobile Number
+                    Mobile
                   </label>
-
-                  <PhoneInput
-                    countryCode={
-                      formData.countryCode
-                    }
-                    onCountryCodeChange={(code) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        countryCode: code,
-                      }))
-                    }
-                    phone={formData.phone}
-                    onPhoneChange={(value) => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        phone: value,
-                      }));
-
-                      if (fieldErrors.phone) {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          phone: "",
-                        }));
-                      }
-                    }}
-                    error={fieldErrors.phone}
-                    theme="amber"
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="+91 98765 43210"
+                    className={inputClass("phone")}
                   />
+                  {fieldErrors.phone && (
+                    <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>
+                  )}
                 </div>
 
                 {/* Password */}
                 <div className="grid grid-cols-2 gap-3">
 
                   <div>
-
-                    <div className="flex items-center justify-between mb-1.5">
-
-                      <label className="block text-[13px] font-semibold text-slate-700">
-                        Password
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={
-                          handleGeneratePassword
-                        }
-                        className="text-[11px] font-bold text-[#f59e0b] hover:text-[#d97706]"
-                      >
-                        Generate
-                      </button>
-                    </div>
-
-                    <div className="relative">
-
-                      <input
-                        type={
-                          showPassword
-                            ? "text"
-                            : "password"
-                        }
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        autoComplete="new-password"
-                        placeholder="Create password"
-                        className={`${inputClass(
-                          "password"
-                        )} pr-10`}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowPassword(
-                            (previous) => !previous
-                          )
-                        }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                      >
-                        <EyeIcon
-                          hidden={showPassword}
-                        />
-                      </button>
-                    </div>
-
+                    <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      className={inputClass("password")}
+                    />
                     {fieldErrors.password && (
                       <p className="text-xs text-red-500 mt-1.5">
                         {fieldErrors.password}
                       </p>
                     )}
                   </div>
-
-                  {/* Confirm Password */}
                   <div>
-
                     <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
                       Confirm
                     </label>
-
-                    <div className="relative">
-
-                      <input
-                        type={
-                          showConfirmPassword
-                            ? "text"
-                            : "password"
-                        }
-                        name="confirmPassword"
-                        value={
-                          formData.confirmPassword
-                        }
-                        onChange={handleChange}
-                        autoComplete="new-password"
-                        placeholder="Confirm password"
-                        className={`${inputClass(
-                          "confirmPassword"
-                        )} pr-10`}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowConfirmPassword(
-                            (previous) => !previous
-                          )
-                        }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                      >
-                        <EyeIcon
-                          hidden={
-                            showConfirmPassword
-                          }
-                        />
-                      </button>
-                    </div>
-
+                    <input
+                      type="password"
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      className={inputClass("confirmPassword")}
+                    />
                     {fieldErrors.confirmPassword && (
                       <p className="text-xs text-red-500 mt-1.5">
                         {fieldErrors.confirmPassword}
@@ -1371,10 +1166,8 @@ const EmployerRegister = () => {
                       formData.contactPerson
                     }
                     onChange={handleChange}
-                    placeholder="Enter contact person name"
-                    className={inputClass(
-                      "contactPerson"
-                    )}
+                    placeholder="e.g. Rahul Sharma"
+                    className={inputClass("contactPerson")}
                   />
 
                   {fieldErrors.contactPerson && (
@@ -1394,10 +1187,8 @@ const EmployerRegister = () => {
                     name="designation"
                     value={formData.designation}
                     onChange={handleChange}
-                    placeholder="Enter designation (e.g. HR Manager)"
-                    className={inputClass(
-                      "designation"
-                    )}
+                    placeholder="e.g. HR Manager / Campus Recruiter"
+                    className={inputClass("designation")}
                   />
 
                   {fieldErrors.designation && (
@@ -1464,10 +1255,8 @@ const EmployerRegister = () => {
                       name="industry"
                       value={formData.industry}
                       onChange={handleChange}
-                      placeholder="IT, FinTech..."
-                      className={inputClass(
-                        "industry"
-                      )}
+                      placeholder="e.g. IT, FinTech"
+                      className={inputClass("industry")}
                     />
 
                     {fieldErrors.industry && (
@@ -1488,10 +1277,8 @@ const EmployerRegister = () => {
                     name="location"
                     value={formData.location}
                     onChange={handleChange}
-                    placeholder="Gurugram, Delhi NCR"
-                    className={inputClass(
-                      "location"
-                    )}
+                    placeholder="e.g. Gurugram, Delhi NCR"
+                    className={inputClass("location")}
                   />
 
                   {fieldErrors.location && (

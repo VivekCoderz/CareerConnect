@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import InterviewScorecardModal from "./InterviewScorecardModal";
 import InterviewScheduleModal from "./InterviewScheduleModal";
+import InterviewDetailsModal from "./InterviewDetailsModal";
 import CandidateInterviewHistoryModal from "./CandidateInterviewHistoryModal";
 import recruitmentService from "../../services/recruitmentService";
 
@@ -19,6 +20,7 @@ const InterviewManagementHub = ({
   const [viewMode, setViewMode] = useState("grid"); // "grid" | "table"
 
   // Modals state
+  const [detailsInterview, setDetailsInterview] = useState(null);
   const [scorecardInterview, setScorecardInterview] = useState(null);
   const [historyCandidate, setHistoryCandidate] = useState(null);
   const [rescheduleInterview, setRescheduleInterview] = useState(null);
@@ -481,6 +483,16 @@ const InterviewManagementHub = ({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => setDetailsInterview(item)}
+                      className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition flex items-center justify-center gap-1"
+                      title="View Complete Candidate Interview Dossier"
+                    >
+                      <span>🔍</span>
+                      <span>Dossier</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setScorecardInterview(item)}
                       className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs ${
                         isCompleted
@@ -489,7 +501,7 @@ const InterviewManagementHub = ({
                       }`}
                     >
                       <span>📝</span>
-                      <span>{isCompleted ? "View / Edit Scorecard" : "Evaluate & Score"}</span>
+                      <span>{isCompleted ? "Scorecard" : "Evaluate & Score"}</span>
                     </button>
 
                     <button
@@ -525,13 +537,23 @@ const InterviewManagementHub = ({
                       </>
                     )}
 
-                    {isCompleted && feedback.recommendation === "Move to Next Round" && (
+                    {isCompleted && (feedback.recommendation === "Move to Next Round" || item.result === "passed") && (
                       <button
                         type="button"
                         onClick={() => handleScheduleNextRound(cand)}
-                        className="w-full py-1.5 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold transition text-center"
+                        className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold transition text-center"
                       >
-                        + Schedule Next Round
+                        + Next Round
+                      </button>
+                    )}
+
+                    {(item.result === "passed" || feedback.recommendation === "Strong Hire" || feedback.recommendation === "Hire / Select") && onOpenOfferModal && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenOfferModal(item.applicationId || item)}
+                        className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition text-center"
+                      >
+                        🎉 Make Offer
                       </button>
                     )}
                   </div>
@@ -560,32 +582,42 @@ const InterviewManagementHub = ({
                 {filteredInterviews.map((item) => {
                   const badge = getStatusBadge(item.status);
                   const cand = item.candidateId || {};
-                  const feedback = item.feedback || {};
                   return (
                     <tr key={item._id} className="hover:bg-slate-50/60 transition">
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{cand.fullName || "Candidate"}</div>
-                        <div className="text-[11px] text-slate-500">{item.jobId?.title || "Role"}</div>
+                        <button
+                          type="button"
+                          onClick={() => setDetailsInterview(item)}
+                          className="text-left font-bold text-slate-900 hover:text-[#1e3a8a] transition block"
+                        >
+                          {cand.fullName || "Candidate"}
+                        </button>
+                        <span className="text-[11px] text-slate-500 block">
+                          {item.jobId?.title || item.internshipId?.title || "Role"}
+                        </span>
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-800">{item.roundName || `Round ${item.roundNumber}`}</div>
-                        <div className="text-[11px] text-indigo-700 font-medium">{item.interviewType}</div>
+                        <span className="font-semibold text-slate-800 block">
+                          {item.roundName || `Round ${item.roundNumber}`}
+                        </span>
+                        <span className="text-[10.5px] text-indigo-600 font-medium">
+                          {item.interviewType}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-medium text-slate-700">
+                        {item.interviewerName || "Hiring Lead"}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-medium text-slate-800">{item.interviewerName}</div>
-                        <div className="text-[11px] text-slate-500">{item.meetingMode}</div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-slate-800">{item.scheduledDate}</div>
-                        <div className="text-[11px] text-slate-500">{item.scheduledTime}</div>
+                        <span className="font-semibold text-slate-800 block">{item.scheduledDate}</span>
+                        <span className="text-[10.5px] text-slate-500 font-mono">{item.scheduledTime}</span>
                       </td>
                       <td className="py-3 px-4">
                         {item.status === "Completed" ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-amber-700 font-mono">★ {feedback.overallScore}/5</span>
-                          </div>
+                          <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 text-xs font-mono">
+                            ★ {item.feedback?.overallScore || "0"}/5
+                          </span>
                         ) : (
-                          <span className="text-slate-400 font-medium">Pending</span>
+                          <span className="text-slate-400 text-xs italic">Pending</span>
                         )}
                       </td>
                       <td className="py-3 px-4">
@@ -596,6 +628,14 @@ const InterviewManagementHub = ({
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setDetailsInterview(item)}
+                            className="p-1 px-2 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold hover:bg-slate-200 transition"
+                            title="View Dossier"
+                          >
+                            🔍
+                          </button>
                           <button
                             type="button"
                             onClick={() => setScorecardInterview(item)}
@@ -623,6 +663,31 @@ const InterviewManagementHub = ({
       )}
 
       {/* MODALS */}
+      {/* 0. Comprehensive Interview Details Dossier Modal */}
+      <InterviewDetailsModal
+        isOpen={Boolean(detailsInterview)}
+        onClose={() => setDetailsInterview(null)}
+        interview={detailsInterview}
+        onOpenScorecard={(item) => {
+          setDetailsInterview(null);
+          setScorecardInterview(item);
+        }}
+        onReschedule={(item) => {
+          setDetailsInterview(null);
+          setRescheduleInterview(item);
+        }}
+        onCancel={(id) => {
+          setDetailsInterview(null);
+          handleCancelInterview(id);
+        }}
+        onMakeOffer={(item) => {
+          setDetailsInterview(null);
+          if (onOpenOfferModal) {
+            onOpenOfferModal(item.applicationId || item);
+          }
+        }}
+      />
+
       {/* 1. Scorecard Modal */}
       <InterviewScorecardModal
         isOpen={Boolean(scorecardInterview)}

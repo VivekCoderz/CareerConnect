@@ -24,7 +24,7 @@ const CreateCoursePage = ({ onCancel, onSuccess }) => {
         if (onSuccess) {
           onSuccess(res.data.course);
         } else {
-          navigate("/employer/courses");
+          navigate(`/employer/courses/${res.data.course._id}/content`);
         }
       }
     } catch (err) {
