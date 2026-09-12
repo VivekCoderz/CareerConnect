@@ -985,6 +985,44 @@ module.exports.googleAuth = async (req, res, next) => {
 };
 
 // ==========================================
+// CANCEL GOOGLE SIGNUP
+// Called when user decides not to proceed with account creation on /set-password
+// Cleans up the newly created uncompleted user record from MongoDB.
+// ==========================================
+module.exports.cancelGoogleSignup = async (req, res, next) => {
+  try {
+    const user = req.user;
+    if (user && user.hasPassword === false) {
+      await User.findByIdAndDelete(user._id);
+    }
+
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+    });
+
+    res.clearCookie("sid", {
+      path: "/",
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+    });
+
+    if (req.session) {
+      req.session.destroy(() => {});
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Google signup cancelled successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
 // COMPLETE PASSWORD SETUP
 // Called after user enters password on /set-password.
 // Updates password in Firebase via Firebase Admin SDK,

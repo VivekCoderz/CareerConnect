@@ -71,3 +71,13 @@ export const completePasswordSetup = async (idToken, password, keepSignedIn = fa
   });
   return response.data;
 };
+
+/**
+ * Cancel Google Signup — called if a new Google user decides to abandon account setup.
+ * Cleans up uncompleted user record and clears cookies.
+ */
+export const cancelGoogleSignup = async () => {
+  const response = await api.post("/auth/cancel-google-signup");
+  return response.data;
+};
+
