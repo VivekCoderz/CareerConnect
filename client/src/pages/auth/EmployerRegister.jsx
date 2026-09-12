@@ -222,18 +222,14 @@ const EmployerRegister = () => {
     dispatch(clearMessages());
 
     try {
-      const captchaPromise = getCaptchaToken("google_employer_signup");
-
       // Firebase Google popup - triggered directly on user click
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
-      const captchaToken = await captchaPromise;
 
       // Send to backend with role=employer so new users get employer role
       const response = await api.post("/auth/google-auth", {
         idToken,
         keepSignedIn: false,
-        captchaToken,
         role: "employer",
       });
 
