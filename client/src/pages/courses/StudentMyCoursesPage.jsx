@@ -93,6 +93,12 @@ const StudentMyCoursesPage = () => {
         if (res.data.progress !== undefined) {
           setCourseProgressPercent(res.data.progress);
         }
+        // Hydrate completed content IDs from backend so prior completions are reflected
+        if (Array.isArray(res.data.completedContents)) {
+          setCompletedContentIds(
+            new Set(res.data.completedContents.map((id) => id.toString()))
+          );
+        }
       }
     } catch (err) {
       console.error("Fetch Student Course Content Error:", err);

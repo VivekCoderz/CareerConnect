@@ -375,7 +375,7 @@ module.exports.registerUser = async (req, res, next) => {
       });
     }
 
-    const cleanPhone = phone.replace(/\D/g, "");
+    
     const cleanCountryCode = countryCode.trim() || "+91";
 
     if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
@@ -1361,7 +1361,7 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     }
 
-    const cleanPhone = phone.replace(/\D/g, "");
+  
     const cleanCountryCode = countryCode.trim() || "+91";
 
     if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {

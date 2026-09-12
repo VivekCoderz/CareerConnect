@@ -96,16 +96,14 @@ const StudentCoursesPage = () => {
       }
 
       // Fetch catalog for "All Courses"
+      // Uses GET /api/courses — student-accessible endpoint returning all Published courses
       const catalogRes = await api
-        .get("/employer/learning/courses")
+        .get("/courses")
         .catch(() => null);
 
-      if (catalogRes?.data?.courses) {
-        setAllCourses(
-          catalogRes.data.courses.filter(
-            (course) => course.status === "Published"
-          )
-        );
+      if (catalogRes?.data?.success && catalogRes?.data?.courses) {
+        // Backend already filters to Published only — no client-side status check needed
+        setAllCourses(catalogRes.data.courses);
       }
 
       // Fetch student's applications / enrolled courses
