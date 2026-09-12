@@ -446,16 +446,19 @@ exports.getInternships = async (req, res, next) => {
       finalList = [...campusList, ...externalList];
     }
 
+    const total = finalList.length;
+    const paginatedList = finalList.slice(skip, skip + pageSize);
+
     return res.status(200).json({
       success: true,
-      count: finalList.length,
-      data: finalList,
-      internships: finalList,
+      count: paginatedList.length,
+      data: paginatedList,
+      internships: paginatedList,
       pagination: {
-        total: finalList.length,
+        total,
         page: pageNum,
         limit: pageSize,
-        totalPages: Math.ceil(finalList.length / pageSize) || 1,
+        totalPages: Math.ceil(total / pageSize) || 1,
       },
     });
   } catch (error) {
