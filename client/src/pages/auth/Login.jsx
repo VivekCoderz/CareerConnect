@@ -136,11 +136,12 @@ const Login = () => {
     dispatch(clearMessages());
 
     try {
-      const captchaToken = await getCaptchaToken("google_login");
+      const captchaPromise = getCaptchaToken("google_login");
 
-      // Step 1: Firebase Google popup
+      // Step 1: Firebase Google popup triggered immediately on click
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken(true);
+      const captchaToken = await captchaPromise;
 
       // Step 2: Send ID token to backend with role (employer or user/candidate)
       const response = await api.post("/auth/google-auth", {
@@ -170,6 +171,12 @@ const Login = () => {
     } catch (err) {
       if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
         // User dismissed popup — no error needed
+      } else if (err.code === "auth/popup-blocked") {
+        dispatch(
+          loginFailure(
+            "Sign-in popup was blocked by your browser. Please allow popups for this site and try again."
+          )
+        );
       } else if (err.code === "auth/account-exists-with-different-credential") {
         dispatch(
           loginFailure(
@@ -180,6 +187,7 @@ const Login = () => {
         dispatch(
           loginFailure(
             err.response?.data?.message ||
+              err.message ||
               "Google sign-in failed. Please try again."
           )
         );
