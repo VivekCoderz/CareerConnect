@@ -48,6 +48,20 @@ const ProfessionalHeader = ({
     { id: "profile", label: "Profile", link: "/professional/profile" },
   ];
 
+  const handleMenuClick = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      if (onOpenMobileSidebar) {
+        onOpenMobileSidebar();
+        return;
+      }
+    }
+    if (onToggleSidebar) {
+      onToggleSidebar();
+    } else if (onOpenMobileSidebar) {
+      onOpenMobileSidebar();
+    }
+  };
+
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -55,8 +69,8 @@ const ProfessionalHeader = ({
         <div className="flex items-center gap-4 sm:gap-6">
           <button
             type="button"
-            onClick={onToggleSidebar || onOpenMobileSidebar}
-            className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-purple-600 transition flex items-center justify-center cursor-pointer"
+            onClick={handleMenuClick}
+            className="p-2.5 -ml-1.5 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-purple-600 active:bg-slate-200 transition flex items-center justify-center min-w-[40px] min-h-[40px] cursor-pointer"
             aria-label="Toggle navigation"
             title="Toggle sidebar"
           >

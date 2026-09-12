@@ -1,65 +1,76 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
-// Courses
-import EmployeeCoursesPage from "./pages/courses/EmployeeCoursesPage";
-import CreateCoursePage from "./pages/courses/CreateCoursePage";
-import EditCoursePage from "./pages/courses/EditCoursePage";
-import CourseContentPage from "./pages/courses/CourseContentPage";
-import StudentCoursesPage from "./pages/courses/StudentCoursesPage";
-import StudentMyCoursesPage from "./pages/courses/StudentMyCoursesPage";
-import CourseDetailsPage from "./pages/courses/CourseDetailsPage";
-
-// Auth
-import Login from "./pages/auth/Login";
-import Signup from "./pages/auth/Signup";
-import EmployerRegister from "./pages/auth/EmployerRegister";
-import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
-import SetPassword from "./pages/auth/SetPassword.jsx";
-import GoogleOnboarding from "./pages/auth/GoogleOnboarding.jsx";
-import GoogleEmployerOnboarding from "./pages/auth/GoogleEmployerOnboarding.jsx";
-
-// Guards
+// Guards & Common Modals
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
-
-// General & Discovery
-import SelectRole from "./pages/SelectRole";
-import Home from "./pages/Home.jsx";
-import InternshipDiscoveryPage from "./pages/internships/InternshipDiscoveryPage";
-import JobDiscoveryPage from "./pages/jobs/JobDiscoveryPage";
-import OpportunitiesPage from "./pages/OpportunitiesPage";
-
-// Student
-import StudentDashboard from "./pages/student/StudentDashboard";
-import StudentProfile from "./pages/student/StudentProfile";
-import Internships from "./pages/student/Internships";
-import InternshipDetail from "./pages/student/InternshipDetail";
-import MyApplications from "./pages/student/MyApplications";
-
-// Fresher
-import FresherDashboard from "./pages/fresher/FresherDashboard";
-import FresherProfile from "./pages/fresher/FresherProfile";
-import CareerRecommendationsPage from "./pages/fresher/CareerRecommendationsPage";
-
-// Professional
-import ProfessionalDashboard from "./pages/professional/ProfessionalDashboard";
-import ProfessionalProfile from "./pages/professional/ProfessionalProfile";
-
-// Employer
-import EmployerProfile from "./pages/employer/EmployerProfile";
-import EmployerDashboard from "./pages/employer/EmployerDashboard";
-import CompanyPublicProfile from "./pages/employer/CompanyPublicProfile";
-import PostInternship from "./pages/employer/PostInternship";
-import MyInternships from "./pages/employer/MyInternships";
-import EditInternship from "./pages/employer/EditInternship";
-
-// Resume Builder
-import ResumeBuilder from "./pages/resume/ResumeBuilder";
-
-// Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
 import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
+
+// Lazy-loaded Pages: Public & Discovery
+const Home = lazy(() => import("./pages/Home.jsx"));
+const SelectRole = lazy(() => import("./pages/SelectRole"));
+const JobDiscoveryPage = lazy(() => import("./pages/jobs/JobDiscoveryPage"));
+const InternshipDiscoveryPage = lazy(() => import("./pages/internships/InternshipDiscoveryPage"));
+const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage"));
+
+// Lazy-loaded Pages: Auth
+const Login = lazy(() => import("./pages/auth/Login"));
+const Signup = lazy(() => import("./pages/auth/Signup"));
+const EmployerRegister = lazy(() => import("./pages/auth/EmployerRegister"));
+const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword.jsx"));
+const SetPassword = lazy(() => import("./pages/auth/SetPassword.jsx"));
+const GoogleOnboarding = lazy(() => import("./pages/auth/GoogleOnboarding.jsx"));
+const GoogleEmployerOnboarding = lazy(() => import("./pages/auth/GoogleEmployerOnboarding.jsx"));
+
+// Lazy-loaded Pages: Student
+const StudentDashboard = lazy(() => import("./pages/student/StudentDashboard"));
+const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
+const Internships = lazy(() => import("./pages/student/Internships"));
+const InternshipDetail = lazy(() => import("./pages/student/InternshipDetail"));
+const MyApplications = lazy(() => import("./pages/student/MyApplications"));
+
+// Lazy-loaded Pages: Courses
+const StudentCoursesPage = lazy(() => import("./pages/courses/StudentCoursesPage"));
+const StudentMyCoursesPage = lazy(() => import("./pages/courses/StudentMyCoursesPage"));
+const CourseDetailsPage = lazy(() => import("./pages/courses/CourseDetailsPage"));
+const EmployeeCoursesPage = lazy(() => import("./pages/courses/EmployeeCoursesPage"));
+const CreateCoursePage = lazy(() => import("./pages/courses/CreateCoursePage"));
+const EditCoursePage = lazy(() => import("./pages/courses/EditCoursePage"));
+const CourseContentPage = lazy(() => import("./pages/courses/CourseContentPage"));
+
+// Lazy-loaded Pages: Fresher
+const FresherDashboard = lazy(() => import("./pages/fresher/FresherDashboard"));
+const FresherProfile = lazy(() => import("./pages/fresher/FresherProfile"));
+const CareerRecommendationsPage = lazy(() => import("./pages/fresher/CareerRecommendationsPage"));
+
+// Lazy-loaded Pages: Professional
+const ProfessionalDashboard = lazy(() => import("./pages/professional/ProfessionalDashboard"));
+const ProfessionalProfile = lazy(() => import("./pages/professional/ProfessionalProfile"));
+
+// Lazy-loaded Pages: Employer
+const EmployerProfile = lazy(() => import("./pages/employer/EmployerProfile"));
+const EmployerDashboard = lazy(() => import("./pages/employer/EmployerDashboard"));
+const CompanyPublicProfile = lazy(() => import("./pages/employer/CompanyPublicProfile"));
+const PostInternship = lazy(() => import("./pages/employer/PostInternship"));
+const MyInternships = lazy(() => import("./pages/employer/MyInternships"));
+const EditInternship = lazy(() => import("./pages/employer/EditInternship"));
+
+// Lazy-loaded Pages: Resume Builder
+const ResumeBuilder = lazy(() => import("./pages/resume/ResumeBuilder"));
+
+// Lightweight Page Fallback Loader
+const PageFallback = () => (
+  <div className="min-h-[50vh] flex flex-col items-center justify-center p-8">
+    <div className="relative flex items-center justify-center">
+      <div className="w-10 h-10 rounded-full border-3 border-slate-200 border-t-[#1e3a8a] animate-spin" />
+      <span className="absolute text-[9px] font-black text-[#1e3a8a]">GU</span>
+    </div>
+    <p className="mt-3 text-xs font-semibold text-slate-400 animate-pulse">
+      Loading...
+    </p>
+  </div>
+);
 
 // Redux
 import { getCurrentUser } from "./services/authService";
@@ -158,7 +169,8 @@ function App() {
       <RateLimitWarningModal />
       <FloatingAiAssistant />
       <AuthInitializer>
-        <Routes>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
           {/* =================================================
               PUBLIC ROUTES
           ================================================= */}
@@ -332,7 +344,8 @@ function App() {
           <Route path="/" element={<RootRoute />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </AuthInitializer>
+      </Suspense>
+    </AuthInitializer>
     </BrowserRouter>
   );
 }
