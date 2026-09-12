@@ -22,8 +22,8 @@ router.post("/login", loginLimiter, sanitizeInputs, verifyCaptcha, authControlle
 // Called after signInWithEmailAndPassword / signInWithPopup on the frontend
 router.post("/firebase-login", loginLimiter, sanitizeInputs, verifyCaptcha, authControllers.firebaseLogin);
 
-// Called after signInWithPopup(auth, googleProvider) — first-time or returning Google sign-ins
-router.post("/google-auth", sanitizeInputs, verifyCaptcha, authControllers.googleAuth);
+// Called after signInWithPopup(auth, googleProvider) — first-time or returning Google sign-ins (Google handles verification)
+router.post("/google-auth", sanitizeInputs, authControllers.googleAuth);
 
 // ==========================================
 // PROTECTED — Password Setup (Google users only)

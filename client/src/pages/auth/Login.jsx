@@ -136,18 +136,14 @@ const Login = () => {
     dispatch(clearMessages());
 
     try {
-      const captchaPromise = getCaptchaToken("google_login");
-
       // Step 1: Firebase Google popup triggered immediately on click
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken(true);
-      const captchaToken = await captchaPromise;
 
       // Step 2: Send ID token to backend with role (employer or user/candidate)
       const response = await api.post("/auth/google-auth", {
         idToken,
         keepSignedIn,
-        captchaToken,
         role: loginType === "employer" ? "employer" : "user",
       });
 

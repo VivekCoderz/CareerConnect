@@ -286,18 +286,14 @@ const Signup = () => {
     dispatch(clearMessages());
 
     try {
-      const captchaPromise = getCaptchaToken("google_candidate_signup");
-
       // Firebase Google popup - triggered directly on user click
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
-      const captchaToken = await captchaPromise;
 
       // Send to backend with role=user (candidate)
       const response = await api.post("/auth/google-auth", {
         idToken,
         keepSignedIn: false,
-        captchaToken,
         role: "user",
       });
 
