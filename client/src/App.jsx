@@ -60,6 +60,14 @@ import ResumeBuilder from "./pages/resume/ResumeBuilder";
 // Admin
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminLogin from "./pages/admin/AdminLogin";
+import AdminCompanies from "./pages/admin/AdminCompanies";
+import AdminCompanyAdmins from "./pages/admin/AdminCompanyAdmins";
+import AdminCompanyProfile from "./pages/admin/AdminCompanyProfile";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminOpportunities from "./pages/admin/AdminOpportunities";
+import AdminApplications from "./pages/admin/AdminApplications";
+import AdminReports from "./pages/admin/AdminReports";
+import AdminSettings from "./pages/admin/AdminSettings";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -347,9 +355,29 @@ function App() {
           <Route path="/admin/signup" element={<NotFound />} />
           <Route path="/admin/create" element={<NotFound />} />
 
-          {/* Strictly Protected Admin Dashboard */}
+          {/* Strictly Protected Admin Routes */}
           <Route element={<AdminProtectedRoute />}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+            {/* SUPER_ADMIN ONLY: Platform Multi-Tenant Provisioning & Management */}
+            <Route element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}>
+              <Route path="/admin/companies" element={<AdminCompanies />} />
+              <Route path="/admin/company-admins" element={<AdminCompanyAdmins />} />
+            </Route>
+
+            {/* COMPANY_ADMIN ONLY: Own Assigned Organization Profile & Settings */}
+            <Route element={<AdminProtectedRoute allowedRoles={["COMPANY_ADMIN"]} />}>
+              <Route path="/admin/company" element={<AdminCompanyProfile />} />
+            </Route>
+
+            {/* Shared Scoped Admin Routes */}
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/students" element={<AdminUsers />} />
+            <Route path="/admin/employers" element={<AdminUsers />} />
+            <Route path="/admin/opportunities" element={<AdminOpportunities />} />
+            <Route path="/admin/applications" element={<AdminApplications />} />
+            <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
           </Route>
 
           {/* =================================================
