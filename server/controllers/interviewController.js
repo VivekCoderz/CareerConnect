@@ -4,6 +4,7 @@ const Application = require("../models/Application");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const User = require("../models/User");
+const notificationService = require("../services/notificationService");
 
 // Helper to get or create EmployerProfile for the authenticated user
 const getEmployerProfileId = async (user) => {
@@ -632,6 +633,36 @@ exports.scheduleInterview = async (req, res, next) => {
     });
     await application.save();
 
+    // 9. Dispatch in-app notification to candidate
+    try {
+      const oppTitle =
+        application.opportunityTitle ||
+        (await Job.findById(interview.jobId).select("title"))?.title ||
+        (await Internship.findById(interview.internshipId).select("title"))?.title ||
+        "Opportunity";
+      const compName = application.companyName || req.user.fullName || "Employer";
+
+      await notificationService.createNotification({
+        recipientId: application.candidateId,
+        senderId: req.user._id,
+        title: "Interview Scheduled 📅",
+        message: `Your ${interview.roundName || `Round ${roundNum}`} for ${oppTitle} at ${compName} has been scheduled for ${scheduledDate} at ${finalTime}.`,
+        notificationType: "INTERVIEW_SCHEDULED",
+        relatedInterviewId: interview._id,
+        relatedApplicationId: application._id,
+        actionUrl: "/student/dashboard?tab=interviews",
+        metadata: {
+          roundNumber: roundNum,
+          scheduledDate,
+          scheduledTime: finalTime,
+          meetingMode: finalType,
+          meetingLink: interview.meetingLink,
+        },
+      });
+    } catch (notifErr) {
+      console.warn("Failed to dispatch schedule notification:", notifErr.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: `Interview Round ${roundNum} scheduled successfully. Candidate dashboard has been updated.`,
@@ -644,7 +675,7 @@ exports.scheduleInterview = async (req, res, next) => {
 
 /**
  * PUT /api/interviews/:id/reschedule (also supports PATCH)
- * Reschedules an existing interview record
+ * Reschedules an existing interview record without creating duplicate documents
  */
 exports.rescheduleInterview = async (req, res, next) => {
   try {
@@ -654,6 +685,8 @@ exports.rescheduleInterview = async (req, res, next) => {
       startTime,
       scheduledTime,
       duration,
+      durationMinutes,
+      meetingMode,
       meetingLink,
       location,
       rescheduledReason,
@@ -668,6 +701,13 @@ exports.rescheduleInterview = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Interview not found" });
     }
 
+    if (interview.status === "cancelled" || interview.status === "Cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot reschedule a cancelled interview. Please schedule a new interview instead.",
+      });
+    }
+
     if (!scheduledDate) {
       return res.status(400).json({ success: false, message: "New interview date is required." });
     }
@@ -677,32 +717,86 @@ exports.rescheduleInterview = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "New interview date cannot be in the past." });
     }
 
-    const newTime = startTime || scheduledTime || interview.startTime;
+    const prevDate = interview.scheduledDate;
+    const prevTime = interview.scheduledTime || interview.startTime || "";
+    const newTime = startTime || scheduledTime || prevTime || "11:00 AM";
+    const finalReason = rescheduledReason || "Rescheduled by employer";
 
+    // Archive previous schedule into history
+    if (!interview.rescheduleHistory) {
+      interview.rescheduleHistory = [];
+    }
+    interview.rescheduleHistory.push({
+      previousDate: prevDate,
+      previousStartTime: prevTime,
+      newDate: scheduledDate,
+      newStartTime: newTime,
+      reason: finalReason,
+      rescheduledAt: new Date(),
+      rescheduledBy: req.user._id,
+    });
+
+    interview.previousDate = prevDate;
+    interview.previousStartTime = prevTime;
+    interview.newDate = scheduledDate;
+    interview.newStartTime = newTime;
     interview.scheduledDate = scheduledDate;
     interview.startTime = newTime;
     interview.scheduledTime = newTime;
-    if (duration) {
-      interview.duration = Number(duration);
-      interview.durationMinutes = Number(duration);
+    if (duration || durationMinutes) {
+      const dur = Number(duration || durationMinutes);
+      interview.duration = dur;
+      interview.durationMinutes = dur;
     }
+    if (meetingMode) interview.meetingMode = meetingMode;
     if (meetingLink) interview.meetingLink = meetingLink;
     if (location) interview.location = location;
     interview.status = "rescheduled";
-    interview.rescheduledReason = rescheduledReason || "Rescheduled by employer";
+    interview.rescheduledAt = new Date();
+    interview.rescheduledBy = req.user._id;
+    interview.rescheduledReason = finalReason;
 
     await interview.save();
 
     // Update application timeline note
     await Application.findByIdAndUpdate(interview.applicationId, {
+      status: "Interview Scheduled",
+      stage: `Interview Round ${interview.roundNumber}`,
       $push: {
         notes: {
-          text: `Interview Round ${interview.roundNumber} rescheduled to ${scheduledDate} at ${newTime}. Reason: ${interview.rescheduledReason}`,
+          text: `Interview Round ${interview.roundNumber} rescheduled from ${prevDate} (${prevTime}) to ${scheduledDate} (${newTime}). Reason: ${finalReason}`,
           addedBy: req.user._id,
           createdAt: new Date(),
         },
       },
     });
+
+    // Create Candidate In-App Notification
+    try {
+      const app = await Application.findById(interview.applicationId).select("opportunityTitle companyName candidateId");
+      const oppTitle = app?.opportunityTitle || "Opportunity";
+
+      await notificationService.createNotification({
+        recipientId: interview.candidateId || app?.candidateId,
+        senderId: req.user._id,
+        title: "Interview Rescheduled 🔄",
+        message: `Your ${interview.roundName || `Round ${interview.roundNumber}`} interview for ${oppTitle} has been rescheduled from ${prevDate} (${prevTime}) to ${scheduledDate} (${newTime}).`,
+        notificationType: "INTERVIEW_RESCHEDULED",
+        relatedInterviewId: interview._id,
+        relatedApplicationId: interview.applicationId,
+        actionUrl: "/student/dashboard?tab=interviews",
+        metadata: {
+          roundNumber: interview.roundNumber,
+          previousDate: prevDate,
+          previousTime: prevTime,
+          newDate: scheduledDate,
+          newTime,
+          reason: finalReason,
+        },
+      });
+    } catch (notifErr) {
+      console.warn("Failed to dispatch reschedule notification:", notifErr.message);
+    }
 
     return res.status(200).json({
       success: true,
@@ -716,12 +810,13 @@ exports.rescheduleInterview = async (req, res, next) => {
 
 /**
  * PUT /api/interviews/:id/cancel (also supports PATCH)
- * Cancels an interview document (does NOT delete)
+ * Cancels an interview document (does NOT delete).
+ * Decoupled from application: candidate stays Shortlisted!
  */
 exports.cancelInterview = async (req, res, next) => {
   try {
     const employerProfileId = await getEmployerProfileId(req.user);
-    const { cancellationReason } = req.body;
+    const { cancellationReason, cancellationMessage } = req.body;
 
     const interview = await Interview.findOne({
       _id: req.params.id,
@@ -732,8 +827,14 @@ exports.cancelInterview = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Interview not found" });
     }
 
+    const finalReason = cancellationReason || "Interviewer unavailable";
+    const finalMessage = cancellationMessage || "";
+
     interview.status = "cancelled";
-    interview.cancellationReason = cancellationReason || "Cancelled by employer";
+    interview.cancelledAt = new Date();
+    interview.cancelledBy = req.user._id;
+    interview.cancellationReason = finalReason;
+    interview.cancellationMessage = finalMessage;
     await interview.save();
 
     // Check if any other scheduled interviews remain for this application
@@ -742,13 +843,25 @@ exports.cancelInterview = async (req, res, next) => {
       status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
     });
 
+    // IMPORTANT: Cancelling an interview must NOT reject the candidate.
+    // Ensure application remains Shortlisted so employer can schedule a new interview or reschedule.
     if (activeRemaining === 0) {
-      // Revert application status back to Shortlisted so it can be re-scheduled if desired
       await Application.findByIdAndUpdate(interview.applicationId, {
         status: "Shortlisted",
+        stage: "Shortlisted",
         $push: {
           notes: {
-            text: `Interview Round ${interview.roundNumber} cancelled. Reason: ${interview.cancellationReason}`,
+            text: `Interview Round ${interview.roundNumber} cancelled. Reason: ${finalReason}.${finalMessage ? ` Note: ${finalMessage}` : ""}`,
+            addedBy: req.user._id,
+            createdAt: new Date(),
+          },
+        },
+      });
+    } else {
+      await Application.findByIdAndUpdate(interview.applicationId, {
+        $push: {
+          notes: {
+            text: `Interview Round ${interview.roundNumber} cancelled. Reason: ${finalReason}.`,
             addedBy: req.user._id,
             createdAt: new Date(),
           },
@@ -756,10 +869,76 @@ exports.cancelInterview = async (req, res, next) => {
       });
     }
 
+    // Create Candidate In-App Notification
+    try {
+      const app = await Application.findById(interview.applicationId).select("opportunityTitle companyName candidateId");
+      const oppTitle = app?.opportunityTitle || "Opportunity";
+
+      await notificationService.createNotification({
+        recipientId: interview.candidateId || app?.candidateId,
+        senderId: req.user._id,
+        title: "Interview Cancelled ✕",
+        message: `Your ${interview.roundName || `Round ${interview.roundNumber}`} interview for ${oppTitle} scheduled for ${interview.scheduledDate} at ${interview.scheduledTime} has been cancelled. Reason: ${finalReason}.${finalMessage ? ` Note: ${finalMessage}` : ""}`,
+        notificationType: "INTERVIEW_CANCELLED",
+        relatedInterviewId: interview._id,
+        relatedApplicationId: interview.applicationId,
+        actionUrl: "/student/dashboard?tab=interviews",
+        metadata: {
+          roundNumber: interview.roundNumber,
+          cancelledDate: interview.scheduledDate,
+          cancelledTime: interview.scheduledTime,
+          cancellationReason: finalReason,
+          cancellationMessage: finalMessage,
+        },
+      });
+    } catch (notifErr) {
+      console.warn("Failed to dispatch cancel notification:", notifErr.message);
+    }
+
     return res.status(200).json({
       success: true,
-      message: "Interview has been cancelled.",
+      message: "Interview has been cancelled. Application remains shortlisted.",
       interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/interviews/:id
+ * DELETE INTERVIEW RULE:
+ * Only allows deleting DRAFT interviews.
+ * Scheduled, completed, rescheduled, or cancelled interviews CANNOT be deleted to preserve audit history.
+ */
+exports.deleteInterview = async (req, res, next) => {
+  try {
+    const employerProfileId = await getEmployerProfileId(req.user);
+    const interview = await Interview.findOne({
+      _id: req.params.id,
+      employerId: employerProfileId,
+    });
+
+    if (!interview) {
+      return res.status(404).json({ success: false, message: "Interview record not found" });
+    }
+
+    // Strict Rule: Non-drafts cannot be deleted
+    const isDraft = interview.isDraft === true || interview.status === "draft" || interview.status === "Draft";
+    if (!isDraft) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Cannot delete active or historical interview records. Scheduled, completed, rescheduled, or cancelled interviews must be preserved for audit history. Use Cancel Interview instead.",
+      });
+    }
+
+    // Permanent delete only if it is a draft
+    await Interview.findByIdAndDelete(req.params.id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Draft interview deleted successfully.",
     });
   } catch (error) {
     next(error);
@@ -912,6 +1091,34 @@ exports.submitInterviewScorecard = async (req, res, next) => {
           },
         },
       });
+    }
+
+    // Dispatch In-App Notification to Candidate
+    try {
+      const app = await Application.findById(interview.applicationId).select("opportunityTitle candidateId");
+      const oppTitle = app?.opportunityTitle || "Opportunity";
+      const isPassed = finalResult === "passed";
+
+      await notificationService.createNotification({
+        recipientId: interview.candidateId || app?.candidateId,
+        senderId: req.user._id,
+        title: isPassed ? "Round Cleared! 🏆" : "Interview Evaluation Completed 📝",
+        message: isPassed
+          ? `Congratulations! You have passed ${interview.roundName || `Round ${interview.roundNumber}`} for ${oppTitle}.`
+          : `Your evaluation for ${interview.roundName || `Round ${interview.roundNumber}`} for ${oppTitle} has been completed.`,
+        notificationType: "INTERVIEW_RESULT",
+        relatedInterviewId: interview._id,
+        relatedApplicationId: interview.applicationId,
+        actionUrl: "/student/dashboard?tab=interviews",
+        metadata: {
+          roundNumber: interview.roundNumber,
+          result: finalResult,
+          score: overallScore,
+          selected: shouldSelect,
+        },
+      });
+    } catch (notifErr) {
+      console.warn("Failed to dispatch scorecard notification:", notifErr.message);
     }
 
     return res.status(200).json({

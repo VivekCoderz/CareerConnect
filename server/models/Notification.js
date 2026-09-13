@@ -2,15 +2,27 @@ const mongoose = require("mongoose");
 
 const notificationSchema = new mongoose.Schema(
   {
+    // Support both recipient (develop) and recipientId (interviews/admin)
     recipient: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null, // null means broadcast / visible to all users
       index: true,
     },
+    recipientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
     sender: {
       type: String,
       default: "CareerConnect AI Assistant",
+    },
+    senderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
     senderRole: {
       type: String,
@@ -28,18 +40,46 @@ const notificationSchema = new mongoose.Schema(
     },
     preview: {
       type: String,
-      required: true,
       trim: true,
+      default: "",
+    },
+    message: {
+      type: String,
+      trim: true,
+      default: "",
     },
     content: {
       type: String,
-      required: true,
+      default: "",
     },
     category: {
       type: String,
-      enum: ["job", "internship", "course", "ai_recommendation", "system"],
       default: "ai_recommendation",
       index: true,
+    },
+    notificationType: {
+      type: String,
+      enum: [
+        "INTERVIEW_SCHEDULED",
+        "INTERVIEW_RESCHEDULED",
+        "INTERVIEW_CANCELLED",
+        "INTERVIEW_COMPLETED",
+        "INTERVIEW_RESULT",
+        "APPLICATION_STATUS",
+        "GENERAL",
+      ],
+      default: "GENERAL",
+      index: true,
+    },
+    relatedInterviewId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Interview",
+      default: null,
+    },
+    relatedApplicationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Application",
+      default: null,
     },
     actionUrl: {
       type: String,
@@ -54,13 +94,8 @@ const notificationSchema = new mongoose.Schema(
       default: null,
     },
     metadata: {
-      company: String,
-      location: String,
-      stipend: String,
-      salary: String,
-      skills: [String],
-      matchScore: Number,
-      workMode: String,
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
     },
     isRead: {
       type: Boolean,
@@ -77,6 +112,28 @@ const notificationSchema = new mongoose.Schema(
   }
 );
 
+// Fallback population / synchronization before save
+notificationSchema.pre("save", function (next) {
+  if (this.recipient && !this.recipientId) {
+    this.recipientId = this.recipient;
+  } else if (this.recipientId && !this.recipient) {
+    this.recipient = this.recipientId;
+  }
+
+  if (this.preview && !this.message) {
+    this.message = this.preview;
+  } else if (this.message && !this.preview) {
+    this.preview = this.message;
+  }
+
+  if (!this.content && (this.message || this.preview)) {
+    this.content = this.message || this.preview;
+  }
+
+  next();
+});
+
 notificationSchema.index({ recipient: 1, createdAt: -1 });
+notificationSchema.index({ recipientId: 1, isRead: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Notification", notificationSchema);
