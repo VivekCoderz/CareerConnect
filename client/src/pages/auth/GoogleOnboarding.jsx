@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { signOut } from "firebase/auth";
+import { auth } from "../../config/firebase";
 import api from "../../api/api";
-import { updateUserProfile } from "../../redux/features/authSlice";
+import { updateUserProfile, logout } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 
 const POPULAR_LANGUAGES = [
@@ -88,8 +90,26 @@ const GoogleOnboarding = () => {
   // Steps: 1 = "Let's get started" info card, 2 = "Areas of Interest"
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
+
+  const handleCancelAndGoHome = async () => {
+    setCancelling(true);
+    try {
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.warn("Sign out warning:", err.message);
+      }
+    } finally {
+      dispatch(logout());
+      localStorage.removeItem("careerconnect_token");
+      localStorage.removeItem("careerconnect_user");
+      setCancelling(false);
+      navigate("/", { replace: true });
+    }
+  };
 
   // Dropdown toggles
   const [showMoreCourses, setShowMoreCourses] = useState(false);
@@ -440,6 +460,22 @@ const GoogleOnboarding = () => {
 
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-8">
         <div className="w-full max-w-xl">
+          {/* Back to Home / Cancel Header */}
+          <div className="mb-4 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleCancelAndGoHome}
+              disabled={cancelling}
+              className="group inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-800 transition py-1.5 px-3 rounded-lg hover:bg-slate-200/60 disabled:opacity-50 cursor-pointer"
+            >
+              <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              {cancelling ? "Cancelling..." : "Back to Home"}
+            </button>
+            <span className="text-xs text-slate-400 font-medium">Step {step} of 3</span>
+          </div>
+
           {submitError && (
             <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
               {submitError}
@@ -1188,6 +1224,18 @@ const GoogleOnboarding = () => {
               )}
             </div>
           )}
+
+          {/* Cancel Option */}
+          <div className="text-center mt-4 pb-2">
+            <button
+              type="button"
+              onClick={handleCancelAndGoHome}
+              disabled={cancelling}
+              className="text-xs text-slate-400 hover:text-red-500 transition underline underline-offset-4 cursor-pointer disabled:opacity-50"
+            >
+              {cancelling ? "Cancelling..." : "Don't want to complete account setup? Cancel & Return to Home"}
+            </button>
+          </div>
         </div>
       </div>
 

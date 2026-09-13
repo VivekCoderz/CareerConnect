@@ -14,6 +14,7 @@ import {
 
 import api from "../../api/api";
 import { getCaptchaToken } from "../../utils/captcha";
+import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 
 // ======================================================
 // Helper: Generate Strong Password
@@ -114,6 +115,9 @@ const EmployerRegister = () => {
   // ======================================================
   // OTP States
   // ======================================================
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaError, setCaptchaError] = useState("");
+
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpError, setOtpError] = useState("");
@@ -462,6 +466,7 @@ const EmployerRegister = () => {
     dispatch(clearMessages());
 
     try {
+
       const captchaToken = await getCaptchaToken(
         "google_employer_signup"
       );
@@ -475,17 +480,17 @@ const EmployerRegister = () => {
       const idToken =
         await result.user.getIdToken();
 
-      // Backend Google Authentication
-      const response = await api.post(
-        "/auth/google-auth",
-        {
-          idToken,
-          keepSignedIn: false,
-          captchaToken,
-          role: "employer",
-        }
-      );
+      
 
+      // Send to backend with role=employer so new users get employer role
+      const response = await api.post("/auth/google-auth", {
+        idToken,
+        keepSignedIn: false,
+        role: "employer",
+      });
+
+
+      
       const {
         user,
         requiresPasswordSetup,
@@ -499,14 +504,12 @@ const EmployerRegister = () => {
         })
       );
 
-      if (requiresPasswordSetup) {
-        navigate("/set-password", {
-          replace: true,
-        });
-      } else if (!user.phone?.trim()) {
-        navigate("/onboarding/employer", {
-          replace: true,
-        });
+      if (requiresPasswordSetup || user.hasPassword === false) {
+        // New employer Google user → set password → collect company details
+        navigate("/set-password", { replace: true });
+      } else if (!user.phone?.trim() || !user.isProfileComplete) {
+        // Has password, but hasn't completed company details!
+        navigate("/onboarding/employer", { replace: true });
       } else {
         navigate("/employer/dashboard", {
           replace: true,
@@ -524,13 +527,18 @@ const EmployerRegister = () => {
         err.code ===
         "auth/account-exists-with-different-credential"
       ) {
+        // User dismissed popup — silent
+      } else if (err.code === "auth/popup-blocked") {
+        setGoogleError(
+          "Sign-in popup was blocked by your browser. Please allow popups for this site and try again."
+        );
+      } else if (err.code === "auth/account-exists-with-different-credential") {
         setGoogleError(
           "This email is already registered with a different sign-in method. Please use email + password."
         );
       } else {
         setGoogleError(
-          err.response?.data?.message ||
-            "Google sign-up failed. Please try again."
+          err.response?.data?.message || err.message || "Google sign-up failed. Please try again."
         );
       }
     } finally {
@@ -555,12 +563,16 @@ const EmployerRegister = () => {
 
     if (!validateStep2()) return;
 
+    if (!captchaToken) {
+      setCaptchaError("Please verify that you are not a robot.");
+      return;
+    }
+    setCaptchaError("");
+
     dispatch(signupStart());
 
     try {
-      const captchaToken = await getCaptchaToken(
-        "employer_signup"
-      );
+      const finalCaptchaToken = captchaToken || (await getCaptchaToken("employer_signup"));
 
       const payload = {
         companyName: formData.companyName.trim(),
@@ -577,8 +589,7 @@ const EmployerRegister = () => {
         role: "employer",
 
         keepSignedIn,
-
-        captchaToken,
+        captchaToken: finalCaptchaToken,
       };
 
       const res = await api.post(
@@ -1334,6 +1345,22 @@ const EmployerRegister = () => {
                   </span>
                 </label>
 
+
+                {/* Submit */}
+
+                {/* ReCAPTCHA "I'm not a robot" */}
+                               {/* ReCAPTCHA "I'm not a robot" */}
+                <div className="py-2 flex justify-center">
+                  <ReCaptchaCheckbox
+                    onChange={(token) => {
+                      setCaptchaToken(token);
+                      setCaptchaError("");
+                    }}
+                    onExpired={() => setCaptchaToken("")}
+                    error={captchaError}
+                  />
+                </div>
+
                 {/* Submit */}
                 <button
                   type="submit"
@@ -1349,7 +1376,6 @@ const EmployerRegister = () => {
                     "Complete Registration"
                   )}
                 </button>
-
               </form>
             </div>
           )}

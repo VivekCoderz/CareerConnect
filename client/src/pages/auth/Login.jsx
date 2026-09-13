@@ -13,6 +13,7 @@ import {
 } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
+import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,8 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaError, setCaptchaError] = useState("");
 
   // Show expired banner from URL param or Redux state
   const showExpiredBanner = isExpired || sessionExpired;
@@ -93,10 +96,15 @@ const Login = () => {
   // ─── Database Email / Username + Password Submit ────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!captchaToken) {
+      setCaptchaError("Please verify that you are not a robot.");
+      return;
+    }
+    setCaptchaError("");
     dispatch(loginStart());
 
     try {
-      const captchaToken = await getCaptchaToken("login");
+      const finalCaptchaToken = captchaToken || (await getCaptchaToken("login"));
 
       // Check details directly from MongoDB database (not from Firebase)
       const response = await api.post("/auth/login", {
@@ -104,7 +112,7 @@ const Login = () => {
         password: formData.password,
         role: loginType,
         keepSignedIn,
-        captchaToken,
+        captchaToken: finalCaptchaToken,
       });
 
       const { user, token } = response.data;
@@ -128,9 +136,7 @@ const Login = () => {
     dispatch(clearMessages());
 
     try {
-      const captchaToken = await getCaptchaToken("google_login");
-
-      // Step 1: Firebase Google popup
+      // Step 1: Firebase Google popup triggered immediately on click
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken(true);
 
@@ -138,7 +144,6 @@ const Login = () => {
       const response = await api.post("/auth/google-auth", {
         idToken,
         keepSignedIn,
-        captchaToken,
         role: loginType === "employer" ? "employer" : "user",
       });
 
@@ -162,6 +167,12 @@ const Login = () => {
     } catch (err) {
       if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
         // User dismissed popup — no error needed
+      } else if (err.code === "auth/popup-blocked") {
+        dispatch(
+          loginFailure(
+            "Sign-in popup was blocked by your browser. Please allow popups for this site and try again."
+          )
+        );
       } else if (err.code === "auth/account-exists-with-different-credential") {
         dispatch(
           loginFailure(
@@ -172,6 +183,7 @@ const Login = () => {
         dispatch(
           loginFailure(
             err.response?.data?.message ||
+              err.message ||
               "Google sign-in failed. Please try again."
           )
         );
@@ -361,6 +373,18 @@ const Login = () => {
                 </span>
               </span>
             </label>
+
+            {/* ReCAPTCHA "I'm not a robot" */}
+            <div className="py-2 flex justify-center">
+              <ReCaptchaCheckbox
+                onChange={(token) => {
+                  setCaptchaToken(token);
+                  setCaptchaError("");
+                }}
+                onExpired={() => setCaptchaToken("")}
+                error={captchaError}
+              />
+            </div>
 
             {/* Sign In button */}
             <button

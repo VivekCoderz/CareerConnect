@@ -51,6 +51,8 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDomain, setSelectedDomain] = useState("All");
   const [selectedLevel, setSelectedLevel] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Application Modal state
   const [selectedCourseForApply, setSelectedCourseForApply] = useState(null);
@@ -278,6 +280,22 @@ const StudentCoursesPage = ({ onViewDetails }) => {
       );
     }
   );
+
+  // Reset page to 1 when filters or tabs change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedDomain, selectedLevel, activeTab]);
+
+  const totalPages = Math.ceil(filteredCourses.length / PAGE_SIZE) || 1;
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const paginatedCourses = filteredCourses.slice(startIndex, startIndex + PAGE_SIZE);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+      window.scrollTo({ top: 300, behavior: "smooth" });
+    }
+  };
 
   const domainList = [
     "All",
@@ -553,7 +571,9 @@ const StudentCoursesPage = ({ onViewDetails }) => {
             </h3>
 
             <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-              {filteredCourses.length} Courses Available
+              {filteredCourses.length > 0
+                ? `Showing ${startIndex + 1}–${Math.min(startIndex + PAGE_SIZE, filteredCourses.length)} of ${filteredCourses.length} Courses`
+                : "0 Courses Available"}
             </span>
 
           </div>
@@ -604,34 +624,84 @@ const StudentCoursesPage = ({ onViewDetails }) => {
             </div>
 
           ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginatedCourses.map((course) => (
+                  <CourseCard
+                    key={course._id}
+                    course={course}
+                    matchedSkills={course.matchedSkills || []}
+                    applicationStatus={getCourseStatus(course._id)}
+                    onViewDetails={(id) => {
+                      setSelectedCourseId(id);
+                      setActiveTab("details");
+                    }}
+                    onApply={(c) => handleOpenApplyModal(c)}
+                    onContinueLearning={() => {
+                      setActiveTab("my-courses");
+                    }}
+                  />
+                ))}
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Pagination Bar */}
+              {totalPages > 1 && (
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+                  <p className="text-xs font-semibold text-slate-500">
+                    Page <span className="text-slate-900 font-bold">{currentPage}</span> of{" "}
+                    <span className="text-slate-900 font-bold">{totalPages}</span>
+                  </p>
 
-              {filteredCourses.map((course) => (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage <= 1}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                    >
+                      ← Previous
+                    </button>
 
-                <CourseCard
-                  key={course._id}
-                  course={course}
-                  matchedSkills={
-                    course.matchedSkills || []
-                  }
-                  applicationStatus={getCourseStatus(
-                    course._id
-                  )}
-                  onViewDetails={(id) => {
-                    setSelectedCourseId(id);
-                    setActiveTab("details");
-                  }}
-                  onApply={(courseData) =>
-                    handleOpenApplyModal(courseData)
-                  }
-                  onContinueLearning={() => {
-                    setActiveTab("my-courses");
-                  }}
-                />
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .reduce((acc, p, idx, arr) => {
+                          if (idx > 0 && p - arr[idx - 1] > 1) {
+                            acc.push("...");
+                          }
+                          acc.push(p);
+                          return acc;
+                        }, [])
+                        .map((p, idx) =>
+                          p === "..." ? (
+                            <span key={`dots-${idx}`} className="px-2 text-slate-400 text-xs font-bold select-none">
+                              ...
+                            </span>
+                          ) : (
+                            <button
+                              key={p}
+                              onClick={() => handlePageChange(p)}
+                              className={`min-w-[36px] h-9 px-2.5 rounded-xl text-xs font-bold transition ${
+                                currentPage === p
+                                  ? "bg-[#1e3a8a] text-white shadow-xs"
+                                  : "text-slate-600 hover:bg-slate-100"
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          )
+                        )}
+                    </div>
 
-              ))}
-
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage >= totalPages}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -804,6 +874,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
       )}
 
     </div>
+   
   );
 };
 

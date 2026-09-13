@@ -1,7 +1,18 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 
 const EmployerSidebar = ({ activeTab, onSelectTab, mobileOpen, onCloseMobile, stats = {} }) => {
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
+
   const sections = [
     {
       group: "MAIN",
@@ -51,16 +62,37 @@ const EmployerSidebar = ({ activeTab, onSelectTab, mobileOpen, onCloseMobile, st
       {mobileOpen && (
         <div
           onClick={onCloseMobile}
-          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-xs transition-opacity"
+          className="fixed inset-0 bg-slate-900/60 z-40 lg:hidden backdrop-blur-xs transition-opacity animate-fade-in"
         />
       )}
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed top-16 left-0 bottom-0 z-40 w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between transition-transform duration-300 ease-in-out lg:translate-x-0 overflow-y-auto scrollbar-thin ${
+        className={`fixed top-0 lg:top-16 left-0 bottom-0 z-50 w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between transition-transform duration-300 ease-in-out lg:translate-x-0 overflow-y-auto scrollbar-thin shadow-2xl lg:shadow-none ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
+        {/* Mobile Header with Close Button */}
+        <div className="lg:hidden h-16 px-4 flex items-center justify-between border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#92400e] to-[#b45309] text-white flex items-center justify-center font-bold text-xs shadow-sm">
+              GU
+            </div>
+            <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+              Employer Hub
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+            aria-label="Close menu"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
         <div className="py-4 px-3 space-y-5">
           {sections.map((section, sIdx) => (
             <div key={sIdx}>

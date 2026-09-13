@@ -913,18 +913,8 @@ module.exports.googleAuth = async (req, res, next) => {
         });
       }
 
-      if (user.firebaseUid && user.firebaseUid !== uid) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "This email is associated with a different account. Please contact support.",
-        });
-      }
-
-      // Upgrade legacy user: link Firebase UID
-      if (!user.firebaseUid) {
-        user.firebaseUid = uid;
-      }
+      // Update or link Firebase UID for this Google authenticated account
+      user.firebaseUid = uid;
 
       // Add google to providers if not present
       if (!user.authProviders.includes("google")) {
@@ -988,6 +978,44 @@ module.exports.googleAuth = async (req, res, next) => {
       user: userPayload(user),
       requiresPasswordSetup,
       isNewUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// CANCEL GOOGLE SIGNUP
+// Called when user decides not to proceed with account creation on /set-password
+// Cleans up the newly created uncompleted user record from MongoDB.
+// ==========================================
+module.exports.cancelGoogleSignup = async (req, res, next) => {
+  try {
+    const user = req.user;
+    if (user && user.hasPassword === false) {
+      await User.findByIdAndDelete(user._id);
+    }
+
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+    });
+
+    res.clearCookie("sid", {
+      path: "/",
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+    });
+
+    if (req.session) {
+      req.session.destroy(() => {});
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Google signup cancelled successfully",
     });
   } catch (error) {
     next(error);
