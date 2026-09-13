@@ -30,6 +30,13 @@ const applicationSchema = new mongoose.Schema(
       index: true,
     },
 
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
+      index: true,
+    },
+
     opportunityType: {
       type: String,
       enum: ["Job", "Internship"],

@@ -1,6 +1,5 @@
-// pages/student/StudentDashboard.jsx
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import {
@@ -48,6 +47,7 @@ import CandidateInterviewsView from "../../components/student-dashboard/Candidat
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
@@ -57,6 +57,13 @@ const StudentDashboard = () => {
   const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   // Internship sub-views inside dashboard
   const [internshipView, setInternshipView] = useState("list"); // list | detail
@@ -293,10 +300,10 @@ const StudentDashboard = () => {
           profile={profile}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          notifications={notifications}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onLogout={handleLogout}
+          onNavigateTab={handleSelectTab}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-7 max-w-7xl w-full mx-auto">

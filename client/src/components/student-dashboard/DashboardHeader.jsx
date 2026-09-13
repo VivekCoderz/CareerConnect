@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import InternshipDiscoveryMenu from "../internships/InternshipDiscoveryMenu";
 import NotificationInboxDrawer from "../notifications/NotificationInboxDrawer";
 import {
@@ -19,7 +19,9 @@ const DashboardHeader = ({
   onOpenMobileSidebar,
   onToggleSidebar,
   onLogout,
+  onNavigateTab,
 }) => {
+  const navigate = useNavigate();
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const notifRef = useRef(null);
@@ -51,7 +53,10 @@ const DashboardHeader = ({
 
     // Subscribe to real-time SSE notification stream
     const unsubscribe = subscribeToNotifications((newNotif) => {
-      setNotifList((prev) => [newNotif, ...prev.filter((item) => (item._id || item.id) !== (newNotif._id || newNotif.id))]);
+      setNotifList((prev) => [
+        newNotif,
+        ...prev.filter((item) => (item._id || item.id) !== (newNotif._id || newNotif.id)),
+      ]);
       setLiveUnreadCount((c) => c + 1);
     });
 
@@ -82,6 +87,23 @@ const DashboardHeader = ({
     } catch (e) {
       console.warn("Failed to mark read:", e);
     }
+
+    setShowNotifs(false);
+
+    if (
+      notif.notificationType?.startsWith("INTERVIEW") ||
+      notif.relatedInterviewId ||
+      notif.actionUrl?.includes("interviews") ||
+      notif.title?.toLowerCase().includes("interview")
+    ) {
+      if (onNavigateTab) {
+        onNavigateTab("interviews");
+      } else {
+        navigate("/student/dashboard?tab=interviews");
+      }
+    } else if (notif.actionUrl) {
+      navigate(notif.actionUrl);
+    }
   };
 
   const handleDeleteNotif = async (id) => {
@@ -103,6 +125,20 @@ const DashboardHeader = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleMenuClick = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      if (onOpenMobileSidebar) {
+        onOpenMobileSidebar();
+        return;
+      }
+    }
+    if (onToggleSidebar) {
+      onToggleSidebar();
+    } else if (onOpenMobileSidebar) {
+      onOpenMobileSidebar();
+    }
+  };
+
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -110,8 +146,8 @@ const DashboardHeader = ({
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={onToggleSidebar || onOpenMobileSidebar}
-            className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-blue-700 transition cursor-pointer"
+            onClick={handleMenuClick}
+            className="p-2.5 -ml-1.5 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-blue-700 active:bg-slate-200 transition cursor-pointer flex items-center justify-center min-w-[40px] min-h-[40px]"
             aria-label="Toggle navigation menu"
             title="Toggle sidebar"
           >
