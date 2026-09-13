@@ -14,6 +14,7 @@ import api from "../../api/api";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
 import { generateStrongPassword } from "../../utils/passwordGenerator";
+import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 
 const EyeIcon = ({ hidden = false }) => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -135,6 +136,8 @@ const Signup = () => {
   const [interestSearchQuery, setInterestSearchQuery] = useState("");
   const [customInterestInput, setCustomInterestInput] = useState("");
   const [extraInterests, setExtraInterests] = useState([]);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaError, setCaptchaError] = useState("");
 
   // Form State
   const [formData, setFormData] = useState({
@@ -273,6 +276,60 @@ const Signup = () => {
       setOtpError(err.response?.data?.message || "Invalid or expired OTP");
     } finally {
       setVerifyingOtp(false);
+    }
+  };
+
+  // ─── Google Candidate Sign-Up ────────────────────────────────────────────────
+  const handleGoogleSignup = async () => {
+    setGoogleLoading(true);
+    setGoogleError("");
+    dispatch(clearMessages());
+
+    try {
+      // Firebase Google popup - triggered directly on user click
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
+
+      // Send to backend with role=user (candidate)
+      const response = await api.post("/auth/google-auth", {
+        idToken,
+        keepSignedIn: false,
+        role: "user",
+      });
+
+      const { user, requiresPasswordSetup, token } = response.data;
+      dispatch(loginSuccess({ user, token }));
+
+      if (requiresPasswordSetup || user.hasPassword === false) {
+        navigate("/set-password", { replace: true });
+      } else if (!user.phone?.trim() || !user.isProfileComplete) {
+        navigate("/onboarding/profile", { replace: true });
+      } else {
+        navigate(getDashboardPath(user.userType, user), { replace: true });
+      }
+    } catch (err) {
+      if (
+        err.code === "auth/popup-closed-by-user" ||
+        err.code === "auth/cancelled-popup-request"
+      ) {
+        // User closed popup
+      } else if (err.code === "auth/popup-blocked") {
+        setGoogleError(
+          "Sign-in popup was blocked by your browser. Please allow popups for this site and try again."
+        );
+      } else if (err.code === "auth/account-exists-with-different-credential") {
+        setGoogleError(
+          "This email is already registered with a different sign-in method. Please use email + password."
+        );
+      } else {
+        setGoogleError(
+          err.response?.data?.message ||
+            err.message ||
+            "Google sign-up failed. Please try again."
+        );
+      }
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -428,49 +485,6 @@ const Signup = () => {
     setCustomInterestInput("");
   };
 
-  // ─── Google Sign-Up ──────────────────────────────────────────────────────────
-  const handleGoogleSignup = async () => {
-    setGoogleLoading(true);
-    setGoogleError("");
-    dispatch(clearMessages());
-
-    try {
-      const captchaToken = await getCaptchaToken("google_signup");
-      const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
-
-      const response = await api.post("/auth/google-auth", {
-        idToken,
-        keepSignedIn: false,
-        captchaToken,
-      });
-
-      const { user, requiresPasswordSetup, token } = response.data;
-      dispatch(loginSuccess({ user, token }));
-
-      if (requiresPasswordSetup || user.hasPassword === false) {
-        navigate("/set-password", { replace: true });
-      } else if (!user.phone?.trim() || !user.isProfileComplete) {
-        navigate("/onboarding/profile", { replace: true });
-      } else {
-        navigate(getDashboardPath(user.userType, user), { replace: true });
-      }
-    } catch (err) {
-      if (
-        err.code === "auth/popup-closed-by-user" ||
-        err.code === "auth/cancelled-popup-request"
-      ) {
-        // dismissed popup
-      } else if (err.code === "auth/account-exists-with-different-credential") {
-        setGoogleError("This email is already registered with a different sign-in method.");
-      } else {
-        setGoogleError(err.response?.data?.message || "Google sign-up failed.");
-      }
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
   // Resume Upload State for Step 4
   const [resumeFile, setResumeFile] = useState(null);
   const [resumeUploading, setResumeUploading] = useState(false);
@@ -489,9 +503,15 @@ const Signup = () => {
       return;
     }
 
+    if (!captchaToken) {
+      setCaptchaError("Please verify that you are not a robot.");
+      return;
+    }
+    setCaptchaError("");
+
     dispatch(signupStart());
     try {
-      const captchaToken = await getCaptchaToken("signup");
+      const finalCaptchaToken = captchaToken || (await getCaptchaToken("signup"));
 
       const payload = {
         firstName: formData.firstName.trim(),
@@ -517,7 +537,7 @@ const Signup = () => {
         linkedin: formData.linkedin?.trim() || "",
         github: formData.github?.trim() || "",
         keepSignedIn,
-        captchaToken,
+        captchaToken: finalCaptchaToken,
       };
 
       const res = await api.post("/auth/register", payload);
@@ -1569,6 +1589,18 @@ const Signup = () => {
                     Keep me signed in on this device
                   </span>
                 </label>
+
+                {/* ReCAPTCHA "I'm not a robot" */}
+                <div className="py-2 flex justify-center">
+                  <ReCaptchaCheckbox
+                    onChange={(token) => {
+                      setCaptchaToken(token);
+                      setCaptchaError("");
+                    }}
+                    onExpired={() => setCaptchaToken("")}
+                    error={captchaError}
+                  />
+                </div>
 
                 {/* Submit button */}
                 <div className="pt-3 flex items-center justify-between">
