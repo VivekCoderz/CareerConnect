@@ -173,9 +173,9 @@ function App() {
           <Route
             path="/register/student"
             element={
-              <PublicOnlyRoute>
+          
                 <Signup />
-              </PublicOnlyRoute>
+           
             }
           />
           <Route
