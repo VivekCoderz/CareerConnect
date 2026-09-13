@@ -4,6 +4,42 @@ import { useDispatch, useSelector } from "react-redux";
 
 // Guards & Common Modals
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
+
+// General & Discovery
+import SelectRole from "./pages/SelectRole";
+import Home from "./pages/Home.jsx";
+import InternshipDiscoveryPage from "./pages/internships/InternshipDiscoveryPage";
+import JobDiscoveryPage from "./pages/jobs/JobDiscoveryPage";
+import OpportunitiesPage from "./pages/OpportunitiesPage";
+
+// Student
+import StudentDashboard from "./pages/student/StudentDashboard";
+import StudentProfile from "./pages/student/StudentProfile";
+import Internships from "./pages/student/Internships";
+import InternshipDetail from "./pages/student/InternshipDetail";
+import MyApplications from "./pages/student/MyApplications";
+
+// Fresher
+import FresherDashboard from "./pages/fresher/FresherDashboard";
+import FresherProfile from "./pages/fresher/FresherProfile";
+import CareerRecommendationsPage from "./pages/fresher/CareerRecommendationsPage";
+
+// Professional
+import ProfessionalDashboard from "./pages/professional/ProfessionalDashboard";
+import ProfessionalProfile from "./pages/professional/ProfessionalProfile";
+
+// Employer
+import EmployerProfile from "./pages/employer/EmployerProfile";
+import EmployerDashboard from "./pages/employer/EmployerDashboard";
+import CompanyPublicProfile from "./pages/employer/CompanyPublicProfile";
+import PostInternship from "./pages/employer/PostInternship";
+import MyInternships from "./pages/employer/MyInternships";
+import EditInternship from "./pages/employer/EditInternship";
+
+// Resume Builder
+import ResumeBuilder from "./pages/resume/ResumeBuilder";
+
+// Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
 import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
 
@@ -82,6 +118,9 @@ const RootRoute = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
   if (user) {
+    if (user.role === "SUPER_ADMIN" || user.role === "COMPANY_ADMIN" || user.role === "admin") {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
     if (user.hasPassword === false) {
       return <Navigate to="/set-password" replace />;
     }
@@ -97,6 +136,9 @@ const PublicOnlyRoute = ({ children }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
   if (user) {
+    if (user.role === "SUPER_ADMIN" || user.role === "COMPANY_ADMIN" || user.role === "admin") {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
     if (user.hasPassword === false) {
       return <Navigate to="/set-password" replace />;
     }
@@ -336,13 +378,50 @@ function App() {
           </Route>
 
           {/* =================================================
+              ADMIN AUTHENTICATION & DASHBOARD
+          ================================================= */}
+          {/* Public Admin Login only */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+
+          {/* 404 Security: /admin and public-facing fake routes return generic 404 */}
+          <Route path="/admin" element={<NotFound />} />
+          <Route path="/admin/register" element={<NotFound />} />
+          <Route path="/admin/signup" element={<NotFound />} />
+          <Route path="/admin/create" element={<NotFound />} />
+
+          {/* Strictly Protected Admin Routes */}
+          <Route element={<AdminProtectedRoute />}>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+            {/* SUPER_ADMIN ONLY: Platform Multi-Tenant Provisioning & Management */}
+            <Route element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}>
+              <Route path="/admin/companies" element={<AdminCompanies />} />
+              <Route path="/admin/company-admins" element={<AdminCompanyAdmins />} />
+            </Route>
+
+            {/* COMPANY_ADMIN ONLY: Own Assigned Organization Profile & Settings */}
+            <Route element={<AdminProtectedRoute allowedRoles={["COMPANY_ADMIN"]} />}>
+              <Route path="/admin/company" element={<AdminCompanyProfile />} />
+            </Route>
+
+            {/* Shared Scoped Admin Routes */}
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/students" element={<AdminUsers />} />
+            <Route path="/admin/employers" element={<AdminUsers />} />
+            <Route path="/admin/opportunities" element={<AdminOpportunities />} />
+            <Route path="/admin/applications" element={<AdminApplications />} />
+            <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
+          </Route>
+
+          {/* =================================================
               RESUME BUILDER
           ================================================= */}
           <Route path="/resume-builder" element={<ResumeBuilder />} />
 
-          {/* ========== DEFAULT ========== */}
+          {/* ========== DEFAULT & 404 ========== */}
           <Route path="/" element={<RootRoute />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
     </AuthInitializer>

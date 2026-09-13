@@ -14,6 +14,12 @@ const internshipSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
+      index: true,
+    },
     companyName: { type: String, default: "", trim: true },
     title: {
       type: String,
