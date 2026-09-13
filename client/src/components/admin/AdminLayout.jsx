@@ -114,16 +114,31 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // EXACT TEAM 3 SPECIFICATION: ONLY 7 ITEMS IN SIDEBAR
-  const navItems = [
-    { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
-    { label: "Students", path: "/admin/students", icon: GraduationCap },
-    { label: "Employers", path: "/admin/employers", icon: Building2 },
-    { label: "Opportunities", path: "/admin/opportunities", icon: Briefcase },
-    { label: "Applications", path: "/admin/applications", icon: FileSpreadsheet },
-    { label: "Reports", path: "/admin/reports", icon: BarChart3 },
-    { label: "Settings", path: "/admin/settings", icon: Settings },
-  ];
+  const isSuperAdmin = user?.role === "SUPER_ADMIN" || (user?.role === "admin" && !user?.companyId);
+
+  // Exact Section 12 Specification:
+  // SUPER_ADMIN: 8 items
+  // COMPANY_ADMIN: 7 items (No Companies or Company Admins)
+  const navItems = isSuperAdmin
+    ? [
+        { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
+        { label: "Companies", path: "/admin/companies", icon: Building2 },
+        { label: "Company Admins", path: "/admin/company-admins", icon: ShieldCheck },
+        { label: "Users", path: "/admin/users", icon: GraduationCap },
+        { label: "Opportunities", path: "/admin/opportunities", icon: Briefcase },
+        { label: "Applications", path: "/admin/applications", icon: FileSpreadsheet },
+        { label: "Reports", path: "/admin/reports", icon: BarChart3 },
+        { label: "Settings", path: "/admin/settings", icon: Settings },
+      ]
+    : [
+        { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
+        { label: "Company", path: "/admin/company", icon: Building2 },
+        { label: "Users", path: "/admin/users", icon: GraduationCap },
+        { label: "Opportunities", path: "/admin/opportunities", icon: Briefcase },
+        { label: "Applications", path: "/admin/applications", icon: FileSpreadsheet },
+        { label: "Reports", path: "/admin/reports", icon: BarChart3 },
+        { label: "Settings", path: "/admin/settings", icon: Settings },
+      ];
 
   const totalResultsCount = searchResults
     ? Object.values(searchResults).reduce((acc, curr) => acc + (curr?.length || 0), 0)
@@ -151,11 +166,19 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-slate-900 tracking-tight">CareerConnect</span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase tracking-wide">
-                  Admin
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${
+                    isSuperAdmin
+                      ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  }`}
+                >
+                  {isSuperAdmin ? "Super Admin" : "Company Admin"}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 font-medium">Platform Command Center</p>
+              <p className="text-[10px] text-slate-400 font-medium">
+                {isSuperAdmin ? "Global Platform Center" : user?.company?.name || "Assigned Company Workspace"}
+              </p>
             </div>
           </Link>
         </div>

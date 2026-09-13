@@ -15,6 +15,12 @@ const jobSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
+      index: true,
+    },
 
     // ---------- Basic ----------
     title: {

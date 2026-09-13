@@ -1,19 +1,61 @@
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 const User = require("../models/User");
-const EmployerProfile = require("../models/EmployerProfile");
+const Company = require("../models/Company");
+const Report = require("../models/Report");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const Application = require("../models/Application");
-const Interview = require("../models/Interview");
-const AuditLog = require("../models/AuditLog");
 const PlatformSetting = require("../models/PlatformSetting");
+const EmployerProfile = require("../models/EmployerProfile");
 const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
 
 /**
+ * Generate JWT and set secure cookie for Admin sessions
+ */
+const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) => {
+  const token = jwt.sign(
+    {
+      id: user._id,
+      userId: user._id,
+      role: user.role,
+      companyId: user.companyId || null,
+    },
+    process.env.JWT_SECRET || "your_secret_key",
+    { expiresIn: "7d" }
+  );
+
+  const cookieOptions = {
+    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+  };
+
+  res.cookie("admin_token", token, cookieOptions);
+  res.cookie("token", token, cookieOptions); // Compatibility with general auth middleware
+
+  return res.status(statusCode).json({
+    success: true,
+    token,
+    user: {
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      userType: user.userType,
+      companyId: user.companyId || null,
+      company: populatedCompany || null,
+      status: user.status || (user.isActive ? "active" : "inactive"),
+      createdAt: user.createdAt,
+    },
+  });
+};
+
+/**
  * Helper to compute date filter based on range
- * @param {string} range - '7d' | '30d' | '3m' | '6m' | '1y'
  */
 function getStartDateForRange(range) {
   const now = new Date();
@@ -41,564 +83,33 @@ function getStartDateForRange(range) {
   }
 }
 
-/**
- * GET /api/admin/dashboard
- * Aggregated dashboard payload with 100% dynamic DB data
- */
-exports.getAdminDashboard = async (req, res, next) => {
-  try {
-    const { range = "30d" } = req.query;
-    const startDate = getStartDateForRange(range);
-
-    // 1. Overview counts
-    const [
-      totalUsers,
-      totalEmployers,
-      activeEmployersCount,
-      totalJobs,
-      publishedJobsCount,
-      pendingJobsCount,
-      draftJobsCount,
-      closedJobsCount,
-      totalInternships,
-      publishedInternshipsCount,
-      pendingInternshipsCount,
-      draftInternshipsCount,
-      closedInternshipsCount,
-      totalApplications,
-      upcomingInterviewsCount,
-      completedInterviewsCount,
-      cancelledInterviewsCount,
-    ] = await Promise.all([
-      User.countDocuments(),
-      EmployerProfile.countDocuments(),
-      EmployerProfile.countDocuments({ isPublished: true }),
-      Job.countDocuments(),
-      Job.countDocuments({ status: "Published" }),
-      Job.countDocuments({ status: "Pending Approval" }),
-      Job.countDocuments({ status: "Draft" }),
-      Job.countDocuments({ status: { $in: ["Closed", "Paused"] } }),
-      Internship.countDocuments(),
-      Internship.countDocuments({ status: "Published" }),
-      Internship.countDocuments({ status: "Pending Approval" }),
-      Internship.countDocuments({ status: "Draft" }),
-      Internship.countDocuments({ status: { $in: ["Closed", "Paused"] } }),
-      Application.countDocuments(),
-      Interview.countDocuments({
-        status: { $in: ["scheduled", "Scheduled", "rescheduled", "Rescheduled"] },
-      }),
-      Interview.countDocuments({
-        status: { $in: ["completed", "Completed"] },
-      }),
-      Interview.countDocuments({
-        status: { $in: ["cancelled", "Cancelled"] },
-      }),
-    ]);
-
-    // Active opportunities combine published jobs + published internships
-    const activeOpportunities = publishedJobsCount + publishedInternshipsCount;
-
-    // Pending reviews combine items needing Admin action
-    const pendingEmployerVerifications = await EmployerProfile.countDocuments({ isPublished: false });
-    const pendingReviews = pendingJobsCount + pendingInternshipsCount + pendingEmployerVerifications;
-
-    // 2. User breakdown by userType
-    const userTypeAggregation = await User.aggregate([
-      {
-        $group: {
-          _id: "$userType",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const usersBreakdown = {
-      students: 0,
-      freshers: 0,
-      professionals: 0,
-      employers: 0,
-    };
-
-    userTypeAggregation.forEach((item) => {
-      if (item._id === "student") usersBreakdown.students = item.count;
-      else if (item._id === "fresher") usersBreakdown.freshers = item.count;
-      else if (item._id === "professional") usersBreakdown.professionals = item.count;
-      else if (item._id === "employer") usersBreakdown.employers = item.count;
-    });
-
-    // 3. User Growth Timeline (grouped by date)
-    const isLongRange = range === "6m" || range === "1y";
-    const dateFormat = isLongRange ? "%Y-%m" : "%Y-%m-%d";
-
-    const userGrowthAggregation = await User.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: dateFormat, date: "$createdAt" },
-          },
-          count: { $sum: 1 },
-        },
-      },
-      {
-        $sort: { _id: 1 },
-      },
-    ]);
-
-    const userGrowth = userGrowthAggregation.map((item) => ({
-      date: item._id,
-      registrationCount: item.count,
-    }));
-
-    // 4. Application Funnel
-    const applicationStatusAggregation = await Application.aggregate([
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const funnelMap = {
-      applied: 0,
-      underReview: 0,
-      shortlisted: 0,
-      interview: 0,
-      selected: 0,
-      rejected: 0,
-      withdrawn: 0,
-    };
-
-    applicationStatusAggregation.forEach((item) => {
-      const status = item._id;
-      if (status === "Applied") funnelMap.applied += item.count;
-      else if (status === "Under Review" || status === "Approved") funnelMap.underReview += item.count;
-      else if (status === "Shortlisted") funnelMap.shortlisted += item.count;
-      else if (
-        status === "Interview" ||
-        status === "Interview Scheduled" ||
-        status === "Interview Completed"
-      ) {
-        funnelMap.interview += item.count;
-      } else if (status === "Selected" || status === "Offered" || status === "Hired") {
-        funnelMap.selected += item.count;
-      } else if (status === "Rejected") {
-        funnelMap.rejected += item.count;
-      } else if (status === "Withdrawn") {
-        funnelMap.withdrawn += item.count;
-      }
-    });
-
-    // Also get application breakdown by opportunityType
-    const [jobApplicationsCount, internshipApplicationsCount] = await Promise.all([
-      Application.countDocuments({ opportunityType: "Job" }),
-      Application.countDocuments({ opportunityType: "Internship" }),
-    ]);
-
-    // 5. Requires Attention items (real records requiring admin review)
-    const attention = [];
-    if (pendingJobsCount > 0) {
-      attention.push({
-        id: "pending-jobs",
-        title: `${pendingJobsCount} job${pendingJobsCount > 1 ? "s" : ""} awaiting approval`,
-        count: pendingJobsCount,
-        category: "Jobs",
-        severity: "high",
-        actionText: "Review Jobs",
-        link: "/admin/jobs?status=Pending Approval",
-      });
-    }
-
-    if (pendingInternshipsCount > 0) {
-      attention.push({
-        id: "pending-internships",
-        title: `${pendingInternshipsCount} internship${pendingInternshipsCount > 1 ? "s" : ""} awaiting approval`,
-        count: pendingInternshipsCount,
-        category: "Internships",
-        severity: "high",
-        actionText: "Review Internships",
-        link: "/admin/internships?status=Pending Approval",
-      });
-    }
-
-    if (pendingEmployerVerifications > 0) {
-      attention.push({
-        id: "pending-employers",
-        title: `${pendingEmployerVerifications} employer profile${pendingEmployerVerifications > 1 ? "s" : ""} pending publication`,
-        count: pendingEmployerVerifications,
-        category: "Employers",
-        severity: "medium",
-        actionText: "Verify Profiles",
-        link: "/admin/employers?status=pending",
-      });
-    }
-
-    // 6. Recent real platform activities
-    const [recentUsers, recentJobs, recentInternships, recentApps, recentInterviews] =
-      await Promise.all([
-        User.find()
-          .select("fullName email role userType createdAt")
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .lean(),
-        Job.find()
-          .select("title companyName status createdAt")
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .lean(),
-        Internship.find()
-          .select("title companyName status createdAt")
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .lean(),
-        Application.find()
-          .select("opportunityTitle companyName studentName status createdAt appliedAt")
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .lean(),
-        Interview.find()
-          .select("title roundName status scheduledDate createdAt")
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .lean(),
-      ]);
-
-    const activityList = [];
-
-    recentUsers.forEach((u) => {
-      activityList.push({
-        id: `user-${u._id}`,
-        type: "USER_REGISTERED",
-        entity: "User",
-        title: `${u.fullName || u.email || "New User"} registered as ${u.userType || u.role || "member"}`,
-        timestamp: u.createdAt,
-        badge: u.userType || u.role,
-        link: `/admin/users`,
-      });
-    });
-
-    recentJobs.forEach((j) => {
-      activityList.push({
-        id: `job-${j._id}`,
-        type: "JOB_POSTED",
-        entity: "Job",
-        title: `Job posted: "${j.title}" by ${j.companyName || "Employer"}`,
-        timestamp: j.createdAt,
-        badge: j.status,
-        link: `/opportunities`,
-      });
-    });
-
-    recentInternships.forEach((i) => {
-      activityList.push({
-        id: `internship-${i._id}`,
-        type: "INTERNSHIP_POSTED",
-        entity: "Internship",
-        title: `Internship posted: "${i.title}" by ${i.companyName || "Employer"}`,
-        timestamp: i.createdAt,
-        badge: i.status,
-        link: `/internships/${i._id}`,
-      });
-    });
-
-    recentApps.forEach((a) => {
-      activityList.push({
-        id: `app-${a._id}`,
-        type: "APPLICATION_SUBMITTED",
-        entity: "Application",
-        title: `Application for "${a.opportunityTitle || "Position"}" (${a.status || "Applied"})`,
-        timestamp: a.createdAt || a.appliedAt,
-        badge: a.status,
-        link: `/applications`,
-      });
-    });
-
-    recentInterviews.forEach((it) => {
-      activityList.push({
-        id: `interview-${it._id}`,
-        type: "INTERVIEW_SCHEDULED",
-        entity: "Interview",
-        title: `Interview "${it.title}" scheduled for ${it.scheduledDate}`,
-        timestamp: it.createdAt,
-        badge: it.status,
-        link: `/employer/dashboard`,
-      });
-    });
-
-    // Sort combined activities descending by timestamp
-    activityList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    const recentActivity = activityList.slice(0, 12);
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        overview: {
-          totalUsers,
-          activeEmployers: activeEmployersCount,
-          totalEmployers,
-          activeOpportunities,
-          totalApplications,
-          upcomingInterviews: upcomingInterviewsCount,
-          completedInterviews: completedInterviewsCount,
-          cancelledInterviews: cancelledInterviewsCount,
-          pendingReviews,
-        },
-        users: usersBreakdown,
-        userGrowth,
-        opportunities: {
-          jobs: {
-            total: totalJobs,
-            published: publishedJobsCount,
-            pendingApproval: pendingJobsCount,
-            draft: draftJobsCount,
-            closed: closedJobsCount,
-          },
-          internships: {
-            total: totalInternships,
-            published: publishedInternshipsCount,
-            pendingApproval: pendingInternshipsCount,
-            draft: draftInternshipsCount,
-            closed: closedInternshipsCount,
-          },
-        },
-        applicationFunnel: {
-          ...funnelMap,
-          byType: {
-            jobs: jobApplicationsCount,
-            internships: internshipApplicationsCount,
-          },
-        },
-        attention,
-        recentActivity,
-      },
-    });
-  } catch (error) {
-    console.error("Admin dashboard controller error:", error);
-    next(error);
-  }
-};
-
-/**
- * GET /api/admin/search
- * Search real data across Users, Employers, Jobs, Internships, Applications, Interviews
- */
-exports.searchAdmin = async (req, res, next) => {
-  try {
-    const { q } = req.query;
-    if (!q || !q.trim()) {
-      return res.status(200).json({
-        success: true,
-        results: {
-          users: [],
-          employers: [],
-          jobs: [],
-          internships: [],
-          applications: [],
-          interviews: [],
-        },
-      });
-    }
-
-    const regex = new RegExp(q.trim(), "i");
-
-    const [users, employers, jobs, internships, applications, interviews] = await Promise.all([
-      User.find({
-        $or: [{ fullName: regex }, { email: regex }, { username: regex }],
-      })
-        .select("fullName email role userType createdAt")
-        .limit(5)
-        .lean(),
-      EmployerProfile.find({
-        $or: [{ companyName: regex }, { industry: regex }, { officialEmail: regex }],
-      })
-        .select("companyName industry isPublished headquarters createdAt")
-        .limit(5)
-        .lean(),
-      Job.find({
-        $or: [{ title: regex }, { companyName: regex }, { category: regex }],
-      })
-        .select("title companyName status employmentType location createdAt")
-        .limit(5)
-        .lean(),
-      Internship.find({
-        $or: [{ title: regex }, { companyName: regex }, { category: regex }],
-      })
-        .select("title companyName status workMode location createdAt")
-        .limit(5)
-        .lean(),
-      Application.find({
-        $or: [{ opportunityTitle: regex }, { companyName: regex }, { studentName: regex }],
-      })
-        .select("opportunityTitle companyName studentName status opportunityType createdAt")
-        .limit(5)
-        .lean(),
-      Interview.find({
-        $or: [{ title: regex }, { roundName: regex }, { scheduledDate: regex }],
-      })
-        .select("title roundName status scheduledDate createdAt")
-        .limit(5)
-        .lean(),
-    ]);
-
-    return res.status(200).json({
-      success: true,
-      results: {
-        users: users.map((u) => ({
-          id: u._id,
-          title: u.fullName || u.email,
-          subtitle: `${u.email} · ${u.userType || u.role}`,
-          category: "User",
-          badge: u.userType || u.role,
-          link: `/admin/users`,
-        })),
-        employers: employers.map((e) => ({
-          id: e._id,
-          title: e.companyName,
-          subtitle: `${e.industry} · ${e.isPublished ? "Published" : "Pending"}`,
-          category: "Employer",
-          badge: e.isPublished ? "Verified" : "Pending",
-          link: `/companies/${e._id}`,
-        })),
-        jobs: jobs.map((j) => ({
-          id: j._id,
-          title: j.title,
-          subtitle: `${j.companyName} · ${j.location}`,
-          category: "Job",
-          badge: j.status,
-          link: `/opportunities`,
-        })),
-        internships: internships.map((i) => ({
-          id: i._id,
-          title: i.title,
-          subtitle: `${i.companyName} · ${i.location}`,
-          category: "Internship",
-          badge: i.status,
-          link: `/internships/${i._id}`,
-        })),
-        applications: applications.map((a) => ({
-          id: a._id,
-          title: a.opportunityTitle,
-          subtitle: `Candidate: ${a.studentName || "Applicant"} · ${a.companyName}`,
-          category: "Application",
-          badge: a.status,
-          link: `/applications`,
-        })),
-        interviews: interviews.map((it) => ({
-          id: it._id,
-          title: it.title,
-          subtitle: `${it.roundName} · ${it.scheduledDate}`,
-          category: "Interview",
-          badge: it.status,
-          link: `/employer/dashboard`,
-        })),
-      },
-    });
-  } catch (error) {
-    console.error("Admin search error:", error);
-    next(error);
-  }
-};
-
-/**
- * GET /api/admin/notifications
- * Admin specific attention notifications
- */
-exports.getAdminNotifications = async (req, res, next) => {
-  try {
-    const [pendingJobs, pendingInternships, pendingEmployers] = await Promise.all([
-      Job.find({ status: "Pending Approval" })
-        .select("title companyName createdAt")
-        .limit(5)
-        .lean(),
-      Internship.find({ status: "Pending Approval" })
-        .select("title companyName createdAt")
-        .limit(5)
-        .lean(),
-      EmployerProfile.find({ isPublished: false })
-        .select("companyName officialEmail createdAt")
-        .limit(5)
-        .lean(),
-    ]);
-
-    const notifications = [];
-
-    pendingJobs.forEach((j) => {
-      notifications.push({
-        id: `notif-job-${j._id}`,
-        title: "Job Pending Review",
-        message: `"${j.title}" by ${j.companyName || "Employer"} needs review.`,
-        type: "JOB_APPROVAL",
-        timestamp: j.createdAt,
-        link: "/admin/jobs?status=Pending Approval",
-      });
-    });
-
-    pendingInternships.forEach((i) => {
-      notifications.push({
-        id: `notif-intern-${i._id}`,
-        title: "Internship Pending Review",
-        message: `"${i.title}" by ${i.companyName || "Employer"} needs review.`,
-        type: "INTERNSHIP_APPROVAL",
-        timestamp: i.createdAt,
-        link: "/admin/internships?status=Pending Approval",
-      });
-    });
-
-    pendingEmployers.forEach((e) => {
-      notifications.push({
-        id: `notif-emp-${e._id}`,
-        title: "Employer Verification Pending",
-        message: `Company "${e.companyName}" registered and is awaiting verification.`,
-        type: "EMPLOYER_VERIFICATION",
-        timestamp: e.createdAt,
-        link: "/admin/employers?status=pending",
-      });
-    });
-
-    notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-    return res.status(200).json({
-      success: true,
-      notifications,
-      unreadCount: notifications.length,
-    });
-  } catch (error) {
-    console.error("Admin notifications error:", error);
-    next(error);
-  }
-};
+// =========================================================================
+// 1. ADMIN AUTHENTICATION
+// =========================================================================
 
 /**
  * POST /api/admin/login
- * Dedicated secure Admin Authentication endpoint.
- * Strict verification of email/username, password, active status, and role === 'admin'.
- * Security rule: If non-admin attempts login, returns generic 'Invalid email or password'.
+ * Strictly authenticates SUPER_ADMIN and COMPANY_ADMIN.
+ * Any non-admin account gets a generic 401 error.
  */
-exports.adminLogin = async (req, res, next) => {
+exports.adminLogin = async (req, res) => {
   try {
-    const { email, username, emailOrUsername, password, keepSignedIn = false } = req.body;
-    const loginIdentifier = email || username || emailOrUsername;
+    const { email, username, password } = req.body;
+    const loginIdentifier = (email || username || "").trim().toLowerCase();
 
     if (!loginIdentifier || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email/username and password are required",
+        message: "Please provide both username/email and password",
       });
     }
 
-    const loginValue = loginIdentifier.trim().toLowerCase();
-
-    // Query user with password selected
+    // Find user by email or username, explicitly selecting password
     const user = await User.findOne({
-      $or: [{ email: loginValue }, { username: loginValue }],
+      $or: [{ email: loginIdentifier }, { username: loginIdentifier }],
     }).select("+password");
 
-    // 1. User existence check
+    // Generic error to avoid revealing account existence
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -606,22 +117,28 @@ exports.adminLogin = async (req, res, next) => {
       });
     }
 
-    // 2. Active status check
-    if (user.isActive === false) {
-      return res.status(401).json({
-        success: false,
-        message: "Account is suspended. Please contact platform support.",
-      });
-    }
+    // Role check: ONLY SUPER_ADMIN, COMPANY_ADMIN, or legacy admin
+    const isAdmin =
+      user.role === "SUPER_ADMIN" ||
+      user.role === "COMPANY_ADMIN" ||
+      user.role === "admin";
 
-    // 3. Password verification
-    if (!user.password) {
+    if (!isAdmin) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
       });
     }
 
+    // Verify account status
+    if (user.isActive === false || user.status === "inactive" || user.status === "suspended") {
+      return res.status(403).json({
+        success: false,
+        message: "Your administrative account has been deactivated. Please contact platform support.",
+      });
+    }
+
+    // Verify password with bcrypt
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({
@@ -630,198 +147,897 @@ exports.adminLogin = async (req, res, next) => {
       });
     }
 
-    // 4. Strict ADMIN role verification
-    // Non-admin roles (student, fresher, professional, employer) MUST be rejected with a generic error
-    if (user.role !== "admin") {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
-
-    // Update lastLogin
+    // Update last login
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
-    // 5. Generate secure Admin JWT
-    const expiresIn = keepSignedIn ? "7d" : "24h";
-    const maxAge = keepSignedIn ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET || "your_secret_key",
-      { expiresIn }
-    );
-
-    // Set secure HTTP-only cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge,
-    });
-
-    if (req.session) {
-      req.session.user = {
-        userId: user._id.toString(),
-        email: user.email,
-        role: user.role,
-        userType: user.userType,
-        loginTime: new Date(),
-      };
+    // Populate company if COMPANY_ADMIN
+    let populatedCompany = null;
+    if (user.companyId) {
+      populatedCompany = await Company.findById(user.companyId).select("name industry logo status");
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Admin authentication successful",
-      token,
-      user: {
-        _id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        userType: user.userType,
-      },
-    });
+    return sendAdminTokenResponse(user, 200, res, populatedCompany);
   } catch (error) {
     console.error("Admin login error:", error);
-    next(error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error during authentication",
+    });
   }
 };
 
 /**
  * POST /api/admin/logout
- * Clears authentication token and session for Admin
  */
-exports.adminLogout = async (req, res, next) => {
-  try {
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    });
+exports.adminLogout = (req, res) => {
+  res.clearCookie("admin_token");
+  res.clearCookie("token");
+  return res.status(200).json({
+    success: true,
+    message: "Admin logged out successfully",
+  });
+};
 
-    if (req.session) {
-      req.session.destroy(() => {});
+/**
+ * GET /api/admin/me
+ */
+exports.getAdminMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).populate("companyId", "name industry logo status");
+    return res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// =========================================================================
+// 2. ADMIN DASHBOARD (ROLE-AWARE REAL MONGODB AGGREGATION)
+// =========================================================================
+
+/**
+ * GET /api/admin/dashboard
+ * Dynamically switches between SUPER_ADMIN (Platform) and COMPANY_ADMIN (Tenant)
+ */
+exports.getAdminDashboard = async (req, res, next) => {
+  try {
+    const { range = "30d" } = req.query;
+    const startDate = getStartDateForRange(range);
+    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
+
+    // -------------------------------------------------------------------
+    // A. COMPANY_ADMIN DASHBOARD: Strictly Scoped to Assigned Company
+    // -------------------------------------------------------------------
+    if (!isSuperAdmin) {
+      const companyId = req.user.companyId;
+      if (!companyId) {
+        return res.status(403).json({
+          success: false,
+          message: "No company assigned to this Company Administrator",
+        });
+      }
+
+      const company = await Company.findById(companyId);
+
+      const [
+        companyUsersCount,
+        companyJobsCount,
+        companyActiveJobsCount,
+        companyInternshipsCount,
+        companyActiveInternshipsCount,
+        companyApplicationsCount,
+        companySelectedCount,
+        companyReportsCount,
+        recentApplications,
+        recentOpportunities,
+      ] = await Promise.all([
+        User.countDocuments({ companyId }),
+        Job.countDocuments({ companyId }),
+        Job.countDocuments({ companyId, status: { $in: ["Published", "active"] } }),
+        Internship.countDocuments({ companyId }),
+        Internship.countDocuments({ companyId, status: { $in: ["Published", "active"] } }),
+        Application.countDocuments({ companyId }),
+        Application.countDocuments({ companyId, status: { $in: ["Selected", "Hired"] } }),
+        Report.countDocuments({ companyId, status: "Open" }),
+        Application.find({ companyId })
+          .populate("candidateId", "fullName email profileImage")
+          .sort({ createdAt: -1 })
+          .limit(6)
+          .lean(),
+        Job.find({ companyId })
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .lean(),
+      ]);
+
+      const totalOpportunities = companyJobsCount + companyInternshipsCount;
+      const activeOpportunities = companyActiveJobsCount + companyActiveInternshipsCount;
+
+      const dashboardData = {
+        role: "COMPANY_ADMIN",
+        scope: "TENANT",
+        company: {
+          _id: company?._id || companyId,
+          name: company?.name || "My Company",
+          industry: company?.industry || "Technology",
+          logo: company?.logo || "",
+          status: company?.status || "active",
+        },
+        overview: {
+          totalUsers: companyUsersCount,
+          totalEmployers: 1,
+          activeEmployers: 1,
+          totalOpportunities,
+          activeOpportunities,
+          totalApplications: companyApplicationsCount,
+          upcomingInterviews: companySelectedCount,
+          requiresAttention: companyReportsCount,
+        },
+        users: {
+          students: companyUsersCount,
+          freshers: 0,
+          professionals: 0,
+          employers: 1,
+        },
+        opportunities: {
+          jobs: { total: companyJobsCount, published: companyActiveJobsCount },
+          internships: { total: companyInternshipsCount, published: companyActiveInternshipsCount },
+        },
+        applicationFunnel: {
+          total: companyApplicationsCount,
+          selected: companySelectedCount,
+          byType: { jobs: companyJobsCount, internships: companyInternshipsCount },
+        },
+        userGrowth: [],
+        attention: (await Report.find({ companyId, status: "Open" }).limit(5).lean()).map((r) => ({
+          id: r._id,
+          title: `${r.reportType}: ${r.targetTitle || "Complaint"}`,
+          category: "Reports",
+          severity: "high",
+          link: "/admin/reports",
+        })),
+        recentActivity: (recentApplications || []).map((app) => ({
+          id: app._id,
+          title: `Application for ${app.opportunityTitle || "Role"}`,
+          candidate: app.candidateId?.fullName || "Candidate",
+          status: app.status || "Applied",
+          date: app.createdAt,
+        })),
+      };
+
+      return res.status(200).json({
+        success: true,
+        data: dashboardData,
+        ...dashboardData,
+      });
     }
+
+    // -------------------------------------------------------------------
+    // B. SUPER_ADMIN DASHBOARD: Global Platform-Wide Aggregations
+    // -------------------------------------------------------------------
+    const [
+      totalCompanies,
+      activeCompanies,
+      totalCompanyAdmins,
+      totalStudents,
+      totalEmployers,
+      totalFreshers,
+      totalProfessionals,
+      totalJobs,
+      activeJobs,
+      totalInternships,
+      activeInternships,
+      totalApplications,
+      selectedApplications,
+      openReports,
+      recentCompanies,
+      recentApplications,
+    ] = await Promise.all([
+      Company.countDocuments(),
+      Company.countDocuments({ status: "active" }),
+      User.countDocuments({ role: "COMPANY_ADMIN" }),
+      User.countDocuments({ userType: "student" }),
+      User.countDocuments({ userType: "employer" }),
+      User.countDocuments({ userType: "fresher" }),
+      User.countDocuments({ userType: "professional" }),
+      Job.countDocuments(),
+      Job.countDocuments({ status: { $in: ["Published", "active"] } }),
+      Internship.countDocuments(),
+      Internship.countDocuments({ status: { $in: ["Published", "active"] } }),
+      Application.countDocuments(),
+      Application.countDocuments({ status: { $in: ["Selected", "Hired"] } }),
+      Report.countDocuments({ status: "Open" }),
+      Company.find().sort({ createdAt: -1 }).limit(5).lean(),
+      Application.find()
+        .populate("candidateId", "fullName email profileImage")
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .lean(),
+    ]);
+
+    const totalUsers = totalStudents + totalEmployers + totalFreshers + totalProfessionals;
+    const totalOpportunities = totalJobs + totalInternships;
+    const activeOpportunities = activeJobs + activeInternships;
+
+    // Monthly Trends aggregation
+    const applicationTrends = await Application.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const superAdminDashboardData = {
+      role: "SUPER_ADMIN",
+      scope: "GLOBAL",
+      overview: {
+        totalUsers,
+        totalEmployers,
+        activeEmployers: activeCompanies || totalEmployers,
+        totalOpportunities,
+        activeOpportunities,
+        totalApplications,
+        upcomingInterviews: selectedApplications,
+        requiresAttention: openReports,
+        totalCompanies,
+        activeCompanies,
+        totalCompanyAdmins,
+      },
+      users: {
+        students: totalStudents,
+        employers: totalEmployers,
+        freshers: totalFreshers,
+        professionals: totalProfessionals,
+      },
+      opportunities: {
+        jobs: { total: totalJobs, published: activeJobs },
+        internships: { total: totalInternships, published: activeInternships },
+      },
+      applicationFunnel: {
+        total: totalApplications,
+        selected: selectedApplications,
+        byType: { jobs: totalJobs, internships: totalInternships },
+      },
+      userGrowth: applicationTrends.map((item) => ({ date: item._id, count: item.count })),
+      attention: (await Report.find({ status: "Open" }).limit(5).lean()).map((r) => ({
+        id: r._id,
+        title: `${r.reportType}: ${r.targetTitle || "Flagged Content"}`,
+        category: "Reports",
+        severity: "high",
+        link: "/admin/reports",
+      })),
+      recentActivity: (recentApplications || []).map((app) => ({
+        id: app._id,
+        title: `Application for ${app.opportunityTitle || "Role"}`,
+        candidate: app.candidateId?.fullName || "Candidate",
+        status: app.status || "Applied",
+        date: app.createdAt,
+      })),
+      recentCompanies: (recentCompanies || []).map((c) => ({
+        _id: c._id,
+        name: c.name,
+        industry: c.industry,
+        status: c.status,
+        createdAt: c.createdAt,
+      })),
+    };
 
     return res.status(200).json({
       success: true,
-      message: "Admin logged out successfully",
+      data: superAdminDashboardData,
+      ...superAdminDashboardData,
+    });
+  } catch (error) {
+    console.error("Admin dashboard aggregation error:", error);
+    next(error);
+  }
+};
+
+// =========================================================================
+// 3. COMPANY MANAGEMENT (SUPER_ADMIN ONLY)
+// =========================================================================
+
+/**
+ * GET /api/admin/companies
+ */
+exports.getAdminCompanies = async (req, res, next) => {
+  try {
+    const { search = "", status = "", page = 1, limit = 15 } = req.query;
+    const query = {};
+
+    if (search.trim()) {
+      query.$or = [
+        { name: { $regex: search.trim(), $options: "i" } },
+        { email: { $regex: search.trim(), $options: "i" } },
+        { industry: { $regex: search.trim(), $options: "i" } },
+      ];
+    }
+
+    if (status && status !== "all") {
+      query.status = status;
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [companies, total] = await Promise.all([
+      Company.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+      Company.countDocuments(query),
+    ]);
+
+    // Attach company admin count and opportunities count for each company
+    const enrichedCompanies = await Promise.all(
+      companies.map(async (c) => {
+        const [adminCount, jobsCount, appsCount] = await Promise.all([
+          User.countDocuments({ companyId: c._id, role: "COMPANY_ADMIN" }),
+          Job.countDocuments({ companyId: c._id }),
+          Application.countDocuments({ companyId: c._id }),
+        ]);
+        return {
+          ...c,
+          adminCount,
+          opportunitiesCount: jobsCount,
+          applicationsCount: appsCount,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      companies: enrichedCompanies,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (error) {
     next(error);
   }
 };
 
-// ===================================================
-// PAGE 25: STUDENT / CANDIDATE MANAGEMENT
-// ===================================================
+/**
+ * Helper to generate a unique lowercase username for admin users
+ */
+const generateAdminUsername = async (email, prefix = "admin") => {
+  const base = (email ? email.split("@")[0] : prefix)
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .slice(0, 18) || prefix;
+  let candidate = `${base}_${Math.floor(1000 + Math.random() * 9000)}`;
+  let attempts = 0;
+  while (attempts < 5) {
+    const exists = await User.findOne({ username: candidate });
+    if (!exists) return candidate;
+    candidate = `${base}_${Math.floor(1000 + Math.random() * 9000)}`;
+    attempts++;
+  }
+  return `${base}_${Date.now().toString().slice(-4)}`;
+};
 
 /**
- * GET /api/admin/students
- * List candidates (students, freshers, professionals) with filtering & stats
+ * POST /api/admin/companies
  */
-exports.getAdminStudents = async (req, res, next) => {
+exports.createAdminCompany = async (req, res, next) => {
   try {
     const {
-      search = "",
-      userType = "all",
-      status = "all",
-      page = 1,
-      limit = 15,
-    } = req.query;
+      name,
+      description,
+      email,
+      phone,
+      website,
+      industry,
+      location,
+      status,
+      adminName,
+      adminEmail,
+      adminPassword,
+    } = req.body;
 
-    const query = {
-      role: { $ne: "admin" },
-      userType: { $in: ["student", "fresher", "professional"] },
-    };
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: "Company name is required" });
+    }
 
-    if (userType !== "all") {
+    const existing = await Company.findOne({ name: name.trim() });
+    if (existing) {
+      return res.status(400).json({ success: false, message: "A company with this name already exists" });
+    }
+
+    const company = await Company.create({
+      name: name.trim(),
+      description: description || "",
+      email: email || "",
+      phone: phone || "",
+      website: website || "",
+      industry: industry || "Information Technology",
+      location: location || "",
+      status: status || "active",
+    });
+
+    // Optionally provision primary Company Admin with login credentials in the same step
+    let createdAdmin = null;
+    const loginEmail = (adminEmail || email || "").trim().toLowerCase();
+
+    if (adminPassword && adminPassword.trim()) {
+      if (adminPassword.trim().length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: "Company Admin password must be at least 6 characters long",
+        });
+      }
+      if (!loginEmail) {
+        return res.status(400).json({
+          success: false,
+          message: "Please provide an Official Email or Admin Email to create the admin account",
+        });
+      }
+    }
+
+    if (adminPassword && adminPassword.trim().length >= 6 && loginEmail) {
+      const existingUser = await User.findOne({ email: loginEmail });
+      if (existingUser) {
+        existingUser.role = "COMPANY_ADMIN";
+        existingUser.companyId = company._id;
+        existingUser.password = adminPassword; // User pre-save hook will hash with bcrypt
+        existingUser.status = "active";
+        existingUser.isActive = true;
+        await existingUser.save();
+        createdAdmin = existingUser;
+      } else {
+        const username = await generateAdminUsername(loginEmail, "admin");
+        createdAdmin = await User.create({
+          fullName: (adminName || `${name.trim()} Administrator`).trim(),
+          email: loginEmail,
+          username,
+          password: adminPassword,
+          role: "COMPANY_ADMIN",
+          userType: "admin",
+          companyId: company._id,
+          phone: phone || "",
+          countryCode: "+91",
+          status: "active",
+          isActive: true,
+          isEmailVerified: true,
+          isProfileComplete: true,
+          hasPassword: true,
+        });
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: createdAdmin
+        ? `Company ${company.name} and Company Admin (${loginEmail}) provisioned successfully`
+        : `Company ${company.name} created successfully`,
+      company,
+      admin: createdAdmin
+        ? {
+            _id: createdAdmin._id,
+            fullName: createdAdmin.fullName,
+            email: createdAdmin.email,
+            role: createdAdmin.role,
+          }
+        : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/admin/companies/:id
+ */
+exports.getAdminCompanyById = async (req, res, next) => {
+  try {
+    const company = await Company.findById(req.params.id);
+    if (!company) {
+      return res.status(404).json({ success: false, message: "Company not found" });
+    }
+
+    const [admins, totalJobs, totalInternships, totalApplications] = await Promise.all([
+      User.find({ companyId: company._id, role: "COMPANY_ADMIN" }).select("fullName email status createdAt"),
+      Job.countDocuments({ companyId: company._id }),
+      Internship.countDocuments({ companyId: company._id }),
+      Application.countDocuments({ companyId: company._id }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      company,
+      admins,
+      stats: {
+        totalOpportunities: totalJobs + totalInternships,
+        totalApplications,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/admin/companies/:id
+ */
+exports.updateAdminCompany = async (req, res, next) => {
+  try {
+    const company = await Company.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true, runValidators: true }
+    );
+    if (!company) {
+      return res.status(404).json({ success: false, message: "Company not found" });
+    }
+    return res.status(200).json({
+      success: true,
+      message: "Company updated successfully",
+      company,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/admin/companies/:id/status
+ */
+exports.updateAdminCompanyStatus = async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    if (!["active", "inactive"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Invalid status" });
+    }
+
+    const company = await Company.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status } },
+      { new: true }
+    );
+    if (!company) {
+      return res.status(404).json({ success: false, message: "Company not found" });
+    }
+    return res.status(200).json({
+      success: true,
+      message: `Company status updated to ${status}`,
+      company,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/admin/companies/:id
+ */
+exports.deleteAdminCompany = async (req, res, next) => {
+  try {
+    const company = await Company.findByIdAndDelete(req.params.id);
+    if (!company) {
+      return res.status(404).json({ success: false, message: "Company not found" });
+    }
+
+    // Clean up or dissociate company users
+    await User.updateMany({ companyId: req.params.id }, { $set: { companyId: null, isActive: false } });
+
+    return res.status(200).json({
+      success: true,
+      message: "Company and associations removed successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================================================
+// 4. OWN COMPANY PROFILE (COMPANY_ADMIN)
+// =========================================================================
+
+/**
+ * GET /api/admin/company
+ */
+exports.getOwnCompany = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    if (!companyId) {
+      return res.status(403).json({ success: false, message: "No company assigned" });
+    }
+
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({ success: false, message: "Company not found" });
+    }
+
+    const [users, jobsCount, appsCount] = await Promise.all([
+      User.find({ companyId }).select("fullName email role status createdAt"),
+      Job.countDocuments({ companyId }),
+      Application.countDocuments({ companyId }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      company,
+      users,
+      stats: {
+        totalOpportunities: jobsCount,
+        totalApplications: appsCount,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/admin/company
+ */
+exports.updateOwnCompany = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    if (!companyId) {
+      return res.status(403).json({ success: false, message: "No company assigned" });
+    }
+
+    // Whitelist editable fields for company admin
+    const { description, phone, website, industry, location, settings } = req.body;
+    const updateData = {};
+    if (description !== undefined) updateData.description = description;
+    if (phone !== undefined) updateData.phone = phone;
+    if (website !== undefined) updateData.website = website;
+    if (industry !== undefined) updateData.industry = industry;
+    if (location !== undefined) updateData.location = location;
+    if (settings !== undefined) updateData.settings = settings;
+
+    const company = await Company.findByIdAndUpdate(
+      companyId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Company details updated successfully",
+      company,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================================================
+// 5. COMPANY ADMIN MANAGEMENT (SUPER_ADMIN ONLY)
+// =========================================================================
+
+/**
+ * GET /api/admin/company-admins
+ */
+exports.getCompanyAdmins = async (req, res, next) => {
+  try {
+    const { search = "", companyId = "", page = 1, limit = 15 } = req.query;
+    const query = { role: "COMPANY_ADMIN" };
+
+    if (companyId) {
+      query.companyId = companyId;
+    }
+
+    if (search.trim()) {
+      query.$or = [
+        { fullName: { $regex: search.trim(), $options: "i" } },
+        { email: { $regex: search.trim(), $options: "i" } },
+      ];
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [admins, total] = await Promise.all([
+      User.find(query)
+        .populate("companyId", "name industry status")
+        .select("-password")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .lean(),
+      User.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      admins,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/admin/company-admins
+ */
+exports.createCompanyAdmin = async (req, res, next) => {
+  try {
+    const { fullName, email, password, companyId } = req.body;
+
+    if (!fullName || !email || !password || !companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name, email, password, and assigned company are required",
+      });
+    }
+
+    // Verify company exists
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({ success: false, message: "Selected company does not exist" });
+    }
+
+    // Check duplicate email
+    const existing = await User.findOne({ email: email.trim().toLowerCase() });
+    if (existing) {
+      return res.status(400).json({ success: false, message: "User with this email already exists" });
+    }
+
+    const username = await generateAdminUsername(email, "admin");
+    const admin = await User.create({
+      fullName: fullName.trim(),
+      email: email.trim().toLowerCase(),
+      username,
+      password, // Password hashing handled by User pre-save hook
+      role: "COMPANY_ADMIN",
+      userType: "admin",
+      companyId: company._id,
+      status: "active",
+      isActive: true,
+      isEmailVerified: true,
+      isProfileComplete: true,
+      hasPassword: true,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: `Company Admin created successfully for ${company.name}`,
+      admin: {
+        _id: admin._id,
+        fullName: admin.fullName,
+        email: admin.email,
+        role: admin.role,
+        companyId: admin.companyId,
+        companyName: company.name,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/admin/company-admins/:id
+ */
+exports.updateCompanyAdmin = async (req, res, next) => {
+  try {
+    const { fullName, email, companyId, status, password } = req.body;
+    const admin = await User.findById(req.params.id);
+
+    if (!admin || admin.role !== "COMPANY_ADMIN") {
+      return res.status(404).json({ success: false, message: "Company Admin not found" });
+    }
+
+    if (fullName) admin.fullName = fullName.trim();
+    if (email) admin.email = email.trim().toLowerCase();
+    if (companyId) {
+      const company = await Company.findById(companyId);
+      if (!company) return res.status(404).json({ success: false, message: "Company not found" });
+      admin.companyId = companyId;
+    }
+    if (status) {
+      admin.status = status;
+      admin.isActive = status === "active";
+    }
+    if (password && password.trim().length >= 6) {
+      admin.password = password; // Pre-save hook will hash it
+    }
+
+    await admin.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Company Admin updated successfully",
+      admin: {
+        _id: admin._id,
+        fullName: admin.fullName,
+        email: admin.email,
+        role: admin.role,
+        companyId: admin.companyId,
+        status: admin.status,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/admin/company-admins/:id/status
+ */
+exports.updateCompanyAdminStatus = async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    const admin = await User.findById(req.params.id);
+    if (!admin || admin.role !== "COMPANY_ADMIN") {
+      return res.status(404).json({ success: false, message: "Company Admin not found" });
+    }
+
+    admin.status = status;
+    admin.isActive = status === "active";
+    await admin.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Admin status updated to ${status}`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================================================
+// 6. USER MANAGEMENT (SCOPED / GLOBAL)
+// =========================================================================
+
+/**
+ * GET /api/admin/users
+ */
+exports.getAdminUsers = async (req, res, next) => {
+  try {
+    const { userType = "", search = "", status = "", page = 1, limit = 15 } = req.query;
+    const query = {};
+
+    // Strict Scope: Company Admins only see their own company users
+    if (req.user.role === "COMPANY_ADMIN") {
+      query.companyId = req.user.companyId;
+    } else if (req.isSuperAdmin) {
+      // Super Admin can optionally filter by companyId
+      if (req.query.companyId) {
+        query.companyId = req.query.companyId;
+      }
+    }
+
+    if (userType && userType !== "all") {
       query.userType = userType;
     }
 
-    if (status === "active") {
-      query.isActive = true;
-    } else if (status === "inactive") {
-      query.isActive = false;
+    if (status && status !== "all") {
+      query.status = status;
     }
 
     if (search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
       query.$or = [
-        { fullName: regex },
-        { email: regex },
-        { phone: regex },
-        { username: regex },
+        { fullName: { $regex: search.trim(), $options: "i" } },
+        { email: { $regex: search.trim(), $options: "i" } },
+        { username: { $regex: search.trim(), $options: "i" } },
       ];
     }
 
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.max(1, parseInt(limit, 10));
-    const skip = (pageNum - 1) * limitNum;
-
-    const [candidates, totalCount, stats] = await Promise.all([
+    const skip = (Number(page) - 1) * Number(limit);
+    const [users, total] = await Promise.all([
       User.find(query)
-        .select("-password -emailOTP -emailOTPExpires")
+        .populate("companyId", "name industry")
+        .select("-password")
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limitNum)
+        .limit(Number(limit))
         .lean(),
       User.countDocuments(query),
-      User.aggregate([
-        {
-          $match: {
-            role: { $ne: "admin" },
-            userType: { $in: ["student", "fresher", "professional"] },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 },
-            active: {
-              $sum: { $cond: [{ $eq: ["$isActive", true] }, 1, 0] },
-            },
-            suspended: {
-              $sum: { $cond: [{ $eq: ["$isActive", false] }, 1, 0] },
-            },
-            students: {
-              $sum: { $cond: [{ $eq: ["$userType", "student"] }, 1, 0] },
-            },
-            freshers: {
-              $sum: { $cond: [{ $eq: ["$userType", "fresher"] }, 1, 0] },
-            },
-            professionals: {
-              $sum: { $cond: [{ $eq: ["$userType", "professional"] }, 1, 0] },
-            },
-          },
-        },
-      ]),
     ]);
-
-    const candidateStats = stats[0] || {
-      total: 0,
-      active: 0,
-      suspended: 0,
-      students: 0,
-      freshers: 0,
-      professionals: 0,
-    };
 
     return res.status(200).json({
       success: true,
-      data: {
-        candidates,
-        stats: candidateStats,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total: totalCount,
-          pages: Math.ceil(totalCount / limitNum),
-        },
-      },
+      users,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (error) {
     next(error);
@@ -829,332 +1045,130 @@ exports.getAdminStudents = async (req, res, next) => {
 };
 
 /**
- * PATCH /api/admin/students/:id/status
- * Toggle or set candidate active/suspended status
+ * PATCH /api/admin/users/:id/status
  */
+exports.updateUserStatus = async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    const targetUser = await User.findById(req.params.id);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Company Admin cannot modify users outside their company
+    if (req.user.role === "COMPANY_ADMIN") {
+      if (!targetUser.companyId || targetUser.companyId.toString() !== req.user.companyId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied: You can only modify users belonging to your company",
+        });
+      }
+    }
+
+    targetUser.status = status;
+    targetUser.isActive = status === "active";
+    await targetUser.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `User status updated to ${status}`,
+      user: targetUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Aliases for legacy student / employer management
+exports.getAdminStudents = async (req, res, next) => {
+  req.query.userType = "student";
+  return exports.getAdminUsers(req, res, next);
+};
+
 exports.updateStudentStatus = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { isActive } = req.body;
-
-    const candidate = await User.findOne({
-      _id: id,
-      role: { $ne: "admin" },
-      userType: { $in: ["student", "fresher", "professional"] },
-    });
-
-    if (!candidate) {
-      return res.status(404).json({
-        success: false,
-        message: "Candidate account not found",
-      });
-    }
-
-    candidate.isActive = typeof isActive === "boolean" ? isActive : !candidate.isActive;
-    await candidate.save({ validateBeforeSave: false });
-
-    return res.status(200).json({
-      success: true,
-      message: `Candidate account ${candidate.isActive ? "activated" : "suspended"} successfully`,
-      data: {
-        _id: candidate._id,
-        isActive: candidate.isActive,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
+  return exports.updateUserStatus(req, res, next);
 };
 
-// ===================================================
-// PAGE 26: EMPLOYER MANAGEMENT
-// ===================================================
-
-/**
- * GET /api/admin/employers
- * List employers with verification status and opportunity counts
- */
 exports.getAdminEmployers = async (req, res, next) => {
-  try {
-    const {
-      search = "",
-      status = "all", // all | verified | pending
-      page = 1,
-      limit = 15,
-    } = req.query;
-
-    const query = {};
-
-    if (status === "verified") {
-      query.isPublished = true;
-    } else if (status === "pending") {
-      query.isPublished = false;
-    }
-
-    if (search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
-      query.$or = [
-        { companyName: regex },
-        { officialEmail: regex },
-        { industry: regex },
-        { "recruiter.name": regex },
-      ];
-    }
-
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.max(1, parseInt(limit, 10));
-    const skip = (pageNum - 1) * limitNum;
-
-    const [employers, totalCount, stats] = await Promise.all([
-      EmployerProfile.find(query)
-        .populate("userId", "fullName email phone isActive createdAt")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limitNum)
-        .lean(),
-      EmployerProfile.countDocuments(query),
-      EmployerProfile.aggregate([
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 },
-            verified: {
-              $sum: { $cond: [{ $eq: ["$isPublished", true] }, 1, 0] },
-            },
-            pending: {
-              $sum: { $cond: [{ $eq: ["$isPublished", false] }, 1, 0] },
-            },
-          },
-        },
-      ]),
-    ]);
-
-    // Attach opportunities count to each employer
-    const employerIds = employers.map((e) => e._id);
-    const [jobsCounts, internshipsCounts] = await Promise.all([
-      Job.aggregate([
-        { $match: { employerId: { $in: employerIds } } },
-        { $group: { _id: "$employerId", count: { $sum: 1 } } },
-      ]),
-      Internship.aggregate([
-        { $match: { employerId: { $in: employerIds } } },
-        { $group: { _id: "$employerId", count: { $sum: 1 } } },
-      ]),
-    ]);
-
-    const jobsMap = new Map(jobsCounts.map((j) => [j._id.toString(), j.count]));
-    const internshipsMap = new Map(internshipsCounts.map((i) => [i._id.toString(), i.count]));
-
-    const enrichedEmployers = employers.map((emp) => {
-      const jCount = jobsMap.get(emp._id.toString()) || 0;
-      const iCount = internshipsMap.get(emp._id.toString()) || 0;
-      return {
-        ...emp,
-        postedJobsCount: jCount,
-        postedInternshipsCount: iCount,
-        totalOpportunities: jCount + iCount,
-      };
-    });
-
-    const employerStats = stats[0] || { total: 0, verified: 0, pending: 0 };
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        employers: enrichedEmployers,
-        stats: employerStats,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total: totalCount,
-          pages: Math.ceil(totalCount / limitNum),
-        },
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
+  req.query.userType = "employer";
+  return exports.getAdminUsers(req, res, next);
 };
 
-/**
- * PATCH /api/admin/employers/:id/status
- * Toggle verification / published status or user active status
- */
 exports.updateEmployerStatus = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { isPublished, isActive } = req.body;
-
-    const employer = await EmployerProfile.findById(id).populate("userId");
-    if (!employer) {
-      return res.status(404).json({
-        success: false,
-        message: "Employer profile not found",
-      });
-    }
-
-    if (typeof isPublished === "boolean") {
-      employer.isPublished = isPublished;
-      await employer.save();
-    }
-
-    if (typeof isActive === "boolean" && employer.userId) {
-      employer.userId.isActive = isActive;
-      await employer.userId.save({ validateBeforeSave: false });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Employer profile updated successfully",
-      data: {
-        _id: employer._id,
-        isPublished: employer.isPublished,
-        isActive: employer.userId?.isActive,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
+  return exports.updateUserStatus(req, res, next);
 };
 
-// ===================================================
-// PAGE 27: OPPORTUNITY MANAGEMENT (JOBS & INTERNSHIPS)
-// ===================================================
+// =========================================================================
+// 7. OPPORTUNITY MANAGEMENT (SCOPED / GLOBAL)
+// =========================================================================
 
 /**
  * GET /api/admin/opportunities
- * Combined listing of Jobs and Internships with filtering
  */
 exports.getAdminOpportunities = async (req, res, next) => {
   try {
-    const {
-      type = "all", // all | job | internship
-      status = "all", // all | Published | Draft | Pending Approval | Closed
-      search = "",
-      page = 1,
-      limit = 15,
-    } = req.query;
+    const { type = "all", status = "all", search = "", page = 1, limit = 15 } = req.query;
+    const filter = {};
 
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.max(1, parseInt(limit, 10));
-    const skip = (pageNum - 1) * limitNum;
-
-    // Build sub-queries
-    const jobQuery = {};
-    const internQuery = {};
+    // Strict Scope: Company Admins only see their own company opportunities
+    if (req.user.role === "COMPANY_ADMIN") {
+      filter.companyId = req.user.companyId;
+    } else if (req.query.companyId) {
+      filter.companyId = req.query.companyId;
+    }
 
     if (status !== "all") {
-      jobQuery.status = status;
-      internQuery.status = status;
+      filter.status = status;
     }
 
     if (search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
-      jobQuery.$or = [{ title: regex }, { companyName: regex }, { location: regex }];
-      internQuery.$or = [{ title: regex }, { companyName: regex }, { location: regex }];
+      filter.$or = [
+        { title: { $regex: search.trim(), $options: "i" } },
+        { companyName: { $regex: search.trim(), $options: "i" } },
+        { department: { $regex: search.trim(), $options: "i" } },
+      ];
     }
 
     let items = [];
-    let totalCount = 0;
+    let total = 0;
+    const skip = (Number(page) - 1) * Number(limit);
 
     if (type === "job") {
-      const [jobs, count] = await Promise.all([
-        Job.find(jobQuery).sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean(),
-        Job.countDocuments(jobQuery),
+      [items, total] = await Promise.all([
+        Job.find(filter).populate("companyId", "name logo").sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+        Job.countDocuments(filter),
       ]);
-      items = jobs.map((j) => ({ ...j, opportunityType: "Job" }));
-      totalCount = count;
+      items = items.map((i) => ({ ...i, opportunityType: "Job" }));
     } else if (type === "internship") {
-      const [internships, count] = await Promise.all([
-        Internship.find(internQuery).sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean(),
-        Internship.countDocuments(internQuery),
+      [items, total] = await Promise.all([
+        Internship.find(filter).populate("companyId", "name logo").sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
+        Internship.countDocuments(filter),
       ]);
-      items = internships.map((i) => ({ ...i, opportunityType: "Internship" }));
-      totalCount = count;
+      items = items.map((i) => ({ ...i, opportunityType: "Internship" }));
     } else {
-      // Fetch both
-      const [jobs, internships, jobsCount, internshipsCount] = await Promise.all([
-        Job.find(jobQuery).sort({ createdAt: -1 }).limit(limitNum).lean(),
-        Internship.find(internQuery).sort({ createdAt: -1 }).limit(limitNum).lean(),
-        Job.countDocuments(jobQuery),
-        Internship.countDocuments(internQuery),
+      // Both Jobs & Internships
+      const [jobs, internships, jobsTotal, internshipsTotal] = await Promise.all([
+        Job.find(filter).populate("companyId", "name logo").sort({ createdAt: -1 }).limit(Number(limit)).lean(),
+        Internship.find(filter).populate("companyId", "name logo").sort({ createdAt: -1 }).limit(Number(limit)).lean(),
+        Job.countDocuments(filter),
+        Internship.countDocuments(filter),
       ]);
 
-      const merged = [
+      const combined = [
         ...jobs.map((j) => ({ ...j, opportunityType: "Job" })),
         ...internships.map((i) => ({ ...i, opportunityType: "Internship" })),
       ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-      items = merged.slice(skip, skip + limitNum);
-      totalCount = jobsCount + internshipsCount;
+      items = combined.slice(skip, skip + Number(limit));
+      total = jobsTotal + internshipsTotal;
     }
-
-    // Attach applications count for each opportunity
-    const oppIds = items.map((it) => it._id);
-    const appCounts = await Application.aggregate([
-      {
-        $match: {
-          $or: [{ jobId: { $in: oppIds } }, { internshipId: { $in: oppIds } }],
-        },
-      },
-      {
-        $group: {
-          _id: { $ifNull: ["$jobId", "$internshipId"] },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const appCountMap = new Map(appCounts.map((a) => [a._id.toString(), a.count]));
-
-    const enrichedItems = items.map((it) => ({
-      ...it,
-      applicationsCount: appCountMap.get(it._id.toString()) || 0,
-    }));
-
-    // Overview counts
-    const [
-      publishedJobs,
-      pendingJobs,
-      draftJobs,
-      closedJobs,
-      publishedInterns,
-      pendingInterns,
-      draftInterns,
-      closedInterns,
-    ] = await Promise.all([
-      Job.countDocuments({ status: "Published" }),
-      Job.countDocuments({ status: "Pending Approval" }),
-      Job.countDocuments({ status: "Draft" }),
-      Job.countDocuments({ status: { $in: ["Closed", "Paused"] } }),
-      Internship.countDocuments({ status: "Published" }),
-      Internship.countDocuments({ status: "Pending Approval" }),
-      Internship.countDocuments({ status: "Draft" }),
-      Internship.countDocuments({ status: { $in: ["Closed", "Paused"] } }),
-    ]);
-
-    const stats = {
-      total: publishedJobs + pendingJobs + draftJobs + closedJobs + publishedInterns + pendingInterns + draftInterns + closedInterns,
-      published: publishedJobs + publishedInterns,
-      pending: pendingJobs + pendingInterns,
-      draft: draftJobs + draftInterns,
-      closed: closedJobs + closedInterns,
-      totalJobs: publishedJobs + pendingJobs + draftJobs + closedJobs,
-      totalInternships: publishedInterns + pendingInterns + draftInterns + closedInterns,
-    };
 
     return res.status(200).json({
       success: true,
-      data: {
-        opportunities: enrichedItems,
-        stats,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total: totalCount,
-          pages: Math.ceil(totalCount / limitNum),
-        },
-      },
+      opportunities: items,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (error) {
     next(error);
@@ -1163,150 +1177,82 @@ exports.getAdminOpportunities = async (req, res, next) => {
 
 /**
  * PATCH /api/admin/opportunities/:type/:id/status
- * Update status of a Job or Internship
  */
 exports.updateOpportunityStatus = async (req, res, next) => {
   try {
     const { type, id } = req.params;
     const { status } = req.body;
+    const Model = type.toLowerCase() === "internship" ? Internship : Job;
 
-    const validStatuses = ["Published", "Draft", "Pending Approval", "Closed", "Paused"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
-      });
+    const opp = await Model.findById(id);
+    if (!opp) {
+      return res.status(404).json({ success: false, message: "Opportunity not found" });
     }
 
-    let opportunity = null;
-    if (type.toLowerCase() === "job") {
-      opportunity = await Job.findById(id);
-    } else if (type.toLowerCase() === "internship") {
-      opportunity = await Internship.findById(id);
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid opportunity type. Must be 'job' or 'internship'.",
-      });
+    // Company Admin access control: must belong to their assigned company
+    if (req.user.role === "COMPANY_ADMIN") {
+      if (!opp.companyId || opp.companyId.toString() !== req.user.companyId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied: You can only modify opportunities belonging to your company",
+        });
+      }
     }
 
-    if (!opportunity) {
-      return res.status(404).json({
-        success: false,
-        message: "Opportunity not found",
-      });
-    }
-
-    opportunity.status = status;
-    await opportunity.save();
+    opp.status = status;
+    await opp.save();
 
     return res.status(200).json({
       success: true,
       message: `Opportunity status updated to ${status}`,
-      data: {
-        _id: opportunity._id,
-        status: opportunity.status,
-      },
+      opportunity: opp,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// ===================================================
-// PAGE 28: APPLICATION MANAGEMENT
-// ===================================================
+// =========================================================================
+// 8. APPLICATION MANAGEMENT (SCOPED / GLOBAL)
+// =========================================================================
 
 /**
  * GET /api/admin/applications
- * List applications platform-wide with status filters & search
  */
 exports.getAdminApplications = async (req, res, next) => {
   try {
-    const {
-      status = "all",
-      type = "all", // all | Job | Internship
-      search = "",
-      page = 1,
-      limit = 15,
-    } = req.query;
+    const { status = "all", search = "", page = 1, limit = 15 } = req.query;
+    const filter = {};
 
-    const query = {};
+    // Strict Scope: Company Admins only see applications for their company
+    if (req.user.role === "COMPANY_ADMIN") {
+      filter.companyId = req.user.companyId;
+    } else if (req.query.companyId) {
+      filter.companyId = req.query.companyId;
+    }
 
     if (status !== "all") {
-      query.status = status;
+      filter.status = status;
     }
 
-    if (type !== "all") {
-      query.opportunityType = type;
-    }
-
-    if (search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
-      query.$or = [
-        { opportunityTitle: regex },
-        { companyName: regex },
-      ];
-    }
-
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.max(1, parseInt(limit, 10));
-    const skip = (pageNum - 1) * limitNum;
-
-    const [applications, totalCount, statusCounts] = await Promise.all([
-      Application.find(query)
-        .populate("candidateId", "fullName email phone profileImage userType")
-        .populate("jobId", "title companyName location employmentType")
-        .populate("internshipId", "title companyName location")
-        .populate("employerId", "companyName officialEmail logo")
+    const skip = (Number(page) - 1) * Number(limit);
+    const [applications, total] = await Promise.all([
+      Application.find(filter)
+        .populate("candidateId", "fullName email profileImage phone city")
+        .populate("companyId", "name logo")
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limitNum)
+        .limit(Number(limit))
         .lean(),
-      Application.countDocuments(query),
-      Application.aggregate([
-        {
-          $group: {
-            _id: "$status",
-            count: { $sum: 1 },
-          },
-        },
-      ]),
+      Application.countDocuments(filter),
     ]);
-
-    const funnelCounts = {
-      total: 0,
-      applied: 0,
-      reviewing: 0,
-      shortlisted: 0,
-      interview: 0,
-      hired: 0,
-      rejected: 0,
-    };
-
-    statusCounts.forEach((s) => {
-      funnelCounts.total += s.count;
-      const st = (s._id || "").toLowerCase();
-      if (st.includes("applied")) funnelCounts.applied += s.count;
-      else if (st.includes("review")) funnelCounts.reviewing += s.count;
-      else if (st.includes("shortlist")) funnelCounts.shortlisted += s.count;
-      else if (st.includes("interview")) funnelCounts.interview += s.count;
-      else if (st.includes("hire")) funnelCounts.hired += s.count;
-      else if (st.includes("reject")) funnelCounts.rejected += s.count;
-    });
 
     return res.status(200).json({
       success: true,
-      data: {
-        applications,
-        stats: funnelCounts,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total: totalCount,
-          pages: Math.ceil(totalCount / limitNum),
-        },
-      },
+      applications,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (error) {
     next(error);
@@ -1315,37 +1261,23 @@ exports.getAdminApplications = async (req, res, next) => {
 
 /**
  * PATCH /api/admin/applications/:id/status
- * Update application stage
  */
 exports.updateApplicationStatus = async (req, res, next) => {
   try {
-    const { id } = req.params;
     const { status } = req.body;
-
-    const validStatuses = [
-      "Applied",
-      "Under Review",
-      "Shortlisted",
-      "Interview Scheduled",
-      "Interview Completed",
-      "Hired",
-      "Rejected",
-      "Withdrawn",
-    ];
-
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid status. Allowed values: ${validStatuses.join(", ")}`,
-      });
+    const application = await Application.findById(req.params.id);
+    if (!application) {
+      return res.status(404).json({ success: false, message: "Application not found" });
     }
 
-    const application = await Application.findById(id);
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        message: "Application record not found",
-      });
+    // Company Admin access control: must belong to their assigned company
+    if (req.user.role === "COMPANY_ADMIN") {
+      if (!application.companyId || application.companyId.toString() !== req.user.companyId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied: You can only modify applications belonging to your company",
+        });
+      }
     }
 
     application.status = status;
@@ -1353,128 +1285,158 @@ exports.updateApplicationStatus = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: `Application stage updated to ${status}`,
-      data: {
-        _id: application._id,
-        status: application.status,
-      },
+      message: `Application status updated to ${status}`,
+      application,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// ===================================================
-// PAGE 29: REPORTS & TELEMETRY
-// ===================================================
+// =========================================================================
+// 9. REPORTS MANAGEMENT (SCOPED / GLOBAL)
+// =========================================================================
 
 /**
  * GET /api/admin/reports
- * Comprehensive platform analytical data
  */
 exports.getAdminReports = async (req, res, next) => {
   try {
-    const [
-      candidatesCount,
-      activeCandidatesCount,
-      employersCount,
-      verifiedEmployersCount,
-      jobsCount,
-      internshipsCount,
-      applicationsCount,
-      hiredCount,
-      interviewsCount,
-      userTypeBreakdown,
-      jobTypeBreakdown,
-      industryBreakdown,
-      topHiringEmployers,
-    ] = await Promise.all([
-      User.countDocuments({ role: { $ne: "admin" }, userType: { $ne: "employer" } }),
-      User.countDocuments({ role: { $ne: "admin" }, userType: { $ne: "employer" }, isActive: true }),
-      EmployerProfile.countDocuments(),
-      EmployerProfile.countDocuments({ isPublished: true }),
-      Job.countDocuments(),
-      Internship.countDocuments(),
-      Application.countDocuments(),
-      Application.countDocuments({ status: { $regex: /hired/i } }),
-      Interview.countDocuments(),
-      User.aggregate([
-        { $match: { role: { $ne: "admin" } } },
-        { $group: { _id: "$userType", count: { $sum: 1 } } },
-      ]),
-      Job.aggregate([
-        { $group: { _id: "$employmentType", count: { $sum: 1 } } },
-      ]),
-      EmployerProfile.aggregate([
-        { $group: { _id: "$industry", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 6 },
-      ]),
-      Application.aggregate([
-        { $group: { _id: "$companyName", applicationsReceived: { $sum: 1 } } },
-        { $sort: { applicationsReceived: -1 } },
-        { $limit: 5 },
-      ]),
-    ]);
+    const { status = "all", type = "all", page = 1, limit = 15 } = req.query;
+    const filter = {};
 
-    const hireRate = applicationsCount > 0
-      ? Number(((hiredCount / applicationsCount) * 100).toFixed(1))
-      : 0;
+    // Scoped to company for COMPANY_ADMIN
+    if (req.user.role === "COMPANY_ADMIN") {
+      filter.companyId = req.user.companyId;
+    } else if (req.query.companyId) {
+      filter.companyId = req.query.companyId;
+    }
+
+    if (status !== "all") filter.status = status;
+    if (type !== "all") filter.reportType = type;
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [reports, total] = await Promise.all([
+      Report.find(filter)
+        .populate("companyId", "name")
+        .populate("reportedBy", "fullName email")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .lean(),
+      Report.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
       success: true,
-      data: {
-        summary: {
-          totalCandidates: candidatesCount,
-          activeCandidates: activeCandidatesCount,
-          totalEmployers: employersCount,
-          verifiedEmployers: verifiedEmployersCount,
-          totalJobs: jobsCount,
-          totalInternships: internshipsCount,
-          totalApplications: applicationsCount,
-          totalInterviews: interviewsCount,
-          hiredCount,
-          placementRate: hireRate,
-        },
-        userTypes: userTypeBreakdown,
-        jobTypes: jobTypeBreakdown,
-        topIndustries: industryBreakdown,
-        topEmployers: topHiringEmployers,
-      },
+      reports,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (error) {
     next(error);
   }
 };
 
-// ===================================================
-// PAGE 30: PLATFORM SETTINGS
-// ===================================================
-
 /**
- * GET /api/admin/settings
- * Read platform operational configuration
+ * POST /api/admin/reports
  */
-exports.getAdminSettings = async (req, res, next) => {
+exports.createAdminReport = async (req, res, next) => {
   try {
-    let settings = await PlatformSetting.findOne();
-    if (!settings) {
-      settings = await PlatformSetting.create({});
+    const { reportType, details, targetType, targetId, targetTitle, companyId } = req.body;
+    if (!reportType || !details) {
+      return res.status(400).json({ success: false, message: "Report type and details are required" });
     }
 
-    const systemDiagnostics = {
-      nodeEnv: process.env.NODE_ENV || "development",
-      databaseStatus: "Connected",
-      serverTime: new Date().toISOString(),
-      uptimeSeconds: Math.floor(process.uptime()),
-    };
+    const report = await Report.create({
+      reportType,
+      details,
+      targetType: targetType || "Opportunity",
+      targetId: targetId || null,
+      targetTitle: targetTitle || "",
+      companyId: companyId || (req.user.role === "COMPANY_ADMIN" ? req.user.companyId : null),
+      reportedBy: req.user._id,
+      reportedByName: req.user.fullName,
+      status: "Open",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Report submitted successfully",
+      report,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/admin/reports/:id/status
+ */
+exports.updateAdminReportStatus = async (req, res, next) => {
+  try {
+    const { status, resolutionNotes } = req.body;
+    const report = await Report.findById(req.params.id);
+    if (!report) {
+      return res.status(404).json({ success: false, message: "Report not found" });
+    }
+
+    // Company Admin check
+    if (req.user.role === "COMPANY_ADMIN") {
+      if (!report.companyId || report.companyId.toString() !== req.user.companyId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied: You can only resolve reports belonging to your company",
+        });
+      }
+    }
+
+    report.status = status;
+    if (resolutionNotes) report.resolutionNotes = resolutionNotes;
+    if (status === "Resolved" || status === "Dismissed") {
+      report.resolvedBy = req.user._id;
+      report.resolvedAt = new Date();
+    }
+    await report.save();
 
     return res.status(200).json({
       success: true,
-      data: {
-        settings,
-        diagnostics: systemDiagnostics,
-      },
+      message: `Report status updated to ${status}`,
+      report,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================================================
+// 10. SETTINGS MANAGEMENT (GLOBAL VS TENANT)
+// =========================================================================
+
+/**
+ * GET /api/admin/settings
+ */
+exports.getAdminSettings = async (req, res, next) => {
+  try {
+    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
+
+    if (isSuperAdmin) {
+      const settings = await PlatformSetting.find().lean();
+      return res.status(200).json({
+        success: true,
+        scope: "GLOBAL",
+        settings: settings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {}),
+      });
+    }
+
+    // COMPANY_ADMIN: Return assigned company settings
+    const company = await Company.findById(req.user.companyId).select("name settings");
+    return res.status(200).json({
+      success: true,
+      scope: "TENANT",
+      companyName: company?.name,
+      settings: company?.settings || {},
     });
   } catch (error) {
     next(error);
@@ -1483,44 +1445,83 @@ exports.getAdminSettings = async (req, res, next) => {
 
 /**
  * PUT /api/admin/settings
- * Update platform operational configuration
  */
 exports.updateAdminSettings = async (req, res, next) => {
   try {
-    const {
-      platformName,
-      supportEmail,
-      allowStudentRegistration,
-      allowEmployerRegistration,
-      requireEmailVerification,
-      autoApproveJobs,
-      autoApproveEmployers,
-      maintenanceMode,
-      sessionTimeoutHours,
-    } = req.body;
+    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
 
-    let settings = await PlatformSetting.findOne();
-    if (!settings) {
-      settings = new PlatformSetting();
+    if (isSuperAdmin) {
+      const updates = req.body;
+      for (const [key, value] of Object.entries(updates)) {
+        await PlatformSetting.findOneAndUpdate(
+          { key },
+          { key, value, updatedBy: req.user._id },
+          { upsert: true, new: true }
+        );
+      }
+      return res.status(200).json({
+        success: true,
+        message: "Global platform settings updated successfully",
+      });
     }
 
-    if (platformName !== undefined) settings.platformName = platformName;
-    if (supportEmail !== undefined) settings.supportEmail = supportEmail;
-    if (allowStudentRegistration !== undefined) settings.allowStudentRegistration = allowStudentRegistration;
-    if (allowEmployerRegistration !== undefined) settings.allowEmployerRegistration = allowEmployerRegistration;
-    if (requireEmailVerification !== undefined) settings.requireEmailVerification = requireEmailVerification;
-    if (autoApproveJobs !== undefined) settings.autoApproveJobs = autoApproveJobs;
-    if (autoApproveEmployers !== undefined) settings.autoApproveEmployers = autoApproveEmployers;
-    if (maintenanceMode !== undefined) settings.maintenanceMode = maintenanceMode;
-    if (sessionTimeoutHours !== undefined) settings.sessionTimeoutHours = sessionTimeoutHours;
-
-    await settings.save();
+    // COMPANY_ADMIN: Updates ONLY assigned company settings
+    const company = await Company.findByIdAndUpdate(
+      req.user.companyId,
+      { $set: { settings: req.body } },
+      { new: true }
+    );
 
     return res.status(200).json({
       success: true,
-      message: "Platform settings updated successfully",
-      data: {
-        settings,
+      message: "Company settings updated successfully",
+      settings: company?.settings,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================================================
+// 11. SEARCH & NOTIFICATIONS
+// =========================================================================
+
+/**
+ * GET /api/admin/search
+ */
+exports.searchAdmin = async (req, res, next) => {
+  try {
+    const { q = "" } = req.query;
+    if (!q.trim()) {
+      return res.status(200).json({ success: true, results: {} });
+    }
+
+    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
+    const companyScope = !isSuperAdmin ? { companyId: req.user.companyId } : {};
+
+    const [users, jobs, companies] = await Promise.all([
+      User.find({
+        ...companyScope,
+        $or: [
+          { fullName: { $regex: q.trim(), $options: "i" } },
+          { email: { $regex: q.trim(), $options: "i" } },
+        ],
+      }).select("fullName email userType role").limit(5).lean(),
+      Job.find({
+        ...companyScope,
+        title: { $regex: q.trim(), $options: "i" },
+      }).select("title companyName status").limit(5).lean(),
+      isSuperAdmin
+        ? Company.find({ name: { $regex: q.trim(), $options: "i" } }).select("name industry status").limit(5).lean()
+        : [],
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      results: {
+        users,
+        jobs,
+        companies,
       },
     });
   } catch (error) {
@@ -1528,3 +1529,42 @@ exports.updateAdminSettings = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/admin/notifications
+ */
+exports.getAdminNotifications = async (req, res, next) => {
+  try {
+    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
+    const filter = isSuperAdmin ? {} : { companyId: req.user.companyId };
+
+    const [openReports, pendingOpportunities] = await Promise.all([
+      Report.find({ ...filter, status: "Open" }).sort({ createdAt: -1 }).limit(5).lean(),
+      Job.find({ ...filter, status: "Pending" }).sort({ createdAt: -1 }).limit(5).lean(),
+    ]);
+
+    const notifications = [
+      ...openReports.map((r) => ({
+        id: r._id,
+        title: `Report: ${r.reportType}`,
+        message: r.details,
+        type: "warning",
+        createdAt: r.createdAt,
+      })),
+      ...pendingOpportunities.map((j) => ({
+        id: j._id,
+        title: `Pending Job Approval: ${j.title}`,
+        message: `Opportunity posted for ${j.companyName}`,
+        type: "info",
+        createdAt: j.createdAt,
+      })),
+    ];
+
+    return res.status(200).json({
+      success: true,
+      notifications,
+      unreadCount: notifications.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

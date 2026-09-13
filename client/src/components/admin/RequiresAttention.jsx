@@ -11,6 +11,18 @@ import {
 } from "lucide-react";
 
 const RequiresAttention = ({ attention = [] }) => {
+  const attentionList = Array.isArray(attention)
+    ? attention
+    : typeof attention === "object" && attention !== null
+    ? Object.entries(attention).map(([key, val], idx) => ({
+        id: `att-${idx}`,
+        title: `${key}: ${val}`,
+        category: "System",
+        severity: "medium",
+        link: "/admin/reports",
+      }))
+    : [];
+
   const getIcon = (category) => {
     switch (category) {
       case "Jobs":
@@ -48,9 +60,9 @@ const RequiresAttention = ({ attention = [] }) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-bold text-slate-900">Requires Attention</h3>
-          {attention.length > 0 && (
+          {attentionList.length > 0 && (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-              {attention.length} Item{attention.length > 1 ? "s" : ""}
+              {attentionList.length} Item{attentionList.length > 1 ? "s" : ""}
             </span>
           )}
         </div>
@@ -58,7 +70,7 @@ const RequiresAttention = ({ attention = [] }) => {
       </div>
 
       {/* Items list or Clean empty state */}
-      {attention.length === 0 ? (
+      {attentionList.length === 0 ? (
         <div className="p-8 rounded-xl bg-emerald-50/50 border border-emerald-200/60 flex flex-col items-center justify-center text-center space-y-2">
           <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-xs">
             <CheckCircle className="w-5 h-5" />
@@ -72,7 +84,7 @@ const RequiresAttention = ({ attention = [] }) => {
         </div>
       ) : (
         <div className="space-y-2.5">
-          {attention.map((item) => (
+          {attentionList.map((item) => (
             <Link
               key={item.id}
               to={item.link || "#"}

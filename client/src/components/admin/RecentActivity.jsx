@@ -30,6 +30,8 @@ function formatTimeAgo(dateString) {
 }
 
 const RecentActivity = ({ activities = [] }) => {
+  const safeActivities = Array.isArray(activities) ? activities : [];
+
   const getActivityIcon = (type) => {
     switch (type) {
       case "USER_REGISTERED":
@@ -62,13 +64,13 @@ const RecentActivity = ({ activities = [] }) => {
       </div>
 
       {/* Activity List */}
-      {activities.length === 0 ? (
+      {safeActivities.length === 0 ? (
         <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
           No platform activities logged yet.
         </div>
       ) : (
         <div className="divide-y divide-slate-100">
-          {activities.map((item) => (
+          {safeActivities.map((item) => (
             <div
               key={item.id}
               className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3 text-xs"

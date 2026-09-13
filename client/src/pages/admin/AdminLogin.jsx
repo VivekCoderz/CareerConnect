@@ -43,7 +43,11 @@ const AdminLogin = () => {
 
       if (res?.success && res?.user) {
         dispatch(setUser(res.user));
-        const redirectPath = location.state?.from?.pathname || "/admin/dashboard";
+        let redirectPath = location.state?.from?.pathname || "/admin/dashboard";
+        const isSuperAdmin = res.user.role === "SUPER_ADMIN" || (res.user.role === "admin" && !res.user.companyId);
+        if (!isSuperAdmin && (redirectPath === "/admin/companies" || redirectPath === "/admin/company-admins")) {
+          redirectPath = "/admin/company";
+        }
         navigate(redirectPath, { replace: true });
       } else {
         setError(res?.message || "Invalid email or password.");
