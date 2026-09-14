@@ -5,39 +5,19 @@ import { useDispatch, useSelector } from "react-redux";
 // Guards & Common Modals
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
 
-// General & Discovery
-import SelectRole from "./pages/SelectRole";
-import Home from "./pages/Home.jsx";
-import InternshipDiscoveryPage from "./pages/internships/InternshipDiscoveryPage";
-import JobDiscoveryPage from "./pages/jobs/JobDiscoveryPage";
-import OpportunitiesPage from "./pages/OpportunitiesPage";
-
-// Student
-import StudentDashboard from "./pages/student/StudentDashboard";
-import StudentProfile from "./pages/student/StudentProfile";
-import Internships from "./pages/student/Internships";
-import InternshipDetail from "./pages/student/InternshipDetail";
-import MyApplications from "./pages/student/MyApplications";
-
-// Fresher
-import FresherDashboard from "./pages/fresher/FresherDashboard";
-import FresherProfile from "./pages/fresher/FresherProfile";
-import CareerRecommendationsPage from "./pages/fresher/CareerRecommendationsPage";
-
-// Professional
-import ProfessionalDashboard from "./pages/professional/ProfessionalDashboard";
-import ProfessionalProfile from "./pages/professional/ProfessionalProfile";
-
-// Employer
-import EmployerProfile from "./pages/employer/EmployerProfile";
-import EmployerDashboard from "./pages/employer/EmployerDashboard";
-import CompanyPublicProfile from "./pages/employer/CompanyPublicProfile";
-import PostInternship from "./pages/employer/PostInternship";
-import MyInternships from "./pages/employer/MyInternships";
-import EditInternship from "./pages/employer/EditInternship";
-
-// Resume Builder
-import ResumeBuilder from "./pages/resume/ResumeBuilder";
+// Admin & 404
+import NotFound from "./pages/NotFound";
+import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const AdminCompanies = lazy(() => import("./pages/admin/AdminCompanies"));
+const AdminCompanyAdmins = lazy(() => import("./pages/admin/AdminCompanyAdmins"));
+const AdminCompanyProfile = lazy(() => import("./pages/admin/AdminCompanyProfile"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminOpportunities = lazy(() => import("./pages/admin/AdminOpportunities"));
+const AdminApplications = lazy(() => import("./pages/admin/AdminApplications"));
+const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 
 // Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
