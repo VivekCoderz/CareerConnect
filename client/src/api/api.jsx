@@ -34,25 +34,36 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       const requestUrl = error.config?.url || "";
-      const isMeCheck = requestUrl.includes("/auth/me");
+      const isMeCheck = requestUrl.includes("/auth/me") || requestUrl.includes("/admin/me");
+      const isAuthRequest =
+        requestUrl.includes("/login") ||
+        requestUrl.includes("/register") ||
+        requestUrl.includes("/google-auth") ||
+        requestUrl.includes("/firebase-login");
       const currentPath = window.location.pathname;
 
       const isPublicOrAuthPage =
         currentPath === "/" ||
         currentPath.startsWith("/home") ||
         currentPath.startsWith("/login") ||
+        currentPath.startsWith("/admin/login") ||
         currentPath.startsWith("/register") ||
         currentPath.startsWith("/forgot-password") ||
         currentPath.startsWith("/set-password") ||
         currentPath.startsWith("/companies") ||
         currentPath.startsWith("/opportunities");
 
-      if (!isMeCheck && !isPublicOrAuthPage) {
+      if (!isMeCheck && !isAuthRequest && !isPublicOrAuthPage) {
         // Clear auth state
         store.dispatch(logout());
         store.dispatch(setSessionExpired(true));
-        // Redirect with expired flag so Login page shows the friendly message
-        window.location.replace("/login?expired=1");
+        // If expired inside admin portal, redirect to admin login
+        if (currentPath.startsWith("/admin")) {
+          window.location.replace("/admin/login?expired=1");
+        } else {
+          // Redirect with expired flag so Login page shows the friendly message
+          window.location.replace("/login?expired=1");
+        }
       }
     }
 

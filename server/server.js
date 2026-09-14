@@ -11,3 +11,4 @@ connectDB();
 const server = app.listen(PORT || 5000, () => {
     console.log(`CareerConnect server running on port ${PORT} 🔥`);
 });
+
