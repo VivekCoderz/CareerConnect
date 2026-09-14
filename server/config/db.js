@@ -1,10 +1,7 @@
 const mongoose = require("mongoose");
 const dns = require("dns");
 
-// Set reliable public DNS servers to resolve MongoDB Atlas SRV records on Windows/local networks
-try {
-  dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
-} catch (e) {}
+// Removed hardcoded public DNS servers (8.8.8.8) which hang on firewalled networks
 
 const connectDB = async () => {
   const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/careerconnect";

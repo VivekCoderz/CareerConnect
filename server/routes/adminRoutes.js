@@ -40,14 +40,25 @@ const {
   updateEmployerStatus,
   // Opportunities
   getAdminOpportunities,
+  getOpportunityCompaniesList,
+  approveOpportunity,
+  rejectOpportunity,
+  editOpportunity,
+  closeOpportunity,
+  featureOpportunity,
   updateOpportunityStatus,
   // Applications
   getAdminApplications,
   updateApplicationStatus,
   // Reports
   getAdminReports,
+  getAdminReportById,
   createAdminReport,
   updateAdminReportStatus,
+  updateAdminReportPriority,
+  addAdminReportNote,
+  resolveAdminReport,
+  dismissAdminReport,
   // Settings
   getAdminSettings,
   updateAdminSettings,
@@ -111,16 +122,27 @@ router.patch("/employers/:id/status", updateEmployerStatus);
 
 // Opportunity Management (Jobs & Internships)
 router.get("/opportunities", getAdminOpportunities);
+router.get("/opportunities/companies-list", getOpportunityCompaniesList);
+router.post("/opportunities/:type/:id/approve", approveOpportunity);
+router.post("/opportunities/:type/:id/reject", rejectOpportunity);
+router.put("/opportunities/:type/:id", editOpportunity);
+router.patch("/opportunities/:type/:id/close", closeOpportunity);
+router.patch("/opportunities/:type/:id/feature", featureOpportunity);
 router.patch("/opportunities/:type/:id/status", updateOpportunityStatus);
 
 // Application Management
 router.get("/applications", getAdminApplications);
 router.patch("/applications/:id/status", updateApplicationStatus);
 
-// Reports Management
+// Reports Management (Platform Reports & Trust)
 router.get("/reports", getAdminReports);
+router.get("/reports/:id", getAdminReportById);
 router.post("/reports", sanitizeInputs, createAdminReport);
 router.patch("/reports/:id/status", updateAdminReportStatus);
+router.patch("/reports/:id/priority", updateAdminReportPriority);
+router.post("/reports/:id/notes", sanitizeInputs, addAdminReportNote);
+router.post("/reports/:id/resolve", sanitizeInputs, resolveAdminReport);
+router.post("/reports/:id/dismiss", sanitizeInputs, dismissAdminReport);
 
 // Settings Management
 router.get("/settings", getAdminSettings);

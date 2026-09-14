@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-<<<<<<< HEAD
 import { useSelector, useDispatch } from "react-redux";
-=======
-import { useSelector,useDispatch } from "react-redux";
->>>>>>> 9822b0dcba1fa2f3ff9d0f32d4e326702c3e2dd1
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../components/jobs/JobDiscoveryMenu";
 import { getDashboardPath } from "../utils/dashboardRedirect";
