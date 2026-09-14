@@ -18,7 +18,7 @@ const authOrQuery = async (req, res, next) => {
 
     const token = req.cookies?.token || req.headers.authorization?.split(" ")[1] || req.query.token;
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_secret_key");
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findById(decoded.id || decoded.userId).select("-password");
       if (user) {
         req.user = user;
