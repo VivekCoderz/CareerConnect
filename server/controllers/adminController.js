@@ -26,7 +26,7 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
       role: user.role,
       companyId: user.companyId || null,
     },
-    process.env.JWT_SECRET || "your_secret_key",
+    process.env.JWT_SECRET,
     { expiresIn: "7d" }
   );
 
