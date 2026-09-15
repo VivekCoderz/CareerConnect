@@ -14,8 +14,8 @@ const getRazorpayInstance = () => {
   }
 
   return new Razorpay({
-    key_id: keyId || "rzp_test_TbSS4kb8G70xwq",
-    key_secret: keySecret || "1H85VDA2KxKTpE1MMa8Rs26w",
+    key_id: keyId,
+    key_secret: keySecret,
   });
 };
 
