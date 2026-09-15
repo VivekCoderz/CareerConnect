@@ -34,7 +34,7 @@ const verifyRazorpaySignature = ({ orderId, paymentId, signature }) => {
     return false;
   }
 
-  const keySecret = process.env.RAZORPAY_KEY_SECRET || "1H85VDA2KxKTpE1MMa8Rs26w";
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
   try {
     const generatedSignature = crypto
