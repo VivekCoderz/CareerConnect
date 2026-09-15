@@ -5,7 +5,13 @@ const auditLogSchema = new mongoose.Schema(
     employerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "EmployerProfile",
-      required: true,
+      default: null,
+      index: true,
+    },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
       index: true,
     },
     actorId: {
@@ -26,8 +32,8 @@ const auditLogSchema = new mongoose.Schema(
     },
     module: {
       type: String,
-      enum: ["Jobs", "Candidates", "Interviews", "Offers", "Roles", "Team", "Training", "Settings"],
-      default: "Team",
+      enum: ["Jobs", "Opportunities", "Internships", "Candidates", "Interviews", "Offers", "Roles", "Team", "Training", "Settings", "Reports"],
+      default: "Opportunities",
     },
     target: {
       type: String,

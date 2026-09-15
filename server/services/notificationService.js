@@ -29,62 +29,176 @@ const registerSseClient = (userId, res) => {
 };
 
 /**
- * Broadcast notification payload to connected SSE streams
+ * Broadcast an SSE event to a specific user and global listeners
  */
 const broadcastRealtimeNotification = (notification, targetUserId = null) => {
-  const payload = JSON.stringify(notification);
+  try {
+    const payload = `event: notification\ndata: ${JSON.stringify(notification)}\n\n`;
 
-  // 1. Send to target user if specified
-  if (targetUserId && sseClients.has(String(targetUserId))) {
-    sseClients.get(String(targetUserId)).forEach((client) => {
-      try {
-        client.write(`event: notification\ndata: ${payload}\n\n`);
-      } catch (err) {
-        console.warn("SSE delivery error:", err.message);
+    // 1. Direct recipient stream
+    if (targetUserId) {
+      const userStreams = sseClients.get(String(targetUserId));
+      if (userStreams) {
+        userStreams.forEach((client) => {
+          try {
+            client.write(payload);
+          } catch (e) {
+            userStreams.delete(client);
+          }
+        });
       }
-    });
-  }
+    }
 
-  // 2. Also send to broadcast stream (all active users)
-  if (sseClients.has("broadcast")) {
-    sseClients.get("broadcast").forEach((client) => {
-      try {
-        client.write(`event: notification\ndata: ${payload}\n\n`);
-      } catch (err) {
-        console.warn("SSE broadcast delivery error:", err.message);
+    // 2. Broadcast stream (if notification is public/global)
+    if (!targetUserId) {
+      const broadcastStreams = sseClients.get("broadcast");
+      if (broadcastStreams) {
+        broadcastStreams.forEach((client) => {
+          try {
+            client.write(payload);
+          } catch (e) {
+            broadcastStreams.delete(client);
+          }
+        });
       }
-    });
+    }
+  } catch (err) {
+    console.error("SSE Broadcast error:", err.message);
   }
 };
 
 /**
- * Create a mail-style notification when an opportunity is published
+ * Creates and delivers an in-app notification to a user (used for interviews & applications).
  */
-const createOpportunityNotification = async ({ type, item, targetUserId = null }) => {
+const createNotification = async ({
+  recipientId,
+  senderId = null,
+  title,
+  message,
+  notificationType = "GENERAL",
+  relatedInterviewId = null,
+  relatedApplicationId = null,
+  actionUrl = "",
+  metadata = {},
+}) => {
+  try {
+    if (!recipientId) return null;
+
+    // Verify recipient exists
+    const recipient = await User.findById(recipientId).select("_id email fullName");
+    if (!recipient) return null;
+
+    const notif = await Notification.create({
+      recipient: recipientId,
+      recipientId,
+      senderId,
+      sender: "CareerConnect System",
+      senderRole: "system",
+      title,
+      preview: message,
+      message,
+      content: message,
+      notificationType,
+      category: "system",
+      relatedInterviewId,
+      relatedApplicationId,
+      actionUrl,
+      metadata,
+    });
+
+    broadcastRealtimeNotification(notif, recipientId);
+    return notif;
+  } catch (err) {
+    console.error("Error creating notification:", err.message);
+    return null;
+  }
+};
+
+/**
+ * Get user notifications with pagination
+ */
+const getUserNotifications = async (userId, { limit = 30, page = 1, unreadOnly = false } = {}) => {
+  const query = {
+    $or: [{ recipient: userId }, { recipientId: userId }, { recipient: null }],
+  };
+  if (unreadOnly) {
+    query.isRead = false;
+  }
+
+  const skip = (page - 1) * limit;
+  const [notifications, total, unreadCount] = await Promise.all([
+    Notification.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    Notification.countDocuments(query),
+    Notification.countDocuments({
+      $or: [{ recipient: userId }, { recipientId: userId }],
+      isRead: false,
+    }),
+  ]);
+
+  return {
+    success: true,
+    notifications,
+    total,
+    unreadCount,
+    page,
+    totalPages: Math.ceil(total / limit),
+  };
+};
+
+/**
+ * Mark a single notification as read
+ */
+const markAsRead = async (notificationId, userId) => {
+  return await Notification.findOneAndUpdate(
+    {
+      _id: notificationId,
+      $or: [{ recipient: userId }, { recipientId: userId }, { recipient: null }],
+    },
+    { $set: { isRead: true, readAt: new Date() } },
+    { new: true }
+  );
+};
+
+/**
+ * Mark all notifications as read for a user
+ */
+const markAllAsRead = async (userId) => {
+  await Notification.updateMany(
+    {
+      $or: [{ recipient: userId }, { recipientId: userId }],
+      isRead: false,
+    },
+    { $set: { isRead: true, readAt: new Date() } }
+  );
+  return { success: true };
+};
+
+/**
+ * Create a targeted Opportunity Notification (Job, Internship, Course)
+ */
+const createOpportunityNotification = async ({ type, item, sender = "CareerConnect Platform", senderAvatar = null, targetUserId = null }) => {
   try {
     let title = "";
     let preview = "";
     let content = "";
     let category = "job";
     let actionUrl = "/jobs";
-    let actionText = "Apply Now ›";
-    const sender = item.company || item.employerId?.companyName || "CareerConnect Partner";
-    const senderAvatar = item.logo || item.companyLogo || null;
+    let actionText = "View Opportunity ›";
 
     if (type === "job") {
       category = "job";
       actionUrl = `/jobs`;
       actionText = "Apply For Job ›";
-      title = `New Job Opening: ${item.title} at ${sender}`;
-      preview = `Fresh opening for ${item.title} (${item.salary || "Competitive CTC"}). Actively accepting applications!`;
+      title = `Hot Job Match: ${item.title} at ${sender}`;
+      preview = `Exciting career opportunity for ${item.title} (${item.salary || "Competitive CTC"}). Apply now!`;
       content = `
 Dear Candidate,
 
-A new exciting job opportunity matching platform career tracks has just opened on CareerConnect:
+A verified employer has just posted a relevant job opportunity:
 
-**Role:** ${item.title}
+**Job Title:** ${item.title}
 **Company:** ${sender}
-**Location:** ${item.location || "Multiple Locations"} (${item.workMode || "Hybrid"})
+**Location:** ${item.location || "Multiple Locations"} (${item.workMode || "On-site"})
 **Compensation:** ${item.salary || "Competitive CTC"}
 **Employment Type:** ${item.type || "Full Time"}
 
@@ -138,6 +252,7 @@ Industry projects and completion certificate included. Start learning today!
 
     const notification = await Notification.create({
       recipient: targetUserId || null,
+      recipientId: targetUserId || null,
       sender,
       senderRole: "employer",
       senderAvatar,
@@ -182,6 +297,7 @@ const sendAiRecommendationNotification = async ({
   try {
     const notification = await Notification.create({
       recipient: userId,
+      recipientId: userId,
       sender: "CareerConnect AI Assistant 🤖",
       senderRole: "ai",
       senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=CareerConnectAI",
@@ -208,13 +324,14 @@ const sendAiRecommendationNotification = async ({
 const seedWelcomeNotificationsIfEmpty = async (userId) => {
   try {
     const count = await Notification.countDocuments({
-      $or: [{ recipient: userId }, { recipient: null }],
+      $or: [{ recipient: userId }, { recipientId: userId }, { recipient: null }],
     });
 
     if (count === 0) {
       await Notification.create([
         {
           recipient: userId,
+          recipientId: userId,
           sender: "CareerConnect AI Assistant 🤖",
           senderRole: "ai",
           senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=CareerConnectAI",
@@ -240,68 +357,6 @@ Warm regards,
           actionText: "Open Dashboard ›",
           isRead: false,
         },
-        {
-          recipient: userId,
-          sender: "Zomato Technologies",
-          senderRole: "employer",
-          title: "Trending: Full Stack Web Development Internship (Remote)",
-          preview: "Zomato Technologies is actively seeking enthusiastic student developers. Stipend: ₹25,000/mo.",
-          content: `
-Dear Candidate,
-
-Zomato Technologies has opened applications for its Summer Engineering Internship Program:
-
-**Role:** Full Stack Web Development Intern  
-**Work Mode:** Work from home (Remote)  
-**Stipend:** ₹25,000 - ₹35,000 / month  
-**Duration:** 6 Months (Certificate + PPO Opportunity)  
-
-**Tech Stack:** React, Node.js, REST APIs, MongoDB
-
-Early applicants receive priority resume screening. Click below to review full details and apply.
-          `.trim(),
-          category: "internship",
-          actionUrl: "/internships",
-          actionText: "Apply Online ›",
-          metadata: {
-            company: "Zomato Technologies",
-            location: "Gurugram / Remote",
-            stipend: "₹25,000 - ₹35,000 / month",
-            skills: ["React", "Node.js", "MongoDB"],
-            workMode: "Remote",
-          },
-          isRead: false,
-        },
-        {
-          recipient: userId,
-          sender: "Amazon Development Centre",
-          senderRole: "employer",
-          title: "New Job Opening: Associate Software Engineer (Full-Time)",
-          preview: "Entry-level campus recruitment drive by Amazon Development Centre. CTC: ₹8.5 - 12 LPA.",
-          content: `
-Dear Candidate,
-
-Amazon Development Centre is hiring graduate engineers:
-
-**Role:** Associate Software Engineer  
-**Location:** Bangalore / Remote (Hybrid)  
-**Compensation:** ₹8,50,000 - ₹12,00,000 / year  
-**Eligibility:** 2024 - 2028 Batches (Computer Science & allied branches)  
-
-Click below to explore full eligibility benchmarks and submit your candidate application.
-          `.trim(),
-          category: "job",
-          actionUrl: "/jobs",
-          actionText: "Apply For Job ›",
-          metadata: {
-            company: "Amazon Development Centre",
-            location: "Bangalore",
-            salary: "₹8.5 - 12 LPA",
-            skills: ["Data Structures", "Algorithms", "React", "Node.js"],
-            workMode: "Hybrid",
-          },
-          isRead: false,
-        },
       ]);
     }
   } catch (err) {
@@ -312,6 +367,10 @@ Click below to explore full eligibility benchmarks and submit your candidate app
 module.exports = {
   registerSseClient,
   broadcastRealtimeNotification,
+  createNotification,
+  getUserNotifications,
+  markAsRead,
+  markAllAsRead,
   createOpportunityNotification,
   sendAiRecommendationNotification,
   seedWelcomeNotificationsIfEmpty,

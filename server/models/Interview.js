@@ -116,6 +116,11 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    isDraft: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     status: {
       type: String,
       enum: [
@@ -124,10 +129,12 @@ const interviewSchema = new mongoose.Schema(
         "rescheduled",
         "cancelled",
         "no_show",
+        "draft",
         "Scheduled",
         "Completed",
         "Cancelled",
         "Rescheduled",
+        "Draft",
       ],
       default: "scheduled",
       index: true,
@@ -175,7 +182,47 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // Cancellation tracking
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
+    cancelledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     cancellationReason: {
+      type: String,
+      default: "",
+    },
+    cancellationMessage: {
+      type: String,
+      default: "",
+    },
+    // Rescheduling tracking
+    rescheduledAt: {
+      type: Date,
+      default: null,
+    },
+    rescheduledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    previousDate: {
+      type: String,
+      default: "",
+    },
+    previousStartTime: {
+      type: String,
+      default: "",
+    },
+    newDate: {
+      type: String,
+      default: "",
+    },
+    newStartTime: {
       type: String,
       default: "",
     },
@@ -183,6 +230,17 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    rescheduleHistory: [
+      {
+        previousDate: String,
+        previousStartTime: String,
+        newDate: String,
+        newStartTime: String,
+        reason: String,
+        rescheduledAt: { type: Date, default: Date.now },
+        rescheduledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      },
+    ],
   },
   {
     timestamps: true,

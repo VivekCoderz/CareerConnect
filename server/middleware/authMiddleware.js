@@ -54,7 +54,7 @@ const protect = async (req, res, next) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || "your_secret_key");
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (jwtErr) {
       if (jwtErr.name === "TokenExpiredError") {
         return res.status(401).json({
