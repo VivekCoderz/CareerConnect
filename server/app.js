@@ -12,6 +12,7 @@ const employerRoutes = require("./routes/employerRoutes.js");
 // Courses related Routes
 const courseRoutes = require("./routes/courseRoutes.js");
 const courseContentRoutes = require("./routes/courseContentRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
 
 
 // Employer & Jobs / Internships feature routes
@@ -94,6 +95,7 @@ app.use("/api/profile/professional", professionalRoutes);
 // Core LMS Course Routes
 app.use("/api/courses", courseRoutes);
 app.use("/api/course-content", courseContentRoutes);
+app.use("/api/payment", paymentRoutes);
 
 // Marketplace & Discovery Routes
 app.use("/api/jobs", jobRoutes);

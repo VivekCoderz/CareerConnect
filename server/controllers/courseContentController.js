@@ -513,11 +513,14 @@ const getStudentCourseContent = async (req, res) => {
     // ------------------------------------------
     // Only students can access course content
     // ------------------------------------------
+    // Candidates (student, fresher, professional)
+    // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const candidateTypes = ["student", "fresher", "professional"];
+    if (user.role !== "user" || !candidateTypes.includes(user.userType)) {
       return res.status(403).json({
         success: false,
-        message: "Only students can access course content",
+        message: "Only candidates can access course content",
       });
     }
 
@@ -620,13 +623,14 @@ const markContentComplete = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students
+    // Candidates (student, fresher, professional)
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const candidateTypes = ["student", "fresher", "professional"];
+    if (user.role !== "user" || !candidateTypes.includes(user.userType)) {
       return res.status(403).json({
         success: false,
-        message: "Only students can complete course content",
+        message: "Only candidates can complete course content",
       });
     }
 

@@ -359,38 +359,41 @@ const getRecommendedCourses = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students can access recommendations
+    // Candidates can access recommendations (student, fresher, professional)
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const candidateTypes = ["student", "fresher", "professional"];
+    if (user.role !== "user" || !candidateTypes.includes(user.userType)) {
       return res.status(403).json({
         success: false,
-        message: "Only students can access recommended courses",
+        message: "Only candidates can access recommended courses",
       });
     }
 
     // ------------------------------------------
-    // Find student's profile
+    // Find student's profile (or fallback to general published courses)
     // ------------------------------------------
 
     const studentProfile = await StudentProfile.findOne({
       userId: user._id,
     });
 
-    if (!studentProfile) {
-      return res.status(404).json({
-        success: false,
-        message: "Student profile not found",
-      });
-    }
-
-    // ------------------------------------------
-    // Get all published courses
-    // ------------------------------------------
-
     const courses = await Course.find({
       status: "Published",
     }).lean();
+
+    if (!studentProfile) {
+      return res.status(200).json({
+        success: true,
+        count: courses.length,
+        studentProfile: {
+          technicalSkills: [],
+          interests: [],
+          careerGoal: "",
+        },
+        courses,
+      });
+    }
 
     // ------------------------------------------
     // Student profile data
@@ -668,11 +671,12 @@ const applyCourse = async (req, res) => {
       });
     }
 
-    // Only students can apply
-    if (user.role !== "user" || user.userType !== "student") {
+    // Only candidates (students, freshers, professionals) can apply
+    const candidateTypes = ["student", "fresher", "professional"];
+    if (user.role !== "user" || !candidateTypes.includes(user.userType)) {
       return res.status(403).json({
         success: false,
-        message: "Only students can apply for courses",
+        message: "Only candidates can apply for courses",
       });
     }
 
@@ -967,13 +971,14 @@ const getStudentMyCourses = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students
+    // Candidates (student, fresher, professional)
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const candidateTypes = ["student", "fresher", "professional"];
+    if (user.role !== "user" || !candidateTypes.includes(user.userType)) {
       return res.status(403).json({
         success: false,
-        message: "Only students can access My Courses",
+        message: "Only candidates can access My Courses",
       });
     }
 
