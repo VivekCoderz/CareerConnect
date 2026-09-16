@@ -5,16 +5,7 @@ import { getDashboardPath } from "../utils/dashboardRedirect";
 /**
  * RoleProtectedRoute — guards routes based on user role/type.
  *
- * Now trusts the global AuthInitializer in App.jsx for the initial session check.
- * By the time any protected route renders, isInitialized is already true (the
- * loading spinner in AuthInitializer has completed).
- *
- * Behavior:
- *  - isInitialized = false → show loading (shouldn't happen since AuthInitializer runs first)
- *  - user = null → redirect to /login
- *  - user has no valid role → redirect to /select-role
- *  - user accessing wrong role's route → redirect to their own dashboard
- *  - everything OK → render the protected page (Outlet or children)
+ * Trusts the global AuthInitializer in App.jsx for the initial session check.
  *
  * @param {Array<string>} allowedRoles - e.g. ["student"], ["employer"]
  */
@@ -37,8 +28,18 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 1b. Profile information not collected yet (phone empty) → redirect to onboarding
-  if (!user.phone?.trim()) {
+  // 1b. Password not set yet (first-time Google users) → redirect to set-password
+  if (user.hasPassword === false) {
+    return <Navigate to="/set-password" replace />;
+  }
+
+  const isAdminRole =
+    user.role === "admin" ||
+    user.role === "SUPER_ADMIN" ||
+    user.role === "COMPANY_ADMIN";
+
+  // 1c. Profile information not collected yet (phone empty) → redirect to onboarding (skip for admins)
+  if (!isAdminRole && !user.phone?.trim()) {
     if (user.role === "employer") {
       return <Navigate to="/onboarding/employer" replace />;
     }
@@ -46,18 +47,30 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
   }
 
   // 2. Determine effective role
-  const effectiveRole =
-    user.role === "employer"
-      ? "employer"
-      : user.userType || (user.role && user.role !== "user" ? user.role : "student");
+  const effectiveRole = isAdminRole
+    ? user.role
+    : user.role === "employer"
+    ? "employer"
+    : user.userType || (user.role && user.role !== "user" ? user.role : "student");
 
-  const validRoles = ["student", "fresher", "professional", "employer"];
+  const validRoles = [
+    "student",
+    "fresher",
+    "professional",
+    "employer",
+    "admin",
+    "SUPER_ADMIN",
+    "COMPANY_ADMIN",
+  ];
   if (!effectiveRole || !validRoles.includes(effectiveRole)) {
     return <Navigate to="/onboarding/profile" replace />;
   }
 
   // 3. Wrong role's route → redirect to their own dashboard
   if (allowedRoles.length > 0 && !allowedRoles.includes(effectiveRole)) {
+    if (isAdminRole) {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
     const ownDashboard = getDashboardPath(effectiveRole, user);
     return <Navigate to={ownDashboard} replace />;
   }

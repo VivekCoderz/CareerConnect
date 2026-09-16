@@ -93,8 +93,13 @@ export const rescheduleInterview = async (id, data) => {
   return res.data;
 };
 
-export const cancelInterview = async (id, data) => {
+export const cancelInterview = async (id, data = {}) => {
   const res = await api.put(`/interviews/${id}/cancel`, data);
+  return res.data;
+};
+
+export const deleteInterview = async (id) => {
+  const res = await api.delete(`/interviews/${id}`);
   return res.data;
 };
 
@@ -105,6 +110,22 @@ export const completeInterview = async (id) => {
 
 export const updateInterviewResult = async (id, data) => {
   const res = await api.put(`/interviews/${id}/result`, data);
+  return res.data;
+};
+
+// Notifications
+export const getNotifications = async (params = {}) => {
+  const res = await api.get("/notifications", { params });
+  return res.data;
+};
+
+export const markNotificationRead = async (id) => {
+  const res = await api.patch(`/notifications/${id}/read`);
+  return res.data;
+};
+
+export const markAllNotificationsRead = async () => {
+  const res = await api.patch("/notifications/read-all");
   return res.data;
 };
 
@@ -190,9 +211,13 @@ export default {
   submitScorecard,
   rescheduleInterview,
   cancelInterview,
+  deleteInterview,
   completeInterview,
   updateInterviewResult,
   updateInterviewStatus,
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
   getOffers,
   getOfferStats,
   getOfferById,
