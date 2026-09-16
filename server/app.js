@@ -13,7 +13,6 @@ const employerRoutes = require("./routes/employerRoutes.js");
 const courseRoutes = require("./routes/courseRoutes.js");
 const courseContentRoutes = require("./routes/courseContentRoutes");
 
-
 // Employer & Jobs / Internships feature routes
 const jobRoutes = require("./routes/jobRoutes.js");
 const internshipRoutes = require("./routes/internshipRoutes.js");
@@ -28,8 +27,10 @@ const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
 
 const resumeRoutes = require("./routes/resumeRoutes.js");
 const opportunityRoutes = require("./routes/opportunityRoutes.js");
+const recommendationRoutes = require("./routes/recommendationRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
 const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
+const adminRoutes = require("./routes/adminRoutes.js");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -113,8 +114,12 @@ app.use("/api/resume", resumeRoutes);
 app.use("/api/api/resume", resumeRoutes); // Safety alias
 app.use("/api/opportunities", opportunityRoutes);
 app.use("/api/feed", opportunityRoutes);
+app.use("/api/recommendations", recommendationRoutes);
+app.use("/api/fresher/recommendations", recommendationRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiAssistantRoutes);
+app.use("/api/admin", adminRoutes);
+
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
 
 // Gateway Health Check Endpoint
