@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../components/jobs/JobDiscoveryMenu";
 import { getDashboardPath } from "../utils/dashboardRedirect";
@@ -30,6 +30,18 @@ const Home = () => {
   const [internships, setInternships] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileMenuOpen]);
 
   const sampleFeaturedOpportunities = [
     {
@@ -43,7 +55,7 @@ const Home = () => {
     {
       id: "sample-2",
       title: "MVP Test Job",
-      company: "Geeta University",
+      company: "CareerConnect",
       opportunityType: "Full-time",
       salary: "₹0.3 - 0.3 LPA",
       location: "On-Campus",
@@ -113,9 +125,9 @@ const Home = () => {
             <div className="flex items-center gap-3 sm:gap-4 shrink-0">
               <Link to="/" className="flex items-center gap-2">
                 <img
-                  src="/geeta-university-logo.png"
-                  alt="Geeta University CareerConnect"
-                  className="h-10 w-auto object-contain"
+                  src="/careerconnect-logo.png"
+                  alt="CareerConnect"
+                  className="h-11 w-auto object-contain"
                   onError={(e) => {
                     e.currentTarget.style.display = "none";
                     e.currentTarget.nextSibling.style.display = "flex";
@@ -123,12 +135,12 @@ const Home = () => {
                 />
                 {/* Fallback Branding */}
                 <div className="hidden items-center gap-2">
-                  <div className="w-9 h-9 rounded-xl bg-[#1e3a8a] text-white flex items-center justify-center font-black text-sm shadow-xs">
-                    GU
+                  <div className="w-9 h-9 rounded-xl bg-[#1e40af] text-white flex items-center justify-center font-black text-sm shadow-xs">
+                    CC
                   </div>
                   <div className="leading-tight">
-                    <p className="text-sm font-black text-[#1e3a8a] tracking-tight">GEETA</p>
-                    <p className="text-[10px] font-bold text-[#f59e0b] tracking-wider uppercase">UNIVERSITY</p>
+                    <p className="text-sm font-black text-[#1e40af] tracking-tight">CAREER</p>
+                    <p className="text-[10px] font-bold text-[#0284c7] tracking-wider uppercase">CONNECT</p>
                   </div>
                 </div>
               </Link>
@@ -209,10 +221,206 @@ const Home = () => {
                   </div>
                 </>
               )}
+
+              {/* Mobile 3-line Hamburger Menu Button */}
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((prev) => !prev)}
+                className="md:hidden p-2 -mr-1 rounded-xl text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition flex items-center justify-center min-w-[40px] min-h-[40px] cursor-pointer"
+                aria-label={mobileMenuOpen ? "Close menu" : "Open navigation menu"}
+                title="Navigation menu"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {mobileMenuOpen ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                  )}
+                </svg>
+              </button>
             </div>
           </div>
         </div>
       </header>
+
+      {/* ================= MOBILE SIDEBAR / DRAWER ================= */}
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 bg-slate-900/60 z-50 md:hidden backdrop-blur-xs transition-opacity animate-fade-in"
+        />
+      )}
+
+      <aside
+        className={`fixed top-0 left-0 bottom-0 z-50 w-72 bg-white border-r border-slate-200 flex flex-col justify-between transition-transform duration-300 ease-in-out md:hidden shadow-2xl overflow-y-auto ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {/* Drawer Header */}
+        <div>
+          <div className="h-16 px-4 flex items-center justify-between border-b border-slate-100">
+            <Link
+              to="/"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2"
+            >
+              <img
+                src="/careerconnect-logo.png"
+                alt="CareerConnect"
+                className="h-9 w-auto object-contain"
+              />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+              aria-label="Close menu"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Navigation Links */}
+          <div className="p-4 space-y-5">
+            {/* Opportunities Section */}
+            <div>
+              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Explore Opportunities
+              </p>
+              <div className="space-y-1">
+                <Link
+                  to="/jobs"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="text-base">💼</span>
+                    <span>Find Jobs</span>
+                  </span>
+                  <span className="text-slate-400 text-xs">→</span>
+                </Link>
+                <Link
+                  to="/jobs/work-from-home"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="text-base">🏠</span>
+                    <span>Work from Home Jobs</span>
+                  </span>
+                  <span className="text-slate-400 text-xs">→</span>
+                </Link>
+                <Link
+                  to="/internships"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="text-base">🎓</span>
+                    <span>Internships</span>
+                  </span>
+                  <span className="text-slate-400 text-xs">→</span>
+                </Link>
+                <Link
+                  to="/internships/work-from-home"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="text-base">🌐</span>
+                    <span>Remote Internships</span>
+                  </span>
+                  <span className="text-slate-400 text-xs">→</span>
+                </Link>
+                <Link
+                  to="/courses"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="text-base">🚀</span>
+                    <span>Courses & Upskilling</span>
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#ea580c] text-white uppercase">OFFER</span>
+                </Link>
+                <Link
+                  to="/opportunities"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <span className="text-base">⚡</span>
+                    <span>Opportunities Matrix</span>
+                  </span>
+                  <span className="text-slate-400 text-xs">→</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* For Employers */}
+            <div className="pt-2 border-t border-slate-100">
+              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Employers
+              </p>
+              <Link
+                to="/register/employer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100/80 border border-amber-200/60 transition"
+              >
+                <span className="flex items-center gap-2">
+                  <span>🏢</span>
+                  <span>Hire Talent / For Employers</span>
+                </span>
+                <span className="text-amber-700 font-bold">›</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Drawer Footer: Auth Actions */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 space-y-2">
+          {user ? (
+            <>
+              <Link
+                to={dashboardUrl}
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full h-10 rounded-xl bg-[#008bdc] hover:bg-[#0074b7] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs"
+              >
+                <span>Go to Dashboard</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="w-full h-10 rounded-xl border border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600 text-xs font-semibold transition flex items-center justify-center cursor-pointer"
+              >
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full h-10 rounded-xl border border-[#008bdc] text-[#008bdc] hover:bg-[#008bdc]/5 text-xs font-bold transition flex items-center justify-center"
+              >
+                Login
+              </Link>
+              <Link
+                to="/register/student"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full h-10 rounded-xl bg-[#008bdc] hover:bg-[#0074b7] text-white text-xs font-bold transition flex items-center justify-center shadow-xs"
+              >
+                Register as Candidate
+              </Link>
+            </>
+          )}
+        </div>
+      </aside>
 
       {/* ================= 2. MODERN HERO BANNER SECTION (LIGHT THEME) ================= */}
    <section className="relative overflow-hidden bg-gradient-to-b from-[#eff6ff] via-white to-white">
@@ -226,7 +434,7 @@ const Home = () => {
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#fff7ed] border border-[#fed7aa] text-[12px] font-semibold text-[#c2410c] mb-5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b]" />
-                Official Career Platform · Geeta University
+                Official Career Platform · CareerConnect
               </div>
 
               <h1 className="text-[2.35rem] sm:text-5xl lg:text-[3.25rem] font-bold tracking-tight text-slate-900 leading-[1.15]">
@@ -235,7 +443,7 @@ const Home = () => {
               </h1>
 
               <p className="mt-5 text-[16px] text-slate-600 leading-relaxed max-w-xl">
-                Explore verified internships, jobs and projects. Build your profile, apply in one click, and take the next step — built for Geeta University students & alumni.
+                Explore verified internships, jobs and projects. Build your profile, apply in one click, and take the next step — built for students, freshers & professionals.
               </p>
 
               {/* Search */}
@@ -349,7 +557,7 @@ const Home = () => {
               Hiring partners
             </h2>
             <p className="mt-1.5 text-slate-500 text-sm">
-              Companies hiring Geeta University talent
+              Companies hiring CareerConnect talent
             </p>
           </div>
         </div>
@@ -445,7 +653,7 @@ const Home = () => {
                   CAMPUS DRIVES
                 </span>
                 <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-200 transition leading-snug">
-                  Geeta University Recruitment
+                  Campus & Fresher Recruitment
                 </h3>
                 <p className="text-xs text-amber-100 mt-1">120+ Partner Companies On-Campus</p>
               </div>
@@ -820,17 +1028,17 @@ const Home = () => {
                 About CareerConnect
               </p>
               <ul className="space-y-1.5 text-slate-400">
-                <li><Link to="/home" className="hover:text-white">About Geeta University</Link></li>
-                <li><Link to="/opportunities?source=campus" className="hover:text-white">Placement Cell</Link></li>
+                <li><Link to="/home" className="hover:text-white">About CareerConnect</Link></li>
+                <li><Link to="/opportunities?source=campus" className="hover:text-white">Opportunities</Link></li>
                 <li><Link to="/courses" className="hover:text-white">Training & Certifications</Link></li>
-                <li><Link to="/register/employer" className="hover:text-white">Hire from Campus</Link></li>
+                <li><Link to="/register/employer" className="hover:text-white">Hire Talent</Link></li>
                 <li><Link to="/login" className="hover:text-white">Candidate Login</Link></li>
               </ul>
             </div>
           </div>
 
           <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
-            <p>© {new Date().getFullYear()} Geeta University · CareerConnect. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} CareerConnect. All rights reserved.</p>
             <div className="flex items-center gap-4">
               <Link to="/home" className="hover:text-slate-300">Privacy Policy</Link>
               <span>•</span>

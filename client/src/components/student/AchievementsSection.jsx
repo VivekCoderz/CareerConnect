@@ -130,7 +130,7 @@ const AchievementsSection = ({
               <label className="block text-xs font-semibold text-slate-700 mb-1">Organization / Event</label>
               <input
                 name="organization"
-                placeholder="e.g. Geeta University, Smart India Hackathon"
+                placeholder="e.g. CareerConnect, Smart India Hackathon"
                 value={form.organization}
                 onChange={handleChange}
                 className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-xs sm:text-sm outline-none"

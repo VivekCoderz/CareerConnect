@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   EmailAuthProvider,
   linkWithCredential,
+  signOut,
 } from "firebase/auth";
 import { auth } from "../../config/firebase";
 import api from "../../api/api";
@@ -11,8 +12,9 @@ import {
   validatePassword,
   PASSWORD_VALIDATION_ERROR,
 } from "../../utils/passwordGenerator";
-import { setUser } from "../../redux/features/authSlice";
+import { setUser, logout } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import { cancelGoogleSignup } from "../../services/authService";
 
 // Eye icon
 const EyeIcon = ({ hidden = false }) => (
@@ -68,6 +70,7 @@ const SetPassword = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
 
   // Redirect guards
@@ -195,6 +198,46 @@ const SetPassword = () => {
     }
   };
 
+  const handleCancelAndGoHome = async () => {
+    setCancelling(true);
+    try {
+      // 1. Backend cleanup of uncompleted MongoDB record (only if hasPassword is false)
+      try {
+        await cancelGoogleSignup();
+      } catch (err) {
+        console.warn("[Cancel Google Signup] Backend cleanup:", err.message);
+      }
+
+      // 2. Delete or sign out from Firebase
+      const firebaseUser = auth.currentUser;
+      if (firebaseUser) {
+        try {
+          await firebaseUser.delete();
+        } catch {
+          try {
+            await signOut(auth);
+          } catch {
+            // ignore
+          }
+        }
+      } else {
+        try {
+          await signOut(auth);
+        } catch {
+          // ignore
+        }
+      }
+    } finally {
+      // 3. Clear local state and localStorage
+      dispatch(logout());
+      localStorage.removeItem("careerconnect_token");
+      localStorage.removeItem("careerconnect_user");
+      setCancelling(false);
+      // 4. Navigate back to Home page
+      navigate("/", { replace: true });
+    }
+  };
+
   if (!user || (user.hasPassword && !isSubmittingRef.current)) {
     return null; // Redirect is happening
   }
@@ -207,11 +250,13 @@ const SetPassword = () => {
         <div className="absolute bottom-0 left-0 w-56 h-56 bg-white/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
 
         <div className="relative z-10">
-          <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center font-bold text-sm">
-            GU
-          </div>
-          <p className="text-[15px] font-bold tracking-tight mt-2">GEETA UNIVERSITY</p>
-          <p className="text-[11px] text-[#fbbf24] font-semibold">CareerConnect</p>
+          <Link to="/" className="inline-block">
+            <img
+              src="/careerconnect-logo.png"
+              alt="CareerConnect"
+              className="h-12 w-auto bg-white/95 rounded-2xl px-3 py-2 shadow-sm"
+            />
+          </Link>
         </div>
 
         <div className="relative z-10">
@@ -247,14 +292,30 @@ const SetPassword = () => {
       <div className="flex-1 flex items-center justify-center p-5 sm:p-8">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
-            <div className="w-9 h-9 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-xs">
-              GU
-            </div>
-            <div>
-              <p className="text-sm font-bold text-[#1e3a8a]">GEETA UNIVERSITY</p>
-              <p className="text-[10px] text-[#f59e0b] font-semibold">CareerConnect</p>
-            </div>
+          <div className="lg:hidden flex items-center justify-center mb-8">
+            <Link to="/">
+              <img
+                src="/careerconnect-logo.png"
+                alt="CareerConnect"
+                className="h-11 w-auto"
+              />
+            </Link>
+          </div>
+
+          {/* Back to Home / Cancel Header */}
+          <div className="mb-5 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleCancelAndGoHome}
+              disabled={loading || cancelling}
+              className="group inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-800 transition py-1.5 px-3 rounded-lg hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
+            >
+              <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              {cancelling ? "Cancelling..." : "Back to Home"}
+            </button>
+            <span className="text-xs text-slate-400 font-medium">Account Setup</span>
           </div>
 
           {/* Google account info */}
@@ -378,6 +439,18 @@ const SetPassword = () => {
               )}
             </button>
           </form>
+
+          {/* Cancel Option */}
+          <div className="text-center pt-3">
+            <button
+              type="button"
+              onClick={handleCancelAndGoHome}
+              disabled={loading || cancelling}
+              className="text-xs text-slate-500 hover:text-red-600 transition font-medium underline underline-offset-4 cursor-pointer disabled:opacity-50"
+            >
+              {cancelling ? "Cancelling..." : "Don't want to create an account? Cancel & Return to Home"}
+            </button>
+          </div>
 
           <p className="mt-6 text-center text-xs text-slate-400">
             Your password is stored securely by Firebase Authentication.

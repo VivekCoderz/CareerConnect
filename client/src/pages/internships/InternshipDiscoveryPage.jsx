@@ -189,11 +189,11 @@ const InternshipDiscoveryPage = () => {
         <div className="flex items-center gap-4">
           <Link to="/home" className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              GU
+              CC
             </div>
             <div>
               <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-                GEETA UNIVERSITY
+                CAREERCONNECT
               </h1>
               <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
                 CareerConnect · Internship Hub
@@ -253,7 +253,7 @@ const InternshipDiscoveryPage = () => {
               <span className="px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 text-[11px] font-bold">
                 🎯 {totalCount} Opportunities Found
               </span>
-              <span className="text-xs text-blue-200/80">· Verified Geeta University Partner Employers</span>
+              <span className="text-xs text-blue-200/80">· Verified CareerConnect Partner Employers</span>
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">

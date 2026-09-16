@@ -267,11 +267,11 @@ export default function OpportunitiesPage() {
         <div className="flex items-center gap-4">
           <Link to="/home" className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              GU
+              CC
             </div>
             <div>
               <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-                GEETA UNIVERSITY
+                CAREERCONNECT
               </h1>
               <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
                 CareerConnect · Matrix Gateway
@@ -336,7 +336,7 @@ export default function OpportunitiesPage() {
               Opportunities tailored for your Degree & Domain
             </h2>
             <p className="text-xs sm:text-sm text-blue-100/90 max-w-2xl leading-relaxed">
-              Real-time multi-source crawler scraping top job boards, remote platforms, and campus placement drives calibrated specifically to Geeta University curriculum & specializations.
+              Real-time multi-source crawler scraping top job boards, remote platforms, and campus placement drives calibrated specifically to CareerConnect curriculum & specializations.
             </p>
 
             {/* Quick stats pills */}
@@ -345,7 +345,7 @@ export default function OpportunitiesPage() {
                 🎯 {opportunities.length} Results Available
               </div>
               <div className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold text-white border border-white/10">
-                🏛️ Geeta University Placement Cell
+                🏛️ CareerConnect Placement Cell
               </div>
               <div className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold text-white border border-white/10">
                 ⚡ 30-min Auto-Refreshed Cache
@@ -537,7 +537,7 @@ export default function OpportunitiesPage() {
               Scraping and Aggregating Live Multi-Source Feed...
             </p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Querying LinkedIn, Internshala, Remotive, Arbeitnow APIs and Geeta University placement drives for "{program} · {specialization}".
+              Querying LinkedIn, Internshala, Remotive, Arbeitnow APIs and CareerConnect placement drives for "{program} · {specialization}".
             </p>
           </div>
         ) : opportunities.length > 0 ? (
@@ -611,7 +611,7 @@ export default function OpportunitiesPage() {
                       {isCampusDrive && (
                         <div className="text-[11px] font-medium text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200/80 flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                          <span>Exclusive on-campus recruitment drive for enrolled Geeta University students.</span>
+                          <span>Exclusive on-campus recruitment drive for enrolled CareerConnect students.</span>
                         </div>
                       )}
                     </div>

@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { signOut } from "firebase/auth";
+import { auth } from "../../config/firebase";
 import api from "../../api/api";
-import { updateUserProfile } from "../../redux/features/authSlice";
+import { updateUserProfile, logout } from "../../redux/features/authSlice";
 import PhoneInput from "../../components/common/PhoneInput";
 
 const inputCls = (err) =>
@@ -25,8 +27,26 @@ const GoogleEmployerOnboarding = () => {
   const { user } = useSelector((state) => state.auth);
 
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
+
+  const handleCancelAndGoHome = async () => {
+    setCancelling(true);
+    try {
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.warn("Sign out warning:", err.message);
+      }
+    } finally {
+      dispatch(logout());
+      localStorage.removeItem("careerconnect_token");
+      localStorage.removeItem("careerconnect_user");
+      setCancelling(false);
+      navigate("/", { replace: true });
+    }
+  };
 
   const [formData, setFormData] = useState({
     countryCode: "+91",
@@ -155,11 +175,13 @@ const GoogleEmployerOnboarding = () => {
         <div className="absolute bottom-0 left-0 w-56 h-56 bg-black/10 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
 
         <div className="relative z-10">
-          <div className="w-11 h-11 rounded-xl bg-white/20 border border-white/30 flex items-center justify-center font-bold text-sm">
-            GU
-          </div>
-          <p className="text-[15px] font-bold tracking-tight mt-2">GEETA UNIVERSITY</p>
-          <p className="text-[11px] text-amber-200 font-semibold">CareerConnect — Employer</p>
+          <Link to="/" className="inline-block">
+            <img
+              src="/careerconnect-logo.png"
+              alt="CareerConnect"
+              className="h-12 w-auto bg-white/95 rounded-2xl px-3 py-2 shadow-sm"
+            />
+          </Link>
         </div>
 
         <div className="relative z-10">
@@ -192,14 +214,30 @@ const GoogleEmployerOnboarding = () => {
       <div className="flex-1 flex items-center justify-center p-5 sm:p-8 overflow-y-auto">
         <div className="w-full max-w-md py-8">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-6">
-            <div className="w-9 h-9 rounded-lg bg-[#f59e0b] text-white flex items-center justify-center font-bold text-xs">
-              GU
-            </div>
-            <div>
-              <p className="text-sm font-bold text-[#f59e0b]">GEETA UNIVERSITY</p>
-              <p className="text-[10px] text-slate-500 font-semibold">CareerConnect — Employer</p>
-            </div>
+          <div className="lg:hidden flex items-center justify-center mb-6">
+            <Link to="/">
+              <img
+                src="/careerconnect-logo.png"
+                alt="CareerConnect"
+                className="h-11 w-auto"
+              />
+            </Link>
+          </div>
+
+          {/* Back to Home / Cancel Header */}
+          <div className="mb-6 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleCancelAndGoHome}
+              disabled={loading || cancelling}
+              className="group inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-800 transition py-1.5 px-3 rounded-lg hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
+            >
+              <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              {cancelling ? "Cancelling..." : "Back to Home"}
+            </button>
+            <span className="text-xs text-slate-400 font-medium">Employer Setup</span>
           </div>
 
           {/* Google account info */}
@@ -390,6 +428,18 @@ const GoogleEmployerOnboarding = () => {
                 "Complete Setup & Go to Dashboard →"
               )}
             </button>
+
+            {/* Cancel Option */}
+            <div className="text-center pt-3">
+              <button
+                type="button"
+                onClick={handleCancelAndGoHome}
+                disabled={loading || cancelling}
+                className="text-xs text-slate-400 hover:text-red-500 transition underline underline-offset-4 cursor-pointer disabled:opacity-50"
+              >
+                {cancelling ? "Cancelling..." : "Don't want to create an account? Cancel & Return to Home"}
+              </button>
+            </div>
           </div>
 
           <p className="mt-4 text-center text-xs text-slate-400">

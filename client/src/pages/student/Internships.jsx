@@ -29,7 +29,7 @@ export default function Internships({
       if (workMode) params.workMode = workMode;
       const res = await getInternships(params);
       const items = res?.internships || res?.data || [];
-      setList(items);
+      setList(items.slice(0, 10));
       const total = res?.pagination?.total ?? items.length;
       setTotalCount(total);
       setTotalPages(res?.pagination?.totalPages || Math.ceil(total / 10) || 1);
@@ -67,7 +67,7 @@ export default function Internships({
         <div>
           {!embedded && (
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              Geeta University · CareerConnect
+              CareerConnect · CareerConnect
             </p>
           )}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -158,7 +158,7 @@ export default function Internships({
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3">
-          {list.map((item) => (
+          {list.slice(0, 10).map((item) => (
             <article
               key={item._id}
               className="group p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-[#1e3a8a]/30 hover:shadow-md transition-all"
@@ -312,11 +312,11 @@ export default function Internships({
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/home" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
-              GU
+              CC
             </div>
             <div className="leading-tight">
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                Geeta University
+                CareerConnect
               </p>
               <p className="text-sm font-bold text-slate-900">CareerConnect</p>
             </div>

@@ -44,7 +44,7 @@ const AssignTrainingModal = ({ isOpen, onClose, onAssign, courses = [], employee
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div>
             <h3 className="text-base font-bold text-slate-900">Assign LMS Training Course</h3>
-            <p className="text-xs text-slate-500">Upskill team with Geeta University curriculum</p>
+            <p className="text-xs text-slate-500">Upskill team with CareerConnect curriculum</p>
           </div>
           <button
             type="button"

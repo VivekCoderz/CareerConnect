@@ -19,25 +19,24 @@ const EmployerNavbar = ({ onOpenMobileSidebar, profile = {} }) => {
         <button
           type="button"
           onClick={onOpenMobileSidebar}
-          className="lg:hidden p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition"
+          className="lg:hidden p-2.5 -ml-1.5 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-amber-700 active:bg-slate-200 transition flex items-center justify-center min-w-[40px] min-h-[40px] cursor-pointer"
+          aria-label="Open navigation menu"
+          title="Open sidebar menu"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
 
-        <Link to="/employer/dashboard" className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#92400e] to-[#b45309] text-white flex items-center justify-center font-bold text-xs shadow-sm">
-            GU
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-              GEETA UNIVERSITY
-            </h1>
-            <p className="text-[10px] text-[#b45309] font-bold tracking-wide uppercase mt-0.5">
-              CareerConnect · Employer Hub
-            </p>
-          </div>
+        <Link to="/employer/dashboard" className="flex items-center gap-2">
+          <img
+            src="/careerconnect-logo.png"
+            alt="CareerConnect"
+            className="h-9 w-auto object-contain"
+          />
+          <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase bg-amber-100 text-amber-800 rounded-md">
+            Employer Hub
+          </span>
         </Link>
       </div>
 

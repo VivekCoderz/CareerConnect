@@ -20,7 +20,7 @@ const OfferModal = ({
     department: "Engineering",
     employmentType: "Full-time",
     workLocationType: "Hybrid",
-    location: "Gurugram / Geeta University Campus",
+    location: "Gurugram / CareerConnect Campus",
     reportingManager: "Lead Technical Architect / VP Engineering",
     probationPeriod: "3 Months",
     noticePeriod: "30 Days",
@@ -37,7 +37,7 @@ const OfferModal = ({
     additionalTerms: "The candidate must submit verified graduation marksheets and identity proofs upon acceptance. Standard NDA and intellectual property assignment clauses apply.",
     signatoryName: "Dr. Rajesh Verma",
     signatoryTitle: "Head of Talent Acquisition & Campus Partnerships",
-    signatoryOrganization: "Geeta University Placement & Career Center",
+    signatoryOrganization: "CareerConnect Placement & Career Center",
   });
 
   const [saving, setSaving] = useState(false);
@@ -75,7 +75,7 @@ const OfferModal = ({
         additionalTerms: offerToEdit.additionalTerms || "",
         signatoryName: offerToEdit.signatoryName || "Dr. Rajesh Verma",
         signatoryTitle: offerToEdit.signatoryTitle || "Head of Talent Acquisition & Campus Partnerships",
-        signatoryOrganization: offerToEdit.signatoryOrganization || "Geeta University Placement & Career Center",
+        signatoryOrganization: offerToEdit.signatoryOrganization || "CareerConnect Placement & Career Center",
       });
     } else if (application) {
       const candidateId =

@@ -19,6 +19,10 @@ import api from "../../api/api";
 import CourseCard from "../../components/courses/CourseCard";
 import StudentMyCoursesPage from "./StudentMyCoursesPage";
 import CourseDetailsPage from "./CourseDetailsPage";
+import { loadRazorpayScript } from "../../utils/razorpay";
+import { createCourseOrder, verifyCoursePayment } from "../../services/paymentService";
+import PaymentReceiptModal from "../../components/courses/PaymentReceiptModal";
+import { CreditCard } from "lucide-react";
 
 /**
  * StudentCoursesPage
@@ -48,11 +52,18 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDomain, setSelectedDomain] = useState("All");
   const [selectedLevel, setSelectedLevel] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Application Modal state
   const [selectedCourseForApply, setSelectedCourseForApply] = useState(null);
   const [applicationMotivation, setApplicationMotivation] = useState("");
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
+
+  // Razorpay Checkout / Receipt state
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
 
   // Toast state
   const [toastMessage, setToastMessage] = useState(null);
@@ -114,6 +125,139 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   useEffect(() => {
     fetchAllLmsData();
   }, []);
+
+  // Handle direct buy or free enrollment from course cards
+  const handleEnrollOrBuyCourse = async (course) => {
+    const currentStatus = applicationStatusMap[course._id];
+    if (currentStatus === "Enrolled" || currentStatus === "In Progress" || currentStatus === "Completed") {
+      showToast("You are already enrolled in this course.", "info");
+      setActiveTab("my-courses");
+      return;
+    }
+
+    try {
+      setIsProcessingCheckout(true);
+
+      // 1. Free Course -> Direct Enrollment
+      if (!course.price || course.price <= 0) {
+        const orderRes = await createCourseOrder(course._id);
+        if (orderRes.success) {
+          showToast("Enrolled in free course successfully!", "success");
+          setApplicationStatusMap((prev) => ({
+            ...prev,
+            [course._id]: "Enrolled",
+          }));
+          setMyApplications((prev) => [
+            {
+              applicationId: `enr-${Date.now()}`,
+              course,
+              status: "Enrolled",
+              progress: 0,
+            },
+            ...prev.filter((i) => i.course?._id !== course._id),
+          ]);
+          setReceiptData({
+            isFree: true,
+            amount: 0,
+            courseTitle: course.title,
+            courseId: course._id,
+            paidAt: new Date(),
+          });
+          setShowReceiptModal(true);
+        }
+        return;
+      }
+
+      // 2. Paid Course -> Razorpay Checkout
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        showToast("Unable to load Razorpay payment gateway.", "error");
+        return;
+      }
+
+      const orderRes = await createCourseOrder(course._id);
+      if (!orderRes.success) {
+        showToast(orderRes.message || "Failed to initiate payment.", "error");
+        return;
+      }
+
+      const options = {
+        key: orderRes.keyId || "rzp_test_TbSS4kb8G70xwq",
+        amount: orderRes.amount,
+        currency: orderRes.currency || "INR",
+        name: "CareerConnect",
+        description: `Enrollment: ${course.title}`,
+        image: "/favicon.svg",
+        order_id: orderRes.orderId,
+        handler: async function (response) {
+          try {
+            const verifyRes = await verifyCoursePayment({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+              courseId: course._id,
+            });
+
+            if (verifyRes.success) {
+              showToast("Payment verified! Course unlocked.", "success");
+              setApplicationStatusMap((prev) => ({
+                ...prev,
+                [course._id]: "Enrolled",
+              }));
+              setMyApplications((prev) => [
+                {
+                  applicationId: verifyRes.payment?.id || `enr-${Date.now()}`,
+                  course,
+                  status: "Enrolled",
+                  progress: 0,
+                },
+                ...prev.filter((i) => i.course?._id !== course._id),
+              ]);
+              setReceiptData({
+                paymentId: response.razorpay_payment_id,
+                orderId: response.razorpay_order_id,
+                amount: course.price,
+                courseTitle: course.title,
+                courseId: course._id,
+                paidAt: new Date(),
+              });
+              setShowReceiptModal(true);
+            }
+          } catch (err) {
+            console.error("Payment verification failed:", err);
+            showToast(err.response?.data?.message || "Payment verification failed.", "error");
+          } finally {
+            setIsProcessingCheckout(false);
+          }
+        },
+        prefill: {
+          name: orderRes.prefill?.name || user?.fullName || "",
+          email: orderRes.prefill?.email || user?.email || "",
+          contact: orderRes.prefill?.contact || user?.phone || "",
+        },
+        theme: {
+          color: "#1e3a8a",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessingCheckout(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (response) {
+        showToast(`Payment failed: ${response.error.description || "Declined"}`, "error");
+        setIsProcessingCheckout(false);
+      });
+      rzp.open();
+    } catch (err) {
+      console.error("Payment error:", err);
+      showToast(err.response?.data?.message || "Failed to start payment.", "error");
+    } finally {
+      setIsProcessingCheckout(false);
+    }
+  };
 
   // Open Application Form Modal
   const handleOpenApplyModal = (course) => {
@@ -210,6 +354,22 @@ const StudentCoursesPage = ({ onViewDetails }) => {
 
     return matchesSearch && matchesDomain && matchesLevel;
   });
+
+  // Reset page to 1 when filters or tabs change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedDomain, selectedLevel, activeTab]);
+
+  const totalPages = Math.ceil(filteredCourses.length / PAGE_SIZE) || 1;
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const paginatedCourses = filteredCourses.slice(startIndex, startIndex + PAGE_SIZE);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+      window.scrollTo({ top: 300, behavior: "smooth" });
+    }
+  };
 
   const domainList = [
     "All",
@@ -385,7 +545,9 @@ const StudentCoursesPage = ({ onViewDetails }) => {
             </h3>
 
             <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-              {filteredCourses.length} Courses Available
+              {filteredCourses.length > 0
+                ? `Showing ${startIndex + 1}–${Math.min(startIndex + PAGE_SIZE, filteredCourses.length)} of ${filteredCourses.length} Courses`
+                : "0 Courses Available"}
             </span>
           </div>
 
@@ -415,23 +577,85 @@ const StudentCoursesPage = ({ onViewDetails }) => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredCourses.map((course) => (
-                <CourseCard
-                  key={course._id}
-                  course={course}
-                  matchedSkills={course.matchedSkills || []}
-                  applicationStatus={getCourseStatus(course._id)}
-                  onViewDetails={(id) => {
-                    setSelectedCourseId(id);
-                    setActiveTab("details");
-                  }}
-                  onApply={(c) => handleOpenApplyModal(c)}
-                  onContinueLearning={() => {
-                    setActiveTab("my-courses");
-                  }}
-                />
-              ))}
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginatedCourses.map((course) => (
+                  <CourseCard
+                    key={course._id}
+                    course={course}
+                    matchedSkills={course.matchedSkills || []}
+                    applicationStatus={getCourseStatus(course._id)}
+                    onViewDetails={(id) => {
+                      setSelectedCourseId(id);
+                      setActiveTab("details");
+                    }}
+                    onApply={(c) => handleEnrollOrBuyCourse(c)}
+                    isApplying={isProcessingCheckout}
+                    onContinueLearning={() => {
+                      setActiveTab("my-courses");
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Pagination Bar */}
+              {totalPages > 1 && (
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+                  <p className="text-xs font-semibold text-slate-500">
+                    Page <span className="text-slate-900 font-bold">{currentPage}</span> of{" "}
+                    <span className="text-slate-900 font-bold">{totalPages}</span>
+                  </p>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage <= 1}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                    >
+                      ← Previous
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .reduce((acc, p, idx, arr) => {
+                          if (idx > 0 && p - arr[idx - 1] > 1) {
+                            acc.push("...");
+                          }
+                          acc.push(p);
+                          return acc;
+                        }, [])
+                        .map((p, idx) =>
+                          p === "..." ? (
+                            <span key={`dots-${idx}`} className="px-2 text-slate-400 text-xs font-bold select-none">
+                              ...
+                            </span>
+                          ) : (
+                            <button
+                              key={p}
+                              onClick={() => handlePageChange(p)}
+                              className={`min-w-[36px] h-9 px-2.5 rounded-xl text-xs font-bold transition ${
+                                currentPage === p
+                                  ? "bg-[#1e3a8a] text-white shadow-xs"
+                                  : "text-slate-600 hover:bg-slate-100"
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          )
+                        )}
+                    </div>
+
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage >= totalPages}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -479,7 +703,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                   <label className="font-bold text-slate-700 block mb-1">Email Address</label>
                   <input
                     type="email"
-                    value={user?.email || "student@geetauniversity.edu.in"}
+                    value={user?.email || "student@careerconnect.com"}
                     disabled
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 font-semibold cursor-not-allowed"
                   />
@@ -540,6 +764,17 @@ const StudentCoursesPage = ({ onViewDetails }) => {
           <span>{toastMessage.message}</span>
         </div>
       )}
+
+      {/* Razorpay Payment Receipt / Confirmation Modal */}
+      <PaymentReceiptModal
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        receiptData={receiptData}
+        onStartLearning={() => {
+          setShowReceiptModal(false);
+          setActiveTab("my-courses");
+        }}
+      />
     </div>
   );
 };

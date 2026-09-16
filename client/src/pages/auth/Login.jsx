@@ -13,6 +13,7 @@ import {
 } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
+import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,8 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaError, setCaptchaError] = useState("");
 
   // Show expired banner from URL param or Redux state
   const showExpiredBanner = isExpired || sessionExpired;
@@ -93,10 +96,15 @@ const Login = () => {
   // ─── Database Email / Username + Password Submit ────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!captchaToken) {
+      setCaptchaError("Please verify that you are not a robot.");
+      return;
+    }
+    setCaptchaError("");
     dispatch(loginStart());
 
     try {
-      const captchaToken = await getCaptchaToken("login");
+      const finalCaptchaToken = captchaToken || (await getCaptchaToken("login"));
 
       // Check details directly from MongoDB database (not from Firebase)
       const response = await api.post("/auth/login", {
@@ -104,7 +112,7 @@ const Login = () => {
         password: formData.password,
         role: loginType,
         keepSignedIn,
-        captchaToken,
+        captchaToken: finalCaptchaToken,
       });
 
       const { user, token } = response.data;
@@ -128,9 +136,7 @@ const Login = () => {
     dispatch(clearMessages());
 
     try {
-      const captchaToken = await getCaptchaToken("google_login");
-
-      // Step 1: Firebase Google popup
+      // Step 1: Firebase Google popup triggered immediately on click
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken(true);
 
@@ -138,7 +144,6 @@ const Login = () => {
       const response = await api.post("/auth/google-auth", {
         idToken,
         keepSignedIn,
-        captchaToken,
         role: loginType === "employer" ? "employer" : "user",
       });
 
@@ -162,6 +167,12 @@ const Login = () => {
     } catch (err) {
       if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
         // User dismissed popup — no error needed
+      } else if (err.code === "auth/popup-blocked") {
+        dispatch(
+          loginFailure(
+            "Sign-in popup was blocked by your browser. Please allow popups for this site and try again."
+          )
+        );
       } else if (err.code === "auth/account-exists-with-different-credential") {
         dispatch(
           loginFailure(
@@ -172,6 +183,7 @@ const Login = () => {
         dispatch(
           loginFailure(
             err.response?.data?.message ||
+              err.message ||
               "Google sign-in failed. Please try again."
           )
         );
@@ -189,14 +201,12 @@ const Login = () => {
         <div className="absolute bottom-0 left-0 w-56 h-56 bg-white/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
 
         <div className="relative z-10">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center font-bold text-sm">
-              GU
-            </div>
-            <div>
-              <p className="text-[15px] font-bold tracking-tight">GEETA UNIVERSITY</p>
-              <p className="text-[11px] text-[#fbbf24] font-semibold">CareerConnect</p>
-            </div>
+          <Link to="/" className="inline-block">
+            <img
+              src="/careerconnect-logo.png"
+              alt="CareerConnect"
+              className="h-12 w-auto bg-white/95 rounded-2xl px-3 py-2 shadow-sm"
+            />
           </Link>
         </div>
 
@@ -230,14 +240,14 @@ const Login = () => {
       <div className="flex-1 flex items-center justify-center p-5 sm:p-8">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
-            <div className="w-9 h-9 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-xs">
-              GU
-            </div>
-            <div>
-              <p className="text-sm font-bold text-[#1e3a8a]">GEETA UNIVERSITY</p>
-              <p className="text-[10px] text-[#f59e0b] font-semibold">CareerConnect</p>
-            </div>
+          <div className="lg:hidden flex items-center justify-center mb-8">
+            <Link to="/">
+              <img
+                src="/careerconnect-logo.png"
+                alt="CareerConnect"
+                className="h-11 w-auto"
+              />
+            </Link>
           </div>
 
           {/* Session expired banner */}
@@ -361,6 +371,18 @@ const Login = () => {
                 </span>
               </span>
             </label>
+
+            {/* ReCAPTCHA "I'm not a robot" */}
+            <div className="py-2 flex justify-center">
+              <ReCaptchaCheckbox
+                onChange={(token) => {
+                  setCaptchaToken(token);
+                  setCaptchaError("");
+                }}
+                onExpired={() => setCaptchaToken("")}
+                error={captchaError}
+              />
+            </div>
 
             {/* Sign In button */}
             <button

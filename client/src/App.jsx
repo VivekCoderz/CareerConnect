@@ -1,65 +1,92 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
-// Courses
-import EmployeeCoursesPage from "./pages/courses/EmployeeCoursesPage";
-import CreateCoursePage from "./pages/courses/CreateCoursePage";
-import EditCoursePage from "./pages/courses/EditCoursePage";
-import CourseContentPage from "./pages/courses/CourseContentPage";
-import StudentCoursesPage from "./pages/courses/StudentCoursesPage";
-import StudentMyCoursesPage from "./pages/courses/StudentMyCoursesPage";
-import CourseDetailsPage from "./pages/courses/CourseDetailsPage";
-
-// Auth
-import Login from "./pages/auth/Login";
-import Signup from "./pages/auth/Signup";
-import EmployerRegister from "./pages/auth/EmployerRegister";
-import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
-import SetPassword from "./pages/auth/SetPassword.jsx";
-import GoogleOnboarding from "./pages/auth/GoogleOnboarding.jsx";
-import GoogleEmployerOnboarding from "./pages/auth/GoogleEmployerOnboarding.jsx";
-
-// Guards
+// Guards & Common Modals
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
 
-// General & Discovery
-import SelectRole from "./pages/SelectRole";
-import Home from "./pages/Home.jsx";
-import InternshipDiscoveryPage from "./pages/internships/InternshipDiscoveryPage";
-import JobDiscoveryPage from "./pages/jobs/JobDiscoveryPage";
-import OpportunitiesPage from "./pages/OpportunitiesPage";
-
-// Student
-import StudentDashboard from "./pages/student/StudentDashboard";
-import StudentProfile from "./pages/student/StudentProfile";
-import Internships from "./pages/student/Internships";
-import InternshipDetail from "./pages/student/InternshipDetail";
-import MyApplications from "./pages/student/MyApplications";
-
-// Fresher
-import FresherDashboard from "./pages/fresher/FresherDashboard";
-import FresherProfile from "./pages/fresher/FresherProfile";
-import CareerRecommendationsPage from "./pages/fresher/CareerRecommendationsPage";
-
-// Professional
-import ProfessionalDashboard from "./pages/professional/ProfessionalDashboard";
-import ProfessionalProfile from "./pages/professional/ProfessionalProfile";
-
-// Employer
-import EmployerProfile from "./pages/employer/EmployerProfile";
-import EmployerDashboard from "./pages/employer/EmployerDashboard";
-import CompanyPublicProfile from "./pages/employer/CompanyPublicProfile";
-import PostInternship from "./pages/employer/PostInternship";
-import MyInternships from "./pages/employer/MyInternships";
-import EditInternship from "./pages/employer/EditInternship";
-
-// Resume Builder
-import ResumeBuilder from "./pages/resume/ResumeBuilder";
+// Admin & 404
+import NotFound from "./pages/NotFound";
+import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const AdminCompanies = lazy(() => import("./pages/admin/AdminCompanies"));
+const AdminCompanyAdmins = lazy(() => import("./pages/admin/AdminCompanyAdmins"));
+const AdminCompanyProfile = lazy(() => import("./pages/admin/AdminCompanyProfile"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminOpportunities = lazy(() => import("./pages/admin/AdminOpportunities"));
+const AdminApplications = lazy(() => import("./pages/admin/AdminApplications"));
+const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 
 // Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
 import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
+
+// Lazy-loaded Pages: Public & Discovery
+const Home = lazy(() => import("./pages/Home.jsx"));
+const SelectRole = lazy(() => import("./pages/SelectRole"));
+const JobDiscoveryPage = lazy(() => import("./pages/jobs/JobDiscoveryPage"));
+const InternshipDiscoveryPage = lazy(() => import("./pages/internships/InternshipDiscoveryPage"));
+const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage"));
+
+// Lazy-loaded Pages: Auth
+const Login = lazy(() => import("./pages/auth/Login"));
+const Signup = lazy(() => import("./pages/auth/Signup"));
+const EmployerRegister = lazy(() => import("./pages/auth/EmployerRegister"));
+const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword.jsx"));
+const SetPassword = lazy(() => import("./pages/auth/SetPassword.jsx"));
+const GoogleOnboarding = lazy(() => import("./pages/auth/GoogleOnboarding.jsx"));
+const GoogleEmployerOnboarding = lazy(() => import("./pages/auth/GoogleEmployerOnboarding.jsx"));
+
+// Lazy-loaded Pages: Student
+const StudentDashboard = lazy(() => import("./pages/student/StudentDashboard"));
+const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
+const Internships = lazy(() => import("./pages/student/Internships"));
+const InternshipDetail = lazy(() => import("./pages/student/InternshipDetail"));
+const MyApplications = lazy(() => import("./pages/student/MyApplications"));
+
+// Lazy-loaded Pages: Courses
+const StudentCoursesPage = lazy(() => import("./pages/courses/StudentCoursesPage"));
+const StudentMyCoursesPage = lazy(() => import("./pages/courses/StudentMyCoursesPage"));
+const CourseDetailsPage = lazy(() => import("./pages/courses/CourseDetailsPage"));
+const EmployeeCoursesPage = lazy(() => import("./pages/courses/EmployeeCoursesPage"));
+const CreateCoursePage = lazy(() => import("./pages/courses/CreateCoursePage"));
+const EditCoursePage = lazy(() => import("./pages/courses/EditCoursePage"));
+const CourseContentPage = lazy(() => import("./pages/courses/CourseContentPage"));
+
+// Lazy-loaded Pages: Fresher
+const FresherDashboard = lazy(() => import("./pages/fresher/FresherDashboard"));
+const FresherProfile = lazy(() => import("./pages/fresher/FresherProfile"));
+const CareerRecommendationsPage = lazy(() => import("./pages/fresher/CareerRecommendationsPage"));
+
+// Lazy-loaded Pages: Professional
+const ProfessionalDashboard = lazy(() => import("./pages/professional/ProfessionalDashboard"));
+const ProfessionalProfile = lazy(() => import("./pages/professional/ProfessionalProfile"));
+
+// Lazy-loaded Pages: Employer
+const EmployerProfile = lazy(() => import("./pages/employer/EmployerProfile"));
+const EmployerDashboard = lazy(() => import("./pages/employer/EmployerDashboard"));
+const CompanyPublicProfile = lazy(() => import("./pages/employer/CompanyPublicProfile"));
+const PostInternship = lazy(() => import("./pages/employer/PostInternship"));
+const MyInternships = lazy(() => import("./pages/employer/MyInternships"));
+const EditInternship = lazy(() => import("./pages/employer/EditInternship"));
+
+// Lazy-loaded Pages: Resume Builder
+const ResumeBuilder = lazy(() => import("./pages/resume/ResumeBuilder"));
+
+// Lightweight Page Fallback Loader
+const PageFallback = () => (
+  <div className="min-h-[50vh] flex flex-col items-center justify-center p-8">
+    <div className="relative flex items-center justify-center">
+      <div className="w-10 h-10 rounded-full border-3 border-slate-200 border-t-[#1e3a8a] animate-spin" />
+      <span className="absolute text-[9px] font-black text-[#1e3a8a]">CC</span>
+    </div>
+    <p className="mt-3 text-xs font-semibold text-slate-400 animate-pulse">
+      Loading...
+    </p>
+  </div>
+);
 
 // Redux
 import { getCurrentUser } from "./services/authService";
@@ -71,6 +98,9 @@ const RootRoute = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
   if (user) {
+    if (user.role === "SUPER_ADMIN" || user.role === "COMPANY_ADMIN" || user.role === "admin") {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
     if (user.hasPassword === false) {
       return <Navigate to="/set-password" replace />;
     }
@@ -86,6 +116,9 @@ const PublicOnlyRoute = ({ children }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
   if (user) {
+    if (user.role === "SUPER_ADMIN" || user.role === "COMPANY_ADMIN" || user.role === "admin") {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
     if (user.hasPassword === false) {
       return <Navigate to="/set-password" replace />;
     }
@@ -158,7 +191,8 @@ function App() {
       <RateLimitWarningModal />
       <FloatingAiAssistant />
       <AuthInitializer>
-        <Routes>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
           {/* =================================================
               PUBLIC ROUTES
           ================================================= */}
@@ -324,15 +358,53 @@ function App() {
           </Route>
 
           {/* =================================================
+              ADMIN AUTHENTICATION & DASHBOARD
+          ================================================= */}
+          {/* Public Admin Login only */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+
+          {/* 404 Security: /admin and public-facing fake routes return generic 404 */}
+          <Route path="/admin" element={<NotFound />} />
+          <Route path="/admin/register" element={<NotFound />} />
+          <Route path="/admin/signup" element={<NotFound />} />
+          <Route path="/admin/create" element={<NotFound />} />
+
+          {/* Strictly Protected Admin Routes */}
+          <Route element={<AdminProtectedRoute />}>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+            {/* SUPER_ADMIN ONLY: Platform Multi-Tenant Provisioning & Management */}
+            <Route element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}>
+              <Route path="/admin/companies" element={<AdminCompanies />} />
+              <Route path="/admin/company-admins" element={<AdminCompanyAdmins />} />
+            </Route>
+
+            {/* COMPANY_ADMIN ONLY: Own Assigned Organization Profile & Settings */}
+            <Route element={<AdminProtectedRoute allowedRoles={["COMPANY_ADMIN"]} />}>
+              <Route path="/admin/company" element={<AdminCompanyProfile />} />
+            </Route>
+
+            {/* Shared Scoped Admin Routes */}
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/students" element={<AdminUsers />} />
+            <Route path="/admin/employers" element={<AdminUsers />} />
+            <Route path="/admin/opportunities" element={<AdminOpportunities />} />
+            <Route path="/admin/applications" element={<AdminApplications />} />
+            <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
+          </Route>
+
+          {/* =================================================
               RESUME BUILDER
           ================================================= */}
           <Route path="/resume-builder" element={<ResumeBuilder />} />
 
-          {/* ========== DEFAULT ========== */}
+          {/* ========== DEFAULT & 404 ========== */}
           <Route path="/" element={<RootRoute />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
-      </AuthInitializer>
+      </Suspense>
+    </AuthInitializer>
     </BrowserRouter>
   );
 }
