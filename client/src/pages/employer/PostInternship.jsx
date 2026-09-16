@@ -62,7 +62,7 @@ export default function PostInternship() {
           ← My Internships
         </Link>
         <h1 className="text-2xl font-extrabold text-[#f59e0b] mt-3">Post Internship</h1>
-        <p className="text-sm text-slate-500 mb-6">Geeta University · CareerConnect Employer</p>
+        <p className="text-sm text-slate-500 mb-6">CareerConnect · CareerConnect Employer</p>
 
         {error && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">

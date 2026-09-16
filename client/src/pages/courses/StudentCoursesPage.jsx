@@ -19,6 +19,10 @@ import api from "../../api/api";
 import CourseCard from "../../components/courses/CourseCard";
 import StudentMyCoursesPage from "./StudentMyCoursesPage";
 import CourseDetailsPage from "./CourseDetailsPage";
+import { loadRazorpayScript } from "../../utils/razorpay";
+import { createCourseOrder, verifyCoursePayment } from "../../services/paymentService";
+import PaymentReceiptModal from "../../components/courses/PaymentReceiptModal";
+import { CreditCard } from "lucide-react";
 
 /**
  * StudentCoursesPage
@@ -55,6 +59,11 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   const [selectedCourseForApply, setSelectedCourseForApply] = useState(null);
   const [applicationMotivation, setApplicationMotivation] = useState("");
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
+
+  // Razorpay Checkout / Receipt state
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
 
   // Toast state
   const [toastMessage, setToastMessage] = useState(null);
@@ -116,6 +125,139 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   useEffect(() => {
     fetchAllLmsData();
   }, []);
+
+  // Handle direct buy or free enrollment from course cards
+  const handleEnrollOrBuyCourse = async (course) => {
+    const currentStatus = applicationStatusMap[course._id];
+    if (currentStatus === "Enrolled" || currentStatus === "In Progress" || currentStatus === "Completed") {
+      showToast("You are already enrolled in this course.", "info");
+      setActiveTab("my-courses");
+      return;
+    }
+
+    try {
+      setIsProcessingCheckout(true);
+
+      // 1. Free Course -> Direct Enrollment
+      if (!course.price || course.price <= 0) {
+        const orderRes = await createCourseOrder(course._id);
+        if (orderRes.success) {
+          showToast("Enrolled in free course successfully!", "success");
+          setApplicationStatusMap((prev) => ({
+            ...prev,
+            [course._id]: "Enrolled",
+          }));
+          setMyApplications((prev) => [
+            {
+              applicationId: `enr-${Date.now()}`,
+              course,
+              status: "Enrolled",
+              progress: 0,
+            },
+            ...prev.filter((i) => i.course?._id !== course._id),
+          ]);
+          setReceiptData({
+            isFree: true,
+            amount: 0,
+            courseTitle: course.title,
+            courseId: course._id,
+            paidAt: new Date(),
+          });
+          setShowReceiptModal(true);
+        }
+        return;
+      }
+
+      // 2. Paid Course -> Razorpay Checkout
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        showToast("Unable to load Razorpay payment gateway.", "error");
+        return;
+      }
+
+      const orderRes = await createCourseOrder(course._id);
+      if (!orderRes.success) {
+        showToast(orderRes.message || "Failed to initiate payment.", "error");
+        return;
+      }
+
+      const options = {
+        key: orderRes.keyId || "rzp_test_TbSS4kb8G70xwq",
+        amount: orderRes.amount,
+        currency: orderRes.currency || "INR",
+        name: "CareerConnect",
+        description: `Enrollment: ${course.title}`,
+        image: "/favicon.svg",
+        order_id: orderRes.orderId,
+        handler: async function (response) {
+          try {
+            const verifyRes = await verifyCoursePayment({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+              courseId: course._id,
+            });
+
+            if (verifyRes.success) {
+              showToast("Payment verified! Course unlocked.", "success");
+              setApplicationStatusMap((prev) => ({
+                ...prev,
+                [course._id]: "Enrolled",
+              }));
+              setMyApplications((prev) => [
+                {
+                  applicationId: verifyRes.payment?.id || `enr-${Date.now()}`,
+                  course,
+                  status: "Enrolled",
+                  progress: 0,
+                },
+                ...prev.filter((i) => i.course?._id !== course._id),
+              ]);
+              setReceiptData({
+                paymentId: response.razorpay_payment_id,
+                orderId: response.razorpay_order_id,
+                amount: course.price,
+                courseTitle: course.title,
+                courseId: course._id,
+                paidAt: new Date(),
+              });
+              setShowReceiptModal(true);
+            }
+          } catch (err) {
+            console.error("Payment verification failed:", err);
+            showToast(err.response?.data?.message || "Payment verification failed.", "error");
+          } finally {
+            setIsProcessingCheckout(false);
+          }
+        },
+        prefill: {
+          name: orderRes.prefill?.name || user?.fullName || "",
+          email: orderRes.prefill?.email || user?.email || "",
+          contact: orderRes.prefill?.contact || user?.phone || "",
+        },
+        theme: {
+          color: "#1e3a8a",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessingCheckout(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (response) {
+        showToast(`Payment failed: ${response.error.description || "Declined"}`, "error");
+        setIsProcessingCheckout(false);
+      });
+      rzp.open();
+    } catch (err) {
+      console.error("Payment error:", err);
+      showToast(err.response?.data?.message || "Failed to start payment.", "error");
+    } finally {
+      setIsProcessingCheckout(false);
+    }
+  };
 
   // Open Application Form Modal
   const handleOpenApplyModal = (course) => {
@@ -447,7 +589,8 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                       setSelectedCourseId(id);
                       setActiveTab("details");
                     }}
-                    onApply={(c) => handleOpenApplyModal(c)}
+                    onApply={(c) => handleEnrollOrBuyCourse(c)}
+                    isApplying={isProcessingCheckout}
                     onContinueLearning={() => {
                       setActiveTab("my-courses");
                     }}
@@ -560,7 +703,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                   <label className="font-bold text-slate-700 block mb-1">Email Address</label>
                   <input
                     type="email"
-                    value={user?.email || "student@geetauniversity.edu.in"}
+                    value={user?.email || "student@careerconnect.com"}
                     disabled
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 font-semibold cursor-not-allowed"
                   />
@@ -621,6 +764,17 @@ const StudentCoursesPage = ({ onViewDetails }) => {
           <span>{toastMessage.message}</span>
         </div>
       )}
+
+      {/* Razorpay Payment Receipt / Confirmation Modal */}
+      <PaymentReceiptModal
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        receiptData={receiptData}
+        onStartLearning={() => {
+          setShowReceiptModal(false);
+          setActiveTab("my-courses");
+        }}
+      />
     </div>
   );
 };

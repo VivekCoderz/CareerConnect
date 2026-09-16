@@ -4,38 +4,49 @@ import recruitmentService from "../../services/recruitmentService";
 const InterviewDetailsModal = ({
   isOpen,
   onClose,
-  interviewId,
+  interview: initialInterview = null,
+  interviewId = null,
   onReschedule,
   onCancel,
   onScorecard,
   onMakeOffer,
   onRefresh,
 }) => {
-  const [interview, setInterview] = useState(null);
+  const [interview, setInterview] = useState(initialInterview);
   const [timeline, setTimeline] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && interviewId) {
-      loadDetails();
-    }
-  }, [isOpen, interviewId]);
+  const targetId = interviewId || initialInterview?._id;
 
-  const loadDetails = async () => {
+  useEffect(() => {
+    if (isOpen) {
+      if (initialInterview) {
+        setInterview(initialInterview);
+      }
+      if (targetId) {
+        loadDetails(targetId);
+      }
+    }
+  }, [isOpen, targetId, initialInterview]);
+
+  const loadDetails = async (id) => {
     try {
       setLoading(true);
       setError("");
-      const res = await recruitmentService.getInterviewById(interviewId);
+      const res = await recruitmentService.getInterviewById(id);
       if (res.success && res.interview) {
         setInterview(res.interview);
         setTimeline(res.roundTimeline || []);
-      } else {
-        throw new Error(res.message || "Failed to load interview details");
+      } else if (res.interview) {
+        setInterview(res.interview);
       }
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Unable to fetch interview details");
+      // If we already have initialInterview data, don't hard crash the view
+      if (!initialInterview) {
+        setError(err.response?.data?.message || err.message || "Unable to fetch interview details");
+      }
     } finally {
       setLoading(false);
     }
@@ -262,7 +273,7 @@ const InterviewDetailsModal = ({
                     )}
                   </div>
 
-                  {interview?.meetingLink && (
+                  {!isCancelled && interview?.meetingLink ? (
                     <a
                       href={interview.meetingLink}
                       target="_blank"
@@ -272,7 +283,11 @@ const InterviewDetailsModal = ({
                       <span>📹</span>
                       <span>Join Live Meeting ↗</span>
                     </a>
-                  )}
+                  ) : isCancelled ? (
+                    <span className="px-3 py-1 rounded-lg bg-rose-100 text-rose-700 text-xs font-bold">
+                      Meeting Link Disabled (Cancelled)
+                    </span>
+                  ) : null}
                 </div>
 
                 {interview?.instructions && (
@@ -282,17 +297,59 @@ const InterviewDetailsModal = ({
                   </div>
                 )}
 
-                {interview?.cancellationReason && (
-                  <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-xs text-rose-800">
-                    <strong>Cancellation Reason: </strong>
-                    {interview.cancellationReason}
+                {/* Cancellation Card */}
+                {isCancelled && (
+                  <div className="p-4 bg-rose-50 rounded-2xl border border-rose-200 text-xs text-rose-800 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-rose-900 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center text-[10px] font-black">✕</span>
+                        Interview Cancelled
+                      </span>
+                      {interview?.cancelledAt && (
+                        <span className="text-[11px] text-rose-600 font-mono">
+                          {new Date(interview.cancelledAt).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    {interview?.cancellationReason && (
+                      <div>
+                        <span className="font-bold text-rose-900">Reason: </span>
+                        <span>{interview.cancellationReason}</span>
+                      </div>
+                    )}
+                    {interview?.cancellationMessage && (
+                      <div>
+                        <span className="font-bold text-rose-900">Note: </span>
+                        <span>{interview.cancellationMessage}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {interview?.rescheduledReason && (
-                  <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-800">
-                    <strong>Reschedule Note: </strong>
-                    {interview.rescheduledReason}
+                {/* Reschedule History */}
+                {interview?.rescheduleHistory && interview.rescheduleHistory.length > 0 && (
+                  <div className="p-4 bg-purple-50/70 rounded-2xl border border-purple-200 text-xs space-y-2">
+                    <span className="font-extrabold text-purple-900 flex items-center gap-1.5">
+                      <span>🔄</span>
+                      <span>Reschedule History ({interview.rescheduleHistory.length})</span>
+                    </span>
+                    <div className="space-y-1.5">
+                      {interview.rescheduleHistory.map((hist, idx) => (
+                        <div key={idx} className="p-2.5 rounded-xl bg-white border border-purple-100 flex items-start justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <p className="font-semibold text-slate-800">
+                              Moved from <span className="font-mono text-slate-600">{hist.previousDate} {hist.previousStartTime}</span> to <span className="font-mono text-purple-700 font-bold">{hist.newDate} {hist.newStartTime}</span>
+                            </p>
+                            {hist.reason && (
+                              <p className="text-[11px] text-slate-500">Note: {hist.reason}</p>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                            {hist.rescheduledAt ? new Date(hist.rescheduledAt).toLocaleDateString() : ""}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

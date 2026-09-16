@@ -62,7 +62,7 @@ const CreateCoursePage = ({ onCancel, onSuccess }) => {
               Create New Course
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              Publish structured learning modules, video lectures, and PDF resources for Geeta University learners.
+              Publish structured learning modules, video lectures, and PDF resources for CareerConnect learners.
             </p>
           </div>
         </div>
