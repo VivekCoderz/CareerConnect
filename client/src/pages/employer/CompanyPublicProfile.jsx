@@ -76,11 +76,11 @@ const CompanyPublicProfile = () => {
       <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <Link to="/home" className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#92400e] to-[#b45309] text-white flex items-center justify-center font-bold text-xs shadow-sm">
-            GU
+            CC
           </div>
           <div>
             <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-              GEETA UNIVERSITY
+              CAREERCONNECT
             </h1>
             <p className="text-[10.5px] text-[#b45309] font-bold tracking-wide">
               CareerConnect · Verified Employers
@@ -105,7 +105,7 @@ const CompanyPublicProfile = () => {
           <div className="h-44 bg-gradient-to-r from-[#92400e] via-[#b45309] to-[#d97706] relative p-6 text-white flex items-end">
             <div className="absolute top-4 right-4 flex items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-bold text-amber-100 border border-white/20">
-                ✓ Geeta University Partner
+                ✓ CareerConnect Partner
               </span>
             </div>
           </div>
@@ -205,7 +205,7 @@ const CompanyPublicProfile = () => {
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
                 {company.description ||
-                  "This organization is partnering with Geeta University CareerConnect to hire top emerging talent."}
+                  "This organization is partnering with CareerConnect CareerConnect to hire top emerging talent."}
               </p>
 
               {(company.mission || company.vision) && (
@@ -475,7 +475,7 @@ const CompanyPublicProfile = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => alert("Apply with Geeta University verified profile")}
+                  onClick={() => alert("Apply with CareerConnect verified profile")}
                   className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition"
                 >
                   Apply Now
@@ -493,7 +493,7 @@ const CompanyPublicProfile = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => alert("Apply with Geeta University verified profile")}
+                  onClick={() => alert("Apply with CareerConnect verified profile")}
                   className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition"
                 >
                   Apply Now

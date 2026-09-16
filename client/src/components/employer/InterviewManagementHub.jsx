@@ -3,6 +3,7 @@ import InterviewScorecardModal from "./InterviewScorecardModal";
 import InterviewScheduleModal from "./InterviewScheduleModal";
 import InterviewDetailsModal from "./InterviewDetailsModal";
 import CandidateInterviewHistoryModal from "./CandidateInterviewHistoryModal";
+import InterviewCancelModal from "./InterviewCancelModal";
 import recruitmentService from "../../services/recruitmentService";
 
 const InterviewManagementHub = ({
@@ -24,24 +25,26 @@ const InterviewManagementHub = ({
   const [scorecardInterview, setScorecardInterview] = useState(null);
   const [historyCandidate, setHistoryCandidate] = useState(null);
   const [rescheduleInterview, setRescheduleInterview] = useState(null);
+  const [cancelModalInterview, setCancelModalInterview] = useState(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   // Status badges
   const getStatusBadge = (status) => {
-    switch (status) {
-      case "Scheduled":
+    const s = (status || "").toLowerCase();
+    switch (s) {
+      case "scheduled":
         return { label: "Scheduled", bg: "bg-blue-50 text-blue-700 border-blue-200", icon: "📅" };
-      case "In Progress":
+      case "in progress":
         return { label: "In Progress", bg: "bg-amber-50 text-amber-800 border-amber-300", icon: "⏳" };
-      case "Completed":
+      case "completed":
         return { label: "Completed", bg: "bg-emerald-50 text-emerald-800 border-emerald-300", icon: "✓" };
-      case "Rescheduled":
+      case "rescheduled":
         return { label: "Rescheduled", bg: "bg-purple-50 text-purple-700 border-purple-200", icon: "🔄" };
-      case "Cancelled":
+      case "cancelled":
         return { label: "Cancelled", bg: "bg-rose-50 text-rose-700 border-rose-200", icon: "✕" };
       default:
-        return { label: status, bg: "bg-slate-50 text-slate-700 border-slate-200", icon: "📌" };
+        return { label: status || "Unknown", bg: "bg-slate-50 text-slate-700 border-slate-200", icon: "📌" };
     }
   };
 
@@ -49,18 +52,29 @@ const InterviewManagementHub = ({
   const calculatedStats = useMemo(() => {
     if (stats) return stats;
     const total = interviews.length;
-    const scheduled = interviews.filter((i) => i.status === "Scheduled").length;
-    const completed = interviews.filter((i) => i.status === "Completed").length;
-    const rescheduled = interviews.filter((i) => i.status === "Rescheduled").length;
-    const cancelled = interviews.filter((i) => i.status === "Cancelled").length;
+    const scheduled = interviews.filter((i) => (i.status || "").toLowerCase() === "scheduled").length;
+    const completed = interviews.filter((i) => (i.status || "").toLowerCase() === "completed").length;
+    const rescheduled = interviews.filter((i) => (i.status || "").toLowerCase() === "rescheduled").length;
+    const cancelled = interviews.filter((i) => (i.status || "").toLowerCase() === "cancelled").length;
 
-    const scored = interviews.filter((i) => i.status === "Completed" && i.feedback?.overallScore > 0);
+    const scored = interviews.filter(
+      (i) =>
+        (i.status || "").toLowerCase() === "completed" &&
+        ((i.feedback?.overallScore > 0) || (i.scorecard?.overallScore > 0))
+    );
     const avgScore = scored.length > 0
-      ? (scored.reduce((acc, curr) => acc + (curr.feedback?.overallScore || 0), 0) / scored.length).toFixed(1)
+      ? (
+          scored.reduce(
+            (acc, curr) => acc + (curr.feedback?.overallScore || curr.scorecard?.overallScore || 0),
+            0
+          ) / scored.length
+        ).toFixed(1)
       : "0.0";
 
-    const recommendedHire = interviews.filter((i) =>
-      ["Hire / Select", "Strong Hire"].includes(i.feedback?.recommendation)
+    const recommendedHire = interviews.filter(
+      (i) =>
+        ["Hire / Select", "Strong Hire"].includes(i.feedback?.recommendation || i.scorecard?.recommendation) ||
+        (i.result || "").toLowerCase() === "passed"
     ).length;
 
     return {
@@ -78,8 +92,10 @@ const InterviewManagementHub = ({
   const filteredInterviews = useMemo(() => {
     return interviews
       .filter((item) => {
-        // Status filter
-        if (statusFilter !== "All" && item.status !== statusFilter) return false;
+        // Status filter (case-insensitive)
+        if (statusFilter !== "All" && (item.status || "").toLowerCase() !== statusFilter.toLowerCase()) {
+          return false;
+        }
 
         // Round filter
         if (roundFilter !== "All" && String(item.roundNumber) !== String(roundFilter)) return false;
@@ -103,7 +119,9 @@ const InterviewManagementHub = ({
         } else if (sortBy === "newest") {
           return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
         } else if (sortBy === "highestScore") {
-          return (b.feedback?.overallScore || 0) - (a.feedback?.overallScore || 0);
+          const scoreA = a.feedback?.overallScore || a.scorecard?.overallScore || 0;
+          const scoreB = b.feedback?.overallScore || b.scorecard?.overallScore || 0;
+          return scoreB - scoreA;
         }
         return 0;
       });
@@ -136,13 +154,16 @@ const InterviewManagementHub = ({
     }
   };
 
-  const handleCancelInterview = async (interviewId) => {
-    const reason = window.prompt("Please provide a reason for cancelling this interview slot:");
-    if (reason === null) return;
+  const handleCancelInterview = (interview) => {
+    setCancelModalInterview(interview);
+  };
 
+  const handleConfirmCancel = async (payload) => {
+    if (!cancelModalInterview) return;
     try {
       setActionLoading(true);
-      await recruitmentService.cancelInterview(interviewId, { cancelledReason: reason || "Cancelled by recruiter" });
+      await recruitmentService.cancelInterview(cancelModalInterview._id, payload);
+      setCancelModalInterview(null);
       if (showToast) showToast("Interview slot has been cancelled.");
       if (onRefresh) onRefresh();
     } catch (err) {
@@ -153,7 +174,6 @@ const InterviewManagementHub = ({
   };
 
   const handleScheduleNextRound = (candidate) => {
-    // Open schedule modal prefilled for candidate
     setIsScheduleModalOpen(true);
   };
 
@@ -383,8 +403,10 @@ const InterviewManagementHub = ({
           {filteredInterviews.map((item) => {
             const badge = getStatusBadge(item.status);
             const cand = item.candidateId || {};
-            const isCompleted = item.status === "Completed";
-            const feedback = item.feedback || {};
+            const statusLower = (item.status || "").toLowerCase();
+            const isCompleted = statusLower === "completed";
+            const isCancelled = statusLower === "cancelled";
+            const feedback = item.feedback || item.scorecard || {};
             const ratings = feedback.ratings || {};
 
             return (
@@ -404,7 +426,7 @@ const InterviewManagementHub = ({
                           {cand.fullName || "Candidate"}
                         </h4>
                         <p className="text-[11px] text-slate-500">
-                          {item.jobId?.title || "Position"} • {item.jobId?.department || "Dept"}
+                          {item.jobId?.title || item.internshipId?.title || "Position"} • {item.jobId?.department || "Dept"}
                         </p>
                       </div>
                     </div>
@@ -428,18 +450,41 @@ const InterviewManagementHub = ({
 
                     <div className="flex items-center justify-between text-[11px] text-slate-600">
                       <span>📅 {item.scheduledDate}</span>
-                      <span className="font-bold text-slate-800">{item.scheduledTime}</span>
+                      <span className="font-bold text-slate-800">{item.scheduledTime || item.startTime}</span>
                     </div>
                   </div>
 
                   {/* Assigned Interviewer */}
                   <div className="text-[11px] text-slate-600 flex items-center justify-between">
                     <span>Interviewer: <strong className="text-slate-800">{item.interviewerName}</strong></span>
-                    <span className="text-[10.5px] text-slate-400 font-medium">{item.durationMinutes} mins</span>
+                    <span className="text-[10.5px] text-slate-400 font-medium">{item.durationMinutes || item.duration || 45} mins</span>
                   </div>
 
+                  {/* If Cancelled, Display cancellation notice */}
+                  {isCancelled && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-[11px] text-rose-800 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-rose-900 flex items-center gap-1">
+                          <span>✕</span>
+                          <span>Slot Cancelled</span>
+                        </span>
+                        {item.cancelledAt && (
+                          <span className="text-[10px] text-rose-600 font-mono">
+                            {new Date(item.cancelledAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                      {item.cancellationReason && (
+                        <p><strong className="text-rose-900">Reason:</strong> {item.cancellationReason}</p>
+                      )}
+                      {item.cancellationMessage && (
+                        <p className="text-slate-600"><strong className="text-slate-800">Note:</strong> {item.cancellationMessage}</p>
+                      )}
+                    </div>
+                  )}
+
                   {/* If Completed, Scorecard Summary */}
-                  {isCompleted ? (
+                  {isCompleted && (
                     <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold text-emerald-900">Scorecard Verdict:</span>
@@ -455,26 +500,26 @@ const InterviewManagementHub = ({
 
                       {/* Criteria Mini Bar */}
                       <div className="grid grid-cols-3 gap-1 text-[10px] text-slate-600 font-medium">
-                        <span>Tech: {ratings.technicalSkills || "-"}/5</span>
-                        <span>Coding: {ratings.problemSolving || "-"}/5</span>
-                        <span>Comm: {ratings.communication || "-"}/5</span>
+                        <span>Tech: {ratings.technicalSkills || feedback.technicalSkills || "-"}/5</span>
+                        <span>Coding: {ratings.problemSolving || feedback.problemSolving || "-"}/5</span>
+                        <span>Comm: {ratings.communication || feedback.communication || "-"}/5</span>
                       </div>
                     </div>
-                  ) : (
-                    /* Video Call Link */
-                    item.meetingLink && (
-                      <div className="flex items-center justify-between p-2 rounded-xl bg-blue-50/60 border border-blue-100 text-xs">
-                        <span className="text-slate-600 font-medium">{item.meetingMode}</span>
-                        <a
-                          href={item.meetingLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-bold text-[#1e3a8a] hover:underline inline-flex items-center gap-1"
-                        >
-                          Join Call →
-                        </a>
-                      </div>
-                    )
+                  )}
+
+                  {/* Video Call Link (ONLY if not cancelled) */}
+                  {!isCancelled && item.meetingLink && (
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-blue-50/60 border border-blue-100 text-xs">
+                      <span className="text-slate-600 font-medium">{item.meetingMode || "Online"}</span>
+                      <a
+                        href={item.meetingLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-[#1e3a8a] hover:underline inline-flex items-center gap-1"
+                      >
+                        Join Call →
+                      </a>
+                    </div>
                   )}
                 </div>
 
@@ -491,18 +536,29 @@ const InterviewManagementHub = ({
                       <span>Dossier</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setScorecardInterview(item)}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs ${
-                        isCompleted
-                          ? "bg-slate-100 hover:bg-slate-200 text-slate-800"
-                          : "bg-[#f59e0b] hover:bg-[#d97706] text-white"
-                      }`}
-                    >
-                      <span>📝</span>
-                      <span>{isCompleted ? "Scorecard" : "Evaluate & Score"}</span>
-                    </button>
+                    {!isCancelled ? (
+                      <button
+                        type="button"
+                        onClick={() => setScorecardInterview(item)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs ${
+                          isCompleted
+                            ? "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                            : "bg-[#f59e0b] hover:bg-[#d97706] text-white"
+                        }`}
+                      >
+                        <span>📝</span>
+                        <span>{isCompleted ? "Scorecard" : "Evaluate & Score"}</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleScheduleNextRound(cand)}
+                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#1e3a8a] hover:bg-[#1e40af] text-white transition flex items-center justify-center gap-1.5 shadow-2xs"
+                      >
+                        <span>📅</span>
+                        <span>+ Schedule New</span>
+                      </button>
+                    )}
 
                     <button
                       type="button"
@@ -515,48 +571,50 @@ const InterviewManagementHub = ({
                   </div>
 
                   {/* Sub-actions */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {!isCompleted && item.status !== "Cancelled" && (
-                      <>
+                  {!isCancelled && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {!isCompleted && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setRescheduleInterview(item)}
+                            className="flex-1 py-1 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-bold transition text-center"
+                          >
+                            🔄 Reschedule
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => handleCancelInterview(item)}
+                            className="flex-1 py-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10.5px] font-bold transition text-center"
+                          >
+                            ✕ Cancel
+                          </button>
+                        </>
+                      )}
+
+                      {isCompleted && (feedback.recommendation === "Move to Next Round" || item.result === "passed") && (
                         <button
                           type="button"
-                          onClick={() => setRescheduleInterview(item)}
-                          className="flex-1 py-1 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-bold transition text-center"
+                          onClick={() => handleScheduleNextRound(cand)}
+                          className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold transition text-center"
                         >
-                          🔄 Reschedule
+                          + Next Round
                         </button>
+                      )}
 
+                      {(item.result === "passed" || feedback.recommendation === "Strong Hire" || feedback.recommendation === "Hire / Select") && onOpenOfferModal && (
                         <button
                           type="button"
-                          disabled={actionLoading}
-                          onClick={() => handleCancelInterview(item._id)}
-                          className="flex-1 py-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10.5px] font-bold transition text-center"
+                          onClick={() => onOpenOfferModal(item.applicationId || item)}
+                          className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition text-center"
                         >
-                          ✕ Cancel
+                          🎉 Make Offer
                         </button>
-                      </>
-                    )}
-
-                    {isCompleted && (feedback.recommendation === "Move to Next Round" || item.result === "passed") && (
-                      <button
-                        type="button"
-                        onClick={() => handleScheduleNextRound(cand)}
-                        className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold transition text-center"
-                      >
-                        + Next Round
-                      </button>
-                    )}
-
-                    {(item.result === "passed" || feedback.recommendation === "Strong Hire" || feedback.recommendation === "Hire / Select") && onOpenOfferModal && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenOfferModal(item.applicationId || item)}
-                        className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition text-center"
-                      >
-                        🎉 Make Offer
-                      </button>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -582,6 +640,10 @@ const InterviewManagementHub = ({
                 {filteredInterviews.map((item) => {
                   const badge = getStatusBadge(item.status);
                   const cand = item.candidateId || {};
+                  const statusLower = (item.status || "").toLowerCase();
+                  const isCompleted = statusLower === "completed";
+                  const isCancelled = statusLower === "cancelled";
+
                   return (
                     <tr key={item._id} className="hover:bg-slate-50/60 transition">
                       <td className="py-3 px-4">
@@ -609,13 +671,15 @@ const InterviewManagementHub = ({
                       </td>
                       <td className="py-3 px-4">
                         <span className="font-semibold text-slate-800 block">{item.scheduledDate}</span>
-                        <span className="text-[10.5px] text-slate-500 font-mono">{item.scheduledTime}</span>
+                        <span className="text-[10.5px] text-slate-500 font-mono">{item.scheduledTime || item.startTime}</span>
                       </td>
                       <td className="py-3 px-4">
-                        {item.status === "Completed" ? (
+                        {isCompleted ? (
                           <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 text-xs font-mono">
-                            ★ {item.feedback?.overallScore || "0"}/5
+                            ★ {item.feedback?.overallScore || item.scorecard?.overallScore || "0"}/5
                           </span>
+                        ) : isCancelled ? (
+                          <span className="text-rose-500 text-[11px] font-bold">Cancelled</span>
                         ) : (
                           <span className="text-slate-400 text-xs italic">Pending</span>
                         )}
@@ -636,13 +700,33 @@ const InterviewManagementHub = ({
                           >
                             🔍
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setScorecardInterview(item)}
-                            className="px-2.5 py-1 rounded-lg bg-[#f59e0b] text-white text-[11px] font-bold hover:bg-[#d97706] transition"
-                          >
-                            Scorecard
-                          </button>
+                          {!isCancelled ? (
+                            <button
+                              type="button"
+                              onClick={() => setScorecardInterview(item)}
+                              className="px-2.5 py-1 rounded-lg bg-[#f59e0b] text-white text-[11px] font-bold hover:bg-[#d97706] transition"
+                            >
+                              Scorecard
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleScheduleNextRound(cand)}
+                              className="px-2.5 py-1 rounded-lg bg-blue-50 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold hover:bg-blue-100 transition"
+                            >
+                              + Schedule
+                            </button>
+                          )}
+                          {!isCompleted && !isCancelled && (
+                            <button
+                              type="button"
+                              onClick={() => handleCancelInterview(item)}
+                              className="p-1 px-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold hover:bg-rose-100 transition"
+                              title="Cancel Interview"
+                            >
+                              ✕
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setHistoryCandidate(cand)}
@@ -676,9 +760,9 @@ const InterviewManagementHub = ({
           setDetailsInterview(null);
           setRescheduleInterview(item);
         }}
-        onCancel={(id) => {
+        onCancel={(item) => {
           setDetailsInterview(null);
-          handleCancelInterview(id);
+          handleCancelInterview(item);
         }}
         onMakeOffer={(item) => {
           setDetailsInterview(null);
@@ -723,6 +807,15 @@ const InterviewManagementHub = ({
         onClose={() => setHistoryCandidate(null)}
         candidate={historyCandidate}
         onScheduleNextRound={handleScheduleNextRound}
+      />
+
+      {/* 5. Cancel Interview Modal */}
+      <InterviewCancelModal
+        isOpen={Boolean(cancelModalInterview)}
+        onClose={() => setCancelModalInterview(null)}
+        interview={cancelModalInterview}
+        onConfirmCancel={handleConfirmCancel}
+        loading={actionLoading}
       />
     </div>
   );

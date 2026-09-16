@@ -204,11 +204,11 @@ const JobDiscoveryPage = () => {
         <div className="flex items-center gap-4">
           <Link to="/home" className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              GU
+              CC
             </div>
             <div>
               <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-                GEETA UNIVERSITY
+                CAREERCONNECT
               </h1>
               <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
                 CareerConnect · Jobs Hub

@@ -7,7 +7,7 @@ const stepHeadings = {
     title: "Build your company profile",
     highlight: "& attract top talent",
     description:
-      "Establish your official company presence on CareerConnect. Verified companies get 3x more quality applications from Geeta University candidates.",
+      "Establish your official company presence on CareerConnect. Verified companies get 3x more quality applications from CareerConnect candidates.",
   },
   2: {
     badge: "Step 2 of 6 · About Us",
@@ -35,12 +35,12 @@ const stepHeadings = {
     title: "Define talent criteria",
     highlight: "& target roles",
     description:
-      "Specify preferred branches, required skills, degree qualifications, and salary brackets for intelligent matching with Geeta University talent.",
+      "Specify preferred branches, required skills, degree qualifications, and salary brackets for intelligent matching with CareerConnect talent.",
   },
   6: {
     badge: "Step 6 of 6 · Final Review",
     title: "Review & publish profile",
-    highlight: "to Geeta University",
+    highlight: "to CareerConnect",
     description:
       "Review your profile completion score, verify all company information, and publish your official employer profile to start receiving applications.",
   },
@@ -59,11 +59,11 @@ const ProfileBrandPanel = ({ currentStep = 1, profileCompletion = 0 }) => {
       <div className="relative z-10">
         <Link to="/" className="flex items-center gap-3 group">
           <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center font-bold text-sm text-white group-hover:bg-white/20 transition">
-            GU
+            CC
           </div>
           <div>
             <p className="text-[15px] font-bold tracking-tight text-white">
-              GEETA UNIVERSITY
+              CAREERCONNECT
             </p>
             <p className="text-[11px] text-[#fde68a] font-semibold tracking-wide">
               CareerConnect · Employers

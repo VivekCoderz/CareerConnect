@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import InternshipDiscoveryMenu from "../internships/InternshipDiscoveryMenu";
 import NotificationInboxDrawer from "../notifications/NotificationInboxDrawer";
 import {
@@ -19,7 +19,9 @@ const DashboardHeader = ({
   onOpenMobileSidebar,
   onToggleSidebar,
   onLogout,
+  onNavigateTab,
 }) => {
+  const navigate = useNavigate();
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const notifRef = useRef(null);
@@ -51,7 +53,10 @@ const DashboardHeader = ({
 
     // Subscribe to real-time SSE notification stream
     const unsubscribe = subscribeToNotifications((newNotif) => {
-      setNotifList((prev) => [newNotif, ...prev.filter((item) => (item._id || item.id) !== (newNotif._id || newNotif.id))]);
+      setNotifList((prev) => [
+        newNotif,
+        ...prev.filter((item) => (item._id || item.id) !== (newNotif._id || newNotif.id)),
+      ]);
       setLiveUnreadCount((c) => c + 1);
     });
 
@@ -81,6 +86,23 @@ const DashboardHeader = ({
       }
     } catch (e) {
       console.warn("Failed to mark read:", e);
+    }
+
+    setShowNotifs(false);
+
+    if (
+      notif.notificationType?.startsWith("INTERVIEW") ||
+      notif.relatedInterviewId ||
+      notif.actionUrl?.includes("interviews") ||
+      notif.title?.toLowerCase().includes("interview")
+    ) {
+      if (onNavigateTab) {
+        onNavigateTab("interviews");
+      } else {
+        navigate("/student/dashboard?tab=interviews");
+      }
+    } else if (notif.actionUrl) {
+      navigate(notif.actionUrl);
     }
   };
 
