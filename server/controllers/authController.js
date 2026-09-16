@@ -144,6 +144,7 @@ const userPayload = (user, extra = {}) => ({
 module.exports.sendOTP = async (req, res, next) => {
   try {
     const { email, fullName } = req.body;
+    console.log("1. [sendOTP Triggered] Body:", req.body);
 
     if (!email?.trim()) {
       return res.status(400).json({
@@ -152,22 +153,31 @@ module.exports.sendOTP = async (req, res, next) => {
       });
     }
 
-    // Comprehensive Email & Disposable Domain Protection
-    const validationResult = await validateEmail(email);
-    if (!validationResult.isValid) {
-      return res.status(400).json({
-        success: false,
-        field: "email",
-        code: validationResult.isDisposable ? "DISPOSABLE_EMAIL_REJECTED" : "INVALID_EMAIL_DOMAIN",
-        message: validationResult.reason || "Invalid email address or temporary domain.",
-      });
+    // 1. Email Validation Protection (Timeout Added for Cloud Safety)
+    let normalizedEmail = email.trim().toLowerCase();
+    try {
+      console.log("2. [Email Validation] Validating...");
+      const validationResult = await validateEmail(email);
+      
+      if (!validationResult.isValid) {
+        console.log("❌ [Email Validation Failed]:", validationResult);
+        return res.status(400).json({
+          success: false,
+          field: "email",
+          code: validationResult.isDisposable ? "DISPOSABLE_EMAIL_REJECTED" : "INVALID_EMAIL_DOMAIN",
+          message: validationResult.reason || "Invalid email address or temporary domain.",
+        });
+      }
+      normalizedEmail = validationResult.normalizedEmail || normalizedEmail;
+    } catch (valErr) {
+      console.warn("⚠️ [Email Validation Warning]: Fallback used -", valErr.message);
     }
 
-    const normalizedEmail = validationResult.normalizedEmail || email.trim().toLowerCase();
-
-    // Already registered?
+    // 2. Already registered?
+    console.log("3. [DB Check] User.findOne...");
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
+      console.log("❌ [User Already Exists]");
       return res.status(409).json({
         success: false,
         field: "email",
@@ -178,7 +188,8 @@ module.exports.sendOTP = async (req, res, next) => {
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Upsert pending OTP
+    // 3. Upsert pending OTP
+    console.log("4. [DB Check] PendingOTP Upsert...");
     await PendingOTP.findOneAndUpdate(
       { email: normalizedEmail },
       {
@@ -187,17 +198,16 @@ module.exports.sendOTP = async (req, res, next) => {
         expiresAt,
         isVerified: false,
       },
-      { upsert: true, new: true },
+      { upsert: true, new: true }
     );
 
     console.log(`\n==================================================`);
-    console.log(`🔑 [DEMO / DEV OTP] Email: ${normalizedEmail}`);
-    console.log(`🔑 [DEMO / DEV OTP] OTP Code: ${otp}`);
-    console.log(`🔑 [DEMO / DEV OTP] (Master Demo Code: 123456)`);
+    console.log(`🔑 [OTP GENERATED] Email: ${normalizedEmail} | OTP: ${otp}`);
     console.log(`==================================================\n`);
 
-    // Send email
-    await sendEmail({
+    // 4. Send Email
+    console.log("5. [Email Service] Calling sendEmail utility...");
+    const mailResponse = await sendEmail({
       to: normalizedEmail,
       subject: "Your CareerConnect verification code",
       html: `
@@ -214,6 +224,8 @@ module.exports.sendOTP = async (req, res, next) => {
       `,
     });
 
+    console.log("6. [Email Service Result]:", mailResponse);
+
     return res.status(200).json({
       success: true,
       message: "OTP sent to your email",
@@ -221,6 +233,7 @@ module.exports.sendOTP = async (req, res, next) => {
       devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (error) {
+    console.error("🔥 [sendOTP Fatal Error]:", error);
     next(error);
   }
 };
