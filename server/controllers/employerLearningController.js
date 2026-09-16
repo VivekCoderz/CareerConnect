@@ -119,7 +119,7 @@ exports.updateProgress = async (req, res, next) => {
       enrollment.status = "Completed";
       enrollment.completedAt = new Date();
       enrollment.certificateId = `CERT-GU-${Math.floor(100000 + Math.random() * 900000)}`;
-      enrollment.certificateUrl = `https://careerconnect.geetauniversity.edu.in/certificates/${enrollment.certificateId}`;
+      enrollment.certificateUrl = `https://careerconnect.careerconnect.com/certificates/${enrollment.certificateId}`;
     }
 
     enrollment.lastAccessedAt = new Date();

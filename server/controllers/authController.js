@@ -191,9 +191,7 @@ module.exports.sendOTP = async (req, res, next) => {
     );
 
     console.log(`\n==================================================`);
-    console.log(`🔑 [DEMO / DEV OTP] Email: ${normalizedEmail}`);
-    console.log(`🔑 [DEMO / DEV OTP] OTP Code: ${otp}`);
-    console.log(`🔑 [DEMO / DEV OTP] (Master Demo Code: 123456)`);
+    console.log(`📧 [EMAIL OTP SENT] Email: ${normalizedEmail}`);
     console.log(`==================================================\n`);
 
     // Send email
@@ -220,7 +218,11 @@ module.exports.sendOTP = async (req, res, next) => {
       email: normalizedEmail,
     });
   } catch (error) {
-    next(error);
+    console.error("sendOTP Error:", error.message || error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to send verification code. Please try again later.",
+    });
   }
 };
 
@@ -241,21 +243,7 @@ module.exports.verifyOTP = async (req, res, next) => {
     const normalizedEmail = email.trim().toLowerCase();
     const enteredOtp = otp.toString().trim();
 
-    let record = await PendingOTP.findOne({ email: normalizedEmail });
-
-    // In non-production, auto-create or allow master demo OTP
-    const isMasterDemoOtp =
-      process.env.NODE_ENV !== "production" &&
-      (enteredOtp === "123456" || enteredOtp === "000000");
-
-    if (!record && isMasterDemoOtp) {
-      record = await PendingOTP.create({
-        email: normalizedEmail,
-        otp: enteredOtp,
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-        isVerified: true,
-      });
-    }
+    const record = await PendingOTP.findOne({ email: normalizedEmail });
 
     if (!record) {
       return res.status(400).json({
@@ -264,19 +252,17 @@ module.exports.verifyOTP = async (req, res, next) => {
       });
     }
 
-    if (record.expiresAt < new Date() && !isMasterDemoOtp) {
+    if (record.expiresAt < new Date()) {
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Please request a new one.",
       });
     }
 
-    const isValid = record.otp === enteredOtp || isMasterDemoOtp;
-
-    if (!isValid) {
+    if (record.otp !== enteredOtp) {
       return res.status(400).json({
         success: false,
-        message: "Invalid OTP",
+        message: "Invalid OTP. Please enter the code sent to your email.",
       });
     }
 
@@ -1299,9 +1285,7 @@ module.exports.forgotPassword = async (req, res, next) => {
     );
 
     console.log(`\n==================================================`);
-    console.log(`🔑 [PASSWORD RESET OTP] Email: ${normalizedEmail}`);
-    console.log(`🔑 [PASSWORD RESET OTP] OTP Code: ${otp}`);
-    console.log(`🔑 [PASSWORD RESET OTP] (Master Demo Code: 123456)`);
+    console.log(`📧 [PASSWORD RESET OTP SENT] Email: ${normalizedEmail}`);
     console.log(`==================================================\n`);
 
     await sendEmail({
@@ -1325,7 +1309,11 @@ module.exports.forgotPassword = async (req, res, next) => {
       message: "OTP sent to your email",
     });
   } catch (error) {
-    next(error);
+    console.error("forgotPassword Error:", error.message || error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to send password reset email.",
+    });
   }
 };
 
@@ -1342,20 +1330,7 @@ module.exports.verifyResetOTP = async (req, res, next) => {
 
     const normalizedEmail = email.trim().toLowerCase();
     const enteredOtp = otp.toString().trim();
-    let record = await PendingOTP.findOne({ email: normalizedEmail });
-
-    const isMasterDemoOtp =
-      process.env.NODE_ENV !== "production" &&
-      (enteredOtp === "123456" || enteredOtp === "000000");
-
-    if (!record && isMasterDemoOtp) {
-      record = await PendingOTP.create({
-        email: normalizedEmail,
-        otp: enteredOtp,
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-        isVerified: true,
-      });
-    }
+    const record = await PendingOTP.findOne({ email: normalizedEmail });
 
     if (!record) {
       return res
@@ -1363,17 +1338,18 @@ module.exports.verifyResetOTP = async (req, res, next) => {
         .json({ success: false, message: "No OTP found. Request a new one." });
     }
 
-    if (record.expiresAt < new Date() && !isMasterDemoOtp) {
+    if (record.expiresAt < new Date()) {
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Request a new one.",
       });
     }
 
-    const isValid = record.otp === enteredOtp || isMasterDemoOtp;
-
-    if (!isValid) {
-      return res.status(400).json({ success: false, message: "Invalid OTP" });
+    if (record.otp !== enteredOtp) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP. Please enter the code sent to your email.",
+      });
     }
 
     record.isVerified = true;

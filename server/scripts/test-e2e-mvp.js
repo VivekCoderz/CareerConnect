@@ -16,9 +16,9 @@ async function runE2ETests() {
   console.log(" Connected to MongoDB Atlas");
 
   // 1. Setup Student and Employer Users
-  const studentEmail = "e2e_student_test@geetauniversity.edu.in";
-  const employerEmail = "e2e_employer_test@geetauniversity.edu.in";
-  const otherEmployerEmail = "e2e_other_employer@geetauniversity.edu.in";
+  const studentEmail = "e2e_student_test@careerconnect.com";
+  const employerEmail = "e2e_employer_test@careerconnect.com";
+  const otherEmployerEmail = "e2e_other_employer@careerconnect.com";
 
   // Cleanup past test data
   await User.deleteMany({ email: { $in: [studentEmail, employerEmail, otherEmployerEmail] } });
@@ -37,7 +37,7 @@ async function runE2ETests() {
     userId: studentUser._id,
     fullName: "E2E Student Tester",
     degree: "B.Tech Computer Science",
-    institution: "Geeta University",
+    institution: "CareerConnect",
     skills: ["React", "Node.js", "MongoDB", "Python"],
     cgpa: "9.2",
     graduationYear: 2026,

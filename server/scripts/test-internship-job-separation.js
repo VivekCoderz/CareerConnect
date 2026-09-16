@@ -42,7 +42,7 @@ async function testCategorySeparation() {
     userId: studentUser._id,
     fullName: "Separation Test Student",
     degree: "B.Tech Computer Science",
-    institution: "Geeta University",
+    institution: "CareerConnect",
     technicalSkills: ["JavaScript", "React"],
   });
 

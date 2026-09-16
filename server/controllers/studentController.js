@@ -125,7 +125,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         softSkills: ["Communication", "Problem Solving", "Teamwork"],
         education: [
           {
-            institution: "Geeta University",
+            institution: "CareerConnect",
             degree: "B.Tech Computer Science",
             fieldOfStudy: "Computer Science & Engineering",
             startYear: 2024,
@@ -428,7 +428,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     const notifications = [
       {
         id: "notif-1",
-        title: "Welcome to Geeta University CareerConnect 🎉",
+        title: "Welcome to CareerConnect CareerConnect 🎉",
         message: "Explore live internship opportunities directly posted by verified employers.",
         date: "Today",
         isRead: false,
@@ -512,7 +512,7 @@ module.exports.getStudentProfile = async (req, res, next) => {
         technicalSkills: ["JavaScript", "React", "Node.js"],
         education: [
           {
-            institution: "Geeta University",
+            institution: "CareerConnect",
             degree: "B.Tech Computer Science",
             startYear: 2024,
             endYear: 2028,

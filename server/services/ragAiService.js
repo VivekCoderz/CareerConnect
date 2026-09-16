@@ -143,7 +143,7 @@ const retrievePlatformContext = async (queryText, userId = null) => {
       type: "course",
       id: c._id,
       title: c.title,
-      provider: c.provider || "Geeta University Academy",
+      provider: c.provider || "CareerConnect Academy",
       duration: c.duration || "6 Weeks",
       level: c.level || "All Levels",
       rating: c.rating || "4.8",
@@ -194,7 +194,7 @@ STUDENT PROFILE INFORMATION:
 - Education: ${
         context.studentProfile.education?.[0]
           ? `${context.studentProfile.education[0].degree} from ${context.studentProfile.education[0].institution}`
-          : "Geeta University"
+          : "CareerConnect"
       }
 - Projects Count: ${context.studentProfile.projects?.length || 0}
 - Certifications: ${context.studentProfile.certifications?.length || 0}
@@ -232,7 +232,7 @@ ${context.courses
   if (geminiModel) {
     try {
       const systemPrompt = `
-You are the CareerConnect AI Assistant, an expert career advisor and live platform guide for students at Geeta University and job candidates.
+You are the CareerConnect AI Assistant, an expert career advisor and live platform guide for students at CareerConnect and job candidates.
 You answer user questions using Retrieval-Augmented Generation (RAG) based on real database opportunities and candidate profiles.
 
 Answer naturally, warmly, and concisely in English or Hinglish (depending on the user's query language).
@@ -311,7 +311,7 @@ Aap dashboard ya direct cards se 1-click apply kar sakte hain!`;
   } else if (/course|learn|skill/i.test(qLower)) {
     fallbackAnswer = `### 📚 Recommended Courses & Certifications
 
-CareerConnect aur Geeta University ke verified certified courses:
+CareerConnect aur CareerConnect ke verified certified courses:
 
 ${context.courses
   .map(

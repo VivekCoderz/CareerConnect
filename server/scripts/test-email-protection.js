@@ -76,8 +76,8 @@ const runAllTests = async () => {
     assert.strictEqual(res.isDisposable, false);
   });
 
-  await runTest("Accept Geeta University institutional domain", async () => {
-    const res = await validateEmail("student@geetauniversity.edu.in");
+  await runTest("Accept CareerConnect institutional domain", async () => {
+    const res = await validateEmail("student@careerconnect.com");
     assert.strictEqual(res.isValid, true);
     assert.strictEqual(res.isDisposable, false);
   });

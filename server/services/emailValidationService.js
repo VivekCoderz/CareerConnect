@@ -49,8 +49,8 @@ const WHITELISTED_DOMAINS = new Set([
   "fastmail.com",
   "rediffmail.com",
   // University & Educational partner
-  "geetauniversity.edu.in",
-  "geeta.edu.in",
+  "careerconnect.com",
+  "careerconnect.com",
 ]);
 
 // Educational, Research & Government TLDs regex

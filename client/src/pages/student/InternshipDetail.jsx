@@ -76,7 +76,7 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
               email: prev.email || p.userId?.email || user.email || "",
               phone: prev.phone || p.userId?.phone || user.phone || "",
               education: prev.education || p.education?.[0]?.degree || "",
-              college: prev.college || p.education?.[0]?.institution || "Geeta University",
+              college: prev.college || p.education?.[0]?.institution || "CareerConnect",
               graduationYear: prev.graduationYear || (p.education?.[0]?.endYear ? String(p.education[0].endYear) : ""),
               skills: prev.skills || (p.technicalSkills || []).join(", "),
               experience: prev.experience || (p.experience?.[0] ? `${p.experience[0].title || ""} - ${p.experience[0].company || ""}`.trim() : ""),
@@ -439,7 +439,7 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
                           type="text"
                           value={formData.college}
                           onChange={(e) => handleChange("college", e.target.value)}
-                          placeholder="Geeta University"
+                          placeholder="CareerConnect"
                           className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
                         />
                       </div>
@@ -571,11 +571,11 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/home" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
-              GU
+              CC
             </div>
             <div className="leading-tight">
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                Geeta University
+                CareerConnect
               </p>
               <p className="text-sm font-bold text-slate-900">CareerConnect</p>
             </div>

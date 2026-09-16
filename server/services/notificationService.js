@@ -120,14 +120,14 @@ Submit your resume and statement of purpose before the deadline.
       actionUrl = item._id ? `/courses/${item._id}` : `/courses`;
       actionText = "Enroll In Course ›";
       title = `New Course Available: ${item.title}`;
-      preview = `Master new skills with ${item.title} (${item.provider || "Geeta University Academy"}). Free enrollment!`;
+      preview = `Master new skills with ${item.title} (${item.provider || "CareerConnect Academy"}). Free enrollment!`;
       content = `
 Dear Student,
 
 Level up your engineering and tech resume with our newly added certified curriculum:
 
 **Course Title:** ${item.title}
-**Provider:** ${item.provider || "Geeta University Academy"}
+**Provider:** ${item.provider || "CareerConnect Academy"}
 **Duration:** ${item.duration || "Self-Paced / 6 Weeks"}
 **Level:** ${item.level || "Beginner to Advanced"}
 **Access:** ${item.isFree ? "100% Free Scholarship Access" : "University Certified"}

@@ -225,7 +225,7 @@ const INDIAN_GEO_KEYWORDS = [
 ];
 
 // ==========================================
-// 3. GEETA UNIVERSITY ON-CAMPUS DRIVES
+// 3. CAREERCONNECT ON-CAMPUS DRIVES
 // ==========================================
 const CAMPUS_DRIVES = [
  

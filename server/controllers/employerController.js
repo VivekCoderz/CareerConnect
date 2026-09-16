@@ -362,7 +362,7 @@ exports.getEmployerDashboard = async (req, res, next) => {
         appliedDate: "2026-08-27",
         matchScore: 92,
         cgpa: "8.9",
-        degree: "B.Tech CSE - Geeta University",
+        degree: "B.Tech CSE - CareerConnect",
       },
       {
         id: "app-2",
@@ -373,7 +373,7 @@ exports.getEmployerDashboard = async (req, res, next) => {
         appliedDate: "2026-08-26",
         matchScore: 88,
         cgpa: "8.5",
-        degree: "BCA - Geeta University",
+        degree: "BCA - CareerConnect",
       },
       {
         id: "app-3",
@@ -384,7 +384,7 @@ exports.getEmployerDashboard = async (req, res, next) => {
         appliedDate: "2026-08-25",
         matchScore: 95,
         cgpa: "9.1",
-        degree: "MCA - Geeta University",
+        degree: "MCA - CareerConnect",
       },
       {
         id: "app-4",
@@ -395,7 +395,7 @@ exports.getEmployerDashboard = async (req, res, next) => {
         appliedDate: "2026-08-24",
         matchScore: 84,
         cgpa: "8.2",
-        degree: "B.Tech IT - Geeta University",
+        degree: "B.Tech IT - CareerConnect",
       },
     ];
 

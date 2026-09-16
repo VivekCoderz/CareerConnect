@@ -703,7 +703,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                   <label className="font-bold text-slate-700 block mb-1">Email Address</label>
                   <input
                     type="email"
-                    value={user?.email || "student@geetauniversity.edu.in"}
+                    value={user?.email || "student@careerconnect.com"}
                     disabled
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 font-semibold cursor-not-allowed"
                   />

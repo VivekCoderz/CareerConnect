@@ -61,7 +61,7 @@ const Sidebar = ({
           <div className="h-16 px-4 sm:px-5 flex items-center justify-between border-b border-slate-100">
             <Link to="/student/dashboard" className="flex items-center gap-2.5 overflow-hidden">
               <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-md shadow-blue-600/30 text-base shrink-0">
-                GU
+                CC
               </div>
               {!collapsed && (
                 <div className="transition-opacity duration-200 whitespace-nowrap">

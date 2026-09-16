@@ -612,7 +612,7 @@ const heuristicParseResume = (rawText) => {
     if (colMatch) college = colMatch[1].trim();
 
     education.push({
-      college: college || "Geeta University",
+      college: college || "CareerConnect",
       degree,
       branch: branch || "Computer Science",
       cgpa: cgpaMatch ? cgpaMatch[1] : "",

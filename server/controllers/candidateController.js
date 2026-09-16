@@ -138,7 +138,7 @@ exports.searchCandidates = async (req, res, next) => {
         socialLinks: user.socialLinks,
         skills: candidateSkills,
         degree: education.degree || "B.Tech Computer Science",
-        institution: education.institution || "Geeta University",
+        institution: education.institution || "CareerConnect",
         graduationYear: education.endYear || 2026,
         cgpa: education.score || "8.5",
         jobTitle: experience.designation || user.userType === "student" ? "Undergraduate Student" : "Software Associate",

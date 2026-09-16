@@ -62,7 +62,7 @@ Our platform AI analyzed active recruiting drives against your engineering skill
 **Package / Stipend:** ${topPick.salary || topPick.stipend || "Competitive"}
 
 **Why this was recommended:**
-Your profile demonstrates foundational technical proficiency, and this partner is actively shortlisting candidates from Geeta University.
+Your profile demonstrates foundational technical proficiency, and this partner is actively shortlisting candidates from CareerConnect.
 
 Click below to submit your profile.
     `.trim();

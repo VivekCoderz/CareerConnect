@@ -661,6 +661,22 @@ const Signup = () => {
         />
       </div>
 
+      {/* ─── Top Brand Header ─── */}
+      <div className="bg-white border-b border-slate-200/90 py-3 px-4 sm:px-6">
+        <div className="max-w-xl mx-auto flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <img
+              src="/careerconnect-logo.png"
+              alt="CareerConnect"
+              className="h-10 w-auto object-contain"
+            />
+          </Link>
+          <span className="text-xs font-semibold text-slate-500">
+            Candidate Registration
+          </span>
+        </div>
+      </div>
+
       {/* ─── Main Content Container ─────────────────────────────────────────── */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-8">
         <div className="w-full max-w-xl">
@@ -1371,7 +1387,7 @@ const Signup = () => {
                     placeholder={
                       formData.type === "student"
                         ? "Eg. BITS Pilani"
-                        : "Eg. Geeta Engineering College"
+                        : "Eg. ABC Institute of Technology"
                     }
                     className={`w-full h-11 rounded-lg border bg-white px-3.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#008bdc] ${
                       fieldErrors.college ? "border-red-400 ring-2 ring-red-400/10" : "border-slate-200"
