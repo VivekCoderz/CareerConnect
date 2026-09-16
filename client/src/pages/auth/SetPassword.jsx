@@ -318,6 +318,22 @@ const SetPassword = () => {
             <span className="text-xs text-slate-400 font-medium">Account Setup</span>
           </div>
 
+          {/* Back to Home / Cancel Header */}
+          <div className="mb-5 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleCancelAndGoHome}
+              disabled={loading || cancelling}
+              className="group inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-800 transition py-1.5 px-3 rounded-lg hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
+            >
+              <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              {cancelling ? "Cancelling..." : "Back to Home"}
+            </button>
+            <span className="text-xs text-slate-400 font-medium">Account Setup</span>
+          </div>
+
           {/* Google account info */}
           <div className="mb-6 flex items-center gap-3 p-3 rounded-xl bg-blue-50 border border-blue-100">
             {user?.profileImage ? (
