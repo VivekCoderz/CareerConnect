@@ -1,4 +1,3 @@
-// server/utils/sendEmail.js
 const nodemailer = require("nodemailer");
 
 /**
@@ -8,20 +7,27 @@ const nodemailer = require("nodemailer");
 const sendEmail = async ({ to, subject, html, text }) => {
   try {
     let transporter = null;
-
+    console.log("Coming.........")
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+        console.log("Match.........")
       transporter = nodemailer.createTransport({
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true, // Port 465 ke liye true
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,
         },
+        tls: {
+          rejectUnauthorized: false // Cloud hosting network handshake issues avoid karne ke liye
+        }
       });
     } else if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+        console.log("Not Match.........")
       transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT || 587,
-        secure: process.env.SMTP_SECURE === "true",
+        port: 587,
+        secure: false,
         auth: {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASS,
