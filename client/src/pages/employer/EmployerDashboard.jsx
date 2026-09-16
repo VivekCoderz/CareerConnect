@@ -3,7 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 
 // Services
-import { getEmployerDashboard } from "../../services/employerService";
+import {
+  getEmployerDashboard,
+  getOrganizationStatus,
+  requestCompanyApproval,
+} from "../../services/employerService";
 import jobService from "../../services/jobService";
 import candidateService from "../../services/candidateService";
 import recruitmentService from "../../services/recruitmentService";
@@ -62,6 +66,24 @@ const EmployerDashboard = () => {
   const [courseCatalog, setCourseCatalog] = useState([]);
   const [myLearning, setMyLearning] = useState({ enrollments: [] });
   const [analyticsData, setAnalyticsData] = useState(null);
+  const [orgStatusData, setOrgStatusData] = useState(null);
+  const [isOrgSubmitting, setIsOrgSubmitting] = useState(false);
+  const [isEditingOrgRequest, setIsEditingOrgRequest] = useState(false);
+  const [orgForm, setOrgForm] = useState({
+    organizationName: "",
+    organizationType: "COMPANY",
+    officialEmail: "",
+    website: "",
+    contactPerson: "",
+    designation: "",
+    phone: "",
+    address: "",
+    city: "",
+    state: "",
+    country: "India",
+    reason: "",
+    description: "",
+  });
 
   // Search & Filter States
   const [candidateSearchSkill, setCandidateSearchSkill] = useState("");
@@ -119,6 +141,7 @@ const EmployerDashboard = () => {
           coursesRes,
           learningRes,
           analyticsRes,
+          orgStatusRes,
         ] = await Promise.all([
           getEmployerDashboard().catch(() => ({})),
           jobService.getJobs({ myJobs: "true" }).catch(() => ({ jobs: [] })),
@@ -134,6 +157,7 @@ const EmployerDashboard = () => {
           learningService.getCourseCatalog().catch(() => ({ courses: [] })),
           learningService.getMyLearning().catch(() => ({ enrollments: [] })),
           recruitmentService.getEmployerAnalytics().catch(() => null),
+          getOrganizationStatus().catch(() => null),
         ]);
 
         if (dashRes?.success) setDashboardData(dashRes);
@@ -150,6 +174,7 @@ const EmployerDashboard = () => {
         setCourseCatalog(coursesRes?.courses || []);
         setMyLearning(learningRes || { enrollments: [] });
         if (analyticsRes?.success) setAnalyticsData(analyticsRes);
+        if (orgStatusRes?.success) setOrgStatusData(orgStatusRes);
       } catch (err) {
         console.error("Dashboard loading error:", err);
       } finally {
@@ -330,6 +355,111 @@ const EmployerDashboard = () => {
     }
   };
 
+  const profile = dashboardData?.profile || {};
+  const completion = dashboardData?.profileCompletion || profile.profileCompletion || 85;
+
+  // Synchronize employer info into organization approval form
+  useEffect(() => {
+    const existingReq = orgStatusData?.organizationRequest;
+    setOrgForm((prev) => ({
+      organizationName:
+        existingReq?.organizationName ||
+        prev.organizationName ||
+        profile.companyName ||
+        user?.companyName ||
+        "",
+      organizationType:
+        existingReq?.organizationType || prev.organizationType || "COMPANY",
+      officialEmail:
+        existingReq?.officialEmail ||
+        prev.officialEmail ||
+        profile.officialEmail ||
+        user?.email ||
+        "",
+      website: existingReq?.website || prev.website || profile.website || "",
+      contactPerson:
+        existingReq?.contactPerson ||
+        prev.contactPerson ||
+        user?.name ||
+        profile.contactPerson ||
+        "",
+      designation:
+        existingReq?.designation ||
+        prev.designation ||
+        user?.designation ||
+        profile.designation ||
+        "Recruiter / Talent Acquisition",
+      phone: existingReq?.phone || prev.phone || profile.phone || user?.phone || "",
+      address:
+        existingReq?.address ||
+        prev.address ||
+        profile.headquarters?.address ||
+        "",
+      city:
+        existingReq?.city ||
+        prev.city ||
+        profile.headquarters?.city ||
+        "",
+      state:
+        existingReq?.state ||
+        prev.state ||
+        profile.headquarters?.state ||
+        "",
+      country:
+        existingReq?.country ||
+        prev.country ||
+        profile.headquarters?.country ||
+        "India",
+      reason: existingReq?.reason || prev.reason || "",
+      description:
+        existingReq?.description ||
+        prev.description ||
+        profile.description ||
+        "",
+    }));
+  }, [profile, user, orgStatusData]);
+
+  // Handle request company approval submission
+  const handleRequestCompanyApproval = async (e) => {
+    e?.preventDefault();
+    if (!orgForm.organizationName?.trim()) {
+      showToast("Please provide your company / organization name.", "error");
+      return;
+    }
+    if (!orgForm.officialEmail?.trim()) {
+      showToast("Please provide an official corporate email address.", "error");
+      return;
+    }
+    if (!orgForm.contactPerson?.trim()) {
+      showToast("Please provide a contact person name.", "error");
+      return;
+    }
+
+    try {
+      setIsOrgSubmitting(true);
+      const res = await requestCompanyApproval(orgForm);
+      if (res?.success) {
+        showToast(
+          res.message || "Company verification request submitted to Super Admin successfully!",
+          "success"
+        );
+        setIsEditingOrgRequest(false);
+        const updated = await getOrganizationStatus();
+        if (updated?.success) {
+          setOrgStatusData(updated);
+        }
+      }
+    } catch (err) {
+      console.error("Error submitting company approval request:", err);
+      showToast(
+        err.response?.data?.message || "Failed to submit company verification request",
+        "error"
+      );
+    } finally {
+      setIsOrgSubmitting(false);
+    }
+  };
+
   const filteredCourseCatalog = useMemo(() => {
     return courseCatalog.filter((course) => {
       const q = courseSearchQuery.toLowerCase().trim();
@@ -350,8 +480,17 @@ const EmployerDashboard = () => {
     });
   }, [courseCatalog, courseSearchQuery, courseDomainFilter, courseLevelFilter]);
 
-  const profile = dashboardData?.profile || {};
-  const completion = dashboardData?.profileCompletion || profile.profileCompletion || 85;
+  const orgStatus = orgStatusData?.status || "NOT_REQUESTED";
+  let orgBadge = null;
+  if (orgStatus === "APPROVED" || orgStatusData?.hasCompany) {
+    orgBadge = "Verified";
+  } else if (orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW") {
+    orgBadge = "Pending";
+  } else if (orgStatus === "REJECTED") {
+    orgBadge = "Action Req.";
+  } else {
+    orgBadge = "Verify";
+  }
 
   const stats = {
     activeJobs: jobs.filter((j) => j.status === "Published").length || 4,
@@ -360,6 +499,7 @@ const EmployerDashboard = () => {
     interviews: interviews.length || 8,
     employees: employees.length || 18,
     coursesCount: courseCatalog.length || 12,
+    orgBadge,
   };
 
   if (loading) {
@@ -461,6 +601,93 @@ const EmployerDashboard = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Organization Approval & Verification Status Banner */}
+              {orgStatus !== "APPROVED" && !orgStatusData?.hasCompany && (
+                <div
+                  className={`p-4 sm:p-5 rounded-3xl border shadow-xs transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                    orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                      ? "bg-amber-50/90 border-amber-200 text-amber-900"
+                      : orgStatus === "REJECTED"
+                      ? "bg-rose-50/90 border-rose-200 text-rose-900"
+                      : "bg-gradient-to-r from-amber-500/10 via-amber-100/50 to-orange-100/30 border-amber-200/90 text-slate-800"
+                  }`}
+                >
+                  <div className="flex items-start sm:items-center gap-3.5">
+                    <div
+                      className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 text-lg shadow-2xs ${
+                        orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                          ? "bg-amber-500 text-white"
+                          : orgStatus === "REJECTED"
+                          ? "bg-rose-500 text-white"
+                          : "bg-[#92400e] text-white"
+                      }`}
+                    >
+                      {orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                        ? "⏳"
+                        : orgStatus === "REJECTED"
+                        ? "⚠️"
+                        : "🏢"}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold">
+                          {orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                            ? "Organization Verification Pending Super Admin Review"
+                            : orgStatus === "REJECTED"
+                            ? "Action Required: Company Verification Rejected"
+                            : "Organization Verification Required"}
+                        </h4>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                            orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                              ? "bg-amber-200/80 text-amber-800"
+                              : orgStatus === "REJECTED"
+                              ? "bg-rose-200/80 text-rose-800"
+                              : "bg-amber-200/80 text-[#92400e]"
+                          }`}
+                        >
+                          {orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                            ? "In Review"
+                            : orgStatus === "REJECTED"
+                            ? "Action Needed"
+                            : "Unverified"}
+                        </span>
+                      </div>
+                      <p className="text-xs opacity-85 mt-0.5">
+                        {orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                          ? "Your request for official platform verification is in the Super Admin review queue. You will receive multi-tenant access once approved."
+                          : orgStatus === "REJECTED"
+                          ? orgStatusData?.organizationRequest?.rejectionReason
+                            ? `Super Admin feedback: "${orgStatusData.organizationRequest.rejectionReason}". Please update and re-submit.`
+                            : "Your request was declined. Please verify your official details and re-submit for approval."
+                          : "Submit your company to the Super Admin to receive official platform verification, a Verified Employer badge, and dedicated workspace isolation."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("organization")}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition shrink-0 shadow-xs flex items-center gap-1.5 cursor-pointer ${
+                      orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                        ? "bg-amber-600 hover:bg-amber-700 text-white"
+                        : orgStatus === "REJECTED"
+                        ? "bg-rose-600 hover:bg-rose-700 text-white"
+                        : "bg-[#92400e] hover:bg-[#78350f] text-white"
+                    }`}
+                  >
+                    <span>
+                      {orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                        ? "View Review Status"
+                        : orgStatus === "REJECTED"
+                        ? "Fix & Re-submit"
+                        : "Send Company for Approval"}
+                    </span>
+                    <span>→</span>
+                  </button>
+                </div>
+              )}
 
               {/* 6 High Level Metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
@@ -1219,6 +1446,602 @@ const EmployerDashboard = () => {
                       }}
                     />
                   )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* TAB: ORGANIZATION & SUPER ADMIN APPROVAL                 */}
+          {/* ======================================================== */}
+          {activeTab === "organization" && (
+            <div className="space-y-6 animate-fade-in">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                      Organization & Super Admin Approval
+                    </h2>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                        orgStatus === "APPROVED" || orgStatusData?.hasCompany
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                          : orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                          ? "bg-amber-100 text-amber-800 border border-amber-300"
+                          : orgStatus === "REJECTED"
+                          ? "bg-rose-100 text-rose-800 border border-rose-300"
+                          : "bg-slate-100 text-slate-600 border border-slate-300"
+                      }`}
+                    >
+                      {orgStatus === "APPROVED" || orgStatusData?.hasCompany
+                        ? "✓ Verified Enterprise"
+                        : orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
+                        ? "⏳ Awaiting Review"
+                        : orgStatus === "REJECTED"
+                        ? "⚠️ Action Required"
+                        : "Not Requested"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Multi-tenant organization verification, Super Admin platform credentials, and compliance review.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {(orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW") && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingOrgRequest(!isEditingOrgRequest)}
+                      className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition cursor-pointer"
+                    >
+                      {isEditingOrgRequest ? "View Submitted Details" : "Edit / Re-submit Request"}
+                    </button>
+                  )}
+                  {orgStatus === "REJECTED" && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingOrgRequest(true)}
+                      className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-2xs transition cursor-pointer"
+                    >
+                      Re-submit Details
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Status Section 1: APPROVED */}
+              {(orgStatus === "APPROVED" || orgStatusData?.hasCompany) && (
+                <div className="space-y-6">
+                  {/* Verified Card */}
+                  <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-800 via-teal-900 to-slate-900 text-white shadow-md relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-400/10 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-3xl shadow-inner shrink-0">
+                          🛡️
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <h3 className="text-xl font-bold text-white tracking-tight">
+                              {orgStatusData?.company?.name || profile.companyName || "Your Company"}
+                            </h3>
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 text-xs font-bold">
+                              ✓ Officially Verified
+                            </span>
+                          </div>
+                          <p className="text-xs text-emerald-100/80 mt-1 max-w-xl">
+                            Approved by the Super Admin. Your company has verified enterprise tenant status with isolated workspace data, trusted candidate visibility, and unrestricted recruitment capabilities.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs font-semibold text-emerald-200">
+                          Tenant Status: Active
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Company Verified Details */}
+                  <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-2xs space-y-5">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Verified Organization Credentials</h4>
+                        <p className="text-xs text-slate-500">Official attributes registered in the Super Admin system</p>
+                      </div>
+                      <Link
+                        to="/employer/profile"
+                        className="text-xs font-bold text-[#b45309] hover:underline"
+                      >
+                        Edit Public Profile →
+                      </Link>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Company Legal Name</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1">
+                          {orgStatusData?.company?.name || profile.companyName || "N/A"}
+                        </p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Corporate Official Email</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1">
+                          {orgStatusData?.company?.officialEmail || profile.officialEmail || user?.email || "N/A"}
+                        </p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Company Website</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1">
+                          {orgStatusData?.company?.website || profile.website ? (
+                            <a
+                              href={orgStatusData?.company?.website || profile.website}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 hover:underline"
+                            >
+                              {orgStatusData?.company?.website || profile.website}
+                            </a>
+                          ) : (
+                            "Not provided"
+                          )}
+                        </p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Industry</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1">
+                          {orgStatusData?.company?.industry || profile.industry || "Information Technology"}
+                        </p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Headquarters</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1">
+                          {orgStatusData?.company?.location || profile.headquarters?.city || "Gurugram, India"}
+                        </p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Tenant Scope</p>
+                        <p className="text-sm font-bold text-emerald-700 mt-1">
+                          Multi-Tenant Enterprise (Full RBAC)
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Platform Entitlements */}
+                    <div className="pt-2">
+                      <p className="text-xs font-bold text-slate-900 mb-3 uppercase tracking-wider">Verified Platform Privileges</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        {[
+                          { title: "Verified Employer Badge", desc: "Visible across all talent listings" },
+                          { title: "Isolated Data Vault", desc: "Exclusive candidates, notes & ATS data" },
+                          { title: "Priority Job Indexing", desc: "Ranked high in candidate search results" },
+                          { title: "Direct Interview Scheduler", desc: "Automated video & in-person invites" },
+                        ].map((priv, idx) => (
+                          <div key={idx} className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-100 flex items-start gap-2.5">
+                            <span className="text-emerald-600 font-bold text-sm">✓</span>
+                            <div>
+                              <p className="text-xs font-bold text-slate-900">{priv.title}</p>
+                              <p className="text-[10.5px] text-slate-500 mt-0.5">{priv.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Status Section 2: PENDING / UNDER_REVIEW (when not editing) */}
+              {(orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW") && !isEditingOrgRequest && (
+                <div className="space-y-6">
+                  {/* Status Banner */}
+                  <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-600 via-amber-700 to-slate-900 text-white shadow-md relative overflow-hidden">
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-3xl shrink-0">
+                          ⏳
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2.5">
+                            <h3 className="text-xl font-bold text-white tracking-tight">
+                              Verification Request Under Review
+                            </h3>
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-400/30 text-xs font-bold">
+                              {orgStatus === "UNDER_REVIEW" ? "Under Active Review" : "Queued in Super Admin"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-amber-100/80 mt-1 max-w-xl">
+                            Your organization approval request was received and forwarded to the CareerConnect Super Admin team for compliance verification and enterprise tenant provisioning.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingOrgRequest(true)}
+                        className="px-4 py-2 rounded-xl bg-white text-slate-900 text-xs font-bold shadow-xs hover:bg-amber-50 transition cursor-pointer shrink-0"
+                      >
+                        Modify Application Details
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Visual Progress Stepper */}
+                  <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-2xs space-y-6">
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                      Verification Lifecycle Progress
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                        <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs mb-1">
+                          <span>✓</span> Step 1: Request Submitted
+                        </div>
+                        <p className="text-[11px] text-emerald-800">
+                          Company data submitted on{" "}
+                          {orgStatusData?.organizationRequest?.createdAt
+                            ? new Date(orgStatusData.organizationRequest.createdAt).toLocaleDateString()
+                            : "Recently"}
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 animate-pulse">
+                        <div className="flex items-center gap-2 text-amber-800 font-bold text-xs mb-1">
+                          <span className="inline-block w-2 h-2 rounded-full bg-amber-600 animate-ping" />
+                          Step 2: Super Admin Verification
+                        </div>
+                        <p className="text-[11px] text-amber-900">
+                          {orgStatus === "UNDER_REVIEW"
+                            ? "Super Admin is actively auditing official email and business registration."
+                            : "In the pending review queue. Super Admin audits requests within 24 hours."}
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                        <div className="flex items-center gap-2 text-slate-400 font-bold text-xs mb-1">
+                          <span>○</span> Step 3: Tenant Provisioned
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          Upon approval, your company is issued multi-tenant workspace credentials automatically.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Submitted Info Review */}
+                    <div className="border-t border-slate-100 pt-5">
+                      <h5 className="text-xs font-bold text-slate-700 mb-3">Submitted Application Snapshot</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                          <span className="text-slate-400 text-[10px] block uppercase font-bold">Organization Name</span>
+                          <span className="font-semibold text-slate-800">
+                            {orgStatusData?.organizationRequest?.organizationName || orgForm.organizationName}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                          <span className="text-slate-400 text-[10px] block uppercase font-bold">Official Corporate Email</span>
+                          <span className="font-semibold text-slate-800">
+                            {orgStatusData?.organizationRequest?.officialEmail || orgForm.officialEmail}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                          <span className="text-slate-400 text-[10px] block uppercase font-bold">Contact Person</span>
+                          <span className="font-semibold text-slate-800">
+                            {orgStatusData?.organizationRequest?.contactPerson || orgForm.contactPerson} ({orgStatusData?.organizationRequest?.designation || orgForm.designation})
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                          <span className="text-slate-400 text-[10px] block uppercase font-bold">Phone Number</span>
+                          <span className="font-semibold text-slate-800">
+                            {orgStatusData?.organizationRequest?.phone || orgForm.phone || "Not specified"}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                          <span className="text-slate-400 text-[10px] block uppercase font-bold">Website</span>
+                          <span className="font-semibold text-slate-800">
+                            {orgStatusData?.organizationRequest?.website || orgForm.website || "Not specified"}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                          <span className="text-slate-400 text-[10px] block uppercase font-bold">Location</span>
+                          <span className="font-semibold text-slate-800">
+                            {[
+                              orgStatusData?.organizationRequest?.city || orgForm.city,
+                              orgStatusData?.organizationRequest?.state || orgForm.state,
+                              orgStatusData?.organizationRequest?.country || orgForm.country,
+                            ].filter(Boolean).join(", ") || "India"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Status Section 3: REJECTED (when not editing) */}
+              {orgStatus === "REJECTED" && !isEditingOrgRequest && (
+                <div className="p-6 rounded-3xl bg-white border border-rose-200 shadow-2xs space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center text-2xl shrink-0">
+                      ⚠️
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900">
+                          Verification Request Declined by Super Admin
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold">
+                          REJECTED
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 mt-1">
+                        The Super Admin reviewed your company verification request and flagged issues that require clarification or corrected corporate credentials.
+                      </p>
+
+                      {orgStatusData?.organizationRequest?.rejectionReason && (
+                        <div className="mt-3 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 font-medium">
+                          <span className="font-bold block mb-0.5">Super Admin Rejection Reason:</span>
+                          "{orgStatusData.organizationRequest.rejectionReason}"
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingOrgRequest(true)}
+                          className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                        >
+                          Revise and Re-submit Request
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Status Section 4: FORM (If NOT_REQUESTED or isEditingOrgRequest) */}
+              {(orgStatus === "NOT_REQUESTED" || isEditingOrgRequest) && (
+                <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/80 shadow-2xs space-y-6">
+                  {/* Form Header */}
+                  <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900">
+                        {isEditingOrgRequest ? "Update & Re-send Company Details" : "Send Company Approval to Super Admin"}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Fill out your organization registration details below. Super Admin will verify and activate your enterprise tenant.
+                      </p>
+                    </div>
+                    {isEditingOrgRequest && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingOrgRequest(false)}
+                        className="text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                      >
+                        ✕ Cancel
+                      </button>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleRequestCompanyApproval} className="space-y-6">
+                    {/* Organization Identity */}
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-3 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-[10px] font-bold">1</span>
+                        Organization Identity
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Organization Legal Name <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Acme Technologies Pvt Ltd"
+                            value={orgForm.organizationName}
+                            onChange={(e) => setOrgForm({ ...orgForm, organizationName: e.target.value })}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Organization Entity Type <span className="text-rose-500">*</span>
+                          </label>
+                          <select
+                            value={orgForm.organizationType}
+                            onChange={(e) => setOrgForm({ ...orgForm, organizationType: e.target.value })}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition bg-white"
+                          >
+                            <option value="COMPANY">Private / Public Company (Enterprise)</option>
+                            <option value="UNIVERSITY">University / Academic Institution</option>
+                            <option value="TRAINING_INSTITUTE">Training Institute / Upskilling Partner</option>
+                            <option value="OTHER">Other Organization</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Official Corporate Email <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="email"
+                            required
+                            placeholder="e.g. recruiter@acme.com"
+                            value={orgForm.officialEmail}
+                            onChange={(e) => setOrgForm({ ...orgForm, officialEmail: e.target.value })}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                          />
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Super Admin verifies corporate domain emails for priority approval.
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Official Website URL
+                          </label>
+                          <input
+                            type="url"
+                            placeholder="https://www.acme.com"
+                            value={orgForm.website}
+                            onChange={(e) => setOrgForm({ ...orgForm, website: e.target.value })}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contact Person Details */}
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-3 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-[10px] font-bold">2</span>
+                        Contact Person & Role
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Contact Person Name <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Full Name"
+                            value={orgForm.contactPerson}
+                            onChange={(e) => setOrgForm({ ...orgForm, contactPerson: e.target.value })}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Designation / Job Title
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Lead HR Recruiter"
+                            value={orgForm.designation}
+                            onChange={(e) => setOrgForm({ ...orgForm, designation: e.target.value })}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Direct Phone Number
+                          </label>
+                          <input
+                            type="tel"
+                            placeholder="+91 98765 43210"
+                            value={orgForm.phone}
+                            onChange={(e) => setOrgForm({ ...orgForm, phone: e.target.value })}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Location Details */}
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-3 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-[10px] font-bold">3</span>
+                        Headquarters & Location
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Office / HQ Address
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Tower B, Tech Park, Cyber City"
+                            value={orgForm.address}
+                            onChange={(e) => setOrgForm({ ...orgForm, address: e.target.value })}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            City
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Gurugram"
+                            value={orgForm.city}
+                            onChange={(e) => setOrgForm({ ...orgForm, city: e.target.value })}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            State & Country
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Haryana, India"
+                            value={orgForm.state}
+                            onChange={(e) => setOrgForm({ ...orgForm, state: e.target.value })}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Description & Purpose */}
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-3 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-[10px] font-bold">4</span>
+                        Company Overview / Verification Purpose
+                      </h4>
+                      <textarea
+                        rows={3}
+                        placeholder="Brief summary of company domain, hiring requirements, or reason for requesting Super Admin approval..."
+                        value={orgForm.description}
+                        onChange={(e) => setOrgForm({ ...orgForm, description: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
+                      />
+                    </div>
+
+                    {/* Submit Actions */}
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100">
+                      <div className="flex items-center gap-2 text-slate-400 text-xs">
+                        <span>🔒</span>
+                        <span>Direct encrypted transmission to Super Admin Approval Portal</span>
+                      </div>
+
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        {isEditingOrgRequest && (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingOrgRequest(false)}
+                            className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer w-full sm:w-auto"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          disabled={isOrgSubmitting}
+                          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#92400e] to-[#b45309] hover:from-[#78350f] hover:to-[#92400e] text-white text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 w-full sm:w-auto"
+                        >
+                          {isOrgSubmitting ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span>Submitting to Super Admin...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>Send for Super Admin Approval</span>
+                              <span>→</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
                 </div>
               )}
             </div>

@@ -596,6 +596,7 @@ exports.scheduleInterview = async (req, res, next) => {
     // 7. Create Interview
     const interview = await Interview.create({
       employerId: employerProfileId,
+      companyId: application.companyId || req.user.companyId || null,
       candidateId: application.candidateId,
       jobId: application.jobId || jobId || null,
       internshipId: application.internshipId || internshipId || null,

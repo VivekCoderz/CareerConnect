@@ -29,6 +29,8 @@ const SelectRole = lazy(() => import("./pages/SelectRole"));
 const JobDiscoveryPage = lazy(() => import("./pages/jobs/JobDiscoveryPage"));
 const InternshipDiscoveryPage = lazy(() => import("./pages/internships/InternshipDiscoveryPage"));
 const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage"));
+const OrganizationRequestPage = lazy(() => import("./pages/organizations/OrganizationRequestPage"));
+const AdminActivate = lazy(() => import("./pages/admin/AdminActivate"));
 
 // Lazy-loaded Pages: Auth
 const Login = lazy(() => import("./pages/auth/Login"));
@@ -231,6 +233,8 @@ function App() {
             }
           />
           <Route path="/companies/:companyId" element={<CompanyPublicProfile />} />
+          <Route path="/organizations" element={<OrganizationRequestPage />} />
+          <Route path="/organizations/request-access" element={<OrganizationRequestPage />} />
 
           {/* =================================================
               SET PASSWORD
@@ -362,6 +366,7 @@ function App() {
           ================================================= */}
           {/* Public Admin Login only */}
           <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/activate" element={<AdminActivate />} />
 
           {/* 404 Security: /admin and public-facing fake routes return generic 404 */}
           <Route path="/admin" element={<NotFound />} />

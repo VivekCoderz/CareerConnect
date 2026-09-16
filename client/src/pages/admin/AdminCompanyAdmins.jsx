@@ -4,7 +4,7 @@ import { Navigate } from "react-router-dom";
 import AdminLayout from "../../components/admin/AdminLayout";
 import {
   getCompanyAdmins,
-  createCompanyAdmin,
+  inviteCompanyAdmin,
   updateCompanyAdmin,
   updateCompanyAdminStatus,
   getAdminCompanies,
@@ -19,6 +19,11 @@ import {
   UserX,
   Edit2,
   KeyRound,
+  Copy,
+  Check,
+  Clock,
+  Send,
+  AlertCircle,
 } from "lucide-react";
 
 const AdminCompanyAdmins = () => {
@@ -43,9 +48,14 @@ const AdminCompanyAdmins = () => {
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
-    password: "",
+    phone: "",
     companyId: "",
+    password: "", // Only used for manual reset in edit mode
   });
+
+  // Success Invitation Result Modal
+  const [invitationResult, setInvitationResult] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -79,18 +89,39 @@ const AdminCompanyAdmins = () => {
       setSubmitting(true);
       if (editAdmin) {
         await updateCompanyAdmin(editAdmin._id, formData);
+        setShowModal(false);
+        setEditAdmin(null);
+        fetchData();
       } else {
-        await createCompanyAdmin(formData);
+        const res = await inviteCompanyAdmin({
+          fullName: formData.fullName,
+          officialEmail: formData.email,
+          phone: formData.phone,
+          companyId: formData.companyId,
+        });
+
+        if (res?.success) {
+          setShowModal(false);
+          const fullLink = `${window.location.origin}${res.activationLink}`;
+          setInvitationResult({
+            admin: res.admin,
+            activationLink: fullLink,
+          });
+          setFormData({ fullName: "", email: "", phone: "", password: "", companyId: "" });
+          fetchData();
+        }
       }
-      setShowModal(false);
-      setEditAdmin(null);
-      setFormData({ fullName: "", email: "", password: "", companyId: "" });
-      fetchData();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to save Company Admin");
+      alert(err.response?.data?.message || "Failed to process Company Admin request");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCopyLink = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const handleStatusToggle = async (admin) => {
@@ -119,20 +150,26 @@ const AdminCompanyAdmins = () => {
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              SUPER_ADMIN Level: Create and assign Company Administrators strictly isolated to their companyId.
+              SUPER_ADMIN Level: Invite and assign Company Administrators strictly isolated to their companyId.
             </p>
           </div>
 
           <button
             onClick={() => {
               setEditAdmin(null);
-              setFormData({ fullName: "", email: "", password: "", companyId: companies[0]?._id || "" });
+              setFormData({
+                fullName: "",
+                email: "",
+                phone: "",
+                password: "",
+                companyId: companies[0]?._id || "",
+              });
               setShowModal(true);
             }}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Create Company Admin</span>
+            <Send className="w-4 h-4" />
+            <span>Invite Company Admin</span>
           </button>
         </div>
 
@@ -189,7 +226,7 @@ const AdminCompanyAdmins = () => {
                 ) : admins.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="py-12 text-center text-slate-400">
-                      No Company Administrators found. Click "Create Company Admin" above to provision one.
+                      No Company Administrators found. Click "Invite Company Admin" above to send an onboarding invitation.
                     </td>
                   </tr>
                 ) : (
@@ -198,11 +235,12 @@ const AdminCompanyAdmins = () => {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
-                            {admin.fullName.charAt(0).toUpperCase()}
+                            {admin.fullName ? admin.fullName.charAt(0).toUpperCase() : "A"}
                           </div>
                           <div>
                             <span className="block font-bold text-slate-900">{admin.fullName}</span>
                             <span className="text-[11px] text-slate-400">{admin.email}</span>
+                            {admin.phone && <span className="text-[10px] text-slate-400 block">{admin.phone}</span>}
                           </div>
                         </div>
                       </td>
@@ -223,16 +261,23 @@ const AdminCompanyAdmins = () => {
                       </td>
 
                       <td className="px-5 py-3.5">
-                        <button
-                          onClick={() => handleStatusToggle(admin)}
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${
-                            admin.status === "active"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                              : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
-                          }`}
-                        >
-                          {admin.status === "active" ? "Active" : "Inactive"}
-                        </button>
+                        {admin.status === "invited" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-3 h-3 text-amber-500" />
+                            Invited (Pending)
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleStatusToggle(admin)}
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${
+                              admin.status === "active"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                            }`}
+                          >
+                            {admin.status === "active" ? "Active" : "Inactive"}
+                          </button>
+                        )}
                       </td>
 
                       <td className="px-5 py-3.5 text-slate-400 text-[11px]">
@@ -246,12 +291,13 @@ const AdminCompanyAdmins = () => {
                             setFormData({
                               fullName: admin.fullName,
                               email: admin.email,
+                              phone: admin.phone || "",
                               password: "",
                               companyId: admin.companyId?._id || admin.companyId || "",
                             });
                             setShowModal(true);
                           }}
-                          className="p-1 text-slate-400 hover:text-indigo-600 rounded transition"
+                          className="p-1 text-slate-400 hover:text-indigo-600 rounded transition cursor-pointer"
                           title="Edit Admin"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -265,18 +311,30 @@ const AdminCompanyAdmins = () => {
           </div>
         </div>
 
-        {/* Create / Edit Modal */}
+        {/* Invite / Edit Modal */}
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h2 className="text-sm font-bold text-slate-900">
-                  {editAdmin ? "Edit Company Admin" : "Create New Company Admin"}
-                </h2>
-                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                  <h2 className="text-sm font-bold text-slate-900">
+                    {editAdmin ? "Edit Company Admin" : "Invite Company Administrator"}
+                  </h2>
+                </div>
+                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                   ✕
                 </button>
               </div>
+
+              {!editAdmin && (
+                <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl flex items-start gap-2 text-xs text-indigo-800">
+                  <AlertCircle className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                  <p>
+                    A secure, time-limited activation token will be generated. The invited admin will establish their own password via the activation link.
+                  </p>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
@@ -292,7 +350,7 @@ const AdminCompanyAdmins = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Admin Email *</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Official Email Address *</label>
                   <input
                     type="email"
                     required
@@ -304,15 +362,12 @@ const AdminCompanyAdmins = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    {editAdmin ? "Reset Password (leave blank to keep current)" : "Password *"}
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
                   <input
-                    type="password"
-                    required={!editAdmin}
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="••••••••"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="+1 555-0199"
                     className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
@@ -325,32 +380,117 @@ const AdminCompanyAdmins = () => {
                     onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
                     className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white cursor-pointer"
                   >
-                    <option value="">Select a company...</option>
+                    <option value="">Select a company tenant...</option>
                     {companies.map((c) => (
                       <option key={c._id} value={c._id}>
-                        {c.name}
+                        {c.name} {c.status ? `(${c.status})` : ""}
                       </option>
                     ))}
                   </select>
                 </div>
 
+                {editAdmin && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Reset Password (leave blank to keep current)
+                    </label>
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="••••••••"
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                )}
+
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-xs"
                   >
-                    {submitting ? "Saving..." : editAdmin ? "Update Admin" : "Provision Admin"}
+                    {submitting ? (
+                      "Processing..."
+                    ) : editAdmin ? (
+                      "Update Admin"
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Send Invitation</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Invitation Success Dialog */}
+        {invitationResult && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-emerald-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <Check className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Admin Invitation Generated!</h3>
+                  <p className="text-xs text-slate-500">
+                    Account created for <strong>{invitationResult.admin?.fullName}</strong> ({invitationResult.admin?.email})
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
+                  Activation Link (Single-use, expires in 7 days):
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={invitationResult.activationLink}
+                    className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-lg text-slate-800 select-all outline-none"
+                  />
+                  <button
+                    onClick={() => handleCopyLink(invitationResult.activationLink)}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Share this link with the designated administrator. Upon opening, they will create their password and activate their COMPANY_ADMIN workspace.
+                </p>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={() => setInvitationResult(null)}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         )}

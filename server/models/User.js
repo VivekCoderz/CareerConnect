@@ -243,11 +243,30 @@ const userSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["active", "inactive", "suspended"],
+      enum: ["active", "inactive", "suspended", "invited", "ACTIVE", "INACTIVE", "SUSPENDED", "INVITED"],
       default: "active",
       index: true,
     },
 
+    // ========== ADMIN INVITATION ==========
+    invitationToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    invitationExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    invitationStatus: {
+      type: String,
+      enum: ["none", "invited", "used", "expired", "NONE", "INVITED", "USED", "EXPIRED"],
+      default: "none",
+      index: true,
+    },
 
     // ========== EMAIL VERIFICATION ==========
     isEmailVerified: {

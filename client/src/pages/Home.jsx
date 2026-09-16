@@ -158,6 +158,12 @@ const Home = () => {
                     OFFER
                   </span>
                 </Link>
+                <Link
+                  to="/organizations/request-access"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
+                >
+                  <span>For Organizations</span>
+                </Link>
               </div>
             </div>
 
