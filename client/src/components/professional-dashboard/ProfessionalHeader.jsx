@@ -43,7 +43,9 @@ const ProfessionalHeader = ({
   const navLinks = [
     { id: "dashboard", label: "Dashboard", isTab: true },
     { id: "opportunities", label: "Opportunities", isTab: true },
-    { id: "growth", label: "Career Growth", isTab: true },
+    { id: "jobs", label: "Jobs", isTab: true },
+    { id: "courses", label: "Courses", isTab: true },
+    { id: "interviews", label: "Interviews", isTab: true },
     { id: "applications", label: "Applications", isTab: true },
     { id: "profile", label: "Profile", link: "/professional/profile" },
   ];

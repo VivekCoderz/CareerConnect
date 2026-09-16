@@ -32,40 +32,21 @@ const loginLimiter = rateLimit({
   },
 });
 
-/**
- * 2. Password Reset Limiter:
- * Maximum 3 requests per 24 hours (1 day).
- * No 24-hour IP blocking.
- */
-const passwordResetLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000, // 24 hours (1 day)
-  max: 3,                         // Maximum 3 calls per day
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const ip = getClientIp(req);
-    const email = req.body?.email ? req.body.email.trim().toLowerCase() : "";
-    return `${ip}_${email}`;
-  },
-  handler: (req, res) => {
-    return res.status(429).json({
-      success: false,
-      code: "PASSWORD_RESET_LIMIT_24H",
-      message: "Aap 24 ghante (din) me sirf 3 baar hi password reset ki request bhej sakte hain. Limit poori ho chuki hai. Kripya baad me koshish karein.",
-      retryAfterHours: 24,
-    });
-  },
-});
-
 // No-op middleware for backwards compatibility or disabled rate limiters
 const noopMiddleware = (req, res, next) => next();
+
+/**
+ * 2. Password Reset Limiter:
+ * Disabled upon request (was 3 requests per 24 hours).
+ */
+const passwordResetLimiter = noopMiddleware;
 
 module.exports = {
   loginLimiter,
   passwordResetLimiter,
   // Aliases for compatibility
-  passwordResetLimiter24h: passwordResetLimiter,
-  resetLimiter: passwordResetLimiter,
+  passwordResetLimiter24h: noopMiddleware,
+  resetLimiter: noopMiddleware,
   authLimiter: loginLimiter,
   // Disabled / No-op
   ipBlockerMiddleware: noopMiddleware,

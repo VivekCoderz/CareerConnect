@@ -218,7 +218,6 @@ module.exports.sendOTP = async (req, res, next) => {
       success: true,
       message: "OTP sent to your email",
       email: normalizedEmail,
-      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (error) {
     next(error);
@@ -1324,7 +1323,6 @@ module.exports.forgotPassword = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "OTP sent to your email",
-      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (error) {
     next(error);

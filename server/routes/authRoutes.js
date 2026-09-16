@@ -4,10 +4,7 @@ const router = express.Router();
 const authControllers = require("../controllers/authController.js");
 const authMiddleware = require("../middleware/authMiddleware");
 const verifyCaptcha = require("../middleware/captchaMiddleware");
-const {
-  loginLimiter,
-  passwordResetLimiter,
-} = require("../middleware/rateLimitMiddleware");
+const { loginLimiter } = require("../middleware/rateLimitMiddleware");
 const { sanitizeInputs } = require("../middleware/validationMiddleware");
 
 // ==========================================
@@ -94,11 +91,11 @@ router.post("/send-otp", sanitizeInputs, authControllers.sendOTP);
 router.post("/verify-otp", sanitizeInputs, authControllers.verifyOTP);
 
 // ==========================================
-// PUBLIC — Forgot / Reset Password (3 times in 24 hours / per day)
+// PUBLIC — Forgot / Reset Password
 // ==========================================
-router.post("/forgot-password", passwordResetLimiter, sanitizeInputs, verifyCaptcha, authControllers.forgotPassword);
+router.post("/forgot-password", sanitizeInputs, verifyCaptcha, authControllers.forgotPassword);
 router.post("/verify-reset-otp", sanitizeInputs, authControllers.verifyResetOTP);
-router.post("/reset-password", passwordResetLimiter, sanitizeInputs, authControllers.resetPassword);
+router.post("/reset-password", sanitizeInputs, authControllers.resetPassword);
 
 // ==========================================
 // PUBLIC — Employer Registration
