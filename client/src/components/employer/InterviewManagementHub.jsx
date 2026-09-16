@@ -92,8 +92,14 @@ const InterviewManagementHub = ({
   const filteredInterviews = useMemo(() => {
     return interviews
       .filter((item) => {
-        // Status filter (case-insensitive)
-        if (statusFilter !== "All" && (item.status || "").toLowerCase() !== statusFilter.toLowerCase()) {
+        const s = (item.status || "").toLowerCase();
+        if (statusFilter === "Upcoming") {
+          if (s !== "scheduled" && s !== "rescheduled") return false;
+        } else if (statusFilter === "Completed") {
+          if (s !== "completed") return false;
+        } else if (statusFilter === "Cancelled") {
+          if (s !== "cancelled") return false;
+        } else if (statusFilter !== "All" && s !== statusFilter.toLowerCase()) {
           return false;
         }
 
@@ -128,6 +134,19 @@ const InterviewManagementHub = ({
   }, [interviews, statusFilter, roundFilter, searchQuery, sortBy]);
 
   // Actions
+  const handleMarkCompleted = async (interviewId) => {
+    try {
+      setActionLoading(true);
+      await recruitmentService.completeInterview(interviewId);
+      if (showToast) showToast("Interview marked as completed!");
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      if (showToast) showToast(err.message || "Failed to mark interview as completed", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleScorecardSubmit = async (interviewId, payload) => {
     try {
       setActionLoading(true);
@@ -355,17 +374,16 @@ const InterviewManagementHub = ({
         {/* Dynamic Status Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin text-xs">
           {[
-            { id: "All", label: "All Slots" },
-            { id: "Scheduled", label: "📅 Scheduled" },
-            { id: "Completed", label: "✓ Completed & Scored" },
-            { id: "Rescheduled", label: "🔄 Rescheduled" },
-            { id: "Cancelled", label: "✕ Cancelled" },
+            { id: "All", label: "All Interviews" },
+            { id: "Upcoming", label: "🕒 Upcoming Interviews" },
+            { id: "Completed", label: "✓ Completed Interviews" },
+            { id: "Cancelled", label: "✕ Cancelled Interviews" },
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap cursor-pointer ${
                 statusFilter === tab.id
                   ? "bg-slate-900 text-white shadow-2xs"
                   : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/70"
@@ -524,87 +542,94 @@ const InterviewManagementHub = ({
                 </div>
 
                 {/* Card Action Buttons */}
+                {/* Card Action Buttons */}
                 <div className="pt-3 border-t border-slate-100 space-y-2">
-                  <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setDetailsInterview(item)}
-                      className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition flex items-center justify-center gap-1"
-                      title="View Complete Candidate Interview Dossier"
+                      className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+                      title="View Details"
                     >
-                      <span>🔍</span>
-                      <span>Dossier</span>
+                      <span>👁️</span>
+                      <span>View</span>
                     </button>
 
-                    {!isCancelled ? (
+                    {!isCancelled && !isCompleted ? (
                       <button
                         type="button"
-                        onClick={() => setScorecardInterview(item)}
-                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs ${
-                          isCompleted
-                            ? "bg-slate-100 hover:bg-slate-200 text-slate-800"
-                            : "bg-[#f59e0b] hover:bg-[#d97706] text-white"
-                        }`}
+                        disabled={actionLoading}
+                        onClick={() => handleMarkCompleted(item._id)}
+                        className="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50"
+                        title="Mark Completed"
                       >
-                        <span>📝</span>
-                        <span>{isCompleted ? "Scorecard" : "Evaluate & Score"}</span>
+                        <span>✓</span>
+                        <span>Mark Completed</span>
                       </button>
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleScheduleNextRound(cand)}
-                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#1e3a8a] hover:bg-[#1e40af] text-white transition flex items-center justify-center gap-1.5 shadow-2xs"
+                        onClick={() => setScorecardInterview(item)}
+                        className="py-2 px-3 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold transition flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                        title="Give Feedback"
                       >
-                        <span>📅</span>
-                        <span>+ Schedule New</span>
+                        <span>📝</span>
+                        <span>{isCompleted ? "View Feedback" : "Give Feedback"}</span>
                       </button>
                     )}
-
-                    <button
-                      type="button"
-                      onClick={() => setHistoryCandidate(cand)}
-                      className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
-                      title="View Multi-Round History"
-                    >
-                      📊
-                    </button>
                   </div>
 
-                  {/* Sub-actions */}
-                  {!isCancelled && (
+                  {/* Secondary actions: Give Feedback, Reschedule, Cancel */}
+                  {!isCancelled && !isCompleted && (
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {!isCompleted && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setRescheduleInterview(item)}
-                            className="flex-1 py-1 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-bold transition text-center"
-                          >
-                            🔄 Reschedule
-                          </button>
+                      <button
+                        type="button"
+                        onClick={() => setScorecardInterview(item)}
+                        className="flex-1 py-1.5 px-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-bold transition text-center cursor-pointer"
+                      >
+                        📝 Give Feedback
+                      </button>
 
-                          <button
-                            type="button"
-                            disabled={actionLoading}
-                            onClick={() => handleCancelInterview(item)}
-                            className="flex-1 py-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10.5px] font-bold transition text-center"
-                          >
-                            ✕ Cancel
-                          </button>
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setRescheduleInterview(item)}
+                        className="flex-1 py-1.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition text-center cursor-pointer"
+                      >
+                        🔄 Reschedule
+                      </button>
 
-                      {isCompleted && (feedback.recommendation === "Move to Next Round" || item.result === "passed") && (
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => handleCancelInterview(item)}
+                        className="flex-1 py-1.5 px-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold transition text-center cursor-pointer disabled:opacity-50"
+                      >
+                        ✕ Cancel
+                      </button>
+                    </div>
+                  )}
+
+                  {isCompleted && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setScorecardInterview(item)}
+                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-bold transition text-center cursor-pointer"
+                      >
+                        📝 Give / Update Feedback
+                      </button>
+
+                      {(feedback.recommendation === "Move to Next Round" || item.result === "passed" || item.result === "next_round") && (
                         <button
                           type="button"
                           onClick={() => handleScheduleNextRound(cand)}
-                          className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold transition text-center"
+                          className="flex-1 py-1.5 px-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold transition text-center cursor-pointer"
                         >
                           + Next Round
                         </button>
                       )}
 
-                      {(item.result === "passed" || feedback.recommendation === "Strong Hire" || feedback.recommendation === "Hire / Select") && onOpenOfferModal && (
+                      {(item.result === "passed" || item.result === "selected" || feedback.recommendation === "Strong Hire" || feedback.recommendation === "Hire / Select") && onOpenOfferModal && (
                         <button
                           type="button"
                           onClick={() => onOpenOfferModal(item.applicationId || item)}
@@ -614,6 +639,16 @@ const InterviewManagementHub = ({
                         </button>
                       )}
                     </div>
+                  )}
+
+                  {isCancelled && (
+                    <button
+                      type="button"
+                      onClick={() => handleScheduleNextRound(cand)}
+                      className="w-full py-1.5 px-3 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-[11px] font-bold transition text-center shadow-xs cursor-pointer"
+                    >
+                      📅 Schedule New Interview
+                    </button>
                   )}
                 </div>
               </div>
@@ -695,42 +730,65 @@ const InterviewManagementHub = ({
                           <button
                             type="button"
                             onClick={() => setDetailsInterview(item)}
-                            className="p-1 px-2 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold hover:bg-slate-200 transition"
-                            title="View Dossier"
+                            className="p-1 px-2 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold hover:bg-slate-200 transition cursor-pointer"
+                            title="View Interview Details"
                           >
-                            🔍
+                            👁️ View
                           </button>
+                          {!isCompleted && !isCancelled && (
+                            <button
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={() => handleMarkCompleted(item._id)}
+                              className="px-2 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 transition cursor-pointer disabled:opacity-50"
+                              title="Mark Interview as Completed"
+                            >
+                              ✓ Complete
+                            </button>
+                          )}
                           {!isCancelled ? (
                             <button
                               type="button"
                               onClick={() => setScorecardInterview(item)}
-                              className="px-2.5 py-1 rounded-lg bg-[#f59e0b] text-white text-[11px] font-bold hover:bg-[#d97706] transition"
+                              className="px-2 py-1 rounded-lg bg-[#f59e0b] text-white text-[11px] font-bold hover:bg-[#d97706] transition cursor-pointer"
+                              title={isCompleted ? "View/Edit Scorecard" : "Give Feedback"}
                             >
-                              Scorecard
+                              {isCompleted ? "Feedback" : "Evaluate"}
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={() => handleScheduleNextRound(cand)}
-                              className="px-2.5 py-1 rounded-lg bg-blue-50 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold hover:bg-blue-100 transition"
+                              className="px-2 py-1 rounded-lg bg-blue-50 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold hover:bg-blue-100 transition cursor-pointer"
                             >
                               + Schedule
                             </button>
                           )}
                           {!isCompleted && !isCancelled && (
-                            <button
-                              type="button"
-                              onClick={() => handleCancelInterview(item)}
-                              className="p-1 px-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold hover:bg-rose-100 transition"
-                              title="Cancel Interview"
-                            >
-                              ✕
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setRescheduleInterview(item)}
+                                className="p-1 px-2 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold hover:bg-slate-200 transition cursor-pointer"
+                                title="Reschedule Interview"
+                              >
+                                🔄
+                              </button>
+                              <button
+                                type="button"
+                                disabled={actionLoading}
+                                onClick={() => handleCancelInterview(item)}
+                                className="p-1 px-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold hover:bg-rose-100 transition cursor-pointer disabled:opacity-50"
+                                title="Cancel Interview"
+                              >
+                                ✕
+                              </button>
+                            </>
                           )}
                           <button
                             type="button"
                             onClick={() => setHistoryCandidate(cand)}
-                            className="p-1 px-2 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold hover:bg-slate-200 transition"
+                            className="p-1 px-2 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold hover:bg-slate-200 transition cursor-pointer"
                             title="Candidate History"
                           >
                             📊

@@ -1,6 +1,12 @@
 // server/controllers/employerController.js
 const EmployerProfile = require("../models/EmployerProfile");
 const User = require("../models/User");
+const Job = require("../models/Job");
+const Internship = require("../models/Internship");
+const Application = require("../models/Application");
+const Interview = require("../models/Interview");
+const Employee = require("../models/Employee");
+const Course = require("../models/Course");
 
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
@@ -341,93 +347,103 @@ exports.getEmployerDashboard = async (req, res, next) => {
 
     const completion = calculateEmployerCompletion(profile, req.user);
 
-    // Mock/real metrics for dashboard overview
+    const ownerConditions = { createdBy: userId };
+
+    const [
+      jobs,
+      internships,
+      employeesCount,
+      coursesCount,
+    ] = await Promise.all([
+      Job.find(ownerConditions).sort({ createdAt: -1 }).lean(),
+      Internship.find(ownerConditions).sort({ createdAt: -1 }).lean(),
+      Employee.countDocuments({ employerId: profile._id }),
+      Course.countDocuments({ createdBy: userId }),
+    ]);
+
+    const activeJobs = jobs.filter((j) => j.status === "Published");
+    const activeInternships = internships.filter((i) => i.status === "Published");
+
+    const jobIds = jobs.map((j) => j._id);
+    const internshipIds = internships.map((i) => i._id);
+
+    const appOrConditions = [];
+    if (jobIds.length > 0) appOrConditions.push({ jobId: { $in: jobIds } });
+    if (internshipIds.length > 0) appOrConditions.push({ internshipId: { $in: internshipIds } });
+
+    let applications = [];
+    let interviewsCount = 0;
+    let totalApplicationsCount = 0;
+    let shortlistedCount = 0;
+
+    if (appOrConditions.length > 0) {
+      const interviewConditions = [
+        { employerId: userId },
+        ...(jobIds.length > 0 ? [{ jobId: { $in: jobIds } }] : []),
+      ];
+
+      const [apps, inters, totalApps, shortApps] = await Promise.all([
+        Application.find({ $or: appOrConditions })
+          .populate("candidateId", "fullName email phone profileImage userType")
+          .populate("jobId", "title employmentType")
+          .populate("internshipId", "title")
+          .sort({ createdAt: -1 })
+          .limit(8)
+          .lean(),
+        Interview.countDocuments({ $or: interviewConditions }),
+        Application.countDocuments({ $or: appOrConditions }),
+        Application.countDocuments({ $or: appOrConditions, status: "Shortlisted" }),
+      ]);
+      applications = apps;
+      interviewsCount = inters;
+      totalApplicationsCount = totalApps;
+      shortlistedCount = shortApps;
+    }
+
     const stats = {
-      activeJobs: 4,
-      internships: 8,
-      totalOpportunities: 12,
-      applications: 148,
-      shortlisted: 26,
-      interviews: 8,
-      profileViews: 1240,
+      activeJobs: activeJobs.length,
+      internships: activeInternships.length,
+      totalOpportunities: activeJobs.length + activeInternships.length,
+      applications: totalApplicationsCount,
+      shortlisted: shortlistedCount,
+      interviews: interviewsCount,
+      employees: employeesCount,
+      coursesCount,
+      profileViews: profile?.profileViews || 0,
     };
 
-    const recentApplications = [
-      {
-        id: "app-1",
-        candidateName: "Aman Sharma",
-        roleApplied: "Frontend Engineer Intern",
-        type: "Internship",
-        status: "Reviewing",
-        appliedDate: "2026-08-27",
-        matchScore: 92,
-        cgpa: "8.9",
-        degree: "B.Tech CSE - Geeta University",
-      },
-      {
-        id: "app-2",
-        candidateName: "Pooja Verma",
-        roleApplied: "Associate Full Stack Developer",
-        type: "Full-time",
-        status: "Shortlisted",
-        appliedDate: "2026-08-26",
-        matchScore: 88,
-        cgpa: "8.5",
-        degree: "BCA - Geeta University",
-      },
-      {
-        id: "app-3",
-        candidateName: "Rohan Patel",
-        roleApplied: "Backend Node.js Developer",
-        type: "Full-time",
-        status: "Interview Scheduled",
-        appliedDate: "2026-08-25",
-        matchScore: 95,
-        cgpa: "9.1",
-        degree: "MCA - Geeta University",
-      },
-      {
-        id: "app-4",
-        candidateName: "Simran Kaur",
-        roleApplied: "UI/UX Design Intern",
-        type: "Internship",
-        status: "Under Review",
-        appliedDate: "2026-08-24",
-        matchScore: 84,
-        cgpa: "8.2",
-        degree: "B.Tech IT - Geeta University",
-      },
-    ];
+    const recentApplications = applications.map((app) => ({
+      id: app._id,
+      candidateName: app.candidateId?.fullName || app.studentName || "Applicant",
+      roleApplied: app.jobId?.title || app.internshipId?.title || app.opportunityTitle || "Position",
+      type: app.opportunityType || (app.internshipId ? "Internship" : "Full-time"),
+      status: app.status || "Reviewing",
+      appliedDate: app.createdAt ? new Date(app.createdAt).toISOString().split("T")[0] : "Recent",
+      matchScore: app.matchScore || 85,
+      cgpa: app.cgpa || "8.5",
+      degree: app.degree || "Geeta University Student",
+    }));
 
     const activeListings = [
-      {
-        id: "job-1",
-        title: "Frontend React Developer",
-        type: "Full-time",
-        location: profile?.headquarters?.city || "Gurugram / Hybrid",
-        applicantsCount: 54,
-        postedDate: "2 days ago",
-        status: "Active",
-      },
-      {
-        id: "job-2",
-        title: "Node.js Backend Intern",
+      ...activeJobs.slice(0, 3).map((j) => ({
+        id: j._id,
+        title: j.title,
+        type: j.employmentType || "Full-time",
+        location: j.location || profile?.headquarters?.city || "On-site",
+        applicantsCount: j.applicantsCount || 0,
+        postedDate: j.createdAt ? new Date(j.createdAt).toLocaleDateString() : "Recent",
+        status: j.status,
+      })),
+      ...activeInternships.slice(0, 3).map((i) => ({
+        id: i._id,
+        title: i.title,
         type: "Internship",
-        location: "Remote",
-        applicantsCount: 62,
-        postedDate: "4 days ago",
-        status: "Active",
-      },
-      {
-        id: "job-3",
-        title: "Full Stack Engineer",
-        type: "Full-time",
-        location: profile?.headquarters?.city || "Delhi NCR",
-        applicantsCount: 32,
-        postedDate: "1 week ago",
-        status: "Active",
-      },
-    ];
+        location: i.location || "Remote",
+        applicantsCount: i.applicantsCount || 0,
+        postedDate: i.createdAt ? new Date(i.createdAt).toLocaleDateString() : "Recent",
+        status: i.status,
+      })),
+    ].slice(0, 6);
 
     return res.status(200).json({
       success: true,

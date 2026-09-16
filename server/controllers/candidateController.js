@@ -5,20 +5,83 @@ const ProfessionalProfile = require("../models/ProfessionalProfile");
 const Job = require("../models/Job");
 
 /**
+ * Safely extracts an array of skill strings from any candidate profile document
+ * (handles StudentProfile, FresherProfile, ProfessionalProfile structures)
+ */
+const extractProfileSkills = (prof) => {
+  if (!prof) return [];
+  const skillsSet = new Set();
+
+  const addSkill = (val) => {
+    if (!val) return;
+    if (typeof val === "string") {
+      val.split(",").forEach((s) => {
+        const trimmed = s.trim();
+        if (trimmed) skillsSet.add(trimmed);
+      });
+    } else if (typeof val === "object") {
+      const name = val.name || val.title || val.skill;
+      if (typeof name === "string" && name.trim()) {
+        skillsSet.add(name.trim());
+      }
+    }
+  };
+
+  // StudentProfile: technicalSkills, softSkills
+  if (Array.isArray(prof.technicalSkills)) {
+    prof.technicalSkills.forEach(addSkill);
+  }
+  if (Array.isArray(prof.softSkills)) {
+    prof.softSkills.forEach(addSkill);
+  }
+
+  // FresherProfile & ProfessionalProfile: skills is an object with category arrays
+  // or in some formats, skills might be an array or string
+  if (prof.skills) {
+    if (Array.isArray(prof.skills)) {
+      prof.skills.forEach(addSkill);
+    } else if (typeof prof.skills === "object") {
+      Object.values(prof.skills).forEach((categoryVal) => {
+        if (Array.isArray(categoryVal)) {
+          categoryVal.forEach(addSkill);
+        } else if (typeof categoryVal === "string" || (categoryVal && typeof categoryVal === "object")) {
+          addSkill(categoryVal);
+        }
+      });
+    } else if (typeof prof.skills === "string") {
+      addSkill(prof.skills);
+    }
+  }
+
+  // Also check skillsUsed if present in projects
+  if (Array.isArray(prof.skillsUsed)) {
+    prof.skillsUsed.forEach(addSkill);
+  }
+
+  return Array.from(skillsSet);
+};
+
+/**
  * Modular match score calculation algorithm
  */
 const calculateMatch = (candidateSkills = [], jobRequiredSkills = [], jobPreferredSkills = []) => {
-  if (!jobRequiredSkills.length && !jobPreferredSkills.length) {
+  const normCandidate = (Array.isArray(candidateSkills) ? candidateSkills : [])
+    .filter(Boolean)
+    .map((s) => String(s).toLowerCase().trim());
+  const normRequired = (Array.isArray(jobRequiredSkills) ? jobRequiredSkills : [])
+    .filter(Boolean)
+    .map((s) => String(s).toLowerCase().trim());
+  const normPreferred = (Array.isArray(jobPreferredSkills) ? jobPreferredSkills : [])
+    .filter(Boolean)
+    .map((s) => String(s).toLowerCase().trim());
+
+  if (!normRequired.length && !normPreferred.length) {
     return {
       matchPercentage: 85,
-      strongSkills: candidateSkills.slice(0, 3),
+      strongSkills: normCandidate.slice(0, 3),
       missingSkills: [],
     };
   }
-
-  const normCandidate = candidateSkills.map((s) => s.toLowerCase().trim());
-  const normRequired = jobRequiredSkills.map((s) => s.toLowerCase().trim());
-  const normPreferred = jobPreferredSkills.map((s) => s.toLowerCase().trim());
 
   const strongSkills = [];
   const missingSkills = [];
@@ -95,9 +158,15 @@ exports.searchCandidates = async (req, res, next) => {
       ProfessionalProfile.find({ userId: { $in: userIds } }).lean(),
     ]);
 
-    const studentMap = new Map(studentProfiles.map((p) => [p.userId.toString(), p]));
-    const fresherMap = new Map(fresherProfiles.map((p) => [p.userId.toString(), p]));
-    const professionalMap = new Map(professionalProfiles.map((p) => [p.userId.toString(), p]));
+    const studentMap = new Map(
+      studentProfiles.filter((p) => p?.userId).map((p) => [p.userId.toString(), p])
+    );
+    const fresherMap = new Map(
+      fresherProfiles.filter((p) => p?.userId).map((p) => [p.userId.toString(), p])
+    );
+    const professionalMap = new Map(
+      professionalProfiles.filter((p) => p?.userId).map((p) => [p.userId.toString(), p])
+    );
 
     const candidates = users.map((user) => {
       const uId = user._id.toString();
@@ -105,11 +174,13 @@ exports.searchCandidates = async (req, res, next) => {
       const fProf = fresherMap.get(uId);
       const pProf = professionalMap.get(uId);
 
-      const candidateSkills = [
-        ...(sProf?.skills?.map((s) => (typeof s === "string" ? s : s.name)) || []),
-        ...(fProf?.skills || []),
-        ...(pProf?.skills || []),
-      ];
+      const candidateSkills = Array.from(
+        new Set([
+          ...extractProfileSkills(sProf),
+          ...extractProfileSkills(fProf),
+          ...extractProfileSkills(pProf),
+        ])
+      );
 
       // Match scoring
       let matchInfo = { matchPercentage: 80, strongSkills: candidateSkills.slice(0, 4), missingSkills: [] };
@@ -124,8 +195,13 @@ exports.searchCandidates = async (req, res, next) => {
         matchInfo = calculateMatch(candidateSkills, skillArray, []);
       }
 
-      const education = sProf?.education?.[0] || fProf?.education?.[0] || {};
+      const education = sProf?.education?.[0] || fProf?.education?.[0] || pProf?.education?.[0] || {};
       const experience = pProf?.workExperience?.[0] || {};
+      const jobTitle =
+        experience.jobTitle ||
+        experience.designation ||
+        (user.userType === "student" ? "Undergraduate Student" : "Software Associate");
+      const cgpa = education.score || education.grade || education.cgpa || "8.5";
 
       return {
         _id: user._id,
@@ -140,8 +216,8 @@ exports.searchCandidates = async (req, res, next) => {
         degree: education.degree || "B.Tech Computer Science",
         institution: education.institution || "Geeta University",
         graduationYear: education.endYear || 2026,
-        cgpa: education.score || "8.5",
-        jobTitle: experience.designation || user.userType === "student" ? "Undergraduate Student" : "Software Associate",
+        cgpa,
+        jobTitle,
         experienceYears: user.userType === "professional" ? "2+ Years" : "Fresher",
         matchPercentage: matchInfo.matchPercentage,
         strongSkills: matchInfo.strongSkills,
@@ -180,11 +256,19 @@ exports.getCandidateById = async (req, res, next) => {
     ]);
 
     const profile = studentProfile || fresherProfile || professionalProfile || {};
+    const candidateSkills = Array.from(
+      new Set([
+        ...extractProfileSkills(studentProfile),
+        ...extractProfileSkills(fresherProfile),
+        ...extractProfileSkills(professionalProfile),
+      ])
+    );
 
     return res.status(200).json({
       success: true,
       candidate: {
         ...user,
+        skills: candidateSkills,
         profile,
       },
     });

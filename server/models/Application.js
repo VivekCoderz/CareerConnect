@@ -125,8 +125,10 @@ const applicationSchema = new mongoose.Schema(
         "Interview",
         "Interview Scheduled",
         "Interview Completed",
+        "In Progress",
         "Selected",
         "Offered",
+        "Offer",
         "Hired",
         "Rejected",
         "Withdrawn",
@@ -135,9 +137,37 @@ const applicationSchema = new mongoose.Schema(
       index: true,
     },
 
+    overallStatus: {
+      type: String,
+      enum: ["Applied", "In Progress", "Selected", "Rejected", "Hired", "Withdrawn"],
+      default: "Applied",
+      index: true,
+    },
+
     stage: {
       type: String,
       default: "Applied",
+    },
+
+    currentStageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+      index: true,
+    },
+
+    currentStageName: {
+      type: String,
+      default: "",
+    },
+
+    currentStageType: {
+      type: String,
+      default: "",
+    },
+
+    currentStageIndex: {
+      type: Number,
+      default: 0,
     },
 
     notes: [
@@ -161,6 +191,57 @@ const applicationSchema = new mongoose.Schema(
 
     stageHistory: [
       {
+        stageId: {
+          type: mongoose.Schema.Types.ObjectId,
+          default: null,
+        },
+        stageName: {
+          type: String,
+          default: "",
+        },
+        stageType: {
+          type: String,
+          default: "",
+        },
+        stageIndex: {
+          type: Number,
+          default: 0,
+        },
+        status: {
+          type: String,
+          enum: [
+            "Pending",
+            "In Progress",
+            "Passed",
+            "Failed",
+            "Skipped",
+            "Rejected",
+            "Selected",
+          ],
+          default: "In Progress",
+        },
+        startedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        completedAt: {
+          type: Date,
+          default: null,
+        },
+        remarks: {
+          type: String,
+          default: "",
+        },
+        updatedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          default: null,
+        },
+        metadata: {
+          type: mongoose.Schema.Types.Mixed,
+          default: {},
+        },
+        // Backward compatibility
         stage: String,
         notes: String,
         changedBy: {

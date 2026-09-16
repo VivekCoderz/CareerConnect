@@ -18,8 +18,11 @@ exports.getOffers = async (req, res, next) => {
   try {
     let query = {};
     if (req.user.role === "employer" || req.user.userType === "employer") {
-      const employerId = await getEmployerProfileId(req.user);
-      query.employerId = employerId;
+      const myJobs = await Job.find({ createdBy: req.user._id }, "_id");
+      const jobIds = myJobs.map((j) => j._id);
+      const orCond = [{ createdBy: req.user._id }];
+      if (jobIds.length > 0) orCond.push({ jobId: { $in: jobIds } });
+      query.$or = orCond;
     } else {
       query.candidateId = req.user._id;
     }
@@ -58,18 +61,20 @@ exports.createOffer = async (req, res, next) => {
       location,
       benefits,
       expiryDate,
+      notes,
       additionalTerms,
     } = req.body;
 
-    if (!candidateId || !jobId || !salary || !joiningDate || !expiryDate) {
+    if (!candidateId || !jobId || !designation || !salary || !joiningDate) {
       return res.status(400).json({
         success: false,
-        message: "Candidate, Job, Salary, Joining Date and Expiry Date are required",
+        message: "Candidate, Job, Designation, Salary, and Joining Date are required",
       });
     }
 
     const offer = await JobOffer.create({
       employerId,
+      createdBy: req.user._id,
       candidateId,
       jobId,
       applicationId: applicationId || null,

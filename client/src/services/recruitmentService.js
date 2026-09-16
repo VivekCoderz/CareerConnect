@@ -17,12 +17,33 @@ export const updateApplicationStatus = async (id, status) => {
 };
 
 export const addApplicationNote = async (id, note) => {
-  const res = await api.post(`/applications/${id}/notes`, { note });
+  const res = await api.post(`/applications/${id}/notes`, { text: note });
   return res.data;
 };
 
 export const rateApplication = async (id, rating) => {
   const res = await api.patch(`/applications/${id}/rating`, { rating });
+  return res.data;
+};
+
+// Dynamic Recruitment Pipeline Actions
+export const moveToNextStage = async (id, remarks = "", metadata = {}) => {
+  const res = await api.patch(`/applications/${id}/pipeline/move-next`, { remarks, metadata });
+  return res.data;
+};
+
+export const selectCandidate = async (id, remarks = "") => {
+  const res = await api.patch(`/applications/${id}/pipeline/select`, { remarks });
+  return res.data;
+};
+
+export const rejectCandidate = async (id, remarks = "") => {
+  const res = await api.patch(`/applications/${id}/pipeline/reject`, { remarks });
+  return res.data;
+};
+
+export const markStageFailed = async (id, remarks = "", shouldReject = false) => {
+  const res = await api.patch(`/applications/${id}/pipeline/mark-failed`, { remarks, shouldReject });
   return res.data;
 };
 
@@ -197,6 +218,10 @@ export default {
   updateApplicationStatus,
   addApplicationNote,
   rateApplication,
+  moveToNextStage,
+  selectCandidate,
+  rejectCandidate,
+  markStageFailed,
   getAssessments,
   createAssessment,
   getAssessmentResults,

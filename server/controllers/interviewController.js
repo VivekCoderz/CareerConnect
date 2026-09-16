@@ -68,11 +68,19 @@ exports.getInterviews = async (req, res, next) => {
     let query = {};
 
     if (isEmployer) {
-      const employerProfileId = await getEmployerProfileId(req.user);
-      query.$or = [
-        { employerId: employerProfileId },
+      const myJobs = await Job.find({ createdBy: req.user._id }, "_id");
+      const myInternships = await Internship.find({ createdBy: req.user._id }, "_id");
+      const jobIds = myJobs.map((j) => j._id);
+      const internshipIds = myInternships.map((i) => i._id);
+
+      const empOr = [
         { employerId: req.user._id },
+        { interviewerId: req.user._id },
       ];
+      if (jobIds.length > 0) empOr.push({ jobId: { $in: jobIds } });
+      if (internshipIds.length > 0) empOr.push({ internshipId: { $in: internshipIds } });
+
+      query.$or = empOr;
     } else {
       // Find all application IDs associated with this candidate (by user ID or email)
       const userEmails = [req.user.email].filter(Boolean);
@@ -155,12 +163,31 @@ exports.getInterviews = async (req, res, next) => {
           delete obj.scorecard;
           delete obj.feedback;
           delete obj.interviewerFeedback;
-        } else if (obj.scorecard) {
-          // Expose only overallScore and recommendation to candidate, hide internal notes
+        } else {
+          // Expose result, scores, recommendation, and recruiter feedback to candidate
+          const feedbackText =
+            obj.scorecard?.feedback ||
+            obj.scorecard?.overallFeedback ||
+            obj.feedback?.overallFeedback ||
+            obj.feedback?.comments ||
+            "";
+
           obj.scorecard = {
-            overallScore: obj.scorecard.overallScore,
+            overallScore: obj.scorecard?.overallScore || obj.feedback?.rating || 0,
+            technicalSkills: obj.scorecard?.technicalSkills || obj.feedback?.technicalScore || 0,
+            communication: obj.scorecard?.communication || obj.feedback?.communicationScore || 0,
+            problemSolving: obj.scorecard?.problemSolving || obj.feedback?.problemSolvingScore || 0,
+            overallPerformance: obj.scorecard?.overallPerformance || 0,
+            recommendation: obj.scorecard?.recommendation || obj.feedback?.recommendation || "",
+            feedback: feedbackText,
+            overallFeedback: feedbackText,
+          };
+          obj.feedback = {
+            rating: obj.scorecard.overallScore,
+            comments: feedbackText,
             recommendation: obj.scorecard.recommendation,
           };
+          delete obj.interviewerFeedback;
         }
         return obj;
       });
@@ -511,41 +538,43 @@ exports.scheduleInterview = async (req, res, next) => {
     const roundNum = Number(roundNumber) || 1;
 
     // 3. Multi-Round & Eligibility Enforcement
+    const isStageInterview =
+      application.currentStageType?.toLowerCase().includes("interview") ||
+      application.stage?.toLowerCase().includes("interview") ||
+      application.overallStatus === "In Progress";
+
     if (roundNum === 1) {
-      // First round requires candidate to be Shortlisted (or already in interview stage, or Approved)
+      // First round requires candidate to be Shortlisted, in interview stage, Approved, or in pipeline
       if (
+        !isStageInterview &&
         application.status !== "Shortlisted" &&
         application.status !== "Approved" &&
         application.status !== "Interview" &&
-        application.status !== "Interview Scheduled"
+        application.status !== "Interview Scheduled" &&
+        application.status !== "In Progress"
       ) {
         return res.status(400).json({
           success: false,
-          message: "Only shortlisted candidates are eligible for an interview. Please shortlist this candidate first.",
+          message: "Only eligible or shortlisted candidates can be scheduled for an interview.",
         });
       }
     } else {
-      // Round 2+ requires previous round (roundNum - 1) to be completed and passed
+      // Round 2+ check: if a previous interview round exists in DB, ensure it's completed
       const previousRound = await Interview.findOne({
         applicationId: application._id,
         roundNumber: roundNum - 1,
       });
 
-      if (!previousRound) {
-        return res.status(400).json({
-          success: false,
-          message: `Cannot schedule Round ${roundNum}. Round ${roundNum - 1} has not been created yet.`,
-        });
-      }
+      if (previousRound) {
+        const prevStatus = (previousRound.status || "").toLowerCase();
+        const prevResult = (previousRound.result || "").toLowerCase();
 
-      const prevStatus = (previousRound.status || "").toLowerCase();
-      const prevResult = (previousRound.result || "").toLowerCase();
-
-      if (prevStatus !== "completed" || prevResult !== "passed") {
-        return res.status(400).json({
-          success: false,
-          message: `Cannot schedule Round ${roundNum}. Round ${roundNum - 1} must be completed with result 'Passed' first.`,
-        });
+        if (prevStatus !== "completed" || (prevResult !== "passed" && prevResult !== "next_round")) {
+          return res.status(400).json({
+            success: false,
+            message: `Cannot schedule Round ${roundNum}. Round ${roundNum - 1} must be completed with result 'Passed' first.`,
+          });
+        }
       }
     }
 
@@ -646,7 +675,7 @@ exports.scheduleInterview = async (req, res, next) => {
         recipientId: application.candidateId,
         senderId: req.user._id,
         title: "Interview Scheduled 📅",
-        message: `Your ${interview.roundName || `Round ${roundNum}`} for ${oppTitle} at ${compName} has been scheduled for ${scheduledDate} at ${finalTime}.`,
+        message: `Your interview has been scheduled. ${interview.roundName || `Round ${roundNum}`} for ${oppTitle} at ${compName} has been scheduled for ${scheduledDate} at ${finalTime}.`,
         notificationType: "INTERVIEW_SCHEDULED",
         relatedInterviewId: interview._id,
         relatedApplicationId: application._id,
@@ -780,7 +809,7 @@ exports.rescheduleInterview = async (req, res, next) => {
         recipientId: interview.candidateId || app?.candidateId,
         senderId: req.user._id,
         title: "Interview Rescheduled 🔄",
-        message: `Your ${interview.roundName || `Round ${interview.roundNumber}`} interview for ${oppTitle} has been rescheduled from ${prevDate} (${prevTime}) to ${scheduledDate} (${newTime}).`,
+        message: `Your interview has been rescheduled. ${interview.roundName || `Round ${interview.roundNumber}`} for ${oppTitle} has been moved from ${prevDate} (${prevTime}) to ${scheduledDate} (${newTime}). Reason: ${finalReason}`,
         notificationType: "INTERVIEW_RESCHEDULED",
         relatedInterviewId: interview._id,
         relatedApplicationId: interview.applicationId,
@@ -878,7 +907,7 @@ exports.cancelInterview = async (req, res, next) => {
         recipientId: interview.candidateId || app?.candidateId,
         senderId: req.user._id,
         title: "Interview Cancelled ✕",
-        message: `Your ${interview.roundName || `Round ${interview.roundNumber}`} interview for ${oppTitle} scheduled for ${interview.scheduledDate} at ${interview.scheduledTime} has been cancelled. Reason: ${finalReason}.${finalMessage ? ` Note: ${finalMessage}` : ""}`,
+        message: `Your interview has been cancelled. ${interview.roundName || `Round ${interview.roundNumber}`} for ${oppTitle} scheduled for ${interview.scheduledDate} at ${interview.scheduledTime} has been cancelled. Reason: ${finalReason}.${finalMessage ? ` Note: ${finalMessage}` : ""}`,
         notificationType: "INTERVIEW_CANCELLED",
         relatedInterviewId: interview._id,
         relatedApplicationId: interview.applicationId,
@@ -999,20 +1028,22 @@ exports.submitInterviewScorecard = async (req, res, next) => {
       strengths = "",
       areasForImprovement = "",
       feedback = "",
+      overallFeedback = "",
       recommendation = "Hire",
       result,
       isFinalRound = false,
       markSelected = false,
     } = req.body;
 
-    const technical = Number(scorecard.technicalSkills || req.body.technicalScore || 0);
-    const problemSolving = Number(scorecard.problemSolving || req.body.problemSolving || 0);
-    const communication = Number(scorecard.communication || req.body.communicationScore || 0);
+    const technical = Number(scorecard.technicalSkills || req.body.technicalSkills || req.body.technicalScore || 0);
+    const problemSolving = Number(scorecard.problemSolving || req.body.problemSolving || req.body.problemSolvingScore || 0);
+    const communication = Number(scorecard.communication || req.body.communication || req.body.communicationScore || 0);
     const roleKnowledge = Number(scorecard.roleKnowledge || req.body.roleKnowledge || 0);
     const cultureFit = Number(scorecard.cultureFit || req.body.cultureFit || 0);
+    const overallPerformance = Number(scorecard.overallPerformance || req.body.overallPerformance || 0);
 
     // Compute average overall score
-    const criteriaScores = [technical, problemSolving, communication, roleKnowledge, cultureFit].filter(
+    const criteriaScores = [technical, problemSolving, communication, roleKnowledge, cultureFit, overallPerformance].filter(
       (v) => v > 0
     );
     const overallScore =
@@ -1020,15 +1051,22 @@ exports.submitInterviewScorecard = async (req, res, next) => {
         ? Number((criteriaScores.reduce((a, b) => a + b, 0) / criteriaScores.length).toFixed(1))
         : Number(req.body.rating || 0);
 
-    // Derive result: passed / failed
-    let finalResult = result ? result.toLowerCase() : "pending";
-    if (!result) {
-      if (["Strong Hire", "Hire"].includes(recommendation) || overallScore >= 3.0) {
-        finalResult = "passed";
+    const finalFeedbackText = overallFeedback || feedback || scorecard.overallFeedback || scorecard.feedback || req.body.comments || "";
+
+    // Normalize result (selected | rejected | next_round | pending | passed | failed)
+    let rawResult = (result || "").toLowerCase().trim();
+    if (rawResult === "next round") rawResult = "next_round";
+    
+    let finalResult = rawResult || "pending";
+    if (!rawResult) {
+      if (markSelected || isFinalRound || recommendation === "Strong Hire") {
+        finalResult = "selected";
       } else if (recommendation === "No Hire" || overallScore < 2.5) {
-        finalResult = "failed";
+        finalResult = "rejected";
+      } else if (recommendation === "Hire" || overallScore >= 3.0) {
+        finalResult = "next_round";
       } else {
-        finalResult = "passed";
+        finalResult = "pending";
       }
     }
 
@@ -1038,10 +1076,12 @@ exports.submitInterviewScorecard = async (req, res, next) => {
       communication,
       roleKnowledge,
       cultureFit,
+      overallPerformance,
       overallScore,
       strengths: strengths || scorecard.strengths || "",
       areasForImprovement: areasForImprovement || scorecard.areasForImprovement || "",
-      feedback: feedback || req.body.comments || "",
+      feedback: finalFeedbackText,
+      overallFeedback: finalFeedbackText,
       recommendation,
       submittedAt: new Date(),
       submittedBy: req.user._id,
@@ -1052,20 +1092,23 @@ exports.submitInterviewScorecard = async (req, res, next) => {
       rating: overallScore,
       technicalScore: technical,
       communicationScore: communication,
-      comments: feedback || req.body.comments || "",
+      problemSolvingScore: problemSolving,
+      overallPerformance,
+      overallFeedback: finalFeedbackText,
+      comments: finalFeedbackText,
       recommendation,
       submittedAt: new Date(),
     };
 
-    interview.interviewerFeedback = feedback || req.body.comments || "";
+    interview.interviewerFeedback = finalFeedbackText;
     interview.status = "completed";
     interview.result = finalResult;
 
     await interview.save();
 
-    // Advance Application Status
-    const shouldSelect =
-      finalResult === "passed" && (Boolean(isFinalRound) || Boolean(markSelected));
+    // Advance Application Status based on finalResult
+    const shouldSelect = finalResult === "selected" || Boolean(markSelected);
+    const shouldReject = finalResult === "rejected";
 
     if (shouldSelect) {
       await Application.findByIdAndUpdate(interview.applicationId, {
@@ -1073,7 +1116,31 @@ exports.submitInterviewScorecard = async (req, res, next) => {
         stage: "Selected / Eligible for Offer",
         $push: {
           notes: {
-            text: `Candidate cleared ${interview.roundName} with score ${overallScore}/5.0 and has been SELECTED for offer.`,
+            text: `Candidate cleared ${interview.roundName} with score ${overallScore}/5.0 and has been SELECTED. Result: SELECTED.`,
+            addedBy: req.user._id,
+            createdAt: new Date(),
+          },
+        },
+      });
+    } else if (shouldReject) {
+      await Application.findByIdAndUpdate(interview.applicationId, {
+        status: "Rejected",
+        stage: "Rejected",
+        $push: {
+          notes: {
+            text: `Interview evaluation completed for ${interview.roundName}. Result: REJECTED.`,
+            addedBy: req.user._id,
+            createdAt: new Date(),
+          },
+        },
+      });
+    } else if (finalResult === "next_round") {
+      await Application.findByIdAndUpdate(interview.applicationId, {
+        status: "Interview Completed",
+        stage: `Cleared ${interview.roundName} - Ready for Next Round`,
+        $push: {
+          notes: {
+            text: `Candidate cleared ${interview.roundName} with score ${overallScore}/5.0. Recommended for Next Round.`,
             addedBy: req.user._id,
             createdAt: new Date(),
           },
@@ -1082,10 +1149,10 @@ exports.submitInterviewScorecard = async (req, res, next) => {
     } else {
       await Application.findByIdAndUpdate(interview.applicationId, {
         status: "Interview Completed",
-        stage: `${interview.roundName} - ${finalResult.toUpperCase()}`,
+        stage: `${interview.roundName} - Completed`,
         $push: {
           notes: {
-            text: `Scorecard submitted for ${interview.roundName}. Score: ${overallScore}/5.0 | Result: ${finalResult.toUpperCase()}`,
+            text: `Feedback submitted for ${interview.roundName}. Score: ${overallScore}/5.0 | Result: ${finalResult.toUpperCase()}`,
             addedBy: req.user._id,
             createdAt: new Date(),
           },
@@ -1097,15 +1164,12 @@ exports.submitInterviewScorecard = async (req, res, next) => {
     try {
       const app = await Application.findById(interview.applicationId).select("opportunityTitle candidateId");
       const oppTitle = app?.opportunityTitle || "Opportunity";
-      const isPassed = finalResult === "passed";
 
       await notificationService.createNotification({
         recipientId: interview.candidateId || app?.candidateId,
         senderId: req.user._id,
-        title: isPassed ? "Round Cleared! 🏆" : "Interview Evaluation Completed 📝",
-        message: isPassed
-          ? `Congratulations! You have passed ${interview.roundName || `Round ${interview.roundNumber}`} for ${oppTitle}.`
-          : `Your evaluation for ${interview.roundName || `Round ${interview.roundNumber}`} for ${oppTitle} has been completed.`,
+        title: "Interview Result Updated 📝",
+        message: `Your interview result has been updated. Result: ${finalResult.toUpperCase().replace("_", " ")} for ${interview.roundName || `Round ${interview.roundNumber}`} (${oppTitle}).`,
         notificationType: "INTERVIEW_RESULT",
         relatedInterviewId: interview._id,
         relatedApplicationId: interview.applicationId,
@@ -1124,8 +1188,8 @@ exports.submitInterviewScorecard = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: shouldSelect
-        ? "Scorecard recorded! Candidate has cleared all rounds and is now SELECTED for Offer Letter."
-        : `Scorecard recorded with result: ${finalResult.toUpperCase()}`,
+        ? "Evaluation recorded! Candidate has cleared the interview and is now SELECTED."
+        : `Interview feedback and result (${finalResult.toUpperCase().replace("_", " ")}) recorded successfully.`,
       interview,
       overallScore,
       result: finalResult,

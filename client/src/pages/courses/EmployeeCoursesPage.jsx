@@ -53,7 +53,12 @@ const EmployeeCoursesPage = ({
       setError("");
 
       const response = await getEmployerCourses();
-      setCourses(response?.courses || []);
+      const myUserId = (user?._id || user?.id || "").toString();
+      const rawCourses = response?.courses || [];
+      const userCourses = myUserId
+        ? rawCourses.filter((c) => (c.createdBy?._id || c.createdBy)?.toString() === myUserId)
+        : rawCourses;
+      setCourses(userCourses);
     } catch (err) {
       console.error("Failed to load employer courses:", err);
       setError(

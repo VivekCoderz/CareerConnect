@@ -4,8 +4,13 @@ const Enrollment = require("../models/Enrollment");
 // GET /api/employer/learning/courses (Browse all published LMS courses)
 exports.getCourseCatalog = async (req, res, next) => {
   try {
-    const { domain, category, level, search } = req.query;
+    const { domain, category, level, search, all } = req.query;
     const query = { status: "Published" };
+
+    // Restrict to courses created by this user
+    if (req.user && all !== "true") {
+      query.createdBy = req.user._id;
+    }
 
     if (domain && domain !== "All") query.domain = domain;
     if (category && category !== "All") query.category = category;

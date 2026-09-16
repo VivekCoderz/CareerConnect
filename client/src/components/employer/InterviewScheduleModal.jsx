@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from "react";
 import recruitmentService from "../../services/recruitmentService";
 
+const ROUND_OPTIONS = [
+  "Technical Interview",
+  "Coding Round",
+  "HR Interview",
+  "Aptitude Round",
+  "Managerial Round",
+  "Final Interview",
+  "Other",
+];
+
 const InterviewScheduleModal = ({
   isOpen,
   onClose,
@@ -23,20 +33,20 @@ const InterviewScheduleModal = ({
     internshipId: "",
     applicationId: "",
     roundNumber: 1,
-    roundName: "Round 1 - Technical Assessment",
-    title: "Technical Interview Round",
-    interviewType: "Technical",
-    interviewerName: "Hiring Team Lead",
-    interviewerRole: "Technical Hiring Lead",
-    interviewerEmail: "",
-    scheduledDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-    scheduledTime: "11:00 AM - 11:45 AM",
-    durationMinutes: 45,
-    meetingMode: "Google Meet",
+    interviewRound: "Technical Interview",
+    customRoundName: "",
+    roundName: "Technical Interview",
+    title: "Technical Interview",
+    scheduledDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+    startTime: "11:00 AM",
+    duration: 45,
+    interviewMode: "Online", // "Online" | "Offline"
     meetingLink: "https://meet.google.com/new",
-    location: "Virtual Meeting Room",
+    location: "",
+    interviewerName: "",
+    interviewerEmail: "",
+    instructions: "Please be ready 5 minutes early in a quiet room with a stable internet connection and webcam on.",
     notes: "",
-    preparationGuidelines: "Please review fundamental concepts, algorithms, and past project architecture.",
     rescheduledReason: "",
   });
 
@@ -74,7 +84,6 @@ const InterviewScheduleModal = ({
     if (!item) return;
     setSelectedCandidateItem(item);
     const nextRound = item.nextRoundNumber || 1;
-    handleRoundChange(nextRound);
 
     setFormData((prev) => ({
       ...prev,
@@ -88,26 +97,31 @@ const InterviewScheduleModal = ({
 
   useEffect(() => {
     if (interviewToReschedule) {
+      const mode = interviewToReschedule.meetingMode === "Offline" || interviewToReschedule.interviewType === "Offline" ? "Offline" : "Online";
+      const round = ROUND_OPTIONS.includes(interviewToReschedule.roundName)
+        ? interviewToReschedule.roundName
+        : "Other";
+
       setFormData({
         candidateId: interviewToReschedule.candidateId?._id || interviewToReschedule.candidateId || "",
         jobId: interviewToReschedule.jobId?._id || interviewToReschedule.jobId || "",
         internshipId: interviewToReschedule.internshipId?._id || interviewToReschedule.internshipId || "",
         applicationId: interviewToReschedule.applicationId?._id || interviewToReschedule.applicationId || "",
         roundNumber: interviewToReschedule.roundNumber || 1,
-        roundName: interviewToReschedule.roundName || "Round 1 - Technical",
+        interviewRound: round,
+        customRoundName: round === "Other" ? (interviewToReschedule.roundName || "") : "",
+        roundName: interviewToReschedule.roundName || "Technical Interview",
         title: interviewToReschedule.title || "",
-        interviewType: interviewToReschedule.interviewType || "Technical",
-        interviewerName: interviewToReschedule.interviewerName || "",
-        interviewerRole: interviewToReschedule.interviewerRole || "",
-        interviewerEmail: interviewToReschedule.interviewerEmail || "",
         scheduledDate: interviewToReschedule.scheduledDate || today,
-        scheduledTime: interviewToReschedule.scheduledTime || "",
-        durationMinutes: interviewToReschedule.durationMinutes || 45,
-        meetingMode: interviewToReschedule.meetingMode || "Google Meet",
+        startTime: interviewToReschedule.startTime || interviewToReschedule.scheduledTime || "11:00 AM",
+        duration: interviewToReschedule.duration || interviewToReschedule.durationMinutes || 45,
+        interviewMode: mode,
         meetingLink: interviewToReschedule.meetingLink || "",
         location: interviewToReschedule.location || "",
+        interviewerName: interviewToReschedule.interviewerName || "",
+        interviewerEmail: interviewToReschedule.interviewerEmail || "",
+        instructions: interviewToReschedule.instructions || interviewToReschedule.preparationGuidelines || "",
         notes: interviewToReschedule.notes || "",
-        preparationGuidelines: interviewToReschedule.preparationGuidelines || "",
         rescheduledReason: "",
       });
     } else if (candidate) {
@@ -119,6 +133,7 @@ const InterviewScheduleModal = ({
       const targetAppId = candidate.applicationId || (candidate.appliedAt || candidate.status ? candidate._id : "");
       const targetJobId = candidate.jobId?._id || candidate.jobId || "";
       const targetInternshipId = candidate.internshipId?._id || candidate.internshipId || "";
+
       setFormData((prev) => ({
         ...prev,
         candidateId: targetCandId,
@@ -141,69 +156,119 @@ const InterviewScheduleModal = ({
     selectedCandidateItem?.candidateId?.fullName ||
     "Select Candidate";
 
-  const handleRoundChange = (roundNum) => {
-    const num = Number(roundNum);
-    const defaultRoundNames = {
-      1: "Round 1 - Technical Assessment",
-      2: "Round 2 - Live Coding & Problem Solving",
-      3: "Round 3 - System Design & Architecture",
-      4: "Round 4 - Managerial & Cultural Fit",
-      5: "Round 5 - Executive HR Discussion",
-    };
-    const defaultTypes = {
-      1: "Technical",
-      2: "Coding Challenge",
-      3: "System Design",
-      4: "Managerial",
-      5: "HR Round",
-    };
-
-    setFormData((prev) => ({
-      ...prev,
-      roundNumber: num,
-      roundName: defaultRoundNames[num] || `Round ${num} Evaluation`,
-      interviewType: defaultTypes[num] || prev.interviewType,
-      title: `${defaultTypes[num] || "Interview"} Round ${num}`,
-    }));
-  };
+  const targetRoleTitle =
+    interviewToReschedule?.jobId?.title ||
+    interviewToReschedule?.internshipId?.title ||
+    candidate?.opportunityTitle ||
+    candidate?.jobId?.title ||
+    candidate?.internshipId?.title ||
+    selectedCandidateItem?.opportunityTitle ||
+    "Selected Position";
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: value };
+      if (name === "interviewRound") {
+        updated.roundName = value === "Other" ? (prev.customRoundName || "Custom Interview Round") : value;
+      }
+      if (name === "customRoundName" && prev.interviewRound === "Other") {
+        updated.roundName = value || "Custom Interview Round";
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.scheduledDate || !formData.scheduledTime) {
-      setError("Please specify both the interview date and time slot.");
+    setError("");
+
+    // Validations
+    if (!isRescheduling && !formData.applicationId && !candidate) {
+      setError("Please select a candidate and associated application.");
       return;
     }
 
-    if (!isRescheduling && !formData.candidateId && !candidate) {
-      setError("Please select a candidate to interview.");
+    if (!formData.scheduledDate) {
+      setError("Interview date is required.");
+      return;
+    }
+
+    if (formData.scheduledDate < today) {
+      setError("Interview date cannot be in the past.");
+      return;
+    }
+
+    if (!formData.startTime || !formData.startTime.trim()) {
+      setError("Start time is required.");
+      return;
+    }
+
+    if (!formData.interviewerName || !formData.interviewerName.trim()) {
+      setError("Interviewer name is required.");
+      return;
+    }
+
+    const finalRoundName =
+      formData.interviewRound === "Other"
+        ? formData.customRoundName.trim() || "Custom Round"
+        : formData.interviewRound;
+
+    if (!finalRoundName) {
+      setError("Interview round is required.");
+      return;
+    }
+
+    if (formData.interviewMode === "Online" && (!formData.meetingLink || !formData.meetingLink.trim())) {
+      setError("Meeting link is required for Online interviews.");
+      return;
+    }
+
+    if (formData.interviewMode === "Offline" && (!formData.location || !formData.location.trim())) {
+      setError("Location is required for Offline interviews.");
       return;
     }
 
     try {
       setSaving(true);
-      setError("");
 
       if (isRescheduling && onReschedule) {
         await onReschedule(interviewToReschedule._id, {
           scheduledDate: formData.scheduledDate,
-          scheduledTime: formData.scheduledTime,
-          durationMinutes: formData.durationMinutes,
-          meetingLink: formData.meetingLink,
-          rescheduledReason: formData.rescheduledReason,
+          startTime: formData.startTime,
+          scheduledTime: formData.startTime,
+          duration: Number(formData.duration) || 45,
+          durationMinutes: Number(formData.duration) || 45,
+          meetingMode: formData.interviewMode,
+          interviewType: formData.interviewMode,
+          meetingLink: formData.interviewMode === "Online" ? formData.meetingLink : "",
+          location: formData.interviewMode === "Offline" ? formData.location : "",
+          rescheduledReason: formData.rescheduledReason || "Rescheduled by employer",
         });
       } else if (onSchedule) {
         const payload = {
-          ...formData,
           candidateId: formData.candidateId || candidate?.candidateId?._id || candidate?.candidateId || candidate?._id,
           applicationId: formData.applicationId || candidate?.applicationId || candidate?._id,
-          jobId: formData.jobId || candidate?.jobId?._id || candidate?.jobId,
-          internshipId: formData.internshipId || candidate?.internshipId?._id || candidate?.internshipId,
+          jobId: formData.jobId || candidate?.jobId?._id || candidate?.jobId || null,
+          internshipId: formData.internshipId || candidate?.internshipId?._id || candidate?.internshipId || null,
+          roundNumber: formData.roundNumber || 1,
+          roundName: finalRoundName,
+          title: finalRoundName,
+          scheduledDate: formData.scheduledDate,
+          startTime: formData.startTime,
+          scheduledTime: formData.startTime,
+          duration: Number(formData.duration) || 45,
+          durationMinutes: Number(formData.duration) || 45,
+          interviewType: formData.interviewMode,
+          meetingMode: formData.interviewMode,
+          meetingLink: formData.interviewMode === "Online" ? formData.meetingLink : "",
+          location: formData.interviewMode === "Offline" ? formData.location : "",
+          interviewerName: formData.interviewerName.trim(),
+          interviewerEmail: formData.interviewerEmail ? formData.interviewerEmail.trim() : "",
+          instructions: formData.instructions || "",
+          notes: formData.notes || "",
         };
+
         await onSchedule(payload);
       }
       onClose();
@@ -216,53 +281,58 @@ const InterviewScheduleModal = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-slide-in-top">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full overflow-hidden animate-slide-in-top my-4">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/90">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">
-              {isRescheduling ? "Reschedule Interview Slot" : "Schedule Live Interview"}
-            </h3>
-            <p className="text-xs text-slate-500">
-              Candidate: <strong className="text-slate-800">{candName}</strong>
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#1e3a8a]/10 border border-[#1e3a8a]/20 text-[#1e3a8a] flex items-center justify-center text-lg font-bold">
+              📅
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                {isRescheduling ? "Reschedule Interview" : "Schedule Interview"}
+              </h3>
+              <p className="text-xs text-slate-500">
+                Candidate: <strong className="text-slate-800">{candName}</strong> • {targetRoleTitle}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-sm font-bold transition"
+            className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-sm font-bold transition cursor-pointer"
           >
             ✕
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[78vh] overflow-y-auto">
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
-              {error}
+            <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700 flex items-center gap-2">
+              <span>⚠️</span>
+              <span>{error}</span>
             </div>
           )}
 
-          {/* If no candidate preselected and not rescheduling, show Candidate Selector */}
+          {/* Candidate Selection if not preselected */}
           {!isRescheduling && !candidate && (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1.5">
+              <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-700">
-                  Select Shortlisted / Eligible Candidate *
+                  Select Shortlisted Candidate & Position *
                 </label>
                 {loadingCandidates && (
-                  <span className="text-[10.5px] text-amber-600 font-semibold animate-pulse">
+                  <span className="text-[11px] text-amber-600 font-semibold animate-pulse">
                     Loading candidates...
                   </span>
                 )}
               </div>
 
               {eligibleCandidates.length === 0 && !loadingCandidates ? (
-                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
-                  ⚠️ No shortlisted candidates currently eligible for scheduling. Please shortlist candidates from the
-                  Applications screen first.
-                </div>
+                <p className="text-xs text-amber-800 font-medium bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                  ⚠️ No candidates currently shortlisted. Shortlist candidates from the Applications/ATS tab first.
+                </p>
               ) : (
                 <select
                   value={formData.applicationId}
@@ -272,10 +342,10 @@ const InterviewScheduleModal = ({
                     );
                     if (match) handleCandidateSelect(match);
                   }}
-                  className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                  className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#1e3a8a]"
                   required
                 >
-                  <option value="">-- Choose Candidate --</option>
+                  <option value="">-- Choose Shortlisted Candidate --</option>
                   {eligibleCandidates.map((item) => {
                     const cName =
                       item.candidateName ||
@@ -287,14 +357,10 @@ const InterviewScheduleModal = ({
                       item.jobId?.title ||
                       item.internshipId?.title ||
                       "Role";
-                    const roundNotice =
-                      item.nextRoundNumber > 1
-                        ? `(Passed Round ${item.nextRoundNumber - 1})`
-                        : `(${item.applicationStatus || "Eligible"})`;
                     const keyVal = item.applicationId || item._id;
                     return (
                       <option key={keyVal} value={keyVal}>
-                        {cName} — {roleTitle} {roundNotice}
+                        {cName} — {roleTitle}
                       </option>
                     );
                   })}
@@ -303,195 +369,248 @@ const InterviewScheduleModal = ({
             </div>
           )}
 
+          {/* Interview Round */}
           {!isRescheduling && (
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">Interview Pipeline Round</label>
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700">Interview Round *</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { num: 1, label: "R1: Technical", icon: "💻" },
-                  { num: 2, label: "R2: Coding", icon: "🧩" },
-                  { num: 3, label: "R3: System Design", icon: "🏗️" },
-                  { num: 4, label: "R4: Managerial", icon: "👔" },
-                ].map((r) => (
+                {ROUND_OPTIONS.map((round) => (
                   <button
-                    key={r.num}
+                    key={round}
                     type="button"
-                    onClick={() => handleRoundChange(r.num)}
-                    className={`p-2.5 rounded-2xl text-xs font-bold border transition flex flex-col items-center justify-center gap-1 ${
-                      formData.roundNumber === r.num
+                    onClick={() => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        interviewRound: round,
+                        roundName: round === "Other" ? (prev.customRoundName || "Custom Round") : round,
+                      }));
+                    }}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition text-center ${
+                      formData.interviewRound === round
                         ? "bg-[#1e3a8a] text-white border-[#1e3a8a] shadow-xs"
                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                     }`}
                   >
-                    <span className="text-sm">{r.icon}</span>
-                    <span className="text-[11px]">{r.label}</span>
+                    {round}
                   </button>
                 ))}
               </div>
+
+              {formData.interviewRound === "Other" && (
+                <div className="pt-1">
+                  <input
+                    name="customRoundName"
+                    value={formData.customRoundName}
+                    onChange={handleChange}
+                    placeholder="Enter custom interview round name..."
+                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#1e3a8a]"
+                    required
+                  />
+                </div>
+              )}
             </div>
           )}
 
-          <div className="grid sm:grid-cols-2 gap-3.5">
+          {/* Date, Time, Duration */}
+          <div className="grid sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Round Title *</label>
-              <input
-                name="roundName"
-                value={formData.roundName}
-                onChange={handleChange}
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Interview Type</label>
-              <select
-                name="interviewType"
-                value={formData.interviewType}
-                onChange={handleChange}
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-              >
-                <option value="Technical">Technical Round</option>
-                <option value="Coding Challenge">Coding Assessment</option>
-                <option value="System Design">System Design & Architecture</option>
-                <option value="Managerial">Managerial & Behavioral</option>
-                <option value="HR Round">HR Discussion</option>
-                <option value="Cultural Fit">Cultural & Team Fit</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Assigned Interviewer *</label>
-              <input
-                name="interviewerName"
-                value={formData.interviewerName}
-                onChange={handleChange}
-                placeholder="e.g. Rahul Mehta (Tech Lead)"
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Interviewer Role</label>
-              <input
-                name="interviewerRole"
-                value={formData.interviewerRole}
-                onChange={handleChange}
-                placeholder="Senior Engineering Manager"
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Date * (Cannot be past date)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Interview Date *</label>
               <input
                 type="date"
                 name="scheduledDate"
                 min={today}
                 value={formData.scheduledDate}
                 onChange={handleChange}
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#1e3a8a]"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Time Slot *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Start Time *</label>
               <input
-                name="scheduledTime"
-                value={formData.scheduledTime}
+                type="text"
+                name="startTime"
+                value={formData.startTime}
                 onChange={handleChange}
-                placeholder="11:00 AM - 11:45 AM"
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                placeholder="e.g. 11:00 AM"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#1e3a8a]"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Meeting Mode</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Duration *</label>
               <select
-                name="meetingMode"
-                value={formData.meetingMode}
+                name="duration"
+                value={formData.duration}
                 onChange={handleChange}
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#1e3a8a]"
               >
-                <option value="Google Meet">Google Meet</option>
-                <option value="Zoom">Zoom</option>
-                <option value="Microsoft Teams">Microsoft Teams</option>
-                <option value="In-Person Campus">In-Person Campus Room</option>
-                <option value="Phone">Phone Call</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Duration</label>
-              <select
-                name="durationMinutes"
-                value={formData.durationMinutes}
-                onChange={handleChange}
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-              >
+                <option value={15}>15 Minutes</option>
                 <option value={30}>30 Minutes</option>
                 <option value={45}>45 Minutes</option>
-                <option value={60}>60 Minutes</option>
-                <option value={90}>90 Minutes</option>
+                <option value={60}>60 Minutes (1 hour)</option>
+                <option value={90}>90 Minutes (1.5 hrs)</option>
+                <option value={120}>120 Minutes (2 hrs)</option>
               </select>
             </div>
+          </div>
 
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-700 mb-1">Live Meeting Video Link *</label>
+          {/* Interview Mode: Online or Offline */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-700">Interview Mode *</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setFormData((prev) => ({ ...prev, interviewMode: "Online" }))}
+                className={`py-2.5 px-3 rounded-2xl border text-xs font-bold transition flex items-center justify-center gap-2 ${
+                  formData.interviewMode === "Online"
+                    ? "bg-blue-50 border-blue-400 text-blue-800 ring-2 ring-blue-400/20"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <span>🌐</span>
+                <span>Online</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFormData((prev) => ({ ...prev, interviewMode: "Offline" }))}
+                className={`py-2.5 px-3 rounded-2xl border text-xs font-bold transition flex items-center justify-center gap-2 ${
+                  formData.interviewMode === "Offline"
+                    ? "bg-emerald-50 border-emerald-400 text-emerald-800 ring-2 ring-emerald-400/20"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <span>🏢</span>
+                <span>Offline</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Conditional: Meeting Link (Online) OR Location (Offline) */}
+          {formData.interviewMode === "Online" ? (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Meeting Link * (Required for Online)
+              </label>
               <input
+                type="url"
                 name="meetingLink"
                 value={formData.meetingLink}
                 onChange={handleChange}
-                placeholder="https://meet.google.com/xyz-uvw-rst"
-                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                placeholder="https://meet.google.com/xyz-abc-def"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#1e3a8a]"
+                required={formData.interviewMode === "Online"}
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Location * (Required for Offline)
+              </label>
+              <input
+                type="text"
+                name="location"
+                value={formData.location}
+                onChange={handleChange}
+                placeholder="e.g. Conference Room 3B, Campus Block A, Geeta University"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#1e3a8a]"
+                required={formData.interviewMode === "Offline"}
+              />
+            </div>
+          )}
+
+          {/* Interviewer Details */}
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Interviewer Name *</label>
+              <input
+                type="text"
+                name="interviewerName"
+                value={formData.interviewerName}
+                onChange={handleChange}
+                placeholder="e.g. Rahul Mehta (Tech Lead)"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#1e3a8a]"
                 required
               />
             </div>
 
-            {isRescheduling && (
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">Reason for Rescheduling *</label>
-                <input
-                  name="rescheduledReason"
-                  value={formData.rescheduledReason}
-                  onChange={handleChange}
-                  placeholder="Candidate requested time slot adjustment"
-                  className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  required
-                />
-              </div>
-            )}
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-700 mb-1">Candidate Preparation Guidelines & Tips</label>
-              <textarea
-                rows={2}
-                name="preparationGuidelines"
-                value={formData.preparationGuidelines}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Interviewer Email (Optional)</label>
+              <input
+                type="email"
+                name="interviewerEmail"
+                value={formData.interviewerEmail}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                placeholder="interviewer@company.com"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#1e3a8a]"
               />
             </div>
           </div>
 
-          {/* Footer Actions */}
+          {/* Reschedule Reason if Rescheduling */}
+          {isRescheduling && (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Reason for Rescheduling (Optional)</label>
+              <input
+                type="text"
+                name="rescheduledReason"
+                value={formData.rescheduledReason}
+                onChange={handleChange}
+                placeholder="e.g. Recruiter scheduling conflict, adjusted at candidate request"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#1e3a8a]"
+              />
+            </div>
+          )}
+
+          {/* Interview Instructions & Notes */}
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Interview Instructions</label>
+              <textarea
+                rows={2}
+                name="instructions"
+                value={formData.instructions}
+                onChange={handleChange}
+                placeholder="Guidelines or instructions for the candidate..."
+                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium outline-none focus:border-[#1e3a8a]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Optional Notes</label>
+              <textarea
+                rows={2}
+                name="notes"
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder="Internal recruiter notes..."
+                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium outline-none focus:border-[#1e3a8a]"
+              />
+            </div>
+          </div>
+
+          {/* Footer Buttons */}
           <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+              className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs transition disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
             >
-              {saving ? "Processing..." : isRescheduling ? "Update & Reschedule Slot" : "Confirm & Send Interview Invite"}
+              {saving
+                ? "Processing..."
+                : isRescheduling
+                ? "Reschedule Interview"
+                : "Schedule Interview"}
             </button>
           </div>
         </form>

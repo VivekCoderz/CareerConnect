@@ -78,10 +78,15 @@ const InterviewDetailsModal = ({
   const getResultBadge = (result) => {
     const r = (result || "").toLowerCase();
     switch (r) {
+      case "selected":
       case "passed":
-        return { label: "Passed Round ✓", bg: "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold" };
+        return { label: "Selected / Passed ✓", bg: "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold" };
+      case "rejected":
       case "failed":
-        return { label: "Failed Round ✕", bg: "bg-rose-100 text-rose-800 border-rose-300 font-bold" };
+        return { label: "Rejected / Failed ✕", bg: "bg-rose-100 text-rose-800 border-rose-300 font-bold" };
+      case "next_round":
+      case "next round":
+        return { label: "Advanced to Next Round ⏩", bg: "bg-purple-100 text-purple-800 border-purple-300 font-bold" };
       default:
         return { label: "Pending Evaluation", bg: "bg-amber-50 text-amber-800 border-amber-200 font-medium" };
     }

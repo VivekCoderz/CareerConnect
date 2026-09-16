@@ -23,6 +23,62 @@ const getEmployerProfileId = async (user) => {
   return profile._id;
 };
 
+const defaultRecruitmentStages = [
+  {
+    name: "Resume Screening",
+    type: "Resume Screening",
+    order: 0,
+    description: "Initial profile and resume evaluation",
+    configuration: { instructions: "Review applicant resume and qualifications" },
+  },
+  {
+    name: "Technical Interview",
+    type: "Technical Interview",
+    order: 1,
+    description: "Technical skills and coding assessment round",
+    configuration: {
+      interviewType: "Online",
+      durationMinutes: 45,
+      instructions: "Technical live problem-solving and system discussion",
+    },
+  },
+  {
+    name: "HR Interview",
+    type: "HR Interview",
+    order: 2,
+    description: "HR, culture fit, and compensation discussion",
+    configuration: {
+      interviewType: "Online",
+      durationMinutes: 30,
+      instructions: "Cultural fit, background verification, and hiring terms",
+    },
+  },
+];
+
+exports.defaultRecruitmentStages = defaultRecruitmentStages;
+
+const sanitizeRecruitmentStages = (stages) => {
+  if (!Array.isArray(stages) || stages.length === 0) {
+    return defaultRecruitmentStages;
+  }
+  return stages.map((s, idx) => ({
+    name: (s.name || `Stage ${idx + 1}`).trim(),
+    type: s.type || "Custom",
+    order: idx,
+    description: (s.description || "").trim(),
+    configuration: {
+      interviewType: s.configuration?.interviewType || "Online",
+      durationMinutes: Number(s.configuration?.durationMinutes) || 45,
+      instructions: (s.configuration?.instructions || "").trim(),
+      testLink: (s.configuration?.testLink || "").trim(),
+      passingCriteria: (s.configuration?.passingCriteria || "").trim(),
+      deadlineDays: Number(s.configuration?.deadlineDays) || 0,
+    },
+  }));
+};
+
+exports.sanitizeRecruitmentStages = sanitizeRecruitmentStages;
+
 // GET /api/jobs (Filterable job listings for public / employer)
 exports.getJobs = async (req, res, next) => {
   try {
@@ -45,20 +101,28 @@ exports.getJobs = async (req, res, next) => {
 
     const query = {};
 
-    if (myJobs === "true" && req.user) {
-      const employerId = await getEmployerProfileId(req.user);
-      query.employerId = employerId;
+    if (myJobs === "true" || myJobs === true) {
+      if (!req.user) {
+        return res.status(401).json({ success: false, message: "Not authenticated" });
+      }
+      query.createdBy = req.user._id;
     } else {
       query.status = status || "Published";
     }
 
     const searchTerm = (search || q || "").trim();
     if (searchTerm) {
-      query.$or = [
+      const searchCond = [
         { title: { $regex: searchTerm, $options: "i" } },
         { description: { $regex: searchTerm, $options: "i" } },
         { requiredSkills: { $in: [new RegExp(searchTerm, "i")] } },
       ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: searchCond }];
+        delete query.$or;
+      } else {
+        query.$or = searchCond;
+      }
     }
 
     const reqType = req.query.employmentType || req.query.opportunityType || req.query.type;
@@ -276,6 +340,7 @@ exports.createJob = async (req, res, next) => {
       openings,
       deadline,
       status,
+      recruitmentStages,
     } = req.body;
 
     if (!title || !location || !description) {
@@ -284,6 +349,8 @@ exports.createJob = async (req, res, next) => {
         message: "Job title, location and description are required",
       });
     }
+
+    const stages = sanitizeRecruitmentStages(recruitmentStages);
 
     const job = await Job.create({
       employerId,
@@ -304,6 +371,7 @@ exports.createJob = async (req, res, next) => {
       openings: openings ? Number(openings) : 1,
       deadline: deadline ? new Date(deadline) : null,
       status: status || "Published",
+      recruitmentStages: stages,
     });
 
     clearSearchCache();
@@ -321,8 +389,10 @@ exports.createJob = async (req, res, next) => {
 // PUT /api/jobs/:id (Update Job)
 exports.updateJob = async (req, res, next) => {
   try {
-    const employerId = await getEmployerProfileId(req.user);
-    const job = await Job.findOne({ _id: req.params.id, employerId });
+    const job = await Job.findOne({
+      _id: req.params.id,
+      createdBy: req.user._id,
+    });
 
     if (!job) {
       return res.status(404).json({
@@ -331,7 +401,12 @@ exports.updateJob = async (req, res, next) => {
       });
     }
 
-    Object.assign(job, req.body);
+    const updates = { ...req.body };
+    if (updates.recruitmentStages) {
+      updates.recruitmentStages = sanitizeRecruitmentStages(updates.recruitmentStages);
+    }
+
+    Object.assign(job, updates);
     await job.save();
     clearSearchCache();
 
@@ -349,10 +424,12 @@ exports.updateJob = async (req, res, next) => {
 exports.updateJobStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
-    const employerId = await getEmployerProfileId(req.user);
 
     const job = await Job.findOneAndUpdate(
-      { _id: req.params.id, employerId },
+      {
+        _id: req.params.id,
+        createdBy: req.user._id,
+      },
       { status },
       { new: true }
     );
@@ -379,8 +456,10 @@ exports.updateJobStatus = async (req, res, next) => {
 // POST /api/jobs/:id/duplicate
 exports.duplicateJob = async (req, res, next) => {
   try {
-    const employerId = await getEmployerProfileId(req.user);
-    const original = await Job.findOne({ _id: req.params.id, employerId });
+    const original = await Job.findOne({
+      _id: req.params.id,
+      createdBy: req.user._id,
+    });
 
     if (!original) {
       return res.status(404).json({ success: false, message: "Job not found" });
@@ -394,6 +473,13 @@ exports.duplicateJob = async (req, res, next) => {
     duplicateData.status = "Draft";
     duplicateData.viewsCount = 0;
     duplicateData.applicantsCount = 0;
+    if (Array.isArray(original.recruitmentStages)) {
+      duplicateData.recruitmentStages = original.recruitmentStages.map((s) => {
+        const stageObj = s.toObject ? s.toObject() : { ...s };
+        delete stageObj._id;
+        return stageObj;
+      });
+    }
 
     const duplicated = await Job.create(duplicateData);
 
@@ -410,10 +496,13 @@ exports.duplicateJob = async (req, res, next) => {
 // DELETE /api/jobs/:id
 exports.deleteJob = async (req, res, next) => {
   try {
-    const employerId = await getEmployerProfileId(req.user);
-    let job = await Job.findOneAndDelete({ _id: req.params.id, employerId });
+    const ownerQuery = {
+      _id: req.params.id,
+      createdBy: req.user._id,
+    };
+    let job = await Job.findOneAndDelete(ownerQuery);
     if (!job) {
-      job = await Internship.findOneAndDelete({ _id: req.params.id, employerId });
+      job = await Internship.findOneAndDelete(ownerQuery);
     }
 
     if (!job) {

@@ -1,64 +1,58 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 
-const STAGES = [
-  { id: "Applied", label: "Applied", color: "bg-blue-50 text-blue-700 border-blue-200" },
-  { id: "Approved", label: "Approved", color: "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold" },
-  { id: "Screening", label: "Screening", color: "bg-amber-50 text-amber-700 border-amber-200" },
-  { id: "Shortlisted", label: "Shortlisted", color: "bg-purple-50 text-purple-700 border-purple-200" },
-  { id: "Assessment", label: "Assessment", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-  { id: "Interview", label: "Interview", color: "bg-cyan-50 text-cyan-700 border-cyan-200" },
-  { id: "Offer", label: "Offer", color: "bg-teal-50 text-teal-700 border-teal-200" },
-  { id: "Hired", label: "Hired", color: "bg-green-100 text-green-800 border-green-300" },
-  { id: "Rejected", label: "Rejected", color: "bg-rose-50 text-rose-700 border-rose-200" },
+const DEFAULT_STAGES = [
+  { name: "Resume Screening", type: "Resume Screening", order: 0 },
+  { name: "Technical Interview", type: "Technical Interview", order: 1 },
+  { name: "HR Interview", type: "HR Interview", order: 2 },
 ];
 
 const ATSPipelineView = ({
   applications = [],
+  jobs = [],
   onUpdateStage,
+  onMoveNextStage,
+  onSelectCandidate,
+  onRejectCandidate,
+  onMarkStageFailed,
   onScheduleInterview,
   onCreateOffer,
   onAddNote,
 }) => {
+  // State
+  const [selectedJobId, setSelectedJobId] = useState("All");
+  const [activeStageFilter, setActiveStageFilter] = useState("All");
+  const [viewMode, setViewMode] = useState("list"); // "list" | "kanban"
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedApp, setSelectedApp] = useState(null);
   const [viewingApp, setViewingApp] = useState(null);
-  const [activeStageFilter, setActiveStageFilter] = useState("All");
+  const [viewingHistoryApp, setViewingHistoryApp] = useState(null);
+  const [actionModal, setActionModal] = useState(null); // { type: 'move'|'select'|'reject'|'fail', app: Object, targetStage: Object }
+  const [actionRemarks, setActionRemarks] = useState("");
   const [noteText, setNoteText] = useState("");
-  const [actionLoading, setActionLoading] = useState({});
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const filteredApps =
-    activeStageFilter === "All"
-      ? applications
-      : applications.filter((app) => app.status === activeStageFilter);
+  // Determine currently selected job object
+  const currentJob = useMemo(() => {
+    if (selectedJobId === "All") return null;
+    return jobs.find((j) => (j._id || j.id)?.toString() === selectedJobId) || null;
+  }, [jobs, selectedJobId]);
 
-  const handleStageChange = async (appId, nextStage) => {
-    setActionLoading((prev) => ({ ...prev, [appId]: true }));
-    try {
-      await onUpdateStage(appId, nextStage);
-      if (selectedApp && selectedApp._id === appId) {
-        setSelectedApp((prev) => ({ ...prev, status: nextStage, stage: nextStage }));
-      }
-      if (viewingApp && viewingApp._id === appId) {
-        setViewingApp((prev) => ({ ...prev, status: nextStage, stage: nextStage }));
-      }
-    } finally {
-      setActionLoading((prev) => ({ ...prev, [appId]: false }));
+  // Determine active recruitment stages for the current view
+  const activeStages = useMemo(() => {
+    if (currentJob && Array.isArray(currentJob.recruitmentStages) && currentJob.recruitmentStages.length > 0) {
+      return [...currentJob.recruitmentStages].sort((a, b) => a.order - b.order);
     }
-  };
+    return DEFAULT_STAGES;
+  }, [currentJob]);
 
-  const handleApprove = async (appId) => {
-    await handleStageChange(appId, "Approved");
-  };
-
-  const handleReject = async (appId) => {
-    await handleStageChange(appId, "Rejected");
-  };
-
-  const handleSendNote = async (e) => {
-    e.preventDefault();
-    if (!noteText.trim() || !selectedApp) return;
-    await onAddNote(selectedApp._id, noteText.trim());
-    setNoteText("");
-  };
+  // Filter applications by selected Job
+  const jobFilteredApps = useMemo(() => {
+    if (selectedJobId === "All") return applications;
+    return applications.filter((app) => {
+      const jId = (app.jobId?._id || app.jobId)?.toString();
+      return jId === selectedJobId;
+    });
+  }, [applications, selectedJobId]);
 
   // Helper to extract student display data
   const getStudentInfo = (app) => {
@@ -72,7 +66,7 @@ const ATSPipelineView = ({
     const education = app.education || appData.education || appData.degree || "B.Tech CSE";
     const college = appData.college || "Geeta University";
     const graduationYear = appData.graduationYear || "";
-    
+
     let skillsList = [];
     if (Array.isArray(app.skills) && app.skills.length > 0) {
       skillsList = app.skills;
@@ -117,39 +111,253 @@ const ATSPipelineView = ({
     };
   };
 
+  // Helper to determine candidate stage index & current stage object
+  const getCandidateStageData = (app) => {
+    let stages = DEFAULT_STAGES;
+    if (app.jobId?.recruitmentStages && app.jobId.recruitmentStages.length > 0) {
+      stages = [...app.jobId.recruitmentStages].sort((a, b) => a.order - b.order);
+    }
+
+    let currentIndex = -1;
+    if (app.currentStageId) {
+      currentIndex = stages.findIndex(
+        (s) => s._id && s._id.toString() === app.currentStageId.toString()
+      );
+    }
+    if (currentIndex === -1 && (app.currentStageName || app.stage)) {
+      const stName = (app.currentStageName || app.stage || "").toLowerCase();
+      currentIndex = stages.findIndex((s) => s.name.toLowerCase() === stName);
+    }
+    if (currentIndex === -1 && typeof app.currentStageIndex === "number") {
+      currentIndex = app.currentStageIndex;
+    }
+    if (currentIndex === -1) {
+      currentIndex = 0;
+    }
+
+    const currentStage = stages[currentIndex] || stages[0];
+    const isFinalStage = currentIndex >= stages.length - 1;
+    const nextStage = !isFinalStage ? stages[currentIndex + 1] : null;
+
+    const isSelected = app.overallStatus === "Selected" || app.status === "Selected";
+    const isRejected = app.overallStatus === "Rejected" || app.status === "Rejected";
+
+    return {
+      stages,
+      currentIndex,
+      currentStage,
+      isFinalStage,
+      nextStage,
+      isSelected,
+      isRejected,
+    };
+  };
+
+  // Filter applications by search query and active stage
+  const filteredApps = useMemo(() => {
+    return jobFilteredApps.filter((app) => {
+      const info = getStudentInfo(app);
+      const stageData = getCandidateStageData(app);
+
+      // Search matching
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchName = info.name.toLowerCase().includes(q);
+        const matchEmail = info.email.toLowerCase().includes(q);
+        const matchCollege = info.college.toLowerCase().includes(q);
+        const matchSkill = info.skillsList.some((s) => s.toLowerCase().includes(q));
+        if (!matchName && !matchEmail && !matchCollege && !matchSkill) return false;
+      }
+
+      // Stage matching
+      if (activeStageFilter === "All") return true;
+      if (activeStageFilter === "Selected") return stageData.isSelected;
+      if (activeStageFilter === "Rejected") return stageData.isRejected;
+
+      // Stage name matching
+      return (
+        !stageData.isSelected &&
+        !stageData.isRejected &&
+        (stageData.currentStage?.name === activeStageFilter ||
+          stageData.currentStage?._id?.toString() === activeStageFilter ||
+          app.stage === activeStageFilter)
+      );
+    });
+  }, [jobFilteredApps, activeStageFilter, searchQuery]);
+
+  // Stage counts for tab badges
+  const stageCounts = useMemo(() => {
+    const counts = { All: jobFilteredApps.length, Selected: 0, Rejected: 0 };
+    activeStages.forEach((s) => {
+      counts[s.name] = 0;
+    });
+
+    jobFilteredApps.forEach((app) => {
+      const stageData = getCandidateStageData(app);
+      if (stageData.isSelected) {
+        counts.Selected = (counts.Selected || 0) + 1;
+      } else if (stageData.isRejected) {
+        counts.Rejected = (counts.Rejected || 0) + 1;
+      } else if (stageData.currentStage) {
+        const name = stageData.currentStage.name;
+        counts[name] = (counts[name] || 0) + 1;
+      }
+    });
+
+    return counts;
+  }, [jobFilteredApps, activeStages]);
+
+  // Execute Action Confirmations
+  const handleConfirmAction = async () => {
+    if (!actionModal) return;
+    const { type, app, targetStage } = actionModal;
+    setActionLoading(true);
+    try {
+      if (type === "move") {
+        if (onMoveNextStage) {
+          await onMoveNextStage(app._id, actionRemarks);
+        }
+      } else if (type === "select") {
+        if (onSelectCandidate) {
+          await onSelectCandidate(app._id, actionRemarks);
+        }
+      } else if (type === "reject") {
+        if (onRejectCandidate) {
+          await onRejectCandidate(app._id, actionRemarks);
+        }
+      } else if (type === "fail") {
+        if (onMarkStageFailed) {
+          await onMarkStageFailed(app._id, actionRemarks, false);
+        }
+      }
+      setActionModal(null);
+      setActionRemarks("");
+    } catch (err) {
+      console.error("Action error:", err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSendNote = async (e) => {
+    e.preventDefault();
+    if (!noteText.trim() || !selectedApp) return;
+    await onAddNote(selectedApp._id, noteText.trim());
+    setNoteText("");
+  };
+
   return (
     <div className="space-y-4">
-      {/* Top Stage Filter Bar */}
+      {/* ======================================================== */}
+      {/* 1. TOP CONTROLS: JOB SELECTOR & VIEW MODE TOGGLE         */}
+      {/* ======================================================== */}
+      <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+        {/* Left: Job Filter */}
+        <div className="flex items-center gap-2.5 flex-1">
+          <span className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1.5">
+            <span>🎯</span> Job Vacancy:
+          </span>
+          <select
+            value={selectedJobId}
+            onChange={(e) => {
+              setSelectedJobId(e.target.value);
+              setActiveStageFilter("All");
+            }}
+            className="h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-800 outline-none focus:border-[#f59e0b] focus:bg-white transition max-w-xs"
+          >
+            <option value="All">All Jobs & Opportunities ({applications.length})</option>
+            {jobs.map((j) => (
+              <option key={j._id} value={j._id}>
+                {j.title} ({j.employmentType || "Job"})
+              </option>
+            ))}
+          </select>
+
+          {currentJob && (
+            <span className="px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-50 text-[#92400e] border border-amber-200/60 hidden sm:inline-block">
+              {activeStages.length} Pipeline Stages Configured
+            </span>
+          )}
+        </div>
+
+        {/* Right: Search & View Mode Switcher */}
+        <div className="flex items-center gap-2">
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search candidate name, skill, college..."
+            className="h-9 w-48 sm:w-60 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-medium outline-none focus:border-[#f59e0b] focus:bg-white transition"
+          />
+
+          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60">
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                viewMode === "list"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <span>📋</span> List
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("kanban")}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                viewMode === "kanban"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <span>📊</span> Kanban
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* 2. DYNAMIC PIPELINE STAGES BAR / METRICS                 */}
+      {/* ======================================================== */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
         <button
           type="button"
           onClick={() => setActiveStageFilter("All")}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 ${
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-1.5 ${
             activeStageFilter === "All"
               ? "bg-slate-900 text-white shadow-xs"
               : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
           }`}
         >
-          All Applications ({applications.length})
+          <span>All Applicants</span>
+          <span
+            className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeStageFilter === "All" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {stageCounts.All || 0}
+          </span>
         </button>
-        {STAGES.map((s) => {
-          const count = applications.filter((a) => a.status === s.id).length;
-          const isActive = activeStageFilter === s.id;
+
+        {activeStages.map((stage, sIdx) => {
+          const count = stageCounts[stage.name] || 0;
+          const isActive = activeStageFilter === stage.name;
           return (
             <button
-              key={s.id}
+              key={sIdx}
               type="button"
-              onClick={() => setActiveStageFilter(s.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex-shrink-0 flex items-center gap-1.5 ${
+              onClick={() => setActiveStageFilter(stage.name)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-1.5 ${
                 isActive
-                  ? "bg-[#b45309] text-white shadow-xs font-bold"
-                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  ? "bg-[#b45309] text-white shadow-xs"
+                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
               }`}
             >
-              <span>{s.label}</span>
+              <span className="opacity-75">{sIdx + 1}.</span>
+              <span>{stage.name}</span>
               <span
                 className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                  isActive ? "bg-white/20 text-white" : "bg-amber-50 text-[#92400e] border border-amber-200/50"
                 }`}
               >
                 {count}
@@ -157,53 +365,315 @@ const ATSPipelineView = ({
             </button>
           );
         })}
+
+        <button
+          type="button"
+          onClick={() => setActiveStageFilter("Selected")}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-1.5 ${
+            activeStageFilter === "Selected"
+              ? "bg-emerald-600 text-white shadow-xs"
+              : "bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+          }`}
+        >
+          <span>★ Selected</span>
+          <span
+            className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeStageFilter === "Selected" ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-800"
+            }`}
+          >
+            {stageCounts.Selected || 0}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveStageFilter("Rejected")}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-1.5 ${
+            activeStageFilter === "Rejected"
+              ? "bg-rose-600 text-white shadow-xs"
+              : "bg-white border border-rose-200 text-rose-700 hover:bg-rose-50"
+          }`}
+        >
+          <span>✕ Rejected</span>
+          <span
+            className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeStageFilter === "Rejected" ? "bg-white/20 text-white" : "bg-rose-50 text-rose-800"
+            }`}
+          >
+            {stageCounts.Rejected || 0}
+          </span>
+        </button>
       </div>
 
-      {/* Applications List / Table */}
-      {filteredApps.length === 0 ? (
+      {/* Empty State */}
+      {filteredApps.length === 0 && (
         <div className="p-12 text-center bg-white rounded-3xl border border-slate-200/80 shadow-2xs">
           <div className="w-12 h-12 rounded-2xl bg-amber-50 text-[#b45309] flex items-center justify-center mx-auto mb-3 text-xl">
             📑
           </div>
-          <h4 className="text-sm font-bold text-slate-900">No applications in this category</h4>
+          <h4 className="text-sm font-bold text-slate-900">No applicants match this criteria</h4>
           <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            Applications submitted by students for your posted jobs and internships will appear here dynamically.
+            {searchQuery
+              ? `No applicants found matching "${searchQuery}".`
+              : "Candidates who apply for your postings will appear in their assigned recruitment stage."}
           </p>
         </div>
-      ) : (
+      )}
+
+      {/* ======================================================== */}
+      {/* 3. KANBAN BOARD VIEW                                     */}
+      {/* ======================================================== */}
+      {viewMode === "kanban" && filteredApps.length > 0 && (
+        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin items-start">
+          {activeStages.map((stage, sIdx) => {
+            const stageApps = jobFilteredApps.filter((app) => {
+              const stageData = getCandidateStageData(app);
+              return (
+                !stageData.isSelected &&
+                !stageData.isRejected &&
+                (stageData.currentStage?.name === stage.name ||
+                  stageData.currentStage?._id?.toString() === stage._id?.toString() ||
+                  app.stage === stage.name)
+              );
+            });
+
+            return (
+              <div
+                key={sIdx}
+                className="w-72 flex-shrink-0 bg-slate-100/70 rounded-3xl border border-slate-200/80 p-3.5 space-y-3 flex flex-col max-h-[78vh]"
+              >
+                {/* Column Header */}
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-md bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center">
+                      {sIdx + 1}
+                    </span>
+                    <h4 className="text-xs font-bold text-slate-900 truncate max-w-[170px]" title={stage.name}>
+                      {stage.name}
+                    </h4>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-white text-slate-700 shadow-2xs">
+                    {stageApps.length}
+                  </span>
+                </div>
+
+                {/* Candidate Cards Column */}
+                <div className="space-y-2.5 overflow-y-auto flex-1 scrollbar-thin pr-1">
+                  {stageApps.length === 0 ? (
+                    <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                      No candidates in this round
+                    </div>
+                  ) : (
+                    stageApps.map((app) => {
+                      const info = getStudentInfo(app);
+                      const stageData = getCandidateStageData(app);
+
+                      return (
+                        <div
+                          key={app._id}
+                          className="p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-amber-300 shadow-2xs space-y-2.5 transition"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white font-bold flex items-center justify-center text-xs">
+                                {info.name[0] || "C"}
+                              </div>
+                              <div>
+                                <h5 className="text-xs font-bold text-slate-900">{info.name}</h5>
+                                <p className="text-[10px] text-slate-500 truncate max-w-[140px]">{info.education}</p>
+                              </div>
+                            </div>
+                            <span className="text-[9.5px] font-semibold text-slate-400">
+                              {info.appliedDate}
+                            </span>
+                          </div>
+
+                          {/* Skills badges */}
+                          {info.skillsList.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {info.skillsList.slice(0, 3).map((s, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[9.5px] font-semibold"
+                                >
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Interview alert if scheduled */}
+                          {app.latestInterview && app.latestInterview.status === "scheduled" && (
+                            <div className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 text-[10px] text-blue-800 font-semibold flex items-center gap-1">
+                              <span>📅</span>
+                              <span className="truncate">
+                                {app.latestInterview.scheduledDate} {app.latestInterview.startTime}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Actions */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setViewingApp(app)}
+                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-bold transition"
+                            >
+                              Details
+                            </button>
+
+                            <div className="flex items-center gap-1">
+                              {stage.type.includes("Interview") && (
+                                <button
+                                  type="button"
+                                  onClick={() => onScheduleInterview && onScheduleInterview(app)}
+                                  className="p-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-[11px]"
+                                  title="Schedule Interview"
+                                >
+                                  📅
+                                </button>
+                              )}
+
+                              {!stageData.isFinalStage ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setActionModal({
+                                      type: "move",
+                                      app,
+                                      targetStage: stageData.nextStage,
+                                    })
+                                  }
+                                  className="px-2 py-1 rounded-lg bg-[#b45309] hover:bg-[#92400e] text-white text-[10.5px] font-bold shadow-2xs"
+                                >
+                                  Next ➔
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setActionModal({
+                                      type: "select",
+                                      app,
+                                    })
+                                  }
+                                  className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-bold shadow-2xs"
+                                >
+                                  Select ★
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActionModal({
+                                    type: "reject",
+                                    app,
+                                  })
+                                }
+                                className="p-1 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-bold"
+                                title="Reject candidate"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Kanban Selected Column */}
+          <div className="w-72 flex-shrink-0 bg-emerald-50/60 rounded-3xl border border-emerald-200 p-3.5 space-y-3 flex flex-col max-h-[78vh]">
+            <div className="flex items-center justify-between border-b border-emerald-200 pb-2.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-emerald-700 font-bold text-xs">★ Selected Candidates</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-600 text-white">
+                {stageCounts.Selected || 0}
+              </span>
+            </div>
+            <div className="space-y-2.5 overflow-y-auto flex-1 scrollbar-thin pr-1">
+              {jobFilteredApps
+                .filter((a) => getCandidateStageData(a).isSelected)
+                .map((app) => {
+                  const info = getStudentInfo(app);
+                  return (
+                    <div key={app._id} className="p-3 bg-white rounded-2xl border border-emerald-200 shadow-2xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-xs font-bold text-slate-900">{info.name}</h5>
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                          Selected
+                        </span>
+                      </div>
+                      <p className="text-[10.5px] text-slate-500">{info.education}</p>
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => setViewingApp(app)}
+                          className="text-[10.5px] font-bold text-emerald-700 hover:underline"
+                        >
+                          View Details
+                        </button>
+                        {onCreateOffer && (
+                          <button
+                            type="button"
+                            onClick={() => onCreateOffer(app)}
+                            className="px-2 py-1 rounded-lg bg-emerald-600 text-white text-[10.5px] font-bold"
+                          >
+                            Create Offer 📜
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 4. LIST VIEW: COMPLETE PIPELINE PER CANDIDATE            */}
+      {/* ======================================================== */}
+      {viewMode === "list" && filteredApps.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          {/* List Column */}
-          <div className={`${selectedApp ? "lg:col-span-7" : "lg:col-span-12"} space-y-3`}>
+          {/* Main List of Candidates */}
+          <div className={`${selectedApp ? "lg:col-span-7" : "lg:col-span-12"} space-y-3.5`}>
             {filteredApps.map((app) => {
               const info = getStudentInfo(app);
-              const isSelected = selectedApp?._id === app._id;
-              const isLoading = Boolean(actionLoading[app._id]);
+              const stageData = getCandidateStageData(app);
+              const isSelectedCard = selectedApp?._id === app._id;
 
               return (
                 <div
                   key={app._id}
                   onClick={() => setSelectedApp(app)}
-                  className={`p-5 rounded-3xl border transition cursor-pointer bg-white space-y-3 ${
-                    isSelected
-                      ? "border-amber-400 ring-2 ring-amber-400/20 shadow-xs"
+                  className={`p-5 rounded-3xl border transition cursor-pointer bg-white space-y-4 ${
+                    isSelectedCard
+                      ? "border-amber-400 ring-2 ring-amber-400/20 shadow-md"
                       : "border-slate-200/80 hover:border-amber-300 shadow-2xs"
                   }`}
                 >
-                  {/* Top Header Row */}
+                  {/* Candidate Header Row */}
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white font-bold flex items-center justify-center text-sm flex-shrink-0 shadow-xs">
-                        {info.name[0] || "S"}
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 text-white font-bold flex items-center justify-center text-sm flex-shrink-0 shadow-xs">
+                        {info.name[0] || "C"}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="text-sm font-bold text-slate-900">{info.name}</h4>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-slate-100 text-slate-600">
                             {info.positionType}
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 mt-0.5">
-                          Position: <strong className="text-slate-800">{info.positionTitle}</strong>
+                          Position: <strong className="text-slate-900">{info.positionTitle}</strong>
                         </p>
                         <p className="text-[11px] text-slate-400 mt-0.5">
                           📧 {info.email} · 📱 {info.phone}
@@ -214,23 +684,96 @@ const ATSPipelineView = ({
                     <div className="text-right flex-shrink-0">
                       <span
                         className={`px-3 py-1 rounded-full text-[11px] font-bold border inline-block ${
-                          STAGES.find((s) => s.id === app.status)?.color || "bg-slate-100 text-slate-700"
+                          stageData.isSelected
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300 font-extrabold"
+                            : stageData.isRejected
+                            ? "bg-rose-100 text-rose-800 border-rose-300"
+                            : "bg-amber-50 text-[#92400e] border-amber-300 font-bold"
                         }`}
                       >
-                        {app.status}
+                        {stageData.isSelected
+                          ? "Selected"
+                          : stageData.isRejected
+                          ? "Rejected"
+                          : `Stage: ${stageData.currentStage?.name || app.stage}`}
                       </span>
                       <p className="text-[10px] text-slate-400 mt-1">Applied: {info.appliedDate}</p>
                     </div>
                   </div>
 
-                  {/* Candidate Details summary */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  {/* Visual Dynamic Recruitment Pipeline Stepper */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <div className="flex items-center justify-between text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
+                      <span>Recruitment Pipeline Progress</span>
+                      <span className="text-[#92400e]">
+                        {stageData.isSelected
+                          ? "Completed All Rounds (Selected)"
+                          : stageData.isRejected
+                          ? "Pipeline Closed"
+                          : `Round ${stageData.currentIndex + 1} of ${stageData.stages.length}`}
+                      </span>
+                    </div>
+
+                    {/* Stepper bar */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-thin">
+                      {stageData.stages.map((stg, idx) => {
+                        const isCompleted = idx < stageData.currentIndex || stageData.isSelected;
+                        const isCurrent = idx === stageData.currentIndex && !stageData.isSelected && !stageData.isRejected;
+                        const isUpcoming = idx > stageData.currentIndex && !stageData.isSelected;
+
+                        return (
+                          <React.Fragment key={idx}>
+                            <div
+                              className={`flex-shrink-0 px-2.5 py-1 rounded-xl text-[10.5px] font-bold flex items-center gap-1.5 border transition ${
+                                isCompleted
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  : isCurrent
+                                  ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/20"
+                                  : "bg-white text-slate-400 border-slate-200"
+                              }`}
+                            >
+                              <span>
+                                {isCompleted ? "✓" : isCurrent ? "●" : "○"}
+                              </span>
+                              <span>{stg.name}</span>
+                            </div>
+                            {idx < stageData.stages.length - 1 && (
+                              <span
+                                className={`text-[10px] font-bold ${
+                                  isCompleted ? "text-emerald-500" : "text-slate-300"
+                                }`}
+                              >
+                                ➔
+                              </span>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+
+                      <span className="text-slate-300 font-bold text-[10px]">➔</span>
+
+                      <div
+                        className={`flex-shrink-0 px-2.5 py-1 rounded-xl text-[10.5px] font-bold border ${
+                          stageData.isSelected
+                            ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
+                            : stageData.isRejected
+                            ? "bg-rose-100 text-rose-700 border-rose-200"
+                            : "bg-white text-slate-400 border-slate-200"
+                        }`}
+                      >
+                        {stageData.isSelected ? "★ Selected" : stageData.isRejected ? "✕ Rejected" : "Final Selection"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Candidate background info */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
                     <div>
-                      <span className="text-slate-400 text-[10.5px] uppercase font-bold block">Education</span>
-                      <span className="font-semibold text-slate-800">{info.education}</span>
+                      <span className="text-slate-400 text-[10px] uppercase font-bold block">Education</span>
+                      <span className="font-semibold text-slate-800">{info.education} · {info.college}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 text-[10.5px] uppercase font-bold block">Experience</span>
+                      <span className="text-slate-400 text-[10px] uppercase font-bold block">Experience</span>
                       <span className="font-semibold text-slate-800">{info.experience}</span>
                     </div>
                   </div>
@@ -239,7 +782,7 @@ const ATSPipelineView = ({
                   {info.skillsList.length > 0 && (
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[10px] font-bold text-slate-400">Skills:</span>
-                      {info.skillsList.slice(0, 5).map((s, idx) => (
+                      {info.skillsList.slice(0, 6).map((s, idx) => (
                         <span
                           key={idx}
                           className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10.5px] font-semibold border border-blue-100"
@@ -250,60 +793,176 @@ const ATSPipelineView = ({
                     </div>
                   )}
 
-                  {/* Action Buttons Row */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setViewingApp(app);
-                      }}
-                      className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1.5"
-                    >
-                      <span>👁️</span>
-                      <span>View Application</span>
-                    </button>
+                  {/* Active Interview Notice if scheduled */}
+                  {app.latestInterview && (
+                    <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📅</span>
+                        <div>
+                          <p className="font-bold text-blue-950">
+                            {app.latestInterview.roundName || "Interview Round"} Scheduled
+                          </p>
+                          <p className="text-[11px] text-blue-700">
+                            {app.latestInterview.scheduledDate} at {app.latestInterview.startTime} ({app.latestInterview.meetingMode || "Online"})
+                          </p>
+                        </div>
+                      </div>
+                      {app.latestInterview.meetingLink && (
+                        <a
+                          href={app.latestInterview.meetingLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold shadow-2xs"
+                        >
+                          Join Meeting ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
 
+                  {/* ======================================================== */}
+                  {/* STAGE-SPECIFIC ACTIONS ROW                               */}
+                  {/* ======================================================== */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        disabled={isLoading || app.status === "Approved"}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleApprove(app._id);
+                          setViewingApp(app);
                         }}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs ${
-                          app.status === "Approved"
-                            ? "bg-emerald-100 text-emerald-800 cursor-default"
-                            : "bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
-                        }`}
+                        className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1.5"
                       >
-                        {isLoading ? (
-                          <span>Updating...</span>
-                        ) : (
-                          <>
-                            <span>✓</span>
-                            <span>{app.status === "Approved" ? "Approved" : "Approve"}</span>
-                          </>
-                        )}
+                        <span>👁️</span> Application
                       </button>
 
                       <button
                         type="button"
-                        disabled={isLoading || app.status === "Rejected"}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleReject(app._id);
+                          setViewingHistoryApp(app);
                         }}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs ${
-                          app.status === "Rejected"
-                            ? "bg-rose-100 text-rose-800 cursor-default"
-                            : "bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
-                        }`}
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs flex items-center gap-1.5"
                       >
-                        <span>✕</span>
-                        <span>{app.status === "Rejected" ? "Rejected" : "Reject"}</span>
+                        <span>📜</span> Round History
                       </button>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {!stageData.isSelected && !stageData.isRejected && (
+                        <>
+                          {/* Interview Specific Action */}
+                          {stageData.currentStage?.type.includes("Interview") && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onScheduleInterview && onScheduleInterview(app);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>📅</span>
+                              <span>{app.latestInterview ? "Reschedule / Schedule" : "Schedule Interview"}</span>
+                            </button>
+                          )}
+
+                          {/* Test Specific Action */}
+                          {stageData.currentStage?.type.includes("Test") && (
+                            <>
+                              {stageData.currentStage.configuration?.testLink && (
+                                <a
+                                  href={stageData.currentStage.configuration.testLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 text-[#92400e] text-xs font-bold transition flex items-center gap-1"
+                                >
+                                  <span>🔗</span> Open Test
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActionModal({
+                                    type: "fail",
+                                    app,
+                                    targetStage: stageData.currentStage,
+                                  });
+                                }}
+                                className="px-2.5 py-1.5 rounded-xl border border-amber-200 text-amber-800 hover:bg-amber-50 text-xs font-bold transition"
+                              >
+                                Mark Failed
+                              </button>
+                            </>
+                          )}
+
+                          {/* Move to Next Stage (Unless at Final Stage) */}
+                          {!stageData.isFinalStage ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActionModal({
+                                  type: "move",
+                                  app,
+                                  targetStage: stageData.nextStage,
+                                });
+                              }}
+                              className="px-3.5 py-1.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white text-xs font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>✓</span>
+                              <span>Pass ➔ {stageData.nextStage?.name || "Next Stage"}</span>
+                            </button>
+                          ) : (
+                            /* Final Stage Actions: Select or Reject Candidate */
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActionModal({
+                                  type: "select",
+                                  app,
+                                });
+                              }}
+                              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>★</span>
+                              <span>Select Candidate</span>
+                            </button>
+                          )}
+
+                          {/* Reject Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActionModal({
+                                type: "reject",
+                                app,
+                              });
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>✕</span>
+                            <span>Reject</span>
+                          </button>
+                        </>
+                      )}
+
+                      {stageData.isSelected && onCreateOffer && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCreateOffer(app);
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-2xs"
+                        >
+                          📜 Generate Offer Letter
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -311,7 +970,7 @@ const ATSPipelineView = ({
             })}
           </div>
 
-          {/* Details & Stage Transition Side Panel */}
+          {/* Side Panel: Selected Applicant Quick Info */}
           {selectedApp && (
             <div className="lg:col-span-5 bg-white p-5 rounded-3xl border border-slate-200/80 shadow-md space-y-4 sticky top-20 h-fit">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -334,102 +993,48 @@ const ATSPipelineView = ({
 
               {/* Status Banner */}
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-semibold">Current Status</span>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                    STAGES.find((s) => s.id === selectedApp.status)?.color || "bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  {selectedApp.status}
+                <span className="text-xs text-slate-500 font-semibold">Active Stage</span>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-[#92400e]">
+                  {getCandidateStageData(selectedApp).currentStage?.name || selectedApp.stage}
                 </span>
               </div>
 
-              {/* Primary Direct Actions */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
                 <button
                   type="button"
-                  disabled={Boolean(actionLoading[selectedApp._id]) || selectedApp.status === "Approved"}
-                  onClick={() => handleApprove(selectedApp._id)}
-                  className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
+                  onClick={() => setViewingApp(selectedApp)}
+                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
                 >
-                  <span>✓</span> Approve Application
+                  <span>📄 View Complete Application Form</span>
                 </button>
-
                 <button
                   type="button"
-                  disabled={Boolean(actionLoading[selectedApp._id]) || selectedApp.status === "Rejected"}
-                  onClick={() => handleReject(selectedApp._id)}
-                  className="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
+                  onClick={() => setViewingHistoryApp(selectedApp)}
+                  className="w-full py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
                 >
-                  <span>✕</span> Reject Application
+                  <span>📜 Full Round History & Notes</span>
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setViewingApp(selectedApp)}
-                className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
-              >
-                <span>📄 View Complete Application Form</span>
-              </button>
-
-              {/* Pipeline Stage Buttons */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Change Pipeline Stage
-                </label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {STAGES.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      disabled={Boolean(actionLoading[selectedApp._id])}
-                      onClick={() => handleStageChange(selectedApp._id, s.id)}
-                      className={`px-2 py-1.5 rounded-xl text-[11px] font-bold border transition text-center ${
-                        selectedApp.status === s.id
-                          ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                          : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-amber-50 hover:border-amber-300"
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Quick Interview / Offer buttons */}
-              <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => onScheduleInterview && onScheduleInterview(selectedApp)}
-                  className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
-                >
-                  <span>📅</span> Schedule Interview
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onCreateOffer && onCreateOffer(selectedApp)}
-                  className="w-full py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
-                >
-                  <span>📜</span> Generate Job Offer
-                </button>
-              </div>
-
-              {/* Internal Notes */}
+              {/* Internal Recruiter Notes */}
               <div className="pt-2 border-t border-slate-100 space-y-2">
-                <h4 className="text-xs font-bold text-slate-800">Recruiter Notes</h4>
+                <h4 className="text-xs font-bold text-slate-800">Private Recruiter Notes</h4>
                 <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                  {(selectedApp.notes || []).map((n, idx) => (
-                    <div key={idx} className="p-2 rounded-xl bg-slate-50 text-[11px] text-slate-600">
-                      {n.text}
-                    </div>
-                  ))}
+                  {(selectedApp.notes || []).length === 0 ? (
+                    <p className="text-[11px] text-slate-400">No notes yet.</p>
+                  ) : (
+                    (selectedApp.notes || []).map((n, idx) => (
+                      <div key={idx} className="p-2 rounded-xl bg-slate-50 text-[11px] text-slate-600">
+                        {n.text}
+                      </div>
+                    ))
+                  )}
                 </div>
                 <form onSubmit={handleSendNote} className="flex gap-1.5">
                   <input
                     value={noteText}
                     onChange={(e) => setNoteText(e.target.value)}
-                    placeholder="Add recruiter note..."
+                    placeholder="Add private note..."
                     className="flex-1 h-8 rounded-xl border border-slate-200 bg-white px-2.5 text-xs outline-none focus:border-[#f59e0b]"
                   />
                   <button
@@ -446,15 +1051,183 @@ const ATSPipelineView = ({
       )}
 
       {/* ======================================================== */}
-      {/* PART 5: COMPLETE APPLICATION VIEW MODAL                  */}
+      {/* 5. ACTION REMARKS & CONFIRMATION MODAL                   */}
+      {/* ======================================================== */}
+      {actionModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-md rounded-3xl border border-slate-200 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                {actionModal.type === "move" && <span>🚀 Move to Next Stage</span>}
+                {actionModal.type === "select" && <span>🎉 Final Candidate Selection</span>}
+                {actionModal.type === "reject" && <span>✕ Reject Application</span>}
+                {actionModal.type === "fail" && <span>⚠️ Mark Stage Failed</span>}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setActionModal(null)}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <p className="text-slate-600">
+                Candidate: <strong className="text-slate-900">{getStudentInfo(actionModal.app).name}</strong>
+              </p>
+              {actionModal.type === "move" && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/70 text-amber-900">
+                  Advancing to: <strong className="text-[#92400e]">{actionModal.targetStage?.name || "Next Stage"}</strong>
+                </div>
+              )}
+              {actionModal.type === "select" && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200/70 text-emerald-900 font-semibold">
+                  This will mark the candidate as officially <strong>SELECTED</strong>.
+                </div>
+              )}
+              {actionModal.type === "reject" && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200/70 text-rose-900">
+                  This candidate will be marked as Rejected and cannot progress further.
+                </div>
+              )}
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Private Remarks / Evaluation Notes (Optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={actionRemarks}
+                  onChange={(e) => setActionRemarks(e.target.value)}
+                  placeholder="e.g. Cleared problem solving with distinction; good communication..."
+                  className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none focus:border-[#f59e0b] resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setActionModal(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={handleConfirmAction}
+                className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition ${
+                  actionModal.type === "select"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : actionModal.type === "reject"
+                    ? "bg-rose-600 hover:bg-rose-700"
+                    : "bg-[#b45309] hover:bg-[#92400e]"
+                }`}
+              >
+                {actionLoading ? "Processing..." : "Confirm Action"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 6. STAGE HISTORY AUDIT TRAIL MODAL                       */}
+      {/* ======================================================== */}
+      {viewingHistoryApp && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-200 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>📜</span> Recruitment Stage Audit Trail
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {getStudentInfo(viewingHistoryApp).name} · {getStudentInfo(viewingHistoryApp).positionTitle}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingHistoryApp(null)}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1 text-xs">
+              {(viewingHistoryApp.stageHistory || []).length === 0 ? (
+                <p className="text-slate-400 text-center py-6">No historical records found.</p>
+              ) : (
+                (viewingHistoryApp.stageHistory || []).map((sh, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-slate-900 text-xs">
+                        Round {idx + 1}: {sh.stageName || sh.stage || `Stage ${idx + 1}`}
+                      </h4>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          sh.status === "Passed" || sh.status === "Selected"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : sh.status === "Failed" || sh.status === "Rejected"
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {sh.status || "In Progress"}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-500 flex items-center gap-3">
+                      {sh.startedAt && (
+                        <span>
+                          Started: {new Date(sh.startedAt).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+                        </span>
+                      )}
+                      {sh.completedAt && (
+                        <span>
+                          Completed: {new Date(sh.completedAt).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+                        </span>
+                      )}
+                    </div>
+
+                    {sh.remarks && (
+                      <div className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-[11px]">
+                        <strong className="text-slate-900">Private Remarks:</strong> {sh.remarks}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewingHistoryApp(null)}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 7. COMPLETE APPLICATION VIEW MODAL                       */}
       {/* ======================================================== */}
       {viewingApp && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-2xl rounded-3xl border border-slate-200 shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
             {(() => {
               const info = getStudentInfo(viewingApp);
-              const isLoading = Boolean(actionLoading[viewingApp._id]);
+              const stageData = getCandidateStageData(viewingApp);
 
               return (
                 <>
@@ -471,7 +1244,7 @@ const ATSPipelineView = ({
                         {info.positionType}
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-white/10 text-white border border-white/20">
-                        Status: {viewingApp.status}
+                        Current Stage: {stageData.currentStage?.name || viewingApp.stage}
                       </span>
                     </div>
                     <h2 className="text-xl font-bold">{info.name}</h2>
@@ -480,207 +1253,111 @@ const ATSPipelineView = ({
                     </p>
                   </div>
 
-                  {/* Modal Body */}
                   <div className="p-6 space-y-5 max-h-[68vh] overflow-y-auto">
-                    {/* Section 1: Personal Information */}
+                    {/* Personal Info */}
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                         Personal Information
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
                         <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">
-                            Full Name
-                          </span>
+                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Full Name</span>
                           <span className="font-semibold text-slate-800">{info.name}</span>
                         </div>
                         <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">
-                            Email Address
-                          </span>
-                          <a href={`mailto:${info.email}`} className="font-semibold text-blue-600 hover:underline">
-                            {info.email}
-                          </a>
+                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Email Address</span>
+                          <a href={`mailto:${info.email}`} className="font-semibold text-blue-600 hover:underline">{info.email}</a>
                         </div>
                         <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">
-                            Phone Number
-                          </span>
-                          <a href={`tel:${info.phone}`} className="font-semibold text-slate-800 hover:underline">
-                            {info.phone}
-                          </a>
+                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Phone Number</span>
+                          <span className="font-semibold text-slate-800">{info.phone}</span>
                         </div>
                         <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">
-                            Address / Location
-                          </span>
+                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Address</span>
                           <span className="font-semibold text-slate-800">{info.address}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Section 2: Education */}
+                    {/* Education */}
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                        Education & Academic Background
+                        Academic Background
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
                         <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">
-                            Degree / Course
-                          </span>
+                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Degree</span>
                           <span className="font-semibold text-slate-800">{info.education}</span>
                         </div>
                         <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">
-                            College / University
-                          </span>
+                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">College</span>
                           <span className="font-semibold text-slate-800">{info.college}</span>
                         </div>
                         <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">
-                            Graduation Year
-                          </span>
-                          <span className="font-semibold text-slate-800">{info.graduationYear || "Not specified"}</span>
+                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Graduation Year</span>
+                          <span className="font-semibold text-slate-800">{info.graduationYear || "N/A"}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Section 3: Professional & Skills */}
+                    {/* Skills */}
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                        Professional Information & Skills
+                        Skills & Qualifications
                       </h4>
-                      <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs space-y-3">
-                        <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                            Skills
+                      <div className="flex flex-wrap gap-1.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                        {info.skillsList.map((s, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100"
+                          >
+                            ✓ {s}
                           </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {info.skillsList.length > 0 ? (
-                              info.skillsList.map((s, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100"
-                                >
-                                  ✓ {s}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-slate-500">Not specified</span>
-                            )}
-                          </div>
-                        </div>
+                        ))}
+                      </div>
+                    </div>
 
-                        <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-                            Experience Summary
-                          </span>
-                          <span className="font-semibold text-slate-800">{info.experience}</span>
-                        </div>
+                    {/* Resume & Portfolio */}
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                        Documents & Links
+                      </h4>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {info.resumeUrl ? (
+                          <a
+                            href={info.resumeUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5"
+                          >
+                            <span>📄</span> View Student Resume ↗
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-400">No resume attached</span>
+                        )}
 
                         {info.portfolioUrl && (
-                          <div>
-                            <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-                              Portfolio / GitHub Link
-                            </span>
-                            <a
-                              href={info.portfolioUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              <span>{info.portfolioUrl}</span>
-                              <span>↗</span>
-                            </a>
-                          </div>
+                          <a
+                            href={info.portfolioUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-xs flex items-center gap-1.5"
+                          >
+                            <span>🔗</span> Portfolio / GitHub ↗
+                          </a>
                         )}
-                      </div>
-                    </div>
-
-                    {/* Section 4: Documents */}
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                        Documents & Pitch
-                      </h4>
-                      <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs space-y-3">
-                        <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                            Submitted Resume
-                          </span>
-                          {info.resumeUrl ? (
-                            <a
-                              href={info.resumeUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold shadow-xs hover:bg-blue-800 transition"
-                            >
-                              <span>📄</span>
-                              <span>View / Download Resume</span>
-                              <span>↗</span>
-                            </a>
-                          ) : (
-                            <span className="text-slate-400 italic">No resume URL provided</span>
-                          )}
-                        </div>
-
-                        <div>
-                          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                            Cover Letter / Note
-                          </span>
-                          <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line bg-white p-3 rounded-xl border border-slate-200">
-                            {info.coverLetter || "No cover letter submitted."}
-                          </p>
-                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Modal Footer Actions */}
-                  <div className="p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
+                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
                     <button
                       type="button"
                       onClick={() => setViewingApp(null)}
-                      className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200/60 transition"
+                      className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
                     >
-                      Close
+                      Close Form
                     </button>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={isLoading || viewingApp.status === "Approved"}
-                        onClick={() => handleApprove(viewingApp._id)}
-                        className={`px-5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm ${
-                          viewingApp.status === "Approved"
-                            ? "bg-emerald-100 text-emerald-800 cursor-default"
-                            : "bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
-                        }`}
-                      >
-                        {isLoading ? (
-                          <span>Updating...</span>
-                        ) : (
-                          <>
-                            <span>✓</span>
-                            <span>{viewingApp.status === "Approved" ? "Approved" : "Approve Application"}</span>
-                          </>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isLoading || viewingApp.status === "Rejected"}
-                        onClick={() => handleReject(viewingApp._id)}
-                        className={`px-5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm ${
-                          viewingApp.status === "Rejected"
-                            ? "bg-rose-100 text-rose-800 cursor-default"
-                            : "bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
-                        }`}
-                      >
-                        <span>✕</span>
-                        <span>{viewingApp.status === "Rejected" ? "Rejected" : "Reject Application"}</span>
-                      </button>
-                    </div>
                   </div>
                 </>
               );

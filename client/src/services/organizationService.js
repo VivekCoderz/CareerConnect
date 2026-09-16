@@ -49,6 +49,22 @@ export const getSkillGapAnalysis = async () => {
   return res.data;
 };
 
+// Dynamic Team Roles
+export const getTeamRoles = async () => {
+  const res = await api.get("/organization/team-roles");
+  return res.data;
+};
+
+export const createTeamRole = async (data) => {
+  const res = await api.post("/organization/team-roles", data);
+  return res.data;
+};
+
+export const deleteTeamRole = async (id) => {
+  const res = await api.delete(`/organization/team-roles/${id}`);
+  return res.data;
+};
+
 export default {
   getEmployees,
   addEmployee,
@@ -59,4 +75,7 @@ export default {
   getTrainingAssignments,
   assignTraining,
   getSkillGapAnalysis,
+  getTeamRoles,
+  createTeamRole,
+  deleteTeamRole,
 };

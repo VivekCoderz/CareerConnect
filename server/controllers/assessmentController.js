@@ -16,8 +16,12 @@ const getEmployerProfileId = async (user) => {
 // GET /api/assessments (List assessments created by employer)
 exports.getAssessments = async (req, res, next) => {
   try {
-    const employerId = await getEmployerProfileId(req.user);
-    const assessments = await Assessment.find({ employerId })
+    const myJobs = await Job.find({ createdBy: req.user._id }, "_id");
+    const jobIds = myJobs.map((j) => j._id);
+    const orCond = [{ createdBy: req.user._id }];
+    if (jobIds.length > 0) orCond.push({ jobId: { $in: jobIds } });
+
+    const assessments = await Assessment.find({ $or: orCond })
       .populate("jobId", "title")
       .sort({ createdAt: -1 });
 
@@ -46,6 +50,7 @@ exports.createAssessment = async (req, res, next) => {
 
     const assessment = await Assessment.create({
       employerId,
+      createdBy: req.user._id,
       jobId: jobId || null,
       title: title.trim(),
       description: description || "",

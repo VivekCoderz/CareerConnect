@@ -121,6 +121,37 @@ const AddEmployeeModal = ({ isOpen, onClose, onAdd, departments = [] }) => {
           </div>
 
           <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Role in Company (Dynamic Role)
+            </label>
+            <div className="space-y-1.5">
+              <input
+                name="roleInCompany"
+                value={formData.roleInCompany}
+                onChange={handleChange}
+                placeholder="e.g. Recruiter, Hiring Manager, Team Lead, Employee"
+                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+              />
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {["Employee", "Recruiter", "Hiring Manager", "Team Lead", "Manager", "HR Admin"].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, roleInCompany: preset }))}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition cursor-pointer ${
+                      formData.roleInCompany === preset
+                        ? "bg-amber-100 text-amber-900 border-amber-300 font-bold"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Current Competencies / Skills</label>
             <input
               name="skills"

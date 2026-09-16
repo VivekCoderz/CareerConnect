@@ -173,17 +173,7 @@ exports.getInternships = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({ success: false, message: "Not authenticated" });
       }
-      const profile = await EmployerProfile.findOne({ userId: req.user._id });
-      if (!profile) {
-        return res.json({
-          success: true,
-          count: 0,
-          internships: [],
-          data: [],
-          pagination: { total: 0, page: 1, limit: Number(limit) || 20, totalPages: 1 },
-        });
-      }
-      filter.employerId = profile._id;
+      filter.createdBy = req.user._id;
     } else {
       filter.status = status || "Published";
     }
@@ -302,7 +292,7 @@ exports.getInternships = async (req, res, next) => {
                 .populate("employerId", "companyName logo headquarters website industry description")
                 .sort(sortOption)
                 .lean()
-            : Job.find({ employerId: filter.employerId, employmentType: { $regex: /^internship$/i } })
+            : Job.find({ createdBy: req.user._id, employmentType: { $regex: /^internship$/i } })
                 .populate("employerId", "companyName logo headquarters website industry description")
                 .sort(sortOption)
                 .lean(),
@@ -656,14 +646,14 @@ exports.getInternshipById = async (req, res, next) => {
 // PUT /api/internships/:id (Employer updates internship)
 exports.updateInternship = async (req, res, next) => {
   try {
-    const profile = await EmployerProfile.findOne({ userId: req.user._id });
-    const internship = await Internship.findOne({
+    const ownerQuery = {
       _id: req.params.id,
-      employerId: profile?._id,
-    });
+      createdBy: req.user._id,
+    };
+    const internship = await Internship.findOne(ownerQuery);
 
     if (!internship) {
-      return res.status(404).json({ success: false, message: "Internship not found" });
+      return res.status(404).json({ success: false, message: "Internship not found or access denied" });
     }
 
     ["employerId", "createdBy", "source", "isExternal", "externalId"].forEach(
@@ -689,15 +679,18 @@ exports.updateInternshipStatus = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Invalid status" });
     }
 
-    const profile = await EmployerProfile.findOne({ userId: req.user._id });
+    const ownerQuery = {
+      _id: req.params.id,
+      createdBy: req.user._id,
+    };
     const internship = await Internship.findOneAndUpdate(
-      { _id: req.params.id, employerId: profile?._id },
+      ownerQuery,
       { status },
       { new: true }
     );
 
     if (!internship) {
-      return res.status(404).json({ success: false, message: "Internship not found" });
+      return res.status(404).json({ success: false, message: "Internship not found or access denied" });
     }
 
     clearSearchCache();
@@ -711,26 +704,22 @@ exports.updateInternshipStatus = async (req, res, next) => {
 // DELETE /api/internships/:id (Employer deletes internship)
 exports.deleteInternship = async (req, res, next) => {
   try {
-    const profile = await EmployerProfile.findOne({ userId: req.user._id });
-    if (!profile) {
-      return res.status(404).json({ success: false, message: "Employer profile not found" });
-    }
-
-    let deleted = await Internship.findOneAndDelete({
+    const ownerQuery = {
       _id: req.params.id,
-      employerId: profile._id,
-    });
+      createdBy: req.user._id,
+    };
+
+    let deleted = await Internship.findOneAndDelete(ownerQuery);
 
     if (!deleted) {
       deleted = await Job.findOneAndDelete({
-        _id: req.params.id,
-        employerId: profile._id,
+        ...ownerQuery,
         employmentType: { $regex: /^internship$/i },
       });
     }
 
     if (!deleted) {
-      return res.status(404).json({ success: false, message: "Internship not found" });
+      return res.status(404).json({ success: false, message: "Internship not found or access denied" });
     }
 
     await Application.deleteMany({
