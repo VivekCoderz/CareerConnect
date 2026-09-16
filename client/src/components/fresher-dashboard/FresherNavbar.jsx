@@ -29,6 +29,20 @@ const FresherNavbar = ({ user, onOpenMobileSidebar, onToggleSidebar, onLogout, o
     .slice(0, 2)
     .toUpperCase();
 
+  const handleMenuClick = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      if (onOpenMobileSidebar) {
+        onOpenMobileSidebar();
+        return;
+      }
+    }
+    if (onToggleSidebar) {
+      onToggleSidebar();
+    } else if (onOpenMobileSidebar) {
+      onOpenMobileSidebar();
+    }
+  };
+
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -36,8 +50,8 @@ const FresherNavbar = ({ user, onOpenMobileSidebar, onToggleSidebar, onLogout, o
         <div className="flex items-center gap-3 flex-1 max-w-md">
           <button
             type="button"
-            onClick={onToggleSidebar || onOpenMobileSidebar}
-            className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-blue-700 transition cursor-pointer"
+            onClick={handleMenuClick}
+            className="p-2.5 -ml-1.5 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-blue-700 active:bg-slate-200 transition cursor-pointer flex items-center justify-center min-w-[40px] min-h-[40px]"
             aria-label="Toggle navigation menu"
             title="Toggle sidebar"
           >
