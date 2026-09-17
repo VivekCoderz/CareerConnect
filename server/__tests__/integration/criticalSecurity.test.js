@@ -12,6 +12,7 @@ const { registerSseClient, broadcastRealtimeNotification } = require("../../serv
 describe("critical security boundaries", () => {
   beforeEach(() => {
     getFirebaseAdmin.verifyIdToken.mockReset();
+    getFirebaseAdmin.getUser.mockReset().mockResolvedValue({ uid: "existing-firebase-user" });
   });
 
   it("only links a verified Google identity and preserves an existing UID", async () => {
@@ -34,8 +35,78 @@ describe("critical security boundaries", () => {
     expect((await User.findById(user._id)).firebaseUid).toBe(claims.uid);
 
     getFirebaseAdmin.verifyIdToken.mockResolvedValueOnce({ ...claims, uid: "different-uid" });
-    expect((await request(app).post("/api/auth/google-auth").send({ idToken: "token" })).statusCode).toBe(409);
+    const conflict = await request(app).post("/api/auth/google-auth").send({ idToken: "token" });
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.body.code).toBe("ACCOUNT_IDENTITY_CONFLICT");
     expect((await User.findById(user._id)).firebaseUid).toBe(claims.uid);
+  });
+
+  it("completes password setup using a verified Google token without client-side provider linking", async () => {
+    const account = await createUserWithToken({ email: "google-password-setup@example.com",
+      firebaseUid: "google-setup-uid", hasPassword: false,
+      authProviders: ["google"] });
+    await User.updateOne({ _id: account.user._id }, { $unset: { password: "" } });
+    const claims = { uid: "google-setup-uid", email: account.user.email,
+      email_verified: true, firebase: { sign_in_provider: "google.com" } };
+    getFirebaseAdmin.verifyIdToken.mockResolvedValueOnce(claims);
+    const response = await request(app).post("/api/auth/complete-password-setup")
+      .set("Cookie", `token=${account.token}`)
+      .send({ idToken: "fresh-google-token", password: "StrongPass@123" });
+    expect(response.statusCode).toBe(200);
+    expect(response.body.user.hasPassword).toBe(true);
+    const saved = await User.findById(account.user._id).select("+password");
+    expect(saved.hasPassword).toBe(true);
+    expect(saved.password).not.toBe("StrongPass@123");
+    expect(saved.authProviders).toEqual(expect.arrayContaining(["google", "email"]));
+
+    getFirebaseAdmin.verifyIdToken.mockResolvedValueOnce({ ...claims,
+      firebase: { sign_in_provider: "password" } });
+    const second = await request(app).post("/api/auth/complete-password-setup")
+      .set("Cookie", `token=${account.token}`)
+      .send({ idToken: "password-token", password: "AnotherPass@123" });
+    expect(second.statusCode).toBe(403);
+  });
+
+  it("recovers an unfinished Google signup only when its previous Firebase UID is gone", async () => {
+    const account = await createUserWithToken({ email: "orphaned-google@example.com",
+      firebaseUid: "deleted-firebase-uid", authProviders: ["google"],
+      hasPassword: false, phone: "", isProfileComplete: false });
+    await User.updateOne({ _id: account.user._id }, { $unset: { password: "" } });
+    const claims = { uid: "new-firebase-uid", email: account.user.email,
+      email_verified: true, firebase: { sign_in_provider: "google.com" } };
+
+    getFirebaseAdmin.verifyIdToken.mockResolvedValueOnce(claims);
+    const stillExists = await request(app).post("/api/auth/google-auth").send({ idToken: "google-token" });
+    expect(stillExists.statusCode).toBe(409);
+    expect(stillExists.body.code).toBe("PREVIOUS_IDENTITY_ACTIVE");
+    expect((await User.findById(account.user._id)).firebaseUid).toBe("deleted-firebase-uid");
+
+    getFirebaseAdmin.verifyIdToken.mockResolvedValueOnce(claims);
+    getFirebaseAdmin.getUser.mockRejectedValueOnce(Object.assign(new Error("not found"), { code: "auth/user-not-found" }));
+    const recovered = await request(app).post("/api/auth/google-auth").send({ idToken: "google-token" });
+    expect(recovered.statusCode).toBe(200);
+    expect(recovered.body.requiresPasswordSetup).toBe(true);
+    expect((await User.findById(account.user._id)).firebaseUid).toBe("new-firebase-uid");
+  });
+
+  it("cancels only an unfinished Google signup and reports whether it was deleted", async () => {
+    const unfinished = await createUserWithToken({ email: "cancel-unfinished@example.com",
+      firebaseUid: "cancel-uid", authProviders: ["google"],
+      hasPassword: false, phone: "", isProfileComplete: false });
+    await User.updateOne({ _id: unfinished.user._id }, { $unset: { password: "" } });
+    const cancelled = await request(app).post("/api/auth/cancel-google-signup")
+      .set("Cookie", `token=${unfinished.token}`);
+    expect(cancelled.statusCode).toBe(200);
+    expect(cancelled.body.deleted).toBe(true);
+    expect(await User.findById(unfinished.user._id)).toBeNull();
+
+    const established = await createUserWithToken({ email: "cancel-established@example.com",
+      firebaseUid: "established-uid", authProviders: ["google", "email"], hasPassword: true });
+    const kept = await request(app).post("/api/auth/cancel-google-signup")
+      .set("Cookie", `token=${established.token}`);
+    expect(kept.statusCode).toBe(200);
+    expect(kept.body.deleted).toBe(false);
+    expect(await User.findById(established.user._id)).toBeTruthy();
   });
 
   it("stores only an OTP hash and accepts its proof once", async () => {

@@ -43,6 +43,8 @@ const InternshalaDashboardRecommendations = ({
   internships = [],
   courses = [],
   savedIds = [],
+  appliedJobIds = new Set(),
+  appliedInternshipIds = new Set(),
   onSave,
   onApply,
   onNavigateTab,
@@ -54,7 +56,9 @@ const InternshalaDashboardRecommendations = ({
   const topCourse = courses && courses.length > 0 ? courses[0] : FALLBACK_COURSE;
 
   const isJobSaved = savedIds.includes(topJob.id || topJob._id);
+  const isJobApplied = appliedJobIds.has(String(topJob.id || topJob._id));
   const isInternshipSaved = savedIds.includes(topInternship.id || topInternship._id);
+  const isInternshipApplied = appliedInternshipIds.has(String(topInternship.id || topInternship._id));
 
   // Normalize skills arrays safely
   const jobSkills = topJob.skillsRequired || topJob.skills || ["React", "Node.js", "SQL"];
@@ -338,7 +342,11 @@ const InternshalaDashboardRecommendations = ({
                     {isJobSaved ? "★" : "☆"}
                   </button>
 
-                  {isJobExternal ? (
+                  {isJobApplied ? (
+                    <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
+                      ✓ Applied
+                    </button>
+                  ) : isJobExternal ? (
                     <a
                       href={jobApplyHref}
                       target="_blank"
@@ -477,7 +485,11 @@ const InternshalaDashboardRecommendations = ({
                     {isInternshipSaved ? "★" : "☆"}
                   </button>
 
-                  {isIntExternal ? (
+                  {isInternshipApplied ? (
+                    <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
+                      ✓ Applied
+                    </button>
+                  ) : isIntExternal ? (
                     <a
                       href={intApplyHref}
                       target="_blank"

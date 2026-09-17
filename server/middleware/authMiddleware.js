@@ -124,6 +124,16 @@ const protect = async (req, res, next) => {
 
 // Public detail pages can identify an owner without requiring visitors to sign in.
 const optionalAuth = async (req, _res, next) => {
+  if (req.session?.user?.userId) {
+    try {
+      const user = await User.findById(req.session.user.userId).select("-password");
+      if (user && user.isActive !== false &&
+          (req.session.user.authVersion || 0) === (user.authVersion || 0)) {
+        req.user = user;
+        return next();
+      }
+    } catch (_) { /* A stale session is treated as an anonymous public request. */ }
+  }
   const token = req.cookies?.token || (req.headers.authorization?.startsWith("Bearer ")
     ? req.headers.authorization.slice(7) : null);
   if (!token || !process.env.JWT_SECRET) return next();

@@ -95,7 +95,7 @@ describe('💼 Jobs API — Integration Tests', () => {
 
     it('❌ should handle invalid ObjectId gracefully', async () => {
       const res = await request(app).get('/api/jobs/not-a-valid-object-id');
-      expect([400, 404, 500]).toContain(res.statusCode);
+      expect(res.statusCode).toBe(404);
     });
   });
 });

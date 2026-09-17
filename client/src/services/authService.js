@@ -58,10 +58,10 @@ export const firebaseLogin = async (idToken, keepSignedIn = false) => {
 };
 
 /**
- * Complete Password Setup — called after linkWithCredential succeeds on the frontend.
- * Backend verifies Firebase has "password" provider linked and sets hasPassword=true.
+ * Complete Password Setup — backend verifies Google sign-in and sets the
+ * password on the same Firebase user before updating MongoDB.
  *
- * @param {string} idToken - Fresh Firebase ID token (force-refreshed after linking)
+ * @param {string} idToken - Fresh Google Firebase ID token
  * @param {boolean} keepSignedIn - Session duration preference
  */
 export const completePasswordSetup = async (idToken, password, keepSignedIn = false) => {

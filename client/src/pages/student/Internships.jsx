@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { getInternships } from "../../services/internshipService";
+import { getMyAppliedIds } from "../../services/applicationService";
 
 export default function Internships({
   embedded = false,
   onSelectInternship,
   studentProfile,
+  appliedInternshipIds,
 }) {
+  const userId = useSelector((state) => state.auth.user?._id);
+  const [standaloneApplied, setStandaloneApplied] = useState({ userId: null, ids: new Set() });
+  const visibleAppliedIds = appliedInternshipIds ||
+    (standaloneApplied.userId === userId ? standaloneApplied.ids : new Set());
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -15,6 +22,17 @@ export default function Internships({
   const [q, setQ] = useState("");
   const [source, setSource] = useState("");
   const [workMode, setWorkMode] = useState("");
+
+  useEffect(() => {
+    if (appliedInternshipIds || !userId) return;
+    let active = true;
+    getMyAppliedIds()
+      .then((response) => {
+        if (active) setStandaloneApplied({ userId, ids: new Set(response.internshipIds || []) });
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [appliedInternshipIds, userId]);
 
   const fetchList = async (pageToFetch = currentPage) => {
     try {
@@ -209,7 +227,11 @@ export default function Internships({
                 </div>
 
                 <div className="flex sm:flex-col items-stretch gap-2 shrink-0">
-                  {item.applyLink ? (
+                  {visibleAppliedIds.has(String(item._id)) ? (
+                    <button type="button" disabled className="h-10 px-5 rounded-xl bg-slate-200 text-slate-600 text-xs font-bold cursor-not-allowed">
+                      ✓ Applied
+                    </button>
+                  ) : item.applyLink ? (
                     <a
                       href={item.applyLink}
                       target="_blank"

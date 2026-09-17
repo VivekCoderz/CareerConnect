@@ -70,7 +70,7 @@ exports.getOpportunityById = async (req, res, next) => {
 
     if (mongoose.Types.ObjectId.isValid(id)) {
       // 1. Search in Jobs
-      const job = await Job.findById(id).populate(
+      const job = await Job.findOne({ _id: id, status: "Published" }).populate(
         "employerId",
         "companyName logo headquarters industry description website officialEmail mobile"
       );
@@ -118,7 +118,7 @@ exports.getOpportunityById = async (req, res, next) => {
       }
 
       // 2. Search in Internships
-      const internship = await Internship.findById(id).populate(
+      const internship = await Internship.findOne({ _id: id, status: "Published" }).populate(
         "employerId",
         "companyName logo headquarters industry description website officialEmail mobile"
       );
