@@ -109,7 +109,7 @@ exports.createOffer = async (req, res, next) => {
 
     if (applicationId) {
       await Application.updateOne({ _id: application._id, candidateId, jobId: job._id }, {
-        status: "Offer",
+        status: "Offered",
         $push: {
           stageHistory: {
             stage: "Offer",

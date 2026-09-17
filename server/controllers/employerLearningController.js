@@ -1,5 +1,7 @@
 const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
+const mongoose = require("mongoose");
+const { escapeRegex } = require("../utils/listingSecurity");
 
 // GET /api/employer/learning/courses (Browse all published LMS courses)
 exports.getCourseCatalog = async (req, res, next) => {
@@ -10,19 +12,26 @@ exports.getCourseCatalog = async (req, res, next) => {
     if (domain && domain !== "All") query.domain = domain;
     if (category && category !== "All") query.category = category;
     if (level && level !== "All") query.level = level;
-    if (search) {
+    if (typeof search === "string" && search.trim()) {
+      const term = escapeRegex(search.trim());
       query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-        { skills: { $in: [new RegExp(search, "i")] } },
+        { title: { $regex: term, $options: "i" } },
+        { description: { $regex: term, $options: "i" } },
+        { skills: { $in: [new RegExp(term, "i")] } },
       ];
     }
 
-    const courses = await Course.find(query).sort({ createdAt: -1 });
+    const page = Math.max(1, Math.min(1000, Number.parseInt(req.query.page, 10) || 1));
+    const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit, 10) || 20));
+    const [courses, total] = await Promise.all([
+      Course.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Course.countDocuments(query),
+    ]);
 
     return res.status(200).json({
       success: true,
       count: courses.length,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
       courses,
     });
   } catch (error) {
@@ -58,7 +67,10 @@ exports.enrollInCourse = async (req, res, next) => {
     const { courseId } = req.body;
     const userId = req.user._id;
 
-    const course = await Course.findById(courseId);
+    if (!mongoose.isValidObjectId(courseId)) {
+      return res.status(400).json({ success: false, message: "Invalid course ID" });
+    }
+    const course = await Course.findOne({ _id: courseId, status: "Published" });
     if (!course) {
       return res.status(404).json({ success: false, message: "Course not found" });
     }

@@ -32,8 +32,7 @@ router.post(
   authControllers.cancelGoogleSignup
 );
 
-// Called after linkWithCredential(firebaseUser, EmailAuthProvider.credential(...))
-// to confirm Firebase has the password provider and update MongoDB.
+// Requires a Google ID token; the backend sets the password on the same Firebase UID.
 router.post(
   "/complete-password-setup",
   authMiddleware,
