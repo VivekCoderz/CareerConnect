@@ -115,4 +115,4 @@ const limitOtpAction = (action) => async (req, res, next) => {
   }
 };
 
-module.exports = { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp, limitOtpAction };
+module.exports = { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp, limitOtpAction, consumeWindow };

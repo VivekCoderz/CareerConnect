@@ -153,6 +153,20 @@ const FresherDashboard = () => {
   const resumeData = profile?.resume || {};
   const experienceSummary = dashboardData?.experienceSummary || {};
   const applications = dashboardData?.applications || { stats: {}, recent: [] };
+  const appliedJobIds = new Set(
+    applications.recent
+      .filter((application) => application.opportunityType !== "Internship")
+      .map((application) => application.jobId?._id || application.jobId)
+      .filter(Boolean)
+      .map(String)
+  );
+  const appliedInternshipIds = new Set(
+    applications.recent
+      .filter((application) => application.opportunityType === "Internship")
+      .map((application) => application.internshipId?._id || application.internshipId || application.jobId?._id || application.jobId)
+      .filter(Boolean)
+      .map(String)
+  );
   const careerRecommendations = dashboardData?.careerRecommendations || [];
   const recentActivity = dashboardData?.recentActivity || [];
   const projects = profile?.projects || [];
@@ -206,6 +220,7 @@ const FresherDashboard = () => {
               {/* Recommended Jobs */}
               <FresherRecommendedJobs
                 jobs={recommendedJobs}
+                appliedJobIds={appliedJobIds}
                 targetRole={careerTarget.targetRole}
                 onApplyJob={handleApply}
               />
@@ -266,6 +281,7 @@ const FresherDashboard = () => {
               {internshipView === "list" && (
                 <Internships
                   embedded
+                  appliedInternshipIds={appliedInternshipIds}
                   studentProfile={profile}
                   onSelectInternship={(id) => {
                     setSelectedInternshipId(id);
@@ -277,6 +293,8 @@ const FresherDashboard = () => {
                 <InternshipDetail
                   embedded
                   id={selectedInternshipId}
+                  isApplied={appliedInternshipIds.has(String(selectedInternshipId))}
+                  onAppliedSuccess={fetchDashboard}
                   onBack={() => {
                     setInternshipView("list");
                     setSelectedInternshipId(null);

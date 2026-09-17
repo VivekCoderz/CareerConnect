@@ -39,6 +39,7 @@ const SAMPLE_JOBS = [
 
 const FresherRecommendedJobs = ({
   jobs = [],
+  appliedJobIds = new Set(),
   targetRole = "Full Stack Developer",
   onSaveJob,
   onApplyJob,
@@ -89,6 +90,7 @@ const FresherRecommendedJobs = ({
         {displayJobs.slice(0, 3).map((job) => {
           const jobId = job.id || job._id;
           const isSaved = savedIds.has(jobId);
+          const isApplied = appliedJobIds.has(String(jobId));
           const isTargetMatch = (job.title || "")
             .toLowerCase()
             .includes(targetRole.toLowerCase().split(" ")[0]);
@@ -198,7 +200,11 @@ const FresherRecommendedJobs = ({
                     View Job
                   </Link>
 
-                  {onApplyJob ? (
+                  {isApplied ? (
+                    <button type="button" disabled className="px-3.5 py-1.5 rounded-xl bg-slate-200 text-slate-600 text-xs font-semibold cursor-not-allowed">
+                      ✓ Applied
+                    </button>
+                  ) : onApplyJob ? (
                     <button
                       type="button"
                       onClick={() => onApplyJob(job)}

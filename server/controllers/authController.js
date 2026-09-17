@@ -873,7 +873,37 @@ module.exports.googleAuth = async (req, res, next) => {
       }
 
       if (user.firebaseUid && user.firebaseUid !== uid) {
-        return res.status(409).json({ success: false, message: "This account is linked to another sign-in identity." });
+        const oldUid = user.firebaseUid;
+        const unfinishedGoogleSignup = !user.password && !user.hasPassword &&
+          !user.phone && !user.isProfileComplete &&
+          user.authProviders.includes("google") && !user.authProviders.includes("email");
+        if (!unfinishedGoogleSignup) {
+          return res.status(409).json({ success: false, code: "ACCOUNT_IDENTITY_CONFLICT",
+            message: "This email is linked to another sign-in identity. Use your original sign-in method or contact support." });
+        }
+
+        // A failed cancel request could leave this unfinished MongoDB record
+        // behind after the browser deleted its Firebase user. Confirm that the
+        // old identity is gone before allowing the same verified Google email
+        // to recover the record. An existing or unverifiable UID stays locked.
+        try {
+          await admin.auth().getUser(oldUid);
+          return res.status(409).json({ success: false, code: "PREVIOUS_IDENTITY_ACTIVE",
+            message: "The previous sign-in identity is still active. Use your original sign-in method or contact support." });
+        } catch (oldIdentityError) {
+          if (oldIdentityError.code !== "auth/user-not-found") {
+            return res.status(503).json({ success: false, code: "IDENTITY_CHECK_UNAVAILABLE",
+              message: "We could not verify the previous sign-in identity. Please try again later." });
+          }
+        }
+        user = await User.findOneAndUpdate(
+          { _id: user._id, firebaseUid: oldUid, password: null, hasPassword: false,
+            phone: "", isProfileComplete: false, authProviders: { $nin: ["email"] } },
+          { $set: { firebaseUid: uid } },
+          { returnDocument: "after" }
+        ).select("+password");
+        if (!user) return res.status(409).json({ success: false, code: "ACCOUNT_CHANGED_DURING_SIGN_IN",
+          message: "The account changed during sign-in. Please try again." });
       }
 
       // Claim an unlinked account atomically to prevent concurrent UID replacement.
@@ -962,10 +992,17 @@ module.exports.googleAuth = async (req, res, next) => {
 module.exports.cancelGoogleSignup = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select("+password");
+    let deleted = false;
     // A legacy account can have a password hash but no hasPassword flag.
     // Only discard a genuinely unfinished Google-only signup.
-    if (user && !user.password && user.hasPassword === false) {
-      await User.findByIdAndDelete(user._id);
+    if (user && !user.password && user.hasPassword === false &&
+        !user.phone && !user.isProfileComplete &&
+        user.authProviders.includes("google") && !user.authProviders.includes("email")) {
+      deleted = Boolean(await User.findOneAndDelete({
+        _id: user._id, firebaseUid: user.firebaseUid, password: null,
+        hasPassword: false, phone: "", isProfileComplete: false,
+        authProviders: { $nin: ["email"] },
+      }));
     }
 
     res.clearCookie("token", {
@@ -987,7 +1024,8 @@ module.exports.cancelGoogleSignup = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: "Google signup cancelled successfully",
+      deleted,
+      message: deleted ? "Google signup cancelled successfully" : "Signed out without deleting the account",
     });
   } catch (error) {
     next(error);

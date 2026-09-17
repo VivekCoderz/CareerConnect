@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 
-const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], limit = 1 }) => {
+const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], appliedJobIds = new Set(), limit = 1 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -73,6 +73,7 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], lim
         <div className="space-y-4">
           {displayedJobs.map((job) => {
             const isSaved = savedIds.includes(job.id || job._id);
+            const isApplied = appliedJobIds.has(String(job.id || job._id));
             return (
               <div
                 key={job.id || job._id}
@@ -127,7 +128,11 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], lim
                     {isSaved ? "★ Saved" : "☆ Save"}
                   </button>
 
-                  {job.applyLink ? (
+                  {isApplied ? (
+                    <button type="button" disabled className="px-4 py-2.5 bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl cursor-not-allowed">
+                      ✓ Applied
+                    </button>
+                  ) : job.applyLink ? (
                     <a
                       href={job.applyLink}
                       target="_blank"

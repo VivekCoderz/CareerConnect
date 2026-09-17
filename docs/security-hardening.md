@@ -10,6 +10,13 @@
 - Browser writes using authentication cookies require an allowed frontend origin. Production CORS uses only configured `CLIENT_URL` origins, and login limits are shared in MongoDB.
 - Job and internship updates accept only listing fields, and unpublished details are visible only to their owner. Public search escapes regex characters, returns only published listings, and bounds the job query to the requested result window. Search requests beyond 5,000 results must narrow their filters.
 - Profile updates cannot overwrite ownership, verification, calculated completion, or employer publication state. Production course, resume, and employer errors no longer expose underlying exception messages.
+- Public opportunity detail excludes draft jobs and internships. Employee changes now accept editable fields only; training assignments require an employee from the same employer and an available course. Employee deletion removes only that employer's assignments.
+- AI chat limits query and history size and uses a shared per-user request counter (30 chats/hour; 5 recommendation sends/day). Recruitment and organization searches escape user-supplied regex characters. Aggregated opportunity reads, internship listings, and employer course catalogs have bounded database windows.
+- Candidate detail responses omit internal authentication fields. Candidate interview views omit internal notes and feedback. ATS stage aliases map to valid application statuses, and offer creation stores the valid `Offered` status.
+- Public fresher and professional profiles return portfolio fields without private contact, compensation, date-of-birth, or resume data. Recruiter-only professional profiles require a signed-in employer or admin account; direct enrollment in draft courses is blocked.
+- Student and fresher dashboards read at most 20 recent records per opportunity source, avoiding a full published-listing scan on every dashboard request.
+- Invalid job IDs return a normal not-found response without a database cast error. Public-page optional authentication now recognizes valid login sessions as well as JWTs.
+- Google sign-in can recover an unfinished signup after Firebase confirms its previous UID was deleted. Cancellation deletes the browser's Firebase identity only after the server confirms an atomic removal of that unfinished account.
 
 ## Required production settings
 
