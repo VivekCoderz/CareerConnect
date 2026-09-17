@@ -1,54 +1,52 @@
-// server/utils/sendEmail.js
 const nodemailer = require("nodemailer");
 
 /**
- * Send email utility
- * Supports Gmail auth, custom SMTP, or fallback log simulation
+ * Send email utility - Production Fix for Render IPv6 ENETUNREACH
  */
 const sendEmail = async ({ to, subject, html, text }) => {
   try {
-    let transporter = null;
+    console.log("Coming......... To:", to);
 
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
-    } else if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-      transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT || 587,
-        secure: process.env.SMTP_SECURE === "true",
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      });
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.warn("⚠️ EMAIL_USER or EMAIL_PASS missing!");
+      return { error: "Missing Email Credentials" };
     }
 
-    if (transporter) {
-      const from =
-        process.env.EMAIL_USER
-          ? `"CareerConnect" <${process.env.EMAIL_USER}>`
-          : process.env.SMTP_FROM ||
-            '"Geeta University - CareerConnect" <no-reply@geetauniversity.edu.in>';
+    console.log("Match......... EMAIL_USER Found:", process.env.EMAIL_USER);
 
-      return await transporter.sendMail({
-        from,
-        to,
-        subject,
-        html,
-        text,
-      });
-    } else {
-      console.log(`[Email Simulation] To: ${to} | Subject: ${subject}`);
-      return { messageId: "simulated-email" };
-    }
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false, // 587 port requires false
+      requireTLS: true,
+      family: 4, // 👈 CRITICAL FIX: Directs Node.js to use IPv4 instead of IPv6 on Render
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS.replace(/\s+/g, ""), // clean accidental spaces
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
+    });
+
+    const from = `"CareerConnect" <${process.env.EMAIL_USER}>`;
+
+    console.log("Attempting transporter.sendMail()...");
+    const info = await transporter.sendMail({
+      from,
+      to,
+      subject,
+      html,
+      text,
+    });
+
+    console.log("--> Email Sent Successfully! MessageId:", info.messageId);
+    return info;
   } catch (error) {
-    console.error("sendEmail Error:", error);
+    console.error("sendEmail Error Catch Block:", error);
     return { error };
   }
 };

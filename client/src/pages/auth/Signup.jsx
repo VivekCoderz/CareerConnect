@@ -121,6 +121,7 @@ const Signup = () => {
   // OTP verification state
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
   const [otpError, setOtpError] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
@@ -202,6 +203,12 @@ const Signup = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "email") {
+      setVerificationToken("");
+      setEmailVerified(false);
+      setOtpSent(false);
+      setOtp("");
+    }
     setFormData((prev) => {
       const updated = { ...prev, [name]: value };
       if (name === "firstName" || name === "lastName") {
@@ -252,6 +259,8 @@ const Signup = () => {
       });
 
       setOtpSent(true);
+      setVerificationToken("");
+      setEmailVerified(false);
       setOtp("");
       setOtpSuccessMsg(`OTP sent to ${emailToVerify}`);
       setResendCooldown(60);
@@ -294,12 +303,20 @@ const Signup = () => {
     try {
       setVerifyingOtp(true);
       setOtpError("");
+<<<<<<< HEAD
 
       await api.post("/auth/verify-otp", {
         email: formData.email.trim().toLowerCase(),
         otp: cleanOtp,
       });
 
+=======
+      const response = await api.post("/auth/verify-otp", {
+        email: formData.email.trim().toLowerCase(),
+        otp: cleanOtp,
+      });
+      setVerificationToken(response.data.verificationToken);
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
       setEmailVerified(true);
       setOtpSent(false);
       setOtp("");
@@ -599,13 +616,14 @@ const Signup = () => {
     dispatch(signupStart());
 
     try {
-      const finalCaptchaToken = captchaToken || (await getCaptchaToken("signup"));
+      const finalCaptchaToken = await getCaptchaToken("signup");
 
       const payload = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         fullName: formData.fullName.trim() || `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email.trim().toLowerCase(),
+        verificationToken,
         countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         city: formData.city.trim(),
@@ -748,6 +766,22 @@ const Signup = () => {
             width: step === 1 ? "25%" : step === 2 ? "50%" : step === 3 ? "75%" : "100%",
           }}
         />
+      </div>
+
+      {/* ─── Top Brand Header ─── */}
+      <div className="bg-white border-b border-slate-200/90 py-3 px-4 sm:px-6">
+        <div className="max-w-xl mx-auto flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <img
+              src="/careerconnect-logo.png"
+              alt="CareerConnect"
+              className="h-10 w-auto object-contain"
+            />
+          </Link>
+          <span className="text-xs font-semibold text-slate-500">
+            Candidate Registration
+          </span>
+        </div>
       </div>
 
       {/* ─── Main Content Container ─────────────────────────────────────────── */}
@@ -1528,7 +1562,7 @@ const Signup = () => {
                     placeholder={
                       formData.type === "student"
                         ? "Eg. BITS Pilani"
-                        : "Eg. Geeta Engineering College"
+                        : "Eg. ABC Institute of Technology"
                     }
                     className={`w-full h-11 rounded-lg border bg-white px-3.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#008bdc] ${
                       fieldErrors.college ? "border-red-400 ring-2 ring-red-400/10" : "border-slate-200"

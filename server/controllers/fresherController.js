@@ -5,6 +5,7 @@ const Job = require("../models/Job");
 const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 
 // Skill benchmarks for target roles for Job Matching & Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -307,7 +308,7 @@ module.exports.getFresherProfile = async (req, res, next) => {
 module.exports.updateFresherProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const updateData = { ...req.body };
+    const updateData = sanitizeProfileUpdate(req.body);
 
     // Synchronize basic user fields if present in updateData
     const userUpdateFields = {};

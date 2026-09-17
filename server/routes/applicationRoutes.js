@@ -32,6 +32,10 @@ const {
 } = applicationController;
 
 // ========== CANDIDATE ==========
+router.post("/", protect, (_req, res) => res.status(405).json({
+  success: false, message: "Use the job or internship application endpoint",
+}));
+
 router.post(
   "/internship/:internshipId",
   protect,

@@ -16,12 +16,40 @@ import api from "../../api/api";
 import { getCaptchaToken } from "../../utils/captcha";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 
+<<<<<<< HEAD
 // ======================================================
 // Helper: Generate Strong Password
 // ======================================================
 const generateStrongPassword = () => {
   const chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+=======
+const EyeIcon = ({ hidden = false }) => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    {hidden ? (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.6 10.6a2 2 0 002.8 2.8" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.9 4.2A10.8 10.8 0 0112 4c5 0 8.8 3.3 10 8a10.8 10.8 0 01-3 5.1" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.6 6.6A11 11 0 002 12c1.2 4.7 5 8 10 8a10.7 10.7 0 004.2-.8" />
+      </>
+    ) : (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+        <circle cx="12" cy="12" r="2.5" />
+      </>
+    )}
+  </svg>
+);
+
+const validateStrongPassword = (pass) => {
+  if (!pass || typeof pass !== "string" || pass.length < 6) return false;
+  if (!/[a-zA-Z]/.test(pass)) return false;
+  if (!/[0-9]/.test(pass)) return false;
+  if (!/[^a-zA-Z0-9]/.test(pass)) return false;
+  return true;
+};
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
 
   let password = "";
 
@@ -120,6 +148,7 @@ const EmployerRegister = () => {
 
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
   const [otpError, setOtpError] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
@@ -131,6 +160,8 @@ const EmployerRegister = () => {
   // Form States
   // ======================================================
   const [fieldErrors, setFieldErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -155,6 +186,7 @@ const EmployerRegister = () => {
   // ======================================================
   const handleChange = (e) => {
     const { name, value } = e.target;
+<<<<<<< HEAD
 
     setFormData((prev) => ({
       ...prev,
@@ -171,6 +203,17 @@ const EmployerRegister = () => {
     if (error) {
       dispatch(clearMessages());
     }
+=======
+    if (name === "email") {
+      setVerificationToken("");
+      setEmailVerified(false);
+      setOtpSent(false);
+      setOtp("");
+    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+    if (error) dispatch(clearMessages());
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
   };
 
   // ======================================================
@@ -200,6 +243,7 @@ const EmployerRegister = () => {
   // ======================================================
   const validateStep1 = () => {
     const errors = {};
+<<<<<<< HEAD
 
     // Company Name
     if (!formData.companyName.trim()) {
@@ -218,13 +262,41 @@ const EmployerRegister = () => {
       errors.email = "Please verify your official email before continuing";
     if (!formData.phone.trim()) errors.phone = "Mobile number is required";
     else if (!/^[6-9]\d{9}$/.test(formData.phone.replace(/\D/g, "").slice(-10)))
+=======
+    if (!formData.companyName.trim()) {
+      errors.companyName = "Company name is required";
+    } else if (formData.companyName.trim().length < 2) {
+      errors.companyName = "Company name must be at least 2 characters";
+    }
+
+    const emailVal = formData.email.trim().toLowerCase();
+    if (!emailVal) {
+      errors.email = "Official email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+      errors.email = "Please enter a valid official email address";
+    }
+
+    const cleanPhone = formData.phone.replace(/\D/g, "");
+    if (!formData.phone.trim()) {
+      errors.phone = "Mobile number is required";
+    } else if (!/^[6-9]\d{9}$/.test(cleanPhone.slice(-10)) || cleanPhone.length < 10) {
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
       errors.phone = "Please enter a valid 10-digit mobile number";
-    if (!formData.password) errors.password = "Password is required";
-    else if (formData.password.length < 6)
-      errors.password = "Password must be at least 6 characters";
-    if (!formData.confirmPassword) errors.confirmPassword = "Please confirm password";
-    else if (formData.password !== formData.confirmPassword)
+    }
+
+    if (!formData.password) {
+      errors.password = "Password is required";
+    } else if (!validateStrongPassword(formData.password)) {
+      errors.password =
+        "Password must be at least 6 characters, with a letter, number & special character (@, #, $, etc.)";
+    }
+
+    if (!formData.confirmPassword) {
+      errors.confirmPassword = "Please confirm password";
+    } else if (formData.password !== formData.confirmPassword) {
       errors.confirmPassword = "Passwords do not match";
+    }
+
     setFieldErrors(errors);
 
     return Object.keys(errors).length === 0;
@@ -235,6 +307,7 @@ const EmployerRegister = () => {
   // ======================================================
   const validateStep2 = () => {
     const errors = {};
+<<<<<<< HEAD
 
     if (!formData.contactPerson.trim()) {
       errors.contactPerson = "Contact person is required";
@@ -256,6 +329,32 @@ const EmployerRegister = () => {
       errors.location = "Location is required";
     }
 
+=======
+    if (!formData.contactPerson.trim()) {
+      errors.contactPerson = "Contact person name is required";
+    } else if (formData.contactPerson.trim().length < 2) {
+      errors.contactPerson = "Name must be at least 2 characters";
+    }
+    if (!formData.designation.trim()) {
+      errors.designation = "Designation is required";
+    }
+    if (!formData.companyType) {
+      errors.companyType = "Company type is required";
+    }
+    if (!formData.industry.trim()) {
+      errors.industry = "Industry is required";
+    }
+    if (!formData.location.trim()) {
+      errors.location = "Headquarters / Location is required";
+    }
+    if (
+      formData.website.trim() &&
+      !/^https?:\/\/.+\..+/i.test(formData.website.trim()) &&
+      !/^[\w-]+\.[\w.-]+/i.test(formData.website.trim())
+    ) {
+      errors.website = "Please enter a valid website URL (e.g. https://company.com)";
+    }
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
     setFieldErrors(errors);
 
     return Object.keys(errors).length === 0;
@@ -335,6 +434,8 @@ const EmployerRegister = () => {
       });
 
       setOtpSent(true);
+      setVerificationToken("");
+      setEmailVerified(false);
       setOtp("");
       setOtpSuccessMsg(`OTP sent to ${emailToVerify}`);
 
@@ -372,6 +473,7 @@ const EmployerRegister = () => {
     try {
       setVerifyingOtp(true);
       setOtpError("");
+<<<<<<< HEAD
 
       await api.post("/auth/verify-otp", {
         email: formData.email.trim().toLowerCase(),
@@ -389,6 +491,22 @@ const EmployerRegister = () => {
         ...prev,
         email: "",
       }));
+=======
+      const response = await api.post("/auth/verify-otp", {
+        email: formData.email.trim().toLowerCase(),
+        otp: cleanOtp,
+      });
+      setVerificationToken(response.data.verificationToken);
+      setEmailVerified(true);
+      setOtpSent(false);
+      setOtp("");
+      setOtpSuccessMsg("Official email verified successfully!");
+      setFieldErrors((prev) => {
+        const copy = { ...prev };
+        delete copy.email;
+        return copy;
+      });
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
     } catch (err) {
       setOtpError(
         err.response?.data?.message ||
@@ -399,8 +517,14 @@ const EmployerRegister = () => {
     }
   };
 
-  const handleStep1Next = () => {
+  const handleStep1Next = async () => {
+    // Step 1: Validate all form fields first
+    const isFieldsValid = validateStep1();
+    if (!isFieldsValid) return;
+
+    // Step 2: Ensure email verification
     if (!emailVerified) {
+<<<<<<< HEAD
       const emailToVerify =
         formData.email.trim().toLowerCase();
 
@@ -426,6 +550,49 @@ const EmployerRegister = () => {
     // Validate form
     if (!validateStep1()) return;
 
+=======
+      const emailToVerify = formData.email.trim().toLowerCase();
+      const cleanOtp = otp.replace(/\D/g, "").slice(0, 6);
+
+      // If OTP was not sent yet, trigger sending OTP
+      if (!otpSent) {
+        await handleSendEmailOTP();
+        setFieldErrors((prev) => ({
+          ...prev,
+          email: "Verification code sent! Please enter the 6-digit OTP below.",
+        }));
+        return;
+      }
+
+      // If user typed 6-digit OTP and clicked Continue, verify it automatically
+      if (cleanOtp.length === 6) {
+        try {
+          setVerifyingOtp(true);
+          setOtpError("");
+          await api.post("/auth/verify-otp", {
+            email: emailToVerify,
+            otp: cleanOtp,
+          });
+          setEmailVerified(true);
+          setOtpSent(false);
+          setOtp("");
+          setOtpSuccessMsg("Official email verified successfully!");
+          setFieldErrors({});
+          goNext(2);
+          return;
+        } catch (err) {
+          setOtpError(err.response?.data?.message || "Invalid or expired OTP");
+          return;
+        } finally {
+          setVerifyingOtp(false);
+        }
+      }
+
+      setOtpError("Please enter the 6-digit OTP sent to your email to continue.");
+      return;
+    }
+
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
     goNext(2);
   };
 
@@ -443,7 +610,13 @@ const EmployerRegister = () => {
         fullName:
           formData.companyName.trim() || "Employer",
       });
+<<<<<<< HEAD
 
+=======
+      setVerificationToken("");
+      setEmailVerified(false);
+      setOtp("");
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
       setOtpError("");
       startCooldown(60);
     } catch (err) {
@@ -572,11 +745,12 @@ const EmployerRegister = () => {
     dispatch(signupStart());
 
     try {
-      const finalCaptchaToken = captchaToken || (await getCaptchaToken("employer_signup"));
+      const finalCaptchaToken = await getCaptchaToken("employer_signup");
 
       const payload = {
         companyName: formData.companyName.trim(),
         email: formData.email.trim().toLowerCase(),
+        verificationToken,
         phone: formData.phone.trim(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
@@ -615,10 +789,18 @@ const EmployerRegister = () => {
       dispatch(signupFailure(message));
 
       if (err.response?.data?.field) {
+        const f = err.response.data.field;
         setFieldErrors({
+<<<<<<< HEAD
           [err.response.data.field]:
             err.response.data.message,
+=======
+          [f]: err.response.data.message,
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
         });
+        if (["companyName", "email", "phone", "password", "confirmPassword"].includes(f)) {
+          setStep(1);
+        }
       }
     }
   };
@@ -651,6 +833,7 @@ const EmployerRegister = () => {
         <div className="absolute bottom-0 left-0 w-56 h-56 bg-white/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4 pointer-events-none" />
 
         <div className="relative z-10">
+<<<<<<< HEAD
           <Link
             to="/"
             className="flex items-center gap-3"
@@ -668,6 +851,14 @@ const EmployerRegister = () => {
                 CareerConnect · Employers
               </p>
             </div>
+=======
+          <Link to="/" className="inline-block">
+            <img
+              src="/careerconnect-logo.png"
+              alt="CareerConnect"
+              className="h-12 w-auto bg-white/95 rounded-2xl px-3 py-2 shadow-sm"
+            />
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
           </Link>
         </div>
 
@@ -677,11 +868,15 @@ const EmployerRegister = () => {
           </div>
 
           <h2 className="text-4xl font-bold leading-tight tracking-tight mb-4">
-            Hire talent from
+            Hire top talent on
             <br />
+<<<<<<< HEAD
             <span className="text-[#fde68a]">
               Geeta University
             </span>
+=======
+            <span className="text-[#fde68a]">CareerConnect</span>
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
           </h2>
 
           <p className="text-amber-50/90 text-[15px] leading-relaxed max-w-sm">
@@ -707,6 +902,7 @@ const EmployerRegister = () => {
       <div className="flex-1 flex items-center justify-center p-5 sm:p-8 overflow-y-auto">
 
         <div className="w-full max-w-md">
+<<<<<<< HEAD
 
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
@@ -723,6 +919,17 @@ const EmployerRegister = () => {
                 Employer Portal
               </p>
             </div>
+=======
+          {/* Mobile logo */}
+          <div className="lg:hidden flex items-center justify-center mb-8">
+            <Link to="/">
+              <img
+                src="/careerconnect-logo.png"
+                alt="CareerConnect"
+                className="h-11 w-auto"
+              />
+            </Link>
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
           </div>
 
           {/* ==================================================
@@ -779,7 +986,7 @@ const EmployerRegister = () => {
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1.5">
-                  Employer registration · Geeta University
+                  Employer registration · CareerConnect
                 </p>
               </div>
 
@@ -968,6 +1175,7 @@ const EmployerRegister = () => {
                         type="button"
                         onClick={() => {
                           setEmailVerified(false);
+                          setVerificationToken("");
                           setOtpSent(false);
                           setOtp("");
                           setOtpSuccessMsg("");
@@ -1005,21 +1213,34 @@ const EmployerRegister = () => {
                   )}
                 </div>
 
+<<<<<<< HEAD
                 {/* Password */}
                 <div className="grid grid-cols-2 gap-3">
 
+=======
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
                   <div>
                     <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
                       Password
                     </label>
-                    <input
-                      type="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder="••••••••"
-                      className={inputClass("password")}
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        placeholder="••••••••"
+                        className={`${inputClass("password")} pr-10`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                      >
+                        <EyeIcon hidden={showPassword} />
+                      </button>
+                    </div>
                     {fieldErrors.password && (
                       <p className="text-xs text-red-500 mt-1.5">
                         {fieldErrors.password}
@@ -1028,16 +1249,25 @@ const EmployerRegister = () => {
                   </div>
                   <div>
                     <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                      Confirm
+                      Confirm Password
                     </label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      placeholder="••••••••"
-                      className={inputClass("confirmPassword")}
-                    />
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        placeholder="••••••••"
+                        className={`${inputClass("confirmPassword")} pr-10`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                      >
+                        <EyeIcon hidden={showConfirmPassword} />
+                      </button>
+                    </div>
                     {fieldErrors.confirmPassword && (
                       <p className="text-xs text-red-500 mt-1.5">
                         {fieldErrors.confirmPassword}
@@ -1045,6 +1275,9 @@ const EmployerRegister = () => {
                     )}
                   </div>
                 </div>
+                <p className="text-[11px] text-slate-400">
+                  Password must be at least 6 characters with a letter, number & special character (@, #, $, etc.)
+                </p>
 
                 {/* Continue */}
                 <button

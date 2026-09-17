@@ -1,3 +1,4 @@
+const { publicError } = require("../utils/publicError");
 const Course = require("../models/Course");
 const StudentProfile = require("../models/StudentProfile");
 const CourseApplication=require("../models/CourseApplication");
@@ -90,7 +91,7 @@ const createCourse = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to create course",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -134,7 +135,7 @@ const getMyCourses = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch courses",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -214,7 +215,7 @@ const updateCourse = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update course",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -263,7 +264,7 @@ const deleteCourse = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to delete course",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -333,7 +334,7 @@ const updateCourseStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update course status",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -588,7 +589,7 @@ const getRecommendedCourses = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch recommended courses",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -647,7 +648,7 @@ const getCourseDetails = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch course details",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -721,7 +722,7 @@ const applyCourse = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to apply for course",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -923,7 +924,7 @@ const getCourseApplications = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch course applications",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -1048,7 +1049,7 @@ const updateCourseApplicationStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update course application status",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -1295,7 +1296,7 @@ const getStudentMyCourses = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch student courses",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -1344,5 +1345,9 @@ module.exports = {
   updateCourseApplicationStatus,
   getEmployerAllApplications,
   getStudentMyCourses,
+<<<<<<< HEAD
   getAllPublishedCourses,
 };
+=======
+};
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e

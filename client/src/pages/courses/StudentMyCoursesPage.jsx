@@ -11,11 +11,19 @@ import {
   ShieldCheck,
   Clock3,
   Lock,
+<<<<<<< HEAD
   ArrowLeft,
+=======
+  CreditCard,
+  Receipt,
+  Download,
+>>>>>>> a199183776cf01392a84dcd335f05d512164538e
 } from "lucide-react";
 import api from "../../api/api";
+import { getMyOrders } from "../../services/paymentService";
 import CourseProgress from "../../components/courses/CourseProgress";
 import ContentCard from "../../components/courses/ContentCard";
+import PaymentReceiptModal from "../../components/courses/PaymentReceiptModal";
 
 /**
  * StudentMyCoursesPage
@@ -31,8 +39,14 @@ const StudentMyCoursesPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Tab State: "enrolled" | "pending" | "completed"
+  // Tab State: "enrolled" | "pending" | "completed" | "payments"
   const [activeTab, setActiveTab] = useState("enrolled");
+
+  // Orders / Payments State
+  const [ordersList, setOrdersList] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   // Course Player Modal State
   const [activeCourse, setActiveCourse] = useState(null);
@@ -57,8 +71,23 @@ const StudentMyCoursesPage = () => {
     }
   };
 
+  const fetchOrders = async () => {
+    try {
+      setLoadingOrders(true);
+      const res = await getMyOrders();
+      if (res.success) {
+        setOrdersList(res.orders || []);
+      }
+    } catch (err) {
+      console.error("Fetch Orders Error:", err);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
   useEffect(() => {
     fetchMyCourses();
+    fetchOrders();
   }, []);
 
   // Filter courses by category tab using exact backend status strings
@@ -209,6 +238,22 @@ const StudentMyCoursesPage = () => {
             <CheckCircle2 size={14} />
             <span>Completed ({completedCourses.length})</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("payments");
+              fetchOrders();
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeTab === "payments"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Receipt size={14} />
+            <span>Payments & Invoices ({ordersList.length})</span>
+          </button>
         </div>
     </div>
 
@@ -218,8 +263,106 @@ const StudentMyCoursesPage = () => {
         </div>
       )}
 
-      {/* Courses Cards Grid */}
-      {displayList.length === 0 ? (
+      {/* Main Content View */}
+      {activeTab === "payments" ? (
+        <div className="space-y-4">
+          {loadingOrders ? (
+            <div className="p-12 text-center bg-white border border-slate-200 rounded-3xl">
+              <div className="w-8 h-8 border-3 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-xs font-semibold text-slate-500">Loading payment history...</p>
+            </div>
+          ) : ordersList.length === 0 ? (
+            <div className="p-14 text-center bg-white border border-slate-200 rounded-3xl space-y-3">
+              <Receipt size={40} className="mx-auto text-slate-300" />
+              <h4 className="text-base font-bold text-slate-800">No payment transactions yet</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                When you purchase courses via Razorpay, your transaction details, receipts, and order IDs will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {ordersList.map((order) => {
+                const course = order.course || {};
+                const isPaid = order.status === "completed";
+                const dateStr = new Date(order.paidAt || order.createdAt).toLocaleDateString("en-IN", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                });
+
+                return (
+                  <div
+                    key={order._id}
+                    className="p-5 bg-white border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs hover:border-slate-300 transition-all"
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-900 to-indigo-800 text-white flex items-center justify-center font-black text-sm flex-shrink-0 shadow-inner">
+                        <CreditCard size={20} />
+                      </div>
+
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-bold text-slate-900 line-clamp-1">
+                          {course.title || "Course Purchase"}
+                        </h4>
+
+                        <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
+                          <span>Date: <strong className="text-slate-700 font-semibold">{dateStr}</strong></span>
+                          <span>•</span>
+                          <span>Order: <strong className="font-mono text-slate-700">{order.razorpayOrderId}</strong></span>
+                          {order.razorpayPaymentId && (
+                            <>
+                              <span>•</span>
+                              <span>Pay ID: <strong className="font-mono text-slate-700">{order.razorpayPaymentId}</strong></span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between w-full sm:w-auto gap-4 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                      <div className="text-left sm:text-right">
+                        <span className="text-sm font-black text-slate-900">
+                          {order.amount === 0 ? "Free" : `₹${order.amount}`}
+                        </span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              isPaid
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-amber-50 text-amber-700 border border-amber-200"
+                            }`}
+                          >
+                            {isPaid ? "Paid & Enrolled" : order.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedReceipt({
+                            paymentId: order.razorpayPaymentId,
+                            orderId: order.razorpayOrderId,
+                            amount: order.amount,
+                            courseTitle: course.title,
+                            courseId: course._id,
+                            paidAt: order.paidAt || order.createdAt,
+                          });
+                          setShowReceiptModal(true);
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <Receipt size={13} />
+                        <span>Receipt</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : displayList.length === 0 ? (
         <div className="p-14 text-center bg-white border border-slate-200 rounded-3xl space-y-3">
           <BookOpen size={40} className="mx-auto text-slate-300" />
           <h4 className="text-base font-bold text-slate-800">
@@ -385,6 +528,13 @@ const StudentMyCoursesPage = () => {
           </div>
         </div>
       )}
+
+      {/* Razorpay Receipt Modal */}
+      <PaymentReceiptModal
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        receiptData={selectedReceipt}
+      />
     </div>
   );
 };

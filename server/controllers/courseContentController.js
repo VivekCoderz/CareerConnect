@@ -1,8 +1,10 @@
+const { publicError } = require("../utils/publicError");
 const Course = require("../models/Course");
 const CourseContent = require("../models/CourseContent");
 const CourseApplication = require("../models/CourseApplication");
 const CourseProgress = require("../models/CourseProgress");
 const { cloudinary } = require("../config/cloudinary");
+const fs = require("fs");
 
 
 // ==========================================
@@ -149,7 +151,9 @@ const addCourseContent = async (req, res) => {
           }
         );
 
-        uploadStream.end(req.file.buffer);
+        const fileStream = fs.createReadStream(req.file.path);
+        fileStream.on("error", reject);
+        fileStream.pipe(uploadStream);
       });
 
       cloudinaryData = {
@@ -193,8 +197,10 @@ const addCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to add course content",
-      error: error.message,
+      error: process.env.NODE_ENV === "production" ? undefined : error.message,
     });
+  } finally {
+    if (req.file?.path) await fs.promises.unlink(req.file.path).catch(() => {});
   }
 };
 
@@ -242,7 +248,7 @@ const getCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -331,6 +337,15 @@ const updateCourseContent = async (req, res) => {
       section,
       order,
     } = req.body;
+
+    if (url !== undefined && url !== "") {
+      try {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.protocol !== "https:" || parsedUrl.username || parsedUrl.password) throw new Error("Unsafe URL");
+      } catch (_) {
+        return res.status(400).json({ success: false, message: "A valid HTTPS content URL is required" });
+      }
+    }
 
     // ------------------------------------------
     // Validate content type if provided
@@ -432,7 +447,7 @@ const updateCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update course content",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -484,7 +499,7 @@ const deleteCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -604,7 +619,7 @@ const getStudentCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch course content",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -757,7 +772,7 @@ const markContentComplete = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update course progress",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };

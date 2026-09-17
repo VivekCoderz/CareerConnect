@@ -9,7 +9,7 @@ const ProfileSummaryCard = ({ user, profile }) => {
   const initial = studentName.charAt(0).toUpperCase();
 
   const primaryEducation = profile?.education?.[0] || {
-    institution: "Geeta University",
+    institution: "CareerConnect",
     degree: "B.Tech",
     fieldOfStudy: "Computer Science",
     startYear: 2024,
