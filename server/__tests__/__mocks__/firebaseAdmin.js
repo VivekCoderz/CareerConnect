@@ -2,14 +2,19 @@
  * Mock for Firebase Admin SDK
  * Replaces real Firebase calls in test environment
  */
+const verifyIdToken = jest.fn().mockResolvedValue({
+  uid: 'mock-firebase-uid',
+  email: 'mock@gmail.com',
+  email_verified: true,
+  firebase: { sign_in_provider: 'google.com' },
+  name: 'Mock User',
+  picture: 'https://example.com/avatar.jpg',
+});
+
 const firebaseAdminMock = {
+  verifyIdToken,
   auth: () => ({
-    verifyIdToken: jest.fn().mockResolvedValue({
-      uid: 'mock-firebase-uid',
-      email: 'mock@gmail.com',
-      name: 'Mock User',
-      picture: 'https://example.com/avatar.jpg',
-    }),
+    verifyIdToken,
     getUserByEmail: jest.fn().mockResolvedValue({
       uid: 'mock-firebase-uid',
       email: 'mock@gmail.com',
@@ -22,4 +27,7 @@ const firebaseAdminMock = {
   }),
 };
 
-module.exports = firebaseAdminMock;
+const getFirebaseAdmin = () => firebaseAdminMock;
+getFirebaseAdmin.verifyIdToken = verifyIdToken;
+
+module.exports = getFirebaseAdmin;

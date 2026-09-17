@@ -93,6 +93,8 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
+    authVersion: { type: Number, default: 0, min: 0 },
+
 
     // ==========================================
     // COMMON ACCOUNT INFORMATION
@@ -100,7 +102,12 @@ const userSchema = new mongoose.Schema(
 
     countryCode: {
       type: String,
-      default: "+91",
+      // Legacy users may have a phone but no countryCode. Applying this default
+      // when they are loaded would write +91 on save and can collide with an
+      // existing phone/countryCode pair in the unique index.
+      default: function () {
+        return this.isNew ? "+91" : undefined;
+      },
       trim: true,
     },
 

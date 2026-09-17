@@ -117,6 +117,7 @@ const Signup = () => {
   // OTP verification state
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
   const [otpError, setOtpError] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
@@ -195,6 +196,12 @@ const Signup = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "email") {
+      setVerificationToken("");
+      setEmailVerified(false);
+      setOtpSent(false);
+      setOtp("");
+    }
     setFormData((prev) => {
       const updated = { ...prev, [name]: value };
       if (name === "firstName" || name === "lastName") {
@@ -232,6 +239,8 @@ const Signup = () => {
       });
 
       setOtpSent(true);
+      setVerificationToken("");
+      setEmailVerified(false);
       setOtp("");
       setOtpSuccessMsg(`OTP sent to ${emailToVerify}`);
       setResendCooldown(60);
@@ -263,10 +272,11 @@ const Signup = () => {
     try {
       setVerifyingOtp(true);
       setOtpError("");
-      await api.post("/auth/verify-otp", {
+      const response = await api.post("/auth/verify-otp", {
         email: formData.email.trim().toLowerCase(),
         otp: cleanOtp,
       });
+      setVerificationToken(response.data.verificationToken);
       setEmailVerified(true);
       setOtpSent(false);
       setOtp("");
@@ -511,13 +521,14 @@ const Signup = () => {
 
     dispatch(signupStart());
     try {
-      const finalCaptchaToken = captchaToken || (await getCaptchaToken("signup"));
+      const finalCaptchaToken = await getCaptchaToken("signup");
 
       const payload = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         fullName: formData.fullName.trim() || `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email.trim().toLowerCase(),
+        verificationToken,
         countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         city: formData.city.trim(),

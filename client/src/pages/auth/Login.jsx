@@ -104,7 +104,7 @@ const Login = () => {
     dispatch(loginStart());
 
     try {
-      const finalCaptchaToken = captchaToken || (await getCaptchaToken("login"));
+      const finalCaptchaToken = await getCaptchaToken("login");
 
       // Check details directly from MongoDB database (not from Firebase)
       const response = await api.post("/auth/login", {

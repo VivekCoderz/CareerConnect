@@ -45,6 +45,7 @@ const assessmentSubmissionSchema = new mongoose.Schema(
     passed: { type: Boolean, default: false },
     timeTakenSeconds: { type: Number, default: 0 },
     submittedAt: { type: Date, default: Date.now },
+    attemptVersion: { type: Number, default: 1 },
   },
   {
     timestamps: true,
@@ -52,5 +53,11 @@ const assessmentSubmissionSchema = new mongoose.Schema(
 );
 
 assessmentSubmissionSchema.index({ assessmentId: 1, candidateId: 1 });
+// Legacy submissions lack attemptVersion, so the new unique index can be built
+// without deleting historical attempts.
+assessmentSubmissionSchema.index(
+  { assessmentId: 1, candidateId: 1 },
+  { unique: true, partialFilterExpression: { attemptVersion: 1 }, name: "one_current_attempt_per_candidate" }
+);
 
 module.exports = mongoose.model("AssessmentSubmission", assessmentSubmissionSchema);

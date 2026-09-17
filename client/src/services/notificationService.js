@@ -44,23 +44,35 @@ export const deleteNotification = async (id) => {
  * Real-time SSE subscription with auto-reconnect and polling fallback
  */
 export const subscribeToNotifications = (onNotification, onConnected) => {
-  const baseURL = (api.defaults.baseURL || "http://localhost:5000/api").replace(/\/+$/, "");
+  const baseURL = (api.defaults.baseURL || "/api").replace(/\/+$/, "");
   const streamUrl = `${baseURL}/notifications/stream`;
 
   let eventSource = null;
   let pollInterval = null;
+  let lastNotificationId = null;
+
+  const deliver = (notification) => {
+    const id = notification?._id;
+    if (!id || id === lastNotificationId) return;
+    lastNotificationId = id;
+    onNotification?.(notification);
+  };
 
   try {
     eventSource = new EventSource(streamUrl, { withCredentials: true });
 
     eventSource.addEventListener("connected", (e) => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
       if (onConnected) onConnected();
     });
 
     eventSource.addEventListener("notification", (e) => {
       try {
         const data = JSON.parse(e.data);
-        if (onNotification) onNotification(data);
+        deliver(data);
       } catch (err) {
         console.warn("Could not parse notification stream:", err);
       }
@@ -72,9 +84,7 @@ export const subscribeToNotifications = (onNotification, onConnected) => {
         pollInterval = setInterval(async () => {
           try {
             const data = await fetchNotifications({ limit: 5 });
-            if (data?.notifications?.[0] && onNotification) {
-              onNotification(data.notifications[0]);
-            }
+            deliver(data?.notifications?.[0]);
           } catch (e) {
             // silent poll fail
           }
@@ -86,9 +96,7 @@ export const subscribeToNotifications = (onNotification, onConnected) => {
     pollInterval = setInterval(async () => {
       try {
         const data = await fetchNotifications({ limit: 5 });
-        if (data?.notifications?.[0] && onNotification) {
-          onNotification(data.notifications[0]);
-        }
+        deliver(data?.notifications?.[0]);
       } catch (e) {
         // silent
       }
