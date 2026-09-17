@@ -33,7 +33,7 @@ const connectDB = require("./config/db");
 const socketService = require("./services/socketService");
 const { getInterviewTimeDetails } = require("./utils/interviewTimeUtils");
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Connect Database
 connectDB();
@@ -66,7 +66,7 @@ setInterval(async () => {
   }
 }, 60000);
 
-server.listen(PORT || 5000, () => {
+server.listen(PORT, () => {
   console.log(`CareerConnect server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
 });
 

@@ -1,3 +1,4 @@
+const { publicError, publicErrorMessage } = require("../utils/publicError");
 const {
   generateResume,
   updateResume,
@@ -79,7 +80,7 @@ const generateResumeHandler = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to generate resume",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -133,7 +134,7 @@ const updateResumeHandler = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update resume",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -199,7 +200,7 @@ const getMyResume = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch resume",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -227,7 +228,7 @@ const getAllResumes = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch resumes",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -243,7 +244,7 @@ const getResumeById = async (req, res) => {
     }
     return res.status(200).json({ success: true, resume });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: publicErrorMessage(error) });
   }
 };
 
@@ -338,7 +339,7 @@ const saveFinalResume = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to save resume",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -392,7 +393,7 @@ const setPrimaryResume = async (req, res) => {
       resume,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: publicErrorMessage(error) });
   }
 };
 
@@ -429,7 +430,7 @@ const deleteResume = async (req, res) => {
       deletedId: id,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: publicErrorMessage(error) });
   }
 };
 
@@ -485,7 +486,7 @@ const saveManualEdit = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to save resume",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -1062,7 +1063,7 @@ const getProfileForResume = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to load profile data for resume",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -1156,7 +1157,7 @@ const uploadResumeHandler = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to upload resume to Cloudinary",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -1462,7 +1463,7 @@ const uploadAndParseResumeHandler = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to upload and parse resume",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -1651,7 +1652,7 @@ const parseResumeHandler = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to parse resume",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -2094,7 +2095,7 @@ const confirmParsedProfileHandler = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to confirm and save parsed details to profile",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -2353,7 +2354,7 @@ const tailorResumeHandler = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to generate tailored resume",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -2390,7 +2391,7 @@ const getTailoredResumeHandler = async (req, res) => {
     });
   } catch (error) {
     console.error("getTailoredResumeHandler error:", error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: publicErrorMessage(error) });
   }
 };
 

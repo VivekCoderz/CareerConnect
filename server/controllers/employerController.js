@@ -1,3 +1,12 @@
+const { publicErrorMessage } = require("../utils/publicError");
+const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
+
+const sanitizeEmployerUpdate = (body) => {
+  const data = sanitizeProfileUpdate(body);
+  delete data.__v;
+  delete data.isPublished;
+  return data;
+};
 // server/controllers/employerController.js
 const EmployerProfile = require("../models/EmployerProfile");
 const User = require("../models/User");
@@ -143,14 +152,7 @@ exports.getEmployerProfile = async (req, res, next) => {
 exports.updateEmployerProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const updateData = { ...req.body };
-
-    // Prevent modifying system / immutable fields
-    delete updateData.userId;
-    delete updateData._id;
-    delete updateData.__v;
-    delete updateData.createdAt;
-    delete updateData.updatedAt;
+    const updateData = sanitizeEmployerUpdate(req.body);
 
     let profile = await EmployerProfile.findOne({ userId });
 
@@ -189,7 +191,7 @@ exports.updateEmployerProfile = async (req, res, next) => {
     console.error("updateEmployerProfile Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to update employer profile",
+      message: publicErrorMessage(error, "Failed to update employer profile"),
     });
   }
 };
@@ -201,13 +203,7 @@ exports.updateEmployerProfile = async (req, res, next) => {
 exports.saveDraftEmployerProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const draftData = { ...req.body };
-
-    delete draftData.userId;
-    delete draftData._id;
-    delete draftData.__v;
-    delete draftData.createdAt;
-    delete draftData.updatedAt;
+    const draftData = sanitizeEmployerUpdate(req.body);
 
     let profile = await EmployerProfile.findOne({ userId });
 
@@ -240,7 +236,7 @@ exports.saveDraftEmployerProfile = async (req, res, next) => {
     console.error("saveDraftEmployerProfile Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to save draft",
+      message: publicErrorMessage(error, "Failed to save draft"),
     });
   }
 };

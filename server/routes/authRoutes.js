@@ -4,26 +4,23 @@ const router = express.Router();
 const authControllers = require("../controllers/authController.js");
 const authMiddleware = require("../middleware/authMiddleware");
 const verifyCaptcha = require("../middleware/captchaMiddleware");
-const {
-  loginLimiter,
-  passwordResetLimiter,
-} = require("../middleware/rateLimitMiddleware");
+const { limitOtpAction } = require("../services/otpService");
 const { sanitizeInputs } = require("../middleware/validationMiddleware");
 
 // ==========================================
 // PUBLIC — Email / Password (legacy + bcrypt)
 // ==========================================
-router.post("/register", sanitizeInputs, verifyCaptcha, authControllers.registerUser);
-router.post("/login", loginLimiter, sanitizeInputs, verifyCaptcha, authControllers.loginUser);
+router.post("/register", sanitizeInputs, verifyCaptcha("signup"), authControllers.registerUser);
+router.post("/login", sanitizeInputs, limitOtpAction("login"), verifyCaptcha("login"), authControllers.loginUser);
 
 // ==========================================
 // PUBLIC — Firebase Authentication
 // ==========================================
 // Called after signInWithEmailAndPassword / signInWithPopup on the frontend
-router.post("/firebase-login", loginLimiter, sanitizeInputs, verifyCaptcha, authControllers.firebaseLogin);
+router.post("/firebase-login", sanitizeInputs, limitOtpAction("login"), verifyCaptcha("firebase_login"), authControllers.firebaseLogin);
 
 // Called after signInWithPopup(auth, googleProvider) — first-time or returning Google sign-ins (Google handles verification)
-router.post("/google-auth", sanitizeInputs, authControllers.googleAuth);
+router.post("/google-auth", sanitizeInputs, limitOtpAction("login"), authControllers.googleAuth);
 
 // ==========================================
 // PROTECTED — Password Setup (Google users only)
@@ -90,19 +87,19 @@ router.patch(
 // ==========================================
 router.post("/check-email", sanitizeInputs, authControllers.checkEmail);
 router.post("/check-phone", sanitizeInputs, authControllers.checkPhone);
-router.post("/send-otp", sanitizeInputs, authControllers.sendOTP);
-router.post("/verify-otp", sanitizeInputs, authControllers.verifyOTP);
+router.post("/send-otp", sanitizeInputs, limitOtpAction("send"), authControllers.sendOTP);
+router.post("/verify-otp", sanitizeInputs, limitOtpAction("verify"), authControllers.verifyOTP);
 
 // ==========================================
 // PUBLIC — Forgot / Reset Password (3 times in 24 hours / per day)
 // ==========================================
-router.post("/forgot-password", passwordResetLimiter, sanitizeInputs, verifyCaptcha, authControllers.forgotPassword);
-router.post("/verify-reset-otp", sanitizeInputs, authControllers.verifyResetOTP);
-router.post("/reset-password", passwordResetLimiter, sanitizeInputs, authControllers.resetPassword);
+router.post("/forgot-password", sanitizeInputs, limitOtpAction("forgot"), verifyCaptcha("forgot_password"), authControllers.forgotPassword);
+router.post("/verify-reset-otp", sanitizeInputs, limitOtpAction("verify-reset"), authControllers.verifyResetOTP);
+router.post("/reset-password", sanitizeInputs, limitOtpAction("reset"), authControllers.resetPassword);
 
 // ==========================================
 // PUBLIC — Employer Registration
 // ==========================================
-router.post("/register-employer", sanitizeInputs, verifyCaptcha, authControllers.registerEmployer);
+router.post("/register-employer", sanitizeInputs, verifyCaptcha("employer_signup"), authControllers.registerEmployer);
 
 module.exports = router;

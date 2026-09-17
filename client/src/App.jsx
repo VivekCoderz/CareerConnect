@@ -82,7 +82,7 @@ const PageFallback = () => (
   <div className="min-h-[50vh] flex flex-col items-center justify-center p-8">
     <div className="relative flex items-center justify-center">
       <div className="w-10 h-10 rounded-full border-3 border-slate-200 border-t-[#1e3a8a] animate-spin" />
-      <span className="absolute text-[9px] font-black text-[#1e3a8a]">GU</span>
+      <span className="absolute text-[9px] font-black text-[#1e3a8a]">CC</span>
     </div>
     <p className="mt-3 text-xs font-semibold text-slate-400 animate-pulse">
       Loading...

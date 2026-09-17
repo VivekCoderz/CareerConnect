@@ -8,7 +8,13 @@
     "dev": "nodemon server.js",
     "check:cloudinary": "node scripts/check-cloudinary-assets.js",
     "test:email": "node scripts/test-email-protection.js",
-    "test": "node scripts/test-email-protection.js"
+    "test": "jest --forceExit --runInBand",
+    "test:unit": "jest __tests__/unit --forceExit",
+    "test:integration": "jest __tests__/integration --forceExit --runInBand",
+    "test:security": "jest __tests__/integration/security.test.js --forceExit --runInBand",
+    "test:coverage": "jest --coverage --forceExit --runInBand",
+    "test:watch": "jest --watch",
+    "test:verbose": "jest --verbose --forceExit --runInBand"
   },
   "keywords": [],
   "author": "",
@@ -39,6 +45,11 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@faker-js/faker": "^10.6.0",
+    "jest": "^30.5.1",
+    "mongodb-memory-server": "^11.2.0",
+    "node-mocks-http": "^1.18.1",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   }
 }

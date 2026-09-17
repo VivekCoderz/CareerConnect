@@ -30,7 +30,7 @@ const FALLBACK_INTERNSHIP = {
 const FALLBACK_COURSE = {
   id: "crs-fb-1",
   title: "Full Stack Web Development Masterclass",
-  provider: "Geeta University Academy",
+  provider: "CareerConnect Academy",
   duration: "8 Weeks (Certified)",
   level: "Beginner to Advanced",
   rating: "4.9",
@@ -96,7 +96,7 @@ const InternshalaDashboardRecommendations = ({
             </span>
           </div>
           <span className="text-xs font-semibold text-slate-500 hidden sm:inline-block">
-            Curated hiring drives for Geeta University Students
+            Curated hiring drives for CareerConnect Students
           </span>
         </div>
 
@@ -156,7 +156,7 @@ const InternshalaDashboardRecommendations = ({
               <h3 className="text-base font-bold mt-2.5 group-hover:text-purple-200 transition leading-snug line-clamp-1">
                 Certified Career Tracks
               </h3>
-              <p className="text-xs text-purple-100/80 mt-1">Free Geeta University Specialization</p>
+              <p className="text-xs text-purple-100/80 mt-1">Free CareerConnect Specialization</p>
             </div>
             <span className="text-xs font-bold text-purple-200 mt-3 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
               <span>Explore Courses</span>
@@ -538,7 +538,7 @@ const InternshalaDashboardRecommendations = ({
                       {topCourse.title}
                     </h3>
                     <p className="text-xs font-semibold text-slate-600 line-clamp-1">
-                      {topCourse.provider || "Geeta University Academy"}
+                      {topCourse.provider || "CareerConnect Academy"}
                     </p>
                   </div>
                   <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 font-black text-xl flex items-center justify-center shrink-0">

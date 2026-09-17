@@ -3,22 +3,67 @@ const User = require("../models/User");
 
 // In-memory set of SSE client response streams: Map<userId, Set<res>>
 const sseClients = new Map();
+const locallyDelivered = new Map();
+let changeStream = null;
+let changeStreamRetry = null;
+
+// One database change stream per API process delivers inserts created by other
+// replicas to this process's connected users. MongoDB must run as a replica set.
+const startChangeStream = () => {
+  if (changeStream || changeStreamRetry || sseClients.size === 0) return;
+  const topology = Notification.db.client?.topology?.description?.type;
+  if (!topology || (!topology.startsWith("ReplicaSet") && topology !== "Sharded")) return;
+  try {
+    changeStream = Notification.watch([{ $match: { operationType: "insert" } }],
+      { fullDocument: "updateLookup" });
+    changeStream.on("change", ({ fullDocument }) => {
+      if (!fullDocument) return;
+      const id = String(fullDocument._id);
+      if (locallyDelivered.delete(id)) return;
+      broadcastRealtimeNotification(fullDocument, fullDocument.recipient);
+    });
+    changeStream.on("error", (error) => {
+      console.warn("Notification change stream unavailable:", error.message);
+      changeStream?.close().catch(() => {});
+      changeStream = null;
+      changeStreamRetry = setTimeout(() => {
+        changeStreamRetry = null;
+        startChangeStream();
+      }, 30000);
+      changeStreamRetry.unref?.();
+    });
+  } catch (error) {
+    console.warn("Notification change stream unavailable:", error.message);
+    changeStream = null;
+  }
+};
 
 /**
  * Register a client for Server-Sent Events (SSE)
  */
 const registerSseClient = (userId, res) => {
-  const key = userId ? String(userId) : "broadcast";
+  const key = String(userId);
   if (!sseClients.has(key)) {
     sseClients.set(key, new Set());
   }
   sseClients.get(key).add(res);
+  startChangeStream();
 
   // Send initial keep-alive
   res.write(`event: connected\ndata: ${JSON.stringify({ status: "connected", time: new Date() })}\n\n`);
 
+  const heartbeat = setInterval(() => {
+    if (res.writableLength > 128 * 1024) {
+      res.end();
+      return;
+    }
+    res.write(": keep-alive\n\n");
+  }, 25000);
+  heartbeat.unref?.();
+
   // Clean up on disconnect
   res.on("close", () => {
+    clearInterval(heartbeat);
     if (sseClients.has(key)) {
       sseClients.get(key).delete(res);
       if (sseClients.get(key).size === 0) {
@@ -32,38 +77,34 @@ const registerSseClient = (userId, res) => {
  * Broadcast an SSE event to a specific user and global listeners
  */
 const broadcastRealtimeNotification = (notification, targetUserId = null) => {
-  try {
-    const payload = `event: notification\ndata: ${JSON.stringify(notification)}\n\n`;
-
-    // 1. Direct recipient stream
-    if (targetUserId) {
-      const userStreams = sseClients.get(String(targetUserId));
-      if (userStreams) {
-        userStreams.forEach((client) => {
-          try {
-            client.write(payload);
-          } catch (e) {
-            userStreams.delete(client);
-          }
-        });
+  if (notification._id) {
+    locallyDelivered.set(String(notification._id), Date.now());
+    if (locallyDelivered.size > 10000) {
+      const cutoff = Date.now() - 60000;
+      for (const [id, timestamp] of locallyDelivered) {
+        if (timestamp >= cutoff && locallyDelivered.size <= 10000) break;
+        locallyDelivered.delete(id);
       }
     }
+  }
+  const payload = JSON.stringify(notification);
 
-    // 2. Broadcast stream (if notification is public/global)
-    if (!targetUserId) {
-      const broadcastStreams = sseClients.get("broadcast");
-      if (broadcastStreams) {
-        broadcastStreams.forEach((client) => {
-          try {
-            client.write(payload);
-          } catch (e) {
-            broadcastStreams.delete(client);
-          }
-        });
+  const recipient = notification.recipient || targetUserId;
+  const destinations = recipient
+    ? [sseClients.get(String(recipient))].filter(Boolean)
+    : sseClients.values();
+  for (const clients of destinations) {
+    clients.forEach((client) => {
+      try {
+        if (client.writableLength > 128 * 1024) {
+          client.end();
+          return;
+        }
+        client.write(`event: notification\ndata: ${payload}\n\n`);
+      } catch (err) {
+        console.warn("SSE delivery error:", err.message);
       }
-    }
-  } catch (err) {
-    console.error("SSE Broadcast error:", err.message);
+    });
   }
 };
 

@@ -211,7 +211,7 @@ const EmployerDashboard = () => {
       const res = await jobService.createJob(jobPayload);
       if (res?.success) {
         setJobs((prev) => [res.job, ...prev]);
-        showToast("New job posted to Geeta University talent portal!");
+        showToast("New job posted to CareerConnect talent portal!");
       }
     }
   };
@@ -801,7 +801,6 @@ const EmployerDashboard = () => {
               </div>
 
               {/* Main Section: Active Job Listings (Left) + Quick Actions (Right) */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Active Job Listings (Main / Largest Section) */}
                 <div className="lg:col-span-2 p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between">
                   <div>
@@ -810,7 +809,18 @@ const EmployerDashboard = () => {
                         <h3 className="text-base font-bold text-slate-900">Active Job Listings</h3>
                         <p className="text-xs text-slate-400 mt-0.5">Your currently active and open positions</p>
                       </div>
-                      <button
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab("internships");
+                            setInternshipView("new");
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition inline-flex items-center cursor-pointer"
+                        >
+                          + Post Internship
+                        </button>
+                        <button
                         type="button"
                         onClick={() => {
                           setJobToEdit(null);
@@ -1254,7 +1264,7 @@ const EmployerDashboard = () => {
             <div className="space-y-5 animate-fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">Geeta University Talent Pool</h2>
+                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">CareerConnect Talent Pool</h2>
                   <p className="text-xs text-slate-500">Live candidate matching with strong & missing skill analysis</p>
                 </div>
               </div>

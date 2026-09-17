@@ -2,16 +2,62 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
-  { id: "jobs", label: "Find Jobs", link: "/jobs", icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
-  { id: "internships", label: "Internships", link: "/internships", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
-  { id: "recommendations", label: "Career Recommendations", link: "/fresher/career-recommendations", icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" },
-  { id: "skills", label: "Skills", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
-  { id: "courses", label: "Courses", link: "/courses", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
-  { id: "resume", label: "Resume", link: "/resume-builder", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
-  { id: "projects", label: "Projects", link: "/fresher/profile?step=3", icon: "M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" },
-  { id: "applications", label: "Applications", link: "/applications", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
-  { id: "profile", label: "Profile", link: "/fresher/profile", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
+  },
+  {
+    id: "jobs",
+    label: "Find Jobs",
+    icon: "M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+  },
+  {
+    id: "internships",
+    label: "Internships",
+    icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+  },
+  {
+    id: "applications",
+    label: "Applications",
+    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01",
+  },
+  {
+    id: "interviews",
+    label: "Interviews",
+    icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+  },
+  {
+    id: "courses",
+    label: "Courses",
+    icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
+  },
+  {
+    id: "skills",
+    label: "Skills",
+    icon: "M13 10V3L4 14h7v7l9-11h-7z",
+  },
+  {
+    id: "resume",
+    label: "Resume",
+    icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+  },
+  {
+    id: "projects",
+    label: "Projects",
+    icon: "M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4",
+  },
+  {
+    id: "recommendations",
+    label: "Career Advice",
+    icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
+  },
+  {
+    id: "profile",
+    label: "My Profile",
+    link: "/fresher/profile",
+    icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+  },
 ];
 
 const FresherSidebar = ({
@@ -40,7 +86,7 @@ const FresherSidebar = ({
       {mobileOpen && (
         <div
           onClick={onCloseMobile}
-          className="fixed inset-0 bg-slate-900/60 z-40 lg:hidden backdrop-blur-xs transition-opacity animate-fade-in"
+          className="fixed inset-0 bg-slate-900/60 z-40 lg:hidden backdrop-blur-sm transition-opacity animate-fade-in"
         />
       )}
 
@@ -53,11 +99,14 @@ const FresherSidebar = ({
         }`}
       >
         {/* Top Branding & Toggle */}
-        <div>
-          <div className="h-16 px-4 sm:px-5 flex items-center justify-between border-b border-slate-100">
-            <Link to="/fresher/dashboard" className="flex items-center gap-2.5 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="h-16 px-4 sm:px-5 flex items-center justify-between border-b border-slate-100 shrink-0">
+            <button
+              onClick={() => { onSelectTab("dashboard"); onCloseMobile(); }}
+              className="flex items-center gap-2.5 overflow-hidden text-left"
+            >
               <div className="w-9 h-9 rounded-xl bg-[#1e3a8a] flex items-center justify-center font-bold text-white shadow-md shadow-blue-900/20 text-base shrink-0">
-                GU
+                C
               </div>
               {!collapsed && (
                 <div className="transition-opacity duration-200 whitespace-nowrap">
@@ -69,14 +118,14 @@ const FresherSidebar = ({
                   </span>
                 </div>
               )}
-            </Link>
+            </button>
 
-            {/* Desktop Collapse/Expand Toggle Button */}
+            {/* Desktop Collapse/Expand Toggle */}
             <button
               type="button"
               onClick={onToggleCollapse}
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              className="hidden lg:flex w-7 h-7 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 items-center justify-center transition shadow-2xs"
+              className="hidden lg:flex w-7 h-7 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 items-center justify-center transition shadow-sm"
             >
               <svg
                 className={`w-4 h-4 transition-transform duration-300 ${collapsed ? "rotate-180" : ""}`}
@@ -102,9 +151,10 @@ const FresherSidebar = ({
           </div>
 
           {/* Nav List */}
-          <div className="py-4 px-2.5 space-y-1 overflow-y-auto max-h-[calc(100vh-180px)] scrollbar-thin">
+          <div className="py-4 px-2.5 space-y-0.5 overflow-y-auto flex-1 scrollbar-thin">
             {NAV_ITEMS.map((item) => {
               const isActive = activeTab === item.id;
+
               if (item.link) {
                 return (
                   <Link
@@ -114,9 +164,14 @@ const FresherSidebar = ({
                     title={collapsed ? item.label : undefined}
                     className={`flex items-center ${
                       collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-2.5"
-                    } rounded-xl text-sm font-medium transition text-slate-600 hover:bg-slate-50 hover:text-slate-900 group`}
+                    } rounded-xl text-sm font-medium transition text-slate-600 hover:bg-blue-50 hover:text-[#1e3a8a] group`}
                   >
-                    <svg className="w-5 h-5 text-slate-400 group-hover:text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className="w-5 h-5 text-slate-400 group-hover:text-[#1e3a8a] shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d={item.icon} />
                     </svg>
                     {!collapsed && <span className="truncate">{item.label}</span>}
@@ -137,7 +192,7 @@ const FresherSidebar = ({
                   } rounded-xl text-sm font-medium transition text-left ${
                     isActive
                       ? "bg-[#1e3a8a] text-white font-semibold shadow-sm shadow-blue-900/20"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      : "text-slate-600 hover:bg-blue-50 hover:text-[#1e3a8a]"
                   }`}
                 >
                   <svg
@@ -154,11 +209,11 @@ const FresherSidebar = ({
             })}
 
             {/* Divider */}
-            <div className="pt-3 pb-1">
+            <div className="pt-2 pb-1">
               <div className="h-px bg-slate-100" />
             </div>
 
-            {/* Secondary links */}
+            {/* Settings */}
             <Link
               to="/settings"
               onClick={onCloseMobile}
@@ -191,7 +246,7 @@ const FresherSidebar = ({
         </div>
 
         {/* Bottom Sign Out */}
-        <div className="p-3 border-t border-slate-100">
+        <div className="p-3 border-t border-slate-100 shrink-0">
           <button
             onClick={onLogout}
             title={collapsed ? "Logout" : undefined}
