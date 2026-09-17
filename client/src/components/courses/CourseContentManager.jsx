@@ -383,6 +383,7 @@ const CourseContentManager = ({ courseId, onBack, courseTitle }) => {
 
           const res = await api.put(`/course-content/${editingContent._id}`, bodyFormData, {
             headers: { "Content-Type": "multipart/form-data" },
+            timeout: 600000,
             onUploadProgress: (progressEvent) => {
               if (progressEvent.total) {
                 const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -399,6 +400,8 @@ const CourseContentManager = ({ courseId, onBack, courseTitle }) => {
               prev.map((c) => (c._id === editingContent._id ? res.data.courseContent : c))
             );
             setIsFormOpen(false);
+            setSelectedFile(null);
+            setPreviewObjectUrl(null);
           }
         } else {
           // JSON payload
@@ -419,6 +422,8 @@ const CourseContentManager = ({ courseId, onBack, courseTitle }) => {
               prev.map((c) => (c._id === editingContent._id ? res.data.courseContent : c))
             );
             setIsFormOpen(false);
+            setSelectedFile(null);
+            setPreviewObjectUrl(null);
           }
         }
       } else {
@@ -437,6 +442,7 @@ const CourseContentManager = ({ courseId, onBack, courseTitle }) => {
 
           const res = await api.post(`/course-content/${courseId}`, bodyFormData, {
             headers: { "Content-Type": "multipart/form-data" },
+            timeout: 600000,
             onUploadProgress: (progressEvent) => {
               if (progressEvent.total) {
                 const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -457,6 +463,17 @@ const CourseContentManager = ({ courseId, onBack, courseTitle }) => {
             setContentList((prev) => [...prev, saved]);
             setUploadedPreviewUrl(saved.url || previewObjectUrl || null);
             setIsFormOpen(false);
+            setSelectedFile(null);
+            setPreviewObjectUrl(null);
+            setFormData((prev) => ({
+              ...prev,
+              title: "",
+              description: "",
+              url: "",
+              content: "",
+              duration: "",
+              order: (prev.order || 1) + 1,
+            }));
           }
         } else {
           // JSON payload (Notes or Direct URL)
@@ -466,6 +483,17 @@ const CourseContentManager = ({ courseId, onBack, courseTitle }) => {
             setContentList((prev) => [...prev, saved]);
             setUploadedPreviewUrl(saved.url || null);
             setIsFormOpen(false);
+            setSelectedFile(null);
+            setPreviewObjectUrl(null);
+            setFormData((prev) => ({
+              ...prev,
+              title: "",
+              description: "",
+              url: "",
+              content: "",
+              duration: "",
+              order: (prev.order || 1) + 1,
+            }));
           }
         }
       }

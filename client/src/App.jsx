@@ -4,6 +4,28 @@ import { useDispatch, useSelector } from "react-redux";
 
 // Guards & Common Modals
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
+
+// Admin & 404
+import NotFound from "./pages/NotFound";
+import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const AdminCompanies = lazy(() => import("./pages/admin/AdminCompanies"));
+const AdminCompanyAdmins = lazy(
+  () => import("./pages/admin/AdminCompanyAdmins"),
+);
+const AdminCompanyProfile = lazy(
+  () => import("./pages/admin/AdminCompanyProfile"),
+);
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminOpportunities = lazy(
+  () => import("./pages/admin/AdminOpportunities"),
+);
+const AdminApplications = lazy(() => import("./pages/admin/AdminApplications"));
+const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
+
+// Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
 import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
 
@@ -11,7 +33,9 @@ import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
 const Home = lazy(() => import("./pages/Home.jsx"));
 const SelectRole = lazy(() => import("./pages/SelectRole"));
 const JobDiscoveryPage = lazy(() => import("./pages/jobs/JobDiscoveryPage"));
-const InternshipDiscoveryPage = lazy(() => import("./pages/internships/InternshipDiscoveryPage"));
+const InternshipDiscoveryPage = lazy(
+  () => import("./pages/internships/InternshipDiscoveryPage"),
+);
 const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage"));
 
 // Lazy-loaded Pages: Auth
@@ -20,8 +44,12 @@ const Signup = lazy(() => import("./pages/auth/Signup"));
 const EmployerRegister = lazy(() => import("./pages/auth/EmployerRegister"));
 const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword.jsx"));
 const SetPassword = lazy(() => import("./pages/auth/SetPassword.jsx"));
-const GoogleOnboarding = lazy(() => import("./pages/auth/GoogleOnboarding.jsx"));
-const GoogleEmployerOnboarding = lazy(() => import("./pages/auth/GoogleEmployerOnboarding.jsx"));
+const GoogleOnboarding = lazy(
+  () => import("./pages/auth/GoogleOnboarding.jsx"),
+);
+const GoogleEmployerOnboarding = lazy(
+  () => import("./pages/auth/GoogleEmployerOnboarding.jsx"),
+);
 
 // Lazy-loaded Pages: Student
 const StudentDashboard = lazy(() => import("./pages/student/StudentDashboard"));
@@ -31,27 +59,47 @@ const InternshipDetail = lazy(() => import("./pages/student/InternshipDetail"));
 const MyApplications = lazy(() => import("./pages/student/MyApplications"));
 
 // Lazy-loaded Pages: Courses
-const StudentCoursesPage = lazy(() => import("./pages/courses/StudentCoursesPage"));
-const StudentMyCoursesPage = lazy(() => import("./pages/courses/StudentMyCoursesPage"));
-const CourseDetailsPage = lazy(() => import("./pages/courses/CourseDetailsPage"));
-const EmployeeCoursesPage = lazy(() => import("./pages/courses/EmployeeCoursesPage"));
+const StudentCoursesPage = lazy(
+  () => import("./pages/courses/StudentCoursesPage"),
+);
+const StudentMyCoursesPage = lazy(
+  () => import("./pages/courses/StudentMyCoursesPage"),
+);
+const CourseDetailsPage = lazy(
+  () => import("./pages/courses/CourseDetailsPage"),
+);
+const EmployeeCoursesPage = lazy(
+  () => import("./pages/courses/EmployeeCoursesPage"),
+);
 const CreateCoursePage = lazy(() => import("./pages/courses/CreateCoursePage"));
 const EditCoursePage = lazy(() => import("./pages/courses/EditCoursePage"));
-const CourseContentPage = lazy(() => import("./pages/courses/CourseContentPage"));
+const CourseContentPage = lazy(
+  () => import("./pages/courses/CourseContentPage"),
+);
 
 // Lazy-loaded Pages: Fresher
 const FresherDashboard = lazy(() => import("./pages/fresher/FresherDashboard"));
 const FresherProfile = lazy(() => import("./pages/fresher/FresherProfile"));
-const CareerRecommendationsPage = lazy(() => import("./pages/fresher/CareerRecommendationsPage"));
+const CareerRecommendationsPage = lazy(
+  () => import("./pages/fresher/CareerRecommendationsPage"),
+);
 
 // Lazy-loaded Pages: Professional
-const ProfessionalDashboard = lazy(() => import("./pages/professional/ProfessionalDashboard"));
-const ProfessionalProfile = lazy(() => import("./pages/professional/ProfessionalProfile"));
+const ProfessionalDashboard = lazy(
+  () => import("./pages/professional/ProfessionalDashboard"),
+);
+const ProfessionalProfile = lazy(
+  () => import("./pages/professional/ProfessionalProfile"),
+);
 
 // Lazy-loaded Pages: Employer
 const EmployerProfile = lazy(() => import("./pages/employer/EmployerProfile"));
-const EmployerDashboard = lazy(() => import("./pages/employer/EmployerDashboard"));
-const CompanyPublicProfile = lazy(() => import("./pages/employer/CompanyPublicProfile"));
+const EmployerDashboard = lazy(
+  () => import("./pages/employer/EmployerDashboard"),
+);
+const CompanyPublicProfile = lazy(
+  () => import("./pages/employer/CompanyPublicProfile"),
+);
 const PostInternship = lazy(() => import("./pages/employer/PostInternship"));
 const MyInternships = lazy(() => import("./pages/employer/MyInternships"));
 const EditInternship = lazy(() => import("./pages/employer/EditInternship"));
@@ -82,13 +130,34 @@ const RootRoute = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
   if (user) {
+    if (
+      user.role === "SUPER_ADMIN" ||
+      user.role === "COMPANY_ADMIN" ||
+      user.role === "admin"
+    ) {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
     if (user.hasPassword === false) {
       return <Navigate to="/set-password" replace />;
     }
     if (!user.phone?.trim() || !user.isProfileComplete) {
-      return <Navigate to={user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile"} replace />;
+      return (
+        <Navigate
+          to={
+            user.role === "employer"
+              ? "/onboarding/employer"
+              : "/onboarding/profile"
+          }
+          replace
+        />
+      );
     }
-    return <Navigate to={getDashboardPath(user.userType || user.role, user)} replace />;
+    return (
+      <Navigate
+        to={getDashboardPath(user.userType || user.role, user)}
+        replace
+      />
+    );
   }
   return <Home />;
 };
@@ -97,13 +166,34 @@ const PublicOnlyRoute = ({ children }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
   if (user) {
+    if (
+      user.role === "SUPER_ADMIN" ||
+      user.role === "COMPANY_ADMIN" ||
+      user.role === "admin"
+    ) {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
     if (user.hasPassword === false) {
       return <Navigate to="/set-password" replace />;
     }
     if (!user.phone?.trim() || !user.isProfileComplete) {
-      return <Navigate to={user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile"} replace />;
+      return (
+        <Navigate
+          to={
+            user.role === "employer"
+              ? "/onboarding/employer"
+              : "/onboarding/profile"
+          }
+          replace
+        />
+      );
     }
-    return <Navigate to={getDashboardPath(user.userType || user.role, user)} replace />;
+    return (
+      <Navigate
+        to={getDashboardPath(user.userType || user.role, user)}
+        replace
+      />
+    );
   }
   return children;
 };
@@ -380,13 +470,70 @@ function App() {
             </Route>
 
             {/* =================================================
+              ADMIN AUTHENTICATION & DASHBOARD
+          ================================================= */}
+            {/* Public Admin Login only */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+
+            {/* 404 Security: /admin and public-facing fake routes return generic 404 */}
+            <Route path="/admin" element={<NotFound />} />
+            <Route path="/admin/register" element={<NotFound />} />
+            <Route path="/admin/signup" element={<NotFound />} />
+            <Route path="/admin/create" element={<NotFound />} />
+
+            {/* Strictly Protected Admin Routes */}
+            <Route element={<AdminProtectedRoute />}>
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+              {/* SUPER_ADMIN ONLY: Platform Multi-Tenant Provisioning & Management */}
+              <Route
+                element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}
+              >
+                <Route path="/admin/companies" element={<AdminCompanies />} />
+                <Route
+                  path="/admin/company-admins"
+                  element={<AdminCompanyAdmins />}
+                />
+              </Route>
+
+              {/* COMPANY_ADMIN ONLY: Own Assigned Organization Profile & Settings */}
+              <Route
+                element={
+                  <AdminProtectedRoute allowedRoles={["COMPANY_ADMIN"]} />
+                }
+              >
+                <Route
+                  path="/admin/company"
+                  element={<AdminCompanyProfile />}
+                />
+              </Route>
+
+              {/* Shared Scoped Admin Routes */}
+              <Route path="/admin/users" element={<AdminUsers />} />
+              <Route path="/admin/students" element={<AdminUsers />} />
+              <Route path="/admin/employers" element={<AdminUsers />} />
+              <Route
+                path="/admin/opportunities"
+                element={<AdminOpportunities />}
+              />
+              <Route
+                path="/admin/applications"
+                element={<AdminApplications />}
+              />
+              <Route path="/admin/reports" element={<AdminReports />} />
+              <Route path="/admin/settings" element={<AdminSettings />} />
+            </Route>
+
+            {/* =================================================
               RESUME BUILDER
           ================================================= */}
             <Route path="/resume-builder" element={<ResumeBuilder />} />
 
             {/* ========== DEFAULT ========== */}
+
+            {/* ========== DEFAULT & 404 ========== */}
             <Route path="/" element={<RootRoute />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </AuthInitializer>
