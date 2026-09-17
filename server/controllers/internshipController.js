@@ -11,6 +11,7 @@ const FresherProfile = require("../models/FresherProfile");
 const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require("../services/jobScraperService");
+const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
 
 // Helper to normalize URL slugs to category names
 const formatCategorySlug = (slug = "") => {
@@ -31,6 +32,7 @@ const getUserProfileFromReq = async (req) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select("-password");
     if (!user) return null;
+    if ((decoded.av || 0) !== (user.authVersion || 0)) return null;
 
     if (user.userType === "student") {
       return await StudentProfile.findOne({ userId: user._id });
@@ -185,7 +187,7 @@ exports.getInternships = async (req, res, next) => {
       }
       filter.employerId = profile._id;
     } else {
-      filter.status = status || "Published";
+      filter.status = "Published";
     }
 
     // Work Mode
@@ -197,7 +199,7 @@ exports.getInternships = async (req, res, next) => {
     const targetCity = city && city !== "All" ? city.replace(/-/g, " ") : "";
     const targetLocation = location && location !== "All" ? location : "";
     if (targetCity || targetLocation) {
-      const locTerm = targetCity || targetLocation;
+      const locTerm = escapeRegex(targetCity || targetLocation);
       filter.$or = [
         { city: { $regex: locTerm, $options: "i" } },
         { location: { $regex: locTerm, $options: "i" } },
@@ -207,7 +209,7 @@ exports.getInternships = async (req, res, next) => {
     // Category
     if (category && category !== "All") {
       const formattedCategory = formatCategorySlug(category);
-      const catRegex = new RegExp(formattedCategory, "i");
+      const catRegex = new RegExp(escapeRegex(formattedCategory), "i");
       const catFilter = [
         { category: { $regex: catRegex } },
         { subCategory: { $regex: catRegex } },
@@ -224,7 +226,7 @@ exports.getInternships = async (req, res, next) => {
 
     // Specific Skill
     if (skill && skill !== "All") {
-      filter.requiredSkills = { $in: [new RegExp(skill, "i")] };
+      filter.requiredSkills = { $in: [new RegExp(escapeRegex(skill), "i")] };
     }
 
     // Paid status
@@ -253,7 +255,7 @@ exports.getInternships = async (req, res, next) => {
     // Search query (keyword: q or search)
     const searchTerm = (search || q || "").trim();
     if (searchTerm) {
-      const sRegex = new RegExp(searchTerm, "i");
+      const sRegex = new RegExp(escapeRegex(searchTerm), "i");
       const searchOr = [
         { title: { $regex: sRegex } },
         { description: { $regex: sRegex } },
@@ -636,12 +638,16 @@ exports.getInternshipById = async (req, res, next) => {
       );
     }
 
-    if (!internship) {
+    if (!internship || (internship.status !== "Published" && (!req.user ||
+      !(String(internship.createdBy) === String(req.user._id) || await EmployerProfile.exists({
+        _id: internship.employerId, userId: req.user._id,
+      }))))) {
       return res.status(404).json({ success: false, message: "Internship opportunity not found" });
     }
 
-    internship.viewsCount = (internship.viewsCount || 0) + 1;
-    await internship.save();
+    if (internship.status === "Published") {
+      await internship.constructor.updateOne({ _id: internship._id }, { $inc: { viewsCount: 1 } });
+    }
 
     return res.status(200).json({
       success: true,
@@ -666,11 +672,7 @@ exports.updateInternship = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Internship not found" });
     }
 
-    ["employerId", "createdBy", "source", "isExternal", "externalId"].forEach(
-      (k) => delete req.body[k]
-    );
-
-    Object.assign(internship, req.body);
+    Object.assign(internship, pickListingUpdate(req.body));
     await internship.save();
     clearSearchCache();
 

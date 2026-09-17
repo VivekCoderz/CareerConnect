@@ -12,7 +12,7 @@ const Application = require("../models/Application");
 const EmployerProfile = require("../models/EmployerProfile");
 const StudentProfile = require("../models/StudentProfile");
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = `http://localhost:${process.env.PORT || 5001}/api`;
 
 async function runE2ETests() {
   console.log("\n========================================================");

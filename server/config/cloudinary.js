@@ -1,4 +1,5 @@
 require("dotenv").config();
+const crypto = require("crypto");
 const cloudinary = require("cloudinary").v2;
 
 cloudinary.config({
@@ -18,9 +19,7 @@ const uploadResumeToCloudinary = (fileBuffer, originalName = "resume.pdf", userI
   return new Promise((resolve, reject) => {
     const extMatch = (originalName || "").match(/\.[^/.]+$/);
     const ext = extMatch ? extMatch[0].toLowerCase() : ".pdf";
-    const baseName = (originalName || "resume").replace(/\.[^/.]+$/, "");
-    const cleanName = baseName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 50) || "resume";
-    const publicId = `resume_${userId}_${cleanName}_${Date.now()}${ext}`;
+    const publicId = `resume_${crypto.randomUUID()}${ext}`;
 
     const stream = cloudinary.uploader.upload_stream(
       {
@@ -45,4 +44,3 @@ module.exports = {
   cloudinary,
   uploadResumeToCloudinary,
 };
-

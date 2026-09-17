@@ -9,6 +9,7 @@ const sendEmail = require("../utils/sendEmail.js");
 const EmployerProfile = require("../models/EmployerProfile.js");
 const getFirebaseAdmin = require("../config/firebaseAdmin.js");
 const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
+const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
 
 // ==========================================
 // PASSWORD VALIDATION & HELPERS
@@ -26,15 +27,10 @@ const validatePassword = (password) => {
 const PASSWORD_VALIDATION_ERROR =
   "Password must contain at least 6 characters, one letter, one number, and one special character.";
 
-// Generate 6-digit OTP
-const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
 // Generate JWT with dynamic expiry based on "Keep Me Signed In"
-const generateToken = (userId, keepSignedIn = false) => {
+const generateToken = (user, keepSignedIn = false) => {
   const expiresIn = keepSignedIn ? "7d" : "25h";
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn });
+  return jwt.sign({ id: user._id, av: user.authVersion || 0 }, process.env.JWT_SECRET, { expiresIn });
 };
 
 // Determine production environment (checks standard NODE_ENV and Render environment)
@@ -185,29 +181,10 @@ module.exports.sendOTP = async (req, res, next) => {
       });
     }
 
-    const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const { code: otp, otpHash } = await issueOtp(normalizedEmail, "verification");
 
-    // 3. Upsert pending OTP
-    console.log("4. [DB Check] PendingOTP Upsert...");
-    await PendingOTP.findOneAndUpdate(
-      { email: normalizedEmail },
-      {
-        email: normalizedEmail,
-        otp,
-        expiresAt,
-        isVerified: false,
-      },
-      { upsert: true, new: true }
-    );
-
-    console.log(`\n==================================================`);
-    console.log(`🔑 [OTP GENERATED] Email: ${normalizedEmail} | OTP: ${otp}`);
-    console.log(`==================================================\n`);
-
-    // 4. Send Email
-    console.log("5. [Email Service] Calling sendEmail utility...");
-    const mailResponse = await sendEmail({
+    // Send email
+    const delivery = await sendEmail({
       to: normalizedEmail,
       subject: "Your CareerConnect verification code",
       html: `
@@ -223,14 +200,15 @@ module.exports.sendOTP = async (req, res, next) => {
         </div>
       `,
     });
-
-    console.log("6. [Email Service Result]:", mailResponse);
+    if (delivery?.error || (isProduction && delivery?.messageId === "simulated-email")) {
+      await PendingOTP.deleteOne({ email: normalizedEmail, otpHash });
+      return res.status(503).json({ success: false, message: "Verification email is temporarily unavailable." });
+    }
 
     return res.status(200).json({
       success: true,
       message: "OTP sent to your email",
       email: normalizedEmail,
-      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (error) {
     console.error("🔥 [sendOTP Fatal Error]:", error);
@@ -252,56 +230,20 @@ module.exports.verifyOTP = async (req, res, next) => {
       });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const enteredOtp = otp.toString().trim();
-
-    let record = await PendingOTP.findOne({ email: normalizedEmail });
-
-    // In non-production, auto-create or allow master demo OTP
-    const isMasterDemoOtp =
-      process.env.NODE_ENV !== "production" &&
-      (enteredOtp === "123456" || enteredOtp === "000000");
-
-    if (!record && isMasterDemoOtp) {
-      record = await PendingOTP.create({
-        email: normalizedEmail,
-        otp: enteredOtp,
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-        isVerified: true,
-      });
-    }
-
-    if (!record) {
+    const normalizedEmail = normalizeEmail(email);
+    const verificationToken = await verifyOtp(normalizedEmail, "verification", String(otp).trim());
+    if (!verificationToken) {
       return res.status(400).json({
         success: false,
-        message: "No OTP found. Please request a new one.",
+        message: "Invalid or expired OTP",
       });
     }
-
-    if (record.expiresAt < new Date() && !isMasterDemoOtp) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP has expired. Please request a new one.",
-      });
-    }
-
-    const isValid = record.otp === enteredOtp || isMasterDemoOtp;
-
-    if (!isValid) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP",
-      });
-    }
-
-    // Mark verified
-    record.isVerified = true;
-    await record.save();
 
     return res.status(200).json({
       success: true,
       message: "Email verified successfully",
       email: normalizedEmail,
+      verificationToken,
     });
   } catch (error) {
     next(error);
@@ -328,6 +270,7 @@ const createSession = (req, user) => {
         email: user.email,
         role: user.role,
         userType: user.userType,
+        authVersion: user.authVersion || 0,
         loginTime: new Date(),
         lastActive: new Date(),
       };
@@ -353,6 +296,7 @@ module.exports.registerUser = async (req, res, next) => {
       lastName,
       fullName,
       email,
+      verificationToken,
       countryCode = "+91",
       phone,
       city,
@@ -499,8 +443,7 @@ module.exports.registerUser = async (req, res, next) => {
     }
 
     // Verify OTP first (manual email registration requires verified OTP)
-    const otpRecord = await PendingOTP.findOne({ email: normalizedEmail });
-    if (!otpRecord || !otpRecord.isVerified) {
+    if (!(await consumeVerifiedOtp(normalizedEmail, "verification", verificationToken))) {
       return res.status(403).json({
         success: false,
         message: "Please verify your email with OTP first",
@@ -657,9 +600,6 @@ module.exports.registerUser = async (req, res, next) => {
       );
     }
 
-    // Cleanup OTP after successful registration
-    await PendingOTP.deleteOne({ email: normalizedEmail });
-
     // Initialize Redis Session
     if (req.session) {
       try {
@@ -669,7 +609,7 @@ module.exports.registerUser = async (req, res, next) => {
       }
     }
 
-    const token = generateToken(user._id, keepSignedIn);
+    const token = generateToken(user, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
     return res.status(201).json({
@@ -754,7 +694,7 @@ module.exports.loginUser = async (req, res, next) => {
       }
     }
 
-    const token = generateToken(user._id, keepSignedIn);
+    const token = generateToken(user, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
     return res.status(200).json({
@@ -780,7 +720,7 @@ module.exports.loginUser = async (req, res, next) => {
 // ==========================================
 module.exports.firebaseLogin = async (req, res, next) => {
   try {
-    const { idToken, password, keepSignedIn = false } = req.body;
+    const { idToken, keepSignedIn = false } = req.body;
 
     if (!idToken) {
       return res.status(400).json({
@@ -809,12 +749,15 @@ module.exports.firebaseLogin = async (req, res, next) => {
       });
     }
 
-    const { uid, email } = decoded;
+    const { uid, email, email_verified: emailVerified } = decoded;
+    if (!uid || !email || emailVerified !== true) {
+      return res.status(403).json({ success: false, message: "Verify your email before signing in." });
+    }
 
-    // Find MongoDB user by Firebase UID first, then by email (for linking)
-    let user = await User.findOne({
-      $or: [{ firebaseUid: uid }, { email: email?.toLowerCase() }],
-    }).select("+password");
+    // A verified email may link a legacy account, but an existing Firebase UID
+    // must never be replaced by a different Firebase identity.
+    let user = await User.findOne({ firebaseUid: uid }).select("+password");
+    if (!user) user = await User.findOne({ email: email.toLowerCase() }).select("+password");
 
     if (!user) {
       return res.status(404).json({
@@ -832,23 +775,26 @@ module.exports.firebaseLogin = async (req, res, next) => {
     }
 
     // Link Firebase UID if this is a user logging in via Firebase for the first time
+    if (user.firebaseUid && user.firebaseUid !== uid) {
+      return res.status(409).json({ success: false, message: "This account is linked to another sign-in identity." });
+    }
     if (!user.firebaseUid) {
-      user.firebaseUid = uid;
+      user = await User.findOneAndUpdate(
+        { _id: user._id, firebaseUid: null },
+        { $set: { firebaseUid: uid } },
+        { returnDocument: "after" }
+      ).select("+password");
+      if (!user) return res.status(409).json({ success: false, message: "This account was linked to another sign-in identity." });
     }
-    if (!user.authProviders.includes("email")) {
-      user.authProviders.push("email");
-    }
-
-    // If password provided and user has no MongoDB password, sync it now
-    if (password && !user.password) {
-      user.password = password;
-      user.hasPassword = true;
+    const provider = decoded.firebase?.sign_in_provider === "google.com" ? "google" : "email";
+    if (!user.authProviders.includes(provider)) {
+      user.authProviders.push(provider);
     }
 
     user.lastLogin = new Date();
     await user.save();
 
-    const token = generateToken(user._id, keepSignedIn);
+    const token = generateToken(user, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
     return res.status(200).json({
@@ -903,17 +849,17 @@ module.exports.googleAuth = async (req, res, next) => {
     const { uid, email, name, picture } = decoded;
     const normalizedEmail = email?.toLowerCase();
 
-    if (!normalizedEmail) {
-      return res.status(400).json({
+    if (!uid || !normalizedEmail || decoded.email_verified !== true ||
+        decoded.firebase?.sign_in_provider !== "google.com") {
+      return res.status(403).json({
         success: false,
-        message: "Email not available from Google account",
+        message: "A verified Google sign-in is required",
       });
     }
 
     // Find existing user by Firebase UID or email
-    let user = await User.findOne({
-      $or: [{ firebaseUid: uid }, { email: normalizedEmail }],
-    }).select("+password");
+    let user = await User.findOne({ firebaseUid: uid }).select("+password");
+    if (!user) user = await User.findOne({ email: normalizedEmail }).select("+password");
 
     let isNewUser = false;
 
@@ -926,8 +872,19 @@ module.exports.googleAuth = async (req, res, next) => {
         });
       }
 
-      // Update or link Firebase UID for this Google authenticated account
-      user.firebaseUid = uid;
+      if (user.firebaseUid && user.firebaseUid !== uid) {
+        return res.status(409).json({ success: false, message: "This account is linked to another sign-in identity." });
+      }
+
+      // Claim an unlinked account atomically to prevent concurrent UID replacement.
+      if (!user.firebaseUid) {
+        user = await User.findOneAndUpdate(
+          { _id: user._id, firebaseUid: null },
+          { $set: { firebaseUid: uid } },
+          { returnDocument: "after" }
+        ).select("+password");
+        if (!user) return res.status(409).json({ success: false, message: "This account was linked to another sign-in identity." });
+      }
 
       // Add google to providers if not present
       if (!user.authProviders.includes("google")) {
@@ -979,7 +936,7 @@ module.exports.googleAuth = async (req, res, next) => {
 
     // For users who still need to set a password, issue a short-lived token
     const effectiveKeepSignedIn = requiresPasswordSetup ? false : keepSignedIn;
-    const token = generateToken(user._id, effectiveKeepSignedIn);
+    const token = generateToken(user, effectiveKeepSignedIn);
     setTokenCookie(res, token, effectiveKeepSignedIn);
 
     return res.status(200).json({
@@ -1004,8 +961,10 @@ module.exports.googleAuth = async (req, res, next) => {
 // ==========================================
 module.exports.cancelGoogleSignup = async (req, res, next) => {
   try {
-    const user = req.user;
-    if (user && user.hasPassword === false) {
+    const user = await User.findById(req.user._id).select("+password");
+    // A legacy account can have a password hash but no hasPassword flag.
+    // Only discard a genuinely unfinished Google-only signup.
+    if (user && !user.password && user.hasPassword === false) {
       await User.findByIdAndDelete(user._id);
     }
 
@@ -1054,42 +1013,19 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       });
     }
 
-    let uid = null;
-    let email = null;
     const admin = getFirebaseAdmin();
-
-    // If Firebase ID Token provided and Firebase Admin configured, verify it
-    if (idToken && admin) {
-      try {
-        const decoded = await admin.auth().verifyIdToken(idToken);
-        uid = decoded.uid;
-        email = decoded.email;
-
-        // Update Firebase user password directly via Firebase Admin SDK
-        try {
-          await admin.auth().updateUser(uid, { password });
-        } catch (fbErr) {
-          console.warn("[completePasswordSetup] Firebase admin updateUser warning:", fbErr.message);
-        }
-      } catch (firebaseErr) {
-        console.warn("[SetPasswordGoogle] verifyIdToken failed, falling back to authenticated user:", firebaseErr.message);
-      }
+    if (!admin || !idToken) {
+      return res.status(401).json({ success: false, message: "A fresh Google sign-in is required." });
     }
 
-    // Find MongoDB user by authenticated session user, firebaseUid, or email
-    let user = null;
-    if (req.user?._id) {
-      user = await User.findById(req.user._id).select("+password");
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(idToken);
+    } catch (_) {
+      return res.status(401).json({ success: false, message: "Google sign-in expired. Please sign in again." });
     }
 
-    if (!user && (uid || email)) {
-      user = await User.findOne({
-        $or: [
-          ...(uid ? [{ firebaseUid: uid }] : []),
-          ...(email ? [{ email: email.toLowerCase() }] : []),
-        ],
-      }).select("+password");
-    }
+    const user = await User.findById(req.user._id).select("+password");
 
     if (!user) {
       return res.status(404).json({
@@ -1098,14 +1034,15 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       });
     }
 
-    // Also sync to Firebase if user has firebaseUid and admin is available
-    if (!uid && user.firebaseUid && admin) {
-      try {
-        await admin.auth().updateUser(user.firebaseUid, { password });
-      } catch (adminSyncErr) {
-        console.warn("[completePasswordSetup] Background Firebase password sync warning:", adminSyncErr.message);
-      }
+    if (user.password || user.hasPassword || !user.firebaseUid ||
+        user.firebaseUid !== decoded.uid ||
+        user.email !== decoded.email?.toLowerCase() ||
+        decoded.email_verified !== true ||
+        decoded.firebase?.sign_in_provider !== "google.com") {
+      return res.status(403).json({ success: false, message: "Password setup is not available for this account." });
     }
+
+    await admin.auth().updateUser(user.firebaseUid, { password });
 
     // Save hashed password in MongoDB and update flags
     user.password = password; // pre-save hook will hash with bcrypt
@@ -1116,14 +1053,10 @@ module.exports.completePasswordSetup = async (req, res, next) => {
     if (!user.authProviders.includes("google")) {
       user.authProviders.push("google");
     }
-    if (!user.firebaseUid) {
-      user.firebaseUid = uid;
-    }
-
     await user.save();
 
     // Issue full-duration JWT now that setup is complete
-    const token = generateToken(user._id, keepSignedIn);
+    const token = generateToken(user, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
     return res.status(200).json({
@@ -1287,38 +1220,16 @@ module.exports.forgotPassword = async (req, res, next) => {
         .json({ success: false, message: "Email is required" });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
     const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "No account found with this email",
-      });
+      return res.status(200).json({ success: true, message: "If this account exists, a code has been sent." });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const { code: otp, otpHash } = await issueOtp(normalizedEmail, "reset-password");
 
-    await PendingOTP.findOneAndUpdate(
-      { email: normalizedEmail },
-      {
-        email: normalizedEmail,
-        otp,
-        expiresAt,
-        isVerified: false,
-        purpose: "reset-password",
-      },
-      { upsert: true, new: true },
-    );
-
-    console.log(`\n==================================================`);
-    console.log(`🔑 [PASSWORD RESET OTP] Email: ${normalizedEmail}`);
-    console.log(`🔑 [PASSWORD RESET OTP] OTP Code: ${otp}`);
-    console.log(`🔑 [PASSWORD RESET OTP] (Master Demo Code: 123456)`);
-    console.log(`==================================================\n`);
-
-    await sendEmail({
+    const delivery = await sendEmail({
       to: normalizedEmail,
       subject: "Reset your CareerConnect password",
       html: `
@@ -1333,11 +1244,14 @@ module.exports.forgotPassword = async (req, res, next) => {
         </div>
       `,
     });
+    if (delivery?.error || (isProduction && delivery?.messageId === "simulated-email")) {
+      await PendingOTP.deleteOne({ email: normalizedEmail, otpHash });
+      return res.status(503).json({ success: false, message: "Password reset email is temporarily unavailable." });
+    }
 
     return res.status(200).json({
       success: true,
-      message: "OTP sent to your email",
-      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+      message: "If this account exists, a code has been sent.",
     });
   } catch (error) {
     next(error);
@@ -1355,48 +1269,15 @@ module.exports.verifyResetOTP = async (req, res, next) => {
         .json({ success: false, message: "Email and OTP are required" });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const enteredOtp = otp.toString().trim();
-    let record = await PendingOTP.findOne({ email: normalizedEmail });
-
-    const isMasterDemoOtp =
-      process.env.NODE_ENV !== "production" &&
-      (enteredOtp === "123456" || enteredOtp === "000000");
-
-    if (!record && isMasterDemoOtp) {
-      record = await PendingOTP.create({
-        email: normalizedEmail,
-        otp: enteredOtp,
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-        isVerified: true,
-      });
+    const verificationToken = await verifyOtp(normalizeEmail(email), "reset-password", String(otp).trim());
+    if (!verificationToken) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
     }
-
-    if (!record) {
-      return res
-        .status(400)
-        .json({ success: false, message: "No OTP found. Request a new one." });
-    }
-
-    if (record.expiresAt < new Date() && !isMasterDemoOtp) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP has expired. Request a new one.",
-      });
-    }
-
-    const isValid = record.otp === enteredOtp || isMasterDemoOtp;
-
-    if (!isValid) {
-      return res.status(400).json({ success: false, message: "Invalid OTP" });
-    }
-
-    record.isVerified = true;
-    await record.save();
 
     return res.status(200).json({
       success: true,
       message: "OTP verified successfully",
+      verificationToken,
     });
   } catch (error) {
     next(error);
@@ -1406,9 +1287,9 @@ module.exports.verifyResetOTP = async (req, res, next) => {
 // ========== RESET PASSWORD ==========
 module.exports.resetPassword = async (req, res, next) => {
   try {
-    const { email, otp, password, confirmPassword } = req.body;
+    const { email, verificationToken, password, confirmPassword } = req.body;
 
-    if (!email || !otp || !password) {
+    if (!email || !verificationToken || !password) {
       return res
         .status(400)
         .json({ success: false, message: "All fields are required" });
@@ -1428,10 +1309,8 @@ module.exports.resetPassword = async (req, res, next) => {
         .json({ success: false, field: "confirmPassword", message: "Passwords do not match" });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const record = await PendingOTP.findOne({ email: normalizedEmail });
-
-    if (!record || !record.isVerified || record.otp !== otp.trim()) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!(await consumeVerifiedOtp(normalizedEmail, "reset-password", verificationToken))) {
       return res.status(403).json({
         success: false,
         message: "Please verify OTP first",
@@ -1449,6 +1328,7 @@ module.exports.resetPassword = async (req, res, next) => {
 
     user.password = password; // pre-save hook will hash
     user.hasPassword = true;
+    user.authVersion = (user.authVersion || 0) + 1;
     if (!user.authProviders.includes("email")) {
       user.authProviders.push("email");
     }
@@ -1463,9 +1343,6 @@ module.exports.resetPassword = async (req, res, next) => {
         console.warn("[resetPassword] Firebase admin updateUser warning:", fbErr.message);
       }
     }
-
-    // Cleanup OTP
-    await PendingOTP.deleteOne({ email: normalizedEmail });
 
     return res.status(200).json({
       success: true,
@@ -1484,6 +1361,7 @@ module.exports.registerEmployer = async (req, res, next) => {
     const {
       companyName,
       email,
+      verificationToken,
       countryCode = "+91",
       phone,
       password,
@@ -1611,15 +1489,6 @@ module.exports.registerEmployer = async (req, res, next) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // OTP verified?
-    const otpRecord = await PendingOTP.findOne({ email: normalizedEmail });
-    if (!otpRecord || !otpRecord.isVerified) {
-      return res.status(403).json({
-        success: false,
-        message: "Please verify your email first",
-      });
-    }
-
     // Already registered?
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
@@ -1628,6 +1497,10 @@ module.exports.registerEmployer = async (req, res, next) => {
         field: "email",
         message: "Email is already registered",
       });
+    }
+
+    if (!(await consumeVerifiedOtp(normalizedEmail, "verification", verificationToken))) {
+      return res.status(403).json({ success: false, message: "Please verify your email first" });
     }
 
     // ---------- Create User (role: employer) ----------
@@ -1675,9 +1548,6 @@ module.exports.registerEmployer = async (req, res, next) => {
       console.error("EmployerProfile creation error:", profileErr);
     }
 
-    // Cleanup OTP
-    await PendingOTP.deleteOne({ email: normalizedEmail });
-
     // Initialize Redis Session
     if (req.session) {
       try {
@@ -1687,7 +1557,7 @@ module.exports.registerEmployer = async (req, res, next) => {
       }
     }
 
-    const token = generateToken(user._id, keepSignedIn);
+    const token = generateToken(user, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
     return res.status(201).json({
@@ -2097,4 +1967,3 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
 };
 
 module.exports.userPayload = userPayload;
-

@@ -1,4 +1,5 @@
 import api from "../api/api";
+import { getCaptchaToken } from "../utils/captcha";
 
 /**
  * Fetches the currently authenticated user from backend.
@@ -45,9 +46,9 @@ export const googleAuth = async (idToken, keepSignedIn = false) => {
  *
  * @param {string} idToken - Firebase ID token
  * @param {boolean} keepSignedIn - Session duration preference
- * @param {string} captchaToken - reCAPTCHA v3 token
  */
-export const firebaseLogin = async (idToken, keepSignedIn = false, captchaToken = "") => {
+export const firebaseLogin = async (idToken, keepSignedIn = false) => {
+  const captchaToken = await getCaptchaToken("firebase_login");
   const response = await api.post("/auth/firebase-login", {
     idToken,
     keepSignedIn,
@@ -80,4 +81,3 @@ export const cancelGoogleSignup = async () => {
   const response = await api.post("/auth/cancel-google-signup");
   return response.data;
 };
-

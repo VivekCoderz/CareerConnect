@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/api";
+import { getCaptchaToken } from "../../utils/captcha";
 import {
   validatePassword,
   PASSWORD_VALIDATION_ERROR,
@@ -13,6 +14,7 @@ const ForgotPassword = () => {
   const [step, setStep] = useState("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -49,7 +51,10 @@ const ForgotPassword = () => {
       setLoading(true);
       await api.post("/auth/forgot-password", {
         email: email.trim().toLowerCase(),
+        captchaToken: await getCaptchaToken("forgot_password"),
       });
+      setVerificationToken("");
+      setOtp("");
       setSuccess(`OTP sent to ${email}`);
       setStep("otp");
       startCooldown(60);
@@ -68,7 +73,10 @@ const ForgotPassword = () => {
       setLoading(true);
       await api.post("/auth/forgot-password", {
         email: email.trim().toLowerCase(),
+        captchaToken: await getCaptchaToken("forgot_password"),
       });
+      setVerificationToken("");
+      setOtp("");
       setSuccess("OTP resent successfully");
       startCooldown(60);
     } catch (err) {
@@ -91,10 +99,12 @@ const ForgotPassword = () => {
 
     try {
       setLoading(true);
-      await api.post("/auth/verify-reset-otp", {
+      const response = await api.post("/auth/verify-reset-otp", {
         email: email.trim().toLowerCase(),
         otp: otp.trim(),
       });
+      setVerificationToken(response.data.verificationToken);
+      setOtp("");
       setSuccess("OTP verified");
       setStep("reset");
     } catch (err) {
@@ -123,7 +133,7 @@ const ForgotPassword = () => {
       setLoading(true);
       await api.post("/auth/reset-password", {
         email: email.trim().toLowerCase(),
-        otp: otp.trim(),
+        verificationToken,
         password,
         confirmPassword,
       });
@@ -238,6 +248,7 @@ const ForgotPassword = () => {
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
+                      setVerificationToken("");
                       setError("");
                     }}
                     placeholder="you@example.com"

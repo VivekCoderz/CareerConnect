@@ -83,7 +83,7 @@ const SetPassword = () => {
     if (isSubmittingRef.current) return;
 
     if (user.hasPassword) {
-      if (!user.phone?.trim()) {
+      if (!user.phone?.trim() || !user.isProfileComplete) {
         navigate(
           user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile",
           { replace: true }
@@ -181,7 +181,7 @@ const SetPassword = () => {
       // - Candidates/Students → select role (Student / Fresher / Professional) -> then collect info (/onboarding/profile)
       if (updatedUser.role === "employer") {
         navigate("/onboarding/employer", { replace: true });
-      } else if (!updatedUser.phone?.trim()) {
+      } else if (!updatedUser.phone?.trim() || !updatedUser.isProfileComplete) {
         navigate("/onboarding/profile", { replace: true });
       } else {
         navigate(getDashboardPath(updatedUser.userType || "student", updatedUser), { replace: true });

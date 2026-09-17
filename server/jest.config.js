@@ -22,7 +22,10 @@ module.exports = {
   // Mock Firebase Admin in tests to avoid ESM issues
   moduleNameMapper: {
     '^../config/firebaseAdmin$': '<rootDir>/__tests__/__mocks__/firebaseAdmin.js',
+    '^../config/firebaseAdmin\\.js$': '<rootDir>/__tests__/__mocks__/firebaseAdmin.js',
     '^../../config/firebaseAdmin$': '<rootDir>/__tests__/__mocks__/firebaseAdmin.js',
+    '^../../config/firebaseAdmin\\.js$': '<rootDir>/__tests__/__mocks__/firebaseAdmin.js',
     '^../../../config/firebaseAdmin$': '<rootDir>/__tests__/__mocks__/firebaseAdmin.js',
+    '^../../../config/firebaseAdmin\\.js$': '<rootDir>/__tests__/__mocks__/firebaseAdmin.js',
   },
 };

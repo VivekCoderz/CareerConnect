@@ -3,6 +3,7 @@ const ProfessionalProfile = require("../models/ProfessionalProfile");
 const Job = require("../models/Job");
 const Application = require("../models/Application");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 
 // Skill benchmarks for target senior/executive roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -439,7 +440,7 @@ module.exports.getProfessionalProfile = async (req, res, next) => {
 module.exports.updateProfessionalProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const updateData = { ...req.body };
+    const updateData = sanitizeProfileUpdate(req.body);
 
     // Synchronize basic user fields
     const userUpdateFields = {};

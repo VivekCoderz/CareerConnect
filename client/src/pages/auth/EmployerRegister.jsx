@@ -56,6 +56,7 @@ const EmployerRegister = () => {
 
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
   const [otpError, setOtpError] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
@@ -82,6 +83,12 @@ const EmployerRegister = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "email") {
+      setVerificationToken("");
+      setEmailVerified(false);
+      setOtpSent(false);
+      setOtp("");
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
     if (error) dispatch(clearMessages());
@@ -206,6 +213,8 @@ const EmployerRegister = () => {
       });
 
       setOtpSent(true);
+      setVerificationToken("");
+      setEmailVerified(false);
       setOtp("");
       setOtpSuccessMsg(`OTP sent to ${emailToVerify}`);
       startCooldown(60);
@@ -228,10 +237,11 @@ const EmployerRegister = () => {
     try {
       setVerifyingOtp(true);
       setOtpError("");
-      await api.post("/auth/verify-otp", {
+      const response = await api.post("/auth/verify-otp", {
         email: formData.email.trim().toLowerCase(),
         otp: cleanOtp,
       });
+      setVerificationToken(response.data.verificationToken);
       setEmailVerified(true);
       setOtpSent(false);
       setOtp("");
@@ -307,6 +317,9 @@ const EmployerRegister = () => {
         email: formData.email.trim().toLowerCase(),
         fullName: formData.companyName.trim(),
       });
+      setVerificationToken("");
+      setEmailVerified(false);
+      setOtp("");
       setOtpError("");
       startCooldown(60);
     } catch (err) {
@@ -387,11 +400,12 @@ const EmployerRegister = () => {
 
     dispatch(signupStart());
     try {
-      const finalCaptchaToken = captchaToken || (await getCaptchaToken("employer_signup"));
+      const finalCaptchaToken = await getCaptchaToken("employer_signup");
 
       const payload = {
         companyName: formData.companyName.trim(),
         email: formData.email.trim().toLowerCase(),
+        verificationToken,
         phone: formData.phone.trim(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
@@ -691,6 +705,7 @@ const EmployerRegister = () => {
                         type="button"
                         onClick={() => {
                           setEmailVerified(false);
+                          setVerificationToken("");
                           setOtpSent(false);
                           setOtp("");
                           setOtpSuccessMsg("");
