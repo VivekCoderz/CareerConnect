@@ -1,4 +1,3 @@
-import React from "react";
 import {
   BookOpen,
   Sparkles,
@@ -90,7 +89,7 @@ const CourseCard = ({
         )}
 
         {/* Recommendation Badge */}
-        {recommendation && (
+        {recommendation && !["Other", "General"].includes(recommendation) && (
           <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-amber-400 text-slate-950 text-[10.5px] font-extrabold shadow-md flex items-center gap-1">
             <Sparkles size={13} className="fill-slate-950" />
             <span>{recommendation}</span>
@@ -190,7 +189,7 @@ const CourseCard = ({
               Course Fee
             </span>
             <span className="text-sm font-extrabold text-slate-900">
-              {price > 0 ? `₹${price}` : "Free"}
+              {price > 0 ? `₹${Number(price).toLocaleString("en-IN")}` : "Free"}
             </span>
           </div>
 

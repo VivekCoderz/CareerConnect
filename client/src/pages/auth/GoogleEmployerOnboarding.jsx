@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate ,Link} from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import BrandLogo from "../../components/common/BrandLogo";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
@@ -172,11 +173,9 @@ const GoogleEmployerOnboarding = () => {
 
         <div className="relative z-10">
           <Link to="/" className="inline-block">
-            <img
-              src="/careerconnect-logo.png"
-              alt="CareerConnect"
-              className="h-12 w-auto bg-white/95 rounded-2xl px-3 py-2 shadow-sm"
-            />
+            <span className="flex h-14 items-center rounded-2xl bg-white/95 px-3 shadow-sm">
+              <BrandLogo className="h-10 w-48" />
+            </span>
           </Link>
         </div>
 
@@ -212,11 +211,7 @@ const GoogleEmployerOnboarding = () => {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center mb-6">
             <Link to="/">
-              <img
-                src="/careerconnect-logo.png"
-                alt="CareerConnect"
-                className="h-11 w-auto"
-              />
+              <BrandLogo className="h-11 w-52" />
             </Link>
           </div>
 
