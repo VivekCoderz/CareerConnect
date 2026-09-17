@@ -162,6 +162,29 @@ function emitInterviewStatusUpdated(candidateId, interview) {
   emitToCandidateAndInterview(payload.candidateId, interview._id, "INTERVIEW_STATUS_UPDATED", payload);
 }
 
+/**
+ * Notify that an application status or stage has updated
+ */
+function emitApplicationUpdated(application) {
+  if (!io) return;
+  try {
+    const payload = {
+      type: "APPLICATION_UPDATED",
+      applicationId: application._id,
+      application,
+      timestamp: new Date().toISOString(),
+    };
+    if (application.candidateId) {
+      const candId = application.candidateId?._id || application.candidateId;
+      io.to(`user_${String(candId)}`).emit("APPLICATION_UPDATED", payload);
+      io.to(`candidate_${String(candId)}`).emit("APPLICATION_UPDATED", payload);
+    }
+    io.emit("APPLICATION_UPDATED", payload);
+  } catch (err) {
+    console.error("Failed to emit APPLICATION_UPDATED socket event:", err.message);
+  }
+}
+
 module.exports = {
   init,
   getIO,
@@ -169,4 +192,5 @@ module.exports = {
   emitInterviewCancelled,
   emitInterviewScheduled,
   emitInterviewStatusUpdated,
+  emitApplicationUpdated,
 };

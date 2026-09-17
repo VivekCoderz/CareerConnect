@@ -1,8 +1,10 @@
-// controllers/applicationController.js
 const Application = require("../models/Application");
 const Internship = require("../models/Internship");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
+const Interview = require("../models/Interview");
+const JobOffer = require("../models/JobOffer");
+const socketService = require("../services/socketService");
 
 // ==========================================
 // HELPERS
@@ -10,6 +12,36 @@ const EmployerProfile = require("../models/EmployerProfile");
 
 const getEmployerProfile = async (userId) => {
   return EmployerProfile.findOne({ userId });
+};
+
+const getEmployerOwnershipOrClauses = async (userId) => {
+  const profile = await getEmployerProfile(userId);
+  const profileId = profile ? profile._id : null;
+
+  const allEmployerJobs = await Job.find({
+    $or: [
+      { createdBy: userId },
+      ...(profileId ? [{ employerId: profileId }] : []),
+    ],
+  }, "_id");
+
+  const allEmployerInternships = await Internship.find({
+    $or: [
+      { createdBy: userId },
+      ...(profileId ? [{ employerId: profileId }] : []),
+    ],
+  }, "_id");
+
+  const jobIds = allEmployerJobs.map((j) => j._id);
+  const internshipIds = allEmployerInternships.map((i) => i._id);
+
+  const orClauses = [];
+  if (profileId) orClauses.push({ employerId: profileId });
+  orClauses.push({ employerId: userId });
+  if (jobIds.length > 0) orClauses.push({ jobId: { $in: jobIds } });
+  if (internshipIds.length > 0) orClauses.push({ internshipId: { $in: internshipIds } });
+
+  return orClauses.length > 0 ? orClauses : [{ _id: null }];
 };
 
 // ==========================================
@@ -372,13 +404,13 @@ exports.withdrawApplication = async (req, res, next) => {
 };
 
 // ==========================================
-// GET SINGLE APPLICATION
+// GET SINGLE APPLICATION (Candidate Details)
 // GET /api/applications/:id
 // ==========================================
 exports.getApplicationById = async (req, res, next) => {
   try {
     const application = await Application.findById(req.params.id)
-      .populate("candidateId", "fullName email phone profileImage userType")
+      .populate("candidateId", "fullName email phone profileImage userType location skills education experience bio resumeUrl")
       .populate("internshipId")
       .populate("jobId")
       .populate("employerId", "companyName logo industry headquarters");
@@ -415,9 +447,25 @@ exports.getApplicationById = async (req, res, next) => {
       });
     }
 
+    // Fetch live interviews connected to this application
+    const interviews = await Interview.find({ applicationId: application._id })
+      .populate("interviewerId", "fullName email")
+      .sort({ roundNumber: 1, scheduledDate: -1, createdAt: -1 });
+
+    // Fetch live job offer connected to this application
+    const offer = await JobOffer.findOne({ applicationId: application._id });
+
+    // Privacy rule: Recruiter notes are internal only and never exposed to candidate
+    const appObj = application.toObject();
+    if (!isEmployer && req.user.role !== "admin") {
+      delete appObj.notes;
+    }
+
     return res.status(200).json({
       success: true,
-      application,
+      application: appObj,
+      interviews: interviews || [],
+      offer: offer || null,
     });
   } catch (error) {
     next(error);
@@ -425,63 +473,184 @@ exports.getApplicationById = async (req, res, next) => {
 };
 
 // ==========================================
-// EMPLOYER — LIST APPLICATIONS
+// EMPLOYER — LIST APPLICATIONS (ATS PIPELINE)
 // GET /api/applications/employer/list
 // ==========================================
 exports.getEmployerApplications = async (req, res, next) => {
   try {
-    const profile = await getEmployerProfile(req.user._id);
-    const profileId = profile ? profile._id : null;
+    const orClauses = await getEmployerOwnershipOrClauses(req.user._id);
+    const baseEmployerFilter = { $or: orClauses };
 
-    const allEmployerJobs = await Job.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
+    // 1. Calculate Real MongoDB Compact Statistics (4 Stats)
+    // - Total Applications
+    // - Shortlisted
+    // - Interviews
+    // - Offers
+    const totalApplications = await Application.countDocuments(baseEmployerFilter);
 
-    const allEmployerInternships = await Internship.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
+    const shortlistedCount = await Application.countDocuments({
+      $and: [baseEmployerFilter, { status: "Shortlisted" }],
+    });
 
-    const jobIds = allEmployerJobs.map((j) => j._id);
-    const internshipIds = allEmployerInternships.map((i) => i._id);
+    const interviewStatuses = ["Interview", "Interview Scheduled", "Interview Completed"];
+    const interviewsCount = await Application.countDocuments({
+      $and: [baseEmployerFilter, { status: { $in: interviewStatuses } }],
+    });
 
-    const orClauses = [];
-    if (profileId) orClauses.push({ employerId: profileId });
-    orClauses.push({ employerId: req.user._id });
-    if (jobIds.length > 0) orClauses.push({ jobId: { $in: jobIds } });
-    if (internshipIds.length > 0) orClauses.push({ internshipId: { $in: internshipIds } });
+    const offerStatuses = ["Offer", "Offered", "Selected"];
+    const offersCount = await Application.countDocuments({
+      $and: [baseEmployerFilter, { status: { $in: offerStatuses } }],
+    });
 
-    if (orClauses.length === 0) {
-      return res.status(200).json({
-        success: true,
-        count: 0,
-        applications: [],
+    const stats = {
+      totalApplications,
+      applications: totalApplications,
+      shortlisted: shortlistedCount,
+      interviews: interviewsCount,
+      offers: offersCount,
+    };
+
+    // 2. Calculate Real MongoDB Pipeline Stage Counts (No "Approved" stage!)
+    const appliedStatuses = ["Applied", "Under Review", "Screening", "Approved"];
+    const [
+      appliedCount,
+      assessmentCount,
+      hiredCount,
+      rejectedCount,
+      withdrawnCount,
+    ] = await Promise.all([
+      Application.countDocuments({ $and: [baseEmployerFilter, { status: { $in: appliedStatuses } }] }),
+      Application.countDocuments({ $and: [baseEmployerFilter, { status: "Assessment" }] }),
+      Application.countDocuments({ $and: [baseEmployerFilter, { status: "Hired" }] }),
+      Application.countDocuments({ $and: [baseEmployerFilter, { status: "Rejected" }] }),
+      Application.countDocuments({ $and: [baseEmployerFilter, { status: "Withdrawn" }] }),
+    ]);
+
+    const pipelineCounts = {
+      All: totalApplications,
+      Applied: appliedCount,
+      Shortlisted: shortlistedCount,
+      Assessment: assessmentCount,
+      Interview: interviewsCount,
+      Offer: offersCount,
+      Hired: hiredCount,
+      Rejected: rejectedCount,
+      Withdrawn: withdrawnCount,
+    };
+
+    // 3. Build Query Filters based on params
+    const {
+      status,
+      stage,
+      search,
+      q,
+      jobId,
+      internshipId,
+      experience,
+      dateSort = "newest",
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    const andConditions = [baseEmployerFilter];
+
+    // Stage / Status Filter
+    const activeStage = stage || status;
+    if (activeStage && activeStage !== "All" && activeStage !== "all") {
+      const canonical = activeStage.toUpperCase();
+      if (canonical === "APPLIED") {
+        andConditions.push({ status: { $in: appliedStatuses } });
+      } else if (canonical === "SHORTLISTED") {
+        andConditions.push({ status: "Shortlisted" });
+      } else if (canonical === "ASSESSMENT") {
+        andConditions.push({ status: "Assessment" });
+      } else if (canonical === "INTERVIEW") {
+        andConditions.push({ status: { $in: interviewStatuses } });
+      } else if (canonical === "OFFER") {
+        andConditions.push({ status: { $in: offerStatuses } });
+      } else if (canonical === "HIRED") {
+        andConditions.push({ status: "Hired" });
+      } else if (canonical === "REJECTED") {
+        andConditions.push({ status: "Rejected" });
+      } else if (canonical === "WITHDRAWN") {
+        andConditions.push({ status: "Withdrawn" });
+      } else {
+        andConditions.push({ status: activeStage });
+      }
+    }
+
+    // Job / Internship Filter
+    if (jobId && jobId !== "All" && jobId !== "all") {
+      andConditions.push({
+        $or: [{ jobId: jobId }, { internshipId: jobId }],
+      });
+    } else if (internshipId && internshipId !== "All") {
+      andConditions.push({ internshipId: internshipId });
+    }
+
+    // Experience Filter
+    if (experience && experience !== "All" && experience !== "all") {
+      andConditions.push({
+        $or: [
+          { experience: { $regex: experience, $options: "i" } },
+          { "applicationData.experience": { $regex: experience, $options: "i" } },
+        ],
       });
     }
 
-    const { status, opportunityType, internshipId, jobId } = req.query;
-    const filter = { $or: orClauses };
+    // Search Query (candidate name, email, job title, skills)
+    const searchTerm = (search || q || "").trim();
+    if (searchTerm) {
+      const searchRegex = new RegExp(searchTerm, "i");
+      andConditions.push({
+        $or: [
+          { studentName: searchRegex },
+          { studentEmail: searchRegex },
+          { opportunityTitle: searchRegex },
+          { skills: { $in: [searchRegex] } },
+          { "applicationData.fullName": searchRegex },
+          { "applicationData.email": searchRegex },
+          { "applicationData.skills": { $in: [searchRegex] } },
+        ],
+      });
+    }
 
-    if (status && status !== "All") filter.status = status;
-    if (opportunityType && opportunityType !== "All") filter.opportunityType = opportunityType;
-    if (internshipId) filter.internshipId = internshipId;
-    if (jobId) filter.jobId = jobId;
+    const finalFilter = andConditions.length > 1 ? { $and: andConditions } : andConditions[0];
 
-    const applications = await Application.find(filter)
-      .populate("candidateId", "fullName email phone profileImage userType")
+    // 4. Pagination & Sorting
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    const sortOrder =
+      dateSort === "oldest"
+        ? { appliedAt: 1, createdAt: 1 }
+        : { appliedAt: -1, createdAt: -1 };
+
+    const totalFiltered = await Application.countDocuments(finalFilter);
+    const totalPages = Math.ceil(totalFiltered / limitNum) || 1;
+
+    const applications = await Application.find(finalFilter)
+      .populate("candidateId", "fullName email phone profileImage userType location skills")
       .populate("internshipId", "title stipend duration location workMode")
       .populate("jobId", "title employmentType location workMode")
-      .sort({ createdAt: -1 });
+      .sort(sortOrder)
+      .skip(skip)
+      .limit(limitNum);
 
     return res.status(200).json({
       success: true,
+      stats,
+      pipelineCounts,
       count: applications.length,
+      totalCount: totalFiltered,
       applications,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        totalCount: totalFiltered,
+      },
     });
   } catch (error) {
     next(error);
@@ -498,9 +667,6 @@ exports.updateApplicationStatus = async (req, res, next) => {
     const rawStatus = req.body.status || req.body.stage;
     const allowed = [
       "Applied",
-      "Approved",
-      "Screening",
-      "Under Review",
       "Shortlisted",
       "Assessment",
       "Interview",
@@ -512,6 +678,9 @@ exports.updateApplicationStatus = async (req, res, next) => {
       "Hired",
       "Rejected",
       "Withdrawn",
+      "Under Review",
+      "Screening",
+      "Approved",
     ];
 
     if (!rawStatus || !allowed.includes(rawStatus)) {
@@ -521,31 +690,7 @@ exports.updateApplicationStatus = async (req, res, next) => {
       });
     }
 
-    const profile = await getEmployerProfile(req.user._id);
-    const profileId = profile ? profile._id : null;
-
-    const allEmployerJobs = await Job.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
-
-    const allEmployerInternships = await Internship.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
-
-    const jobIds = allEmployerJobs.map((j) => j._id);
-    const internshipIds = allEmployerInternships.map((i) => i._id);
-
-    const orConditions = [];
-    if (profileId) orConditions.push({ employerId: profileId });
-    orConditions.push({ employerId: req.user._id });
-    if (jobIds.length > 0) orConditions.push({ jobId: { $in: jobIds } });
-    if (internshipIds.length > 0) orConditions.push({ internshipId: { $in: internshipIds } });
+    const orConditions = await getEmployerOwnershipOrClauses(req.user._id);
 
     const application = await Application.findOne({
       _id: req.params.id,
@@ -562,7 +707,19 @@ exports.updateApplicationStatus = async (req, res, next) => {
     application.status = rawStatus;
     application.stage = rawStatus;
     application.updatedAt = new Date();
+
+    if (!application.stageHistory) application.stageHistory = [];
+    application.stageHistory.push({
+      stage: rawStatus,
+      notes: `Status changed to ${rawStatus}`,
+      changedBy: req.user._id,
+      changedAt: new Date(),
+    });
+
     await application.save();
+
+    // Broadcast live event via Socket.IO
+    socketService.emitApplicationUpdated(application);
 
     return res.status(200).json({
       success: true,
@@ -577,7 +734,7 @@ exports.updateApplicationStatus = async (req, res, next) => {
 // ==========================================
 // EMPLOYER — UPDATE ATS STAGE
 // PATCH /api/applications/:id/stage
-// body: { stage }
+// body: { stage, notes }
 // ==========================================
 exports.updateApplicationStage = async (req, res, next) => {
   try {
@@ -590,32 +747,7 @@ exports.updateApplicationStage = async (req, res, next) => {
     }
 
     const stage = rawStage.toString().trim();
-
-    const profile = await getEmployerProfile(req.user._id);
-    const profileId = profile ? profile._id : null;
-
-    const allEmployerJobs = await Job.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
-
-    const allEmployerInternships = await Internship.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
-
-    const jobIds = allEmployerJobs.map((j) => j._id);
-    const internshipIds = allEmployerInternships.map((i) => i._id);
-
-    const orConditions = [];
-    if (profileId) orConditions.push({ employerId: profileId });
-    orConditions.push({ employerId: req.user._id });
-    if (jobIds.length > 0) orConditions.push({ jobId: { $in: jobIds } });
-    if (internshipIds.length > 0) orConditions.push({ internshipId: { $in: internshipIds } });
+    const orConditions = await getEmployerOwnershipOrClauses(req.user._id);
 
     const application = await Application.findOne({
       _id: req.params.id,
@@ -629,30 +761,43 @@ exports.updateApplicationStage = async (req, res, next) => {
       });
     }
 
-    application.stage = stage;
-
+    // Canonical mapping (never use 'Approved' for candidate ATS stage)
     const stageToStatus = {
+      APPLIED: "Applied",
       Applied: "Applied",
-      Approved: "Approved",
-      Screening: "Under Review",
-      "Under Review": "Under Review",
+      SHORTLISTED: "Shortlisted",
       Shortlisted: "Shortlisted",
-      Assessment: "Under Review",
+      ASSESSMENT: "Assessment",
+      Assessment: "Assessment",
+      INTERVIEW: "Interview",
       Interview: "Interview",
-      Offer: "Offered",
-      Offered: "Offered",
+      OFFER: "Offer",
+      Offer: "Offer",
+      Offered: "Offer",
+      HIRED: "Hired",
       Hired: "Hired",
+      REJECTED: "Rejected",
       Rejected: "Rejected",
+      WITHDRAWN: "Withdrawn",
+      Withdrawn: "Withdrawn",
     };
-    if (stageToStatus[stage]) {
-      application.status = stageToStatus[stage];
-    } else {
-      application.status = stage;
-    }
 
-    if (req.body.notes) {
+    const nextStatus = stageToStatus[stage.toUpperCase()] || stage;
+    application.stage = nextStatus;
+    application.status = nextStatus;
+    application.updatedAt = new Date();
+
+    if (!application.stageHistory) application.stageHistory = [];
+    application.stageHistory.push({
+      stage: nextStatus,
+      notes: req.body.notes || `Moved to ${nextStatus}`,
+      changedBy: req.user._id,
+      changedAt: new Date(),
+    });
+
+    if (req.body.notes && req.body.notes.trim()) {
       application.notes.push({
-        text: req.body.notes,
+        text: req.body.notes.trim(),
         addedBy: req.user._id,
         createdAt: new Date(),
       });
@@ -660,9 +805,12 @@ exports.updateApplicationStage = async (req, res, next) => {
 
     await application.save();
 
+    // Broadcast live event via Socket.IO
+    socketService.emitApplicationUpdated(application);
+
     return res.status(200).json({
       success: true,
-      message: `Moved to ${application.stage}`,
+      message: `Application moved to ${nextStatus}`,
       application,
     });
   } catch (error) {
@@ -673,50 +821,46 @@ exports.updateApplicationStage = async (req, res, next) => {
 // ==========================================
 // EMPLOYER — ADD NOTE
 // POST /api/applications/:id/notes
-// body: { text }
+// body: { note } or { text }
 // ==========================================
 exports.addApplicationNote = async (req, res, next) => {
   try {
-    const { text } = req.body;
-    if (!text?.trim()) {
+    const text = req.body.text || req.body.note;
+    if (!text || !text.toString().trim()) {
       return res.status(400).json({
         success: false,
         message: "Note text is required",
       });
     }
 
-    const profile = await getEmployerProfile(req.user._id);
-    if (!profile) {
-      return res.status(403).json({
-        success: false,
-        message: "Employer profile not found",
-      });
-    }
+    const orConditions = await getEmployerOwnershipOrClauses(req.user._id);
 
     const application = await Application.findOne({
       _id: req.params.id,
-      employerId: profile._id,
+      $or: orConditions,
     });
 
     if (!application) {
       return res.status(404).json({
         success: false,
-        message: "Application not found",
+        message: "Application not found or unauthorized",
       });
     }
 
-    application.notes.push({
-      text: text.trim(),
+    const newNote = {
+      text: text.toString().trim(),
       addedBy: req.user._id,
       createdAt: new Date(),
-    });
+    };
 
+    application.notes.push(newNote);
     await application.save();
 
     return res.status(200).json({
       success: true,
-      message: "Note added",
+      message: "Recruiter note added successfully",
       application,
+      notes: application.notes,
     });
   } catch (error) {
     next(error);

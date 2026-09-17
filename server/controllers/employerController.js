@@ -4,6 +4,12 @@ const User = require("../models/User");
 const Company = require("../models/Company");
 const OrganizationRequest = require("../models/OrganizationRequest");
 const AuditLog = require("../models/AuditLog");
+const Job = require("../models/Job");
+const Internship = require("../models/Internship");
+const Application = require("../models/Application");
+const Interview = require("../models/Interview");
+const Employee = require("../models/Employee");
+const TeamMember = require("../models/TeamMember");
 
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
@@ -343,101 +349,153 @@ exports.getEmployerDashboard = async (req, res, next) => {
     }
 
     const completion = calculateEmployerCompletion(profile, req.user);
+    const profileId = profile._id;
 
-    // Mock/real metrics for dashboard overview
-    const stats = {
-      activeJobs: 4,
-      internships: 8,
-      totalOpportunities: 12,
-      applications: 148,
-      shortlisted: 26,
-      interviews: 8,
-      profileViews: 1240,
+    // Scope queries by employer identity: createdBy: userId OR employerId: profileId
+    const jobOwnerOr = [{ createdBy: userId }];
+    if (profileId) jobOwnerOr.push({ employerId: profileId });
+    const jobOwnerFilter = { $or: jobOwnerOr };
+
+    // 1. Active Jobs: count & top active listings
+    const activeJobQuery = {
+      ...jobOwnerFilter,
+      status: { $in: ["Published", "Active", "Open"] },
+    };
+    const activeJobsCount = await Job.countDocuments(activeJobQuery);
+
+    const rawActiveJobs = await Job.find(activeJobQuery)
+      .sort({ createdAt: -1 })
+      .limit(6)
+      .lean();
+
+    // Ensure applicant count is accurate from Application records
+    const activeJobs = await Promise.all(
+      rawActiveJobs.map(async (j) => {
+        const count = await Application.countDocuments({
+          $or: [{ jobId: j._id }, { internshipId: j._id }],
+        });
+        return {
+          ...j,
+          applicantsCount: Math.max(j.applicantsCount || 0, count),
+        };
+      })
+    );
+
+    // 2. Fetch all opportunity IDs owned by employer for application & interview associations
+    const allEmployerJobs = await Job.find(jobOwnerFilter, "_id");
+    const allEmployerInternships = await Internship.find(jobOwnerFilter, "_id");
+    const jobIds = allEmployerJobs.map((j) => j._id);
+    const internshipIds = allEmployerInternships.map((i) => i._id);
+
+    const appOrConditions = [];
+    if (profileId) appOrConditions.push({ employerId: profileId });
+    appOrConditions.push({ employerId: userId });
+    if (jobIds.length > 0) appOrConditions.push({ jobId: { $in: jobIds } });
+    if (internshipIds.length > 0) appOrConditions.push({ internshipId: { $in: internshipIds } });
+    const appFilter = appOrConditions.length > 0 ? { $or: appOrConditions } : { _id: null };
+
+    const applicationsCount = await Application.countDocuments(appFilter);
+
+    // 3. Upcoming Interviews
+    const interviewOrConditions = [];
+    if (profileId) interviewOrConditions.push({ employerId: profileId });
+    interviewOrConditions.push({ employerId: userId });
+    if (jobIds.length > 0) interviewOrConditions.push({ jobId: { $in: jobIds } });
+    if (internshipIds.length > 0) interviewOrConditions.push({ internshipId: { $in: internshipIds } });
+    const interviewOwnerFilter = interviewOrConditions.length > 0 ? { $or: interviewOrConditions } : { _id: null };
+
+    // Exclude cancelled, completed, no_show, and draft interviews
+    const upcomingStatusFilter = {
+      $nin: [
+        "cancelled",
+        "completed",
+        "no_show",
+        "draft",
+        "Cancelled",
+        "Completed",
+        "No Show",
+        "Draft",
+      ],
     };
 
-    const recentApplications = [
-      {
-        id: "app-1",
-        candidateName: "Aman Sharma",
-        roleApplied: "Frontend Engineer Intern",
-        type: "Internship",
-        status: "Reviewing",
-        appliedDate: "2026-08-27",
-        matchScore: 92,
-        cgpa: "8.9",
-        degree: "B.Tech CSE - Geeta University",
-      },
-      {
-        id: "app-2",
-        candidateName: "Pooja Verma",
-        roleApplied: "Associate Full Stack Developer",
-        type: "Full-time",
-        status: "Shortlisted",
-        appliedDate: "2026-08-26",
-        matchScore: 88,
-        cgpa: "8.5",
-        degree: "BCA - Geeta University",
-      },
-      {
-        id: "app-3",
-        candidateName: "Rohan Patel",
-        roleApplied: "Backend Node.js Developer",
-        type: "Full-time",
-        status: "Interview Scheduled",
-        appliedDate: "2026-08-25",
-        matchScore: 95,
-        cgpa: "9.1",
-        degree: "MCA - Geeta University",
-      },
-      {
-        id: "app-4",
-        candidateName: "Simran Kaur",
-        roleApplied: "UI/UX Design Intern",
-        type: "Internship",
-        status: "Under Review",
-        appliedDate: "2026-08-24",
-        matchScore: 84,
-        cgpa: "8.2",
-        degree: "B.Tech IT - Geeta University",
-      },
-    ];
+    const upcomingInterviewsCount = await Interview.countDocuments({
+      ...interviewOwnerFilter,
+      status: upcomingStatusFilter,
+    });
 
-    const activeListings = [
-      {
-        id: "job-1",
-        title: "Frontend React Developer",
-        type: "Full-time",
-        location: profile?.headquarters?.city || "Gurugram / Hybrid",
-        applicantsCount: 54,
-        postedDate: "2 days ago",
-        status: "Active",
-      },
-      {
-        id: "job-2",
-        title: "Node.js Backend Intern",
-        type: "Internship",
-        location: "Remote",
-        applicantsCount: 62,
-        postedDate: "4 days ago",
-        status: "Active",
-      },
-      {
-        id: "job-3",
-        title: "Full Stack Engineer",
-        type: "Full-time",
-        location: profile?.headquarters?.city || "Delhi NCR",
-        applicantsCount: 32,
-        postedDate: "1 week ago",
-        status: "Active",
-      },
-    ];
+    const rawUpcomingInterviews = await Interview.find({
+      ...interviewOwnerFilter,
+      status: upcomingStatusFilter,
+    })
+      .populate("candidateId", "fullName email phone profileImage")
+      .populate("jobId", "title location employmentType workMode")
+      .populate("internshipId", "title location type")
+      .sort({ scheduledDate: 1, startTime: 1, scheduledTime: 1 })
+      .limit(6)
+      .lean();
+
+    const upcomingInterviews = rawUpcomingInterviews.map((iv) => ({
+      _id: iv._id,
+      candidateName: iv.candidateId?.fullName || iv.candidateName || "Candidate",
+      candidateEmail: iv.candidateId?.email || "",
+      candidateImage: iv.candidateId?.profileImage || "",
+      roleTitle: iv.jobId?.title || iv.internshipId?.title || iv.title || "Position",
+      scheduledDate: iv.scheduledDate || "",
+      scheduledTime: iv.scheduledTime || iv.startTime || "",
+      status: iv.status || "Scheduled",
+      meetingLink: iv.meetingLink || "",
+      meetingMode: iv.meetingMode || "Online",
+      jobId: iv.jobId?._id || iv.jobId,
+    }));
+
+    // 4. Team Staff count from Employee and TeamMember collections
+    let teamStaffCount = await Employee.countDocuments({ employerId: profileId });
+    if (teamStaffCount === 0) {
+      const memberCount = await TeamMember.countDocuments({ employerId: profileId });
+      if (memberCount > 0) {
+        teamStaffCount = memberCount;
+      } else if (profile.companySize && /^\d+$/.test(profile.companySize.trim())) {
+        teamStaffCount = parseInt(profile.companySize.trim(), 10);
+      }
+    }
+
+    // 5. Recent Applications
+    const rawRecentApps = await Application.find(appFilter)
+      .populate("candidateId", "fullName email phone profileImage")
+      .populate("jobId", "title")
+      .populate("internshipId", "title")
+      .sort({ appliedAt: -1, createdAt: -1 })
+      .limit(6)
+      .lean();
+
+    const recentApplications = rawRecentApps.map((app) => ({
+      _id: app._id,
+      candidateName: app.studentName || app.candidateId?.fullName || "Applicant",
+      candidateEmail: app.studentEmail || app.candidateId?.email || "",
+      candidateImage: app.candidateId?.profileImage || "",
+      position: app.opportunityTitle || app.jobId?.title || app.internshipId?.title || "Role",
+      status: app.status || "Applied",
+      appliedDate: app.appliedAt || app.createdAt,
+      resumeUrl: app.resumeUrl || "",
+    }));
+
+    const stats = {
+      activeJobs: activeJobsCount,
+      applications: applicationsCount,
+      upcomingInterviews: upcomingInterviewsCount,
+      interviews: upcomingInterviewsCount,
+      teamStaff: teamStaffCount,
+      employees: teamStaffCount,
+    };
 
     return res.status(200).json({
       success: true,
       profile,
       stats,
+      activeJobs,
+      activeListings: activeJobs,
+      upcomingInterviews,
       recentApplications,
-      activeListings,
       profileCompletion: completion,
     });
   } catch (error) {

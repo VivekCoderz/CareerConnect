@@ -14,6 +14,9 @@ router.get("/stats", interviewController.getInterviewStats);
 // 2. Eligible Shortlisted Candidates (Must precede /:id)
 router.get("/eligible-candidates", requireEmployer, interviewController.getEligibleCandidates);
 
+// 2.1 Interview Availability (Must precede /:id)
+router.get("/availability", interviewController.getInterviewAvailability);
+
 // 3. List Interviews (Role-adaptive: Employer owns company interviews; Candidate sees their own)
 router.get("/", interviewController.getInterviews);
 
