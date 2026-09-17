@@ -5,7 +5,7 @@ const VISIBILITY_OPTIONS = [
   {
     id: "recruiter-only",
     title: "Recruiters Only (Confidential)",
-    desc: "Only verified corporate recruiters and talent partners can view your profile.",
+    desc: "Only signed-in recruiter accounts can view your profile.",
   },
   {
     id: "public",

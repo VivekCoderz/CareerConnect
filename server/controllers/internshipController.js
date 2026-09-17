@@ -283,9 +283,14 @@ exports.getInternships = async (req, res, next) => {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
     const skip = (pageNum - 1) * pageSize;
+    const windowSize = pageNum * pageSize;
+    if (windowSize > 5000) {
+      return res.status(400).json({ success: false, message: "Please narrow your search to view more results" });
+    }
 
     // 1. Fetch Campus Internships from MongoDB (unless source is explicitly "external")
     let campusList = [];
+    let campusTotal = 0;
     if (source !== "external" && mongoose.connection.readyState === 1) {
       try {
         const jobInternFilter = {
@@ -293,22 +298,21 @@ exports.getInternships = async (req, res, next) => {
           employmentType: { $regex: /^internship$/i },
         };
 
-        const [intDocs, jobDocs] = await Promise.all([
+        const myJobFilter = { employerId: filter.employerId, employmentType: { $regex: /^internship$/i } };
+        const effectiveJobFilter = myPosts === "true" ? myJobFilter : jobInternFilter;
+        const [intDocs, jobDocs, internshipTotal, jobTotal] = await Promise.all([
           Internship.find(filter)
             .populate("employerId", "companyName logo headquarters website industry description")
             .sort(sortOption)
-            .limit(200)
+            .limit(windowSize)
             .lean(),
-          myPosts !== "true"
-            ? Job.find(jobInternFilter)
-                .populate("employerId", "companyName logo headquarters website industry description")
-                .sort(sortOption)
-                .lean()
-            : Job.find({ employerId: filter.employerId, employmentType: { $regex: /^internship$/i } })
-                .populate("employerId", "companyName logo headquarters website industry description")
-                .sort(sortOption)
-                .lean(),
+          Job.find(effectiveJobFilter)
+            .populate("employerId", "companyName logo headquarters website industry description")
+            .sort(sortOption).limit(windowSize).lean(),
+          Internship.countDocuments(filter),
+          Job.countDocuments(effectiveJobFilter),
         ]);
+        campusTotal = internshipTotal + jobTotal;
 
         const combined = [...(intDocs || []), ...(jobDocs || [])];
 
@@ -448,7 +452,7 @@ exports.getInternships = async (req, res, next) => {
       finalList = [...campusList, ...externalList];
     }
 
-    const total = finalList.length;
+    const total = (source === "external" ? 0 : campusTotal) + (source === "campus" ? 0 : externalList.length);
     const paginatedList = finalList.slice(skip, skip + pageSize);
 
     return res.status(200).json({

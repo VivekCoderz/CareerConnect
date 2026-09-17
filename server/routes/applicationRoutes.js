@@ -23,6 +23,7 @@ const {
   applyToInternship,
   applyToJob,
   getMyApplications,
+  getMyAppliedIds,
   getEmployerApplications,
   getApplicationById,
   updateApplicationStatus,
@@ -46,6 +47,12 @@ router.post(
   "/job/:jobId",
   protect,
   ensureFn(applyToJob, "applyToJob")
+);
+
+router.get(
+  "/me/applied-ids",
+  protect,
+  ensureFn(getMyAppliedIds, "getMyAppliedIds")
 );
 
 router.get(

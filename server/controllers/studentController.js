@@ -171,6 +171,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           Internship.find({ status: "Published" })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
+            .limit(20)
             .lean(),
           Job.find({
             status: "Published",
@@ -178,6 +179,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
+            .limit(20)
             .lean(),
           Job.find({
             status: "Published",
@@ -185,6 +187,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
+            .limit(20)
             .lean(),
         ]);
         dbInternships = [...(internshipDocs || []), ...(jobInternDocs || [])];

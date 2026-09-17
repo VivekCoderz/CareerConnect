@@ -10,11 +10,14 @@ const verifyIdToken = jest.fn().mockResolvedValue({
   name: 'Mock User',
   picture: 'https://example.com/avatar.jpg',
 });
+const getUser = jest.fn().mockResolvedValue({ uid: 'mock-firebase-uid' });
 
 const firebaseAdminMock = {
   verifyIdToken,
+  getUser,
   auth: () => ({
     verifyIdToken,
+    getUser,
     getUserByEmail: jest.fn().mockResolvedValue({
       uid: 'mock-firebase-uid',
       email: 'mock@gmail.com',
@@ -29,5 +32,6 @@ const firebaseAdminMock = {
 
 const getFirebaseAdmin = () => firebaseAdminMock;
 getFirebaseAdmin.verifyIdToken = verifyIdToken;
+getFirebaseAdmin.getUser = getUser;
 
 module.exports = getFirebaseAdmin;
