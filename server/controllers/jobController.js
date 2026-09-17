@@ -99,13 +99,22 @@ exports.getJobs = async (req, res, next) => {
       limit = 10,
     } = req.query;
 
+    const isMyJobs = myJobs === "true" || myJobs === true || myJobs === "1";
     const query = {};
 
-    if (myJobs === "true" || myJobs === true) {
+    if (isMyJobs) {
       if (!req.user) {
         return res.status(401).json({ success: false, message: "Not authenticated" });
       }
-      query.createdBy = req.user._id;
+      const employerProfile = await EmployerProfile.findOne({ userId: req.user._id });
+      const orConditions = [{ createdBy: req.user._id }];
+      if (employerProfile) {
+        orConditions.push({ employerId: employerProfile._id });
+      }
+      query.$or = orConditions;
+      if (status && status !== "All") {
+        query.status = status;
+      }
     } else {
       query.status = status || "Published";
     }
@@ -138,7 +147,7 @@ exports.getJobs = async (req, res, next) => {
       } else {
         query.employmentType = { $regex: new RegExp(reqType, "i") };
       }
-    } else if (myJobs !== "true") {
+    } else if (!isMyJobs) {
       query.employmentType = { $not: /^internship$/i };
     }
 
@@ -200,7 +209,7 @@ exports.getJobs = async (req, res, next) => {
     }
 
     let allJobs = campusJobs;
-    if (myJobs !== "true" && source !== "campus") {
+    if (!isMyJobs && source !== "campus") {
       try {
         const scraped = await getAggregatedOpportunities({
           opportunityType: employmentType && employmentType !== "All" ? employmentType.toLowerCase() : "job",
@@ -269,7 +278,8 @@ exports.getJobs = async (req, res, next) => {
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const defaultPageSize = isMyJobs ? 100 : 10;
+    const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || defaultPageSize));
     const total = allJobs.length;
     const paginatedJobs = allJobs.slice((pageNum - 1) * pageSize, pageNum * pageSize);
 

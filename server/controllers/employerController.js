@@ -347,7 +347,9 @@ exports.getEmployerDashboard = async (req, res, next) => {
 
     const completion = calculateEmployerCompletion(profile, req.user);
 
-    const ownerConditions = { createdBy: userId };
+    const ownerConditions = {
+      $or: [{ createdBy: userId }, { employerId: profile._id }],
+    };
 
     const [
       jobs,

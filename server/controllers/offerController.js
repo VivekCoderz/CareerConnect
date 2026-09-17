@@ -1,4 +1,5 @@
 const JobOffer = require("../models/JobOffer");
+const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
 
@@ -18,10 +19,20 @@ exports.getOffers = async (req, res, next) => {
   try {
     let query = {};
     if (req.user.role === "employer" || req.user.userType === "employer") {
-      const myJobs = await Job.find({ createdBy: req.user._id }, "_id");
+      const employerProfile = await EmployerProfile.findOne({ userId: req.user._id });
+      const myJobs = await Job.find(
+        {
+          $or: [
+            { createdBy: req.user._id },
+            ...(employerProfile ? [{ employerId: employerProfile._id }] : []),
+          ],
+        },
+        "_id"
+      );
       const jobIds = myJobs.map((j) => j._id);
       const orCond = [{ createdBy: req.user._id }];
       if (jobIds.length > 0) orCond.push({ jobId: { $in: jobIds } });
+      if (employerProfile) orCond.push({ employerId: employerProfile._id });
       query.$or = orCond;
     } else {
       query.candidateId = req.user._id;
