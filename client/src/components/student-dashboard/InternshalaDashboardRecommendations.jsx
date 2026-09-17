@@ -160,7 +160,7 @@ const InternshalaDashboardRecommendations = ({
               <h3 className="text-base font-bold mt-2.5 group-hover:text-purple-200 transition leading-snug line-clamp-1">
                 Certified Career Tracks
               </h3>
-              <p className="text-xs text-purple-100/80 mt-1">Free CareerConnect Specialization</p>
+              <p className="text-xs text-purple-100/80 mt-1">Explore practical courses for your goals</p>
             </div>
             <span className="text-xs font-bold text-purple-200 mt-3 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
               <span>Explore Courses</span>
