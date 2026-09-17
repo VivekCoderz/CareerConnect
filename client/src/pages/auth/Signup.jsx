@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import BrandLogo from "../../components/common/BrandLogo";
 import { useDispatch, useSelector } from "react-redux";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../../config/firebase";
@@ -676,11 +677,7 @@ const Signup = () => {
       <div className="bg-white border-b border-slate-200/90 py-3 px-4 sm:px-6">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <img
-              src="/careerconnect-logo.png"
-              alt="CareerConnect"
-              className="h-10 w-auto object-contain"
-            />
+            <BrandLogo className="h-10 w-48" />
           </Link>
           <span className="text-xs font-semibold text-slate-500">
             Candidate Registration

@@ -6,6 +6,7 @@ import { applyToInternship, getMyAppliedIds } from "../../services/applicationSe
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { getStudentProfile } from "../../services/studentProfileService";
 import ResumeUploadInput from "../../components/common/ResumeUploadInput";
+import BrandLogo from "../../components/common/BrandLogo";
 
 export default function InternshipDetail({ id, onBack, embedded = false, isApplied = false, onAppliedSuccess }) {
   const { id: paramId } = useParams();
@@ -590,15 +591,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/home" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
-              CC
-            </div>
-            <div className="leading-tight">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                CareerConnect
-              </p>
-              <p className="text-sm font-bold text-slate-900">CareerConnect</p>
-            </div>
+            <BrandLogo className="h-9 w-44" />
           </Link>
           <Link to="/applications" className="text-xs font-bold text-[#1e3a8a]">
             My Applications →
