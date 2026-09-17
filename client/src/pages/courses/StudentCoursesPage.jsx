@@ -147,13 +147,20 @@ const StudentCoursesPage = ({ onViewDetails }) => {
 
       if (res.data?.success) {
         const createdApp = res.data.application || {};
+        const isFreeCourse = !selectedCourseForApply.price || selectedCourseForApply.price === 0;
+        const appStatus = createdApp.status || (isFreeCourse ? "Enrolled" : "Applied");
 
-        showToast("Application submitted successfully.", "success");
+        showToast(
+          appStatus === "Enrolled"
+            ? "Enrolled in course successfully! Full access unlocked."
+            : "Application submitted successfully.",
+          "success"
+        );
 
-        // 1. Immediately update application status map to "Applied"
+        // 1. Immediately update application status map
         setApplicationStatusMap((prev) => ({
           ...prev,
-          [courseId]: "Applied",
+          [courseId]: appStatus,
         }));
 
         // 2. Immediately update myApplications state so count and My Courses tab update without refresh
@@ -161,7 +168,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
           {
             applicationId: createdApp._id || `temp-${Date.now()}`,
             course: selectedCourseForApply,
-            status: "Applied",
+            status: appStatus,
             progress: 0,
           },
           ...prev.filter((item) => item.course?._id !== courseId),
@@ -525,7 +532,9 @@ const StudentCoursesPage = ({ onViewDetails }) => {
             <div className="p-6 bg-[#1e3a8a] text-white flex items-center justify-between">
               <div>
                 <span className="text-[10.5px] font-extrabold text-amber-300 uppercase tracking-widest">
-                  Course Application Form
+                  {!selectedCourseForApply.price || selectedCourseForApply.price === 0
+                    ? "Free Enrollment"
+                    : "Course Application"}
                 </span>
                 <h3 className="text-base font-bold text-white line-clamp-1">
                   {selectedCourseForApply.title}
@@ -581,9 +590,18 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                 />
               </div>
 
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 leading-snug">
-                💳 <strong>Payment Notice:</strong> Payment integration will be available after application approval by the course administrator.
-              </div>
+              {!selectedCourseForApply.price || selectedCourseForApply.price === 0 ? (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 leading-snug flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
+                  <span>
+                    🎉 <strong>100% Free Course:</strong> You will be enrolled instantly with full access to video lessons and study materials.
+                  </span>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 leading-snug">
+                  💳 <strong>Course Fee: ₹{selectedCourseForApply.price}</strong> — Payment verification & employer approval will be required to unlock course modules.
+                </div>
+              )}
 
               <div className="pt-2 flex items-center justify-end gap-3">
                 <button
@@ -599,7 +617,13 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                   disabled={isSubmittingApp}
                   className="px-5 py-2.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-md flex items-center gap-1.5 transition-all disabled:opacity-50"
                 >
-                  <span>{isSubmittingApp ? "Submitting..." : "Submit Application"}</span>
+                  <span>
+                    {isSubmittingApp
+                      ? "Submitting..."
+                      : !selectedCourseForApply.price || selectedCourseForApply.price === 0
+                      ? "Enroll for Free"
+                      : `Apply Now (₹${selectedCourseForApply.price})`}
+                  </span>
                   <ArrowRight size={14} />
                 </button>
               </div>

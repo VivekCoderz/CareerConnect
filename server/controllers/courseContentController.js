@@ -1,9 +1,71 @@
+const fs = require("fs");
+const path = require("path");
 const Course = require("../models/Course");
 const CourseContent = require("../models/CourseContent");
 const CourseApplication = require("../models/CourseApplication");
 const CourseProgress = require("../models/CourseProgress");
 const { cloudinary } = require("../config/cloudinary");
 
+// ==========================================
+// GET UPLOAD SIGNATURE FOR DIRECT-TO-CLOUD UPLOADS
+// GET /api/course-content/upload-signature
+// ==========================================
+const getUploadSignature = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    if (user.role !== "employer") {
+      return res.status(403).json({
+        success: false,
+        message: "Only employers can generate upload signatures",
+      });
+    }
+
+    const { courseId, resourceType = "video" } = req.query;
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const folder = courseId
+      ? `careerconnect/courses/${courseId}`
+      : "careerconnect/courses";
+
+    const apiSecret =
+      process.env.CLOUDINARY_API_SECRET || process.env.Cloudinary_API_Secret;
+    const apiKey =
+      process.env.CLOUDINARY_API_KEY || process.env.Cloudinary_API_Key;
+    const cloudName =
+      process.env.CLOUDINARY_CLOUD_NAME || process.env.Cloudinary_Cloud_Name;
+
+    const paramsToSign = {
+      folder,
+      timestamp,
+    };
+
+    const signature = cloudinary.utils.api_sign_request(paramsToSign, apiSecret);
+
+    return res.status(200).json({
+      success: true,
+      signature,
+      timestamp,
+      apiKey,
+      cloudName,
+      folder,
+      resourceType,
+    });
+  } catch (error) {
+    console.error("Get Upload Signature Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate upload signature",
+      error: error.message,
+    });
+  }
+};
 
 // ==========================================
 // ADD COURSE CONTENT
@@ -63,15 +125,8 @@ const addCourseContent = async (req, res) => {
     // Get content data
     // ------------------------------------------
 
-    const {
-      type,
-      title,
-      description,
-      content,
-      duration,
-      section,
-      order,
-    } = req.body;
+    const { type, title, description, content, duration, section, order } =
+      req.body;
 
     // ------------------------------------------
     // Basic validation
@@ -113,42 +168,62 @@ const addCourseContent = async (req, res) => {
     // ------------------------------------------
 
     if (type === "video" || type === "pdf") {
-      if (!req.file) {
+      if (!req.file && !req.body.url) {
         return res.status(400).json({
           success: false,
-          message: `${type} file is required`,
+          message: `Either ${type} file or direct URL is required`,
         });
       }
     }
 
     // ------------------------------------------
-    // Cloudinary upload
+    // Cloudinary upload (or direct cloud URL)
+    // ------------------------------------------
+
+    // ------------------------------------------
+    // Cloudinary upload (or direct cloud URL)
     // ------------------------------------------
 
     let cloudinaryData = {
-      url: "",
-      publicId: "",
-      resourceType: null,
+      url: req.body.url || "",
+      publicId: req.body.publicId || "",
+      resourceType: req.body.resourceType || (type === "video" ? "video" : "raw"),
     };
 
-    if (type === "video" || type === "pdf") {
-      const resourceType = type === "video" ? "video" : "raw";
+    if (req.file && req.file.buffer && (type === "video" || type === "pdf")) {
+      const isVideo = type === "video";
+      const isPdf = type === "pdf";
+
+      const uploadOptions = {
+        folder: `careerconnect/courses/${course._id}`,
+        resource_type: isVideo ? "video" : "raw",
+      };
+
+      if (isPdf) {
+        const ext = ".pdf";
+        const baseName = (req.file.originalname || title || "document").replace(/\.[^/.]+$/, "");
+        const cleanName = baseName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40) || "document";
+        uploadOptions.public_id = `pdf_${Date.now()}_${cleanName}${ext}`;
+        uploadOptions.access_mode = "public";
+        uploadOptions.type = "upload";
+      } else if (isVideo) {
+        const baseName = (req.file.originalname || title || "video").replace(/\.[^/.]+$/, "");
+        const cleanName = baseName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40) || "video";
+        uploadOptions.public_id = `video_${Date.now()}_${cleanName}`;
+      }
 
       const result = await new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            folder: `careerconnect/courses/${course._id}`,
-            resource_type: resourceType,
-          },
+          uploadOptions,
           (error, result) => {
             if (error) {
+              console.error("Cloudinary upload stream error:", error);
               reject(error);
             } else {
               resolve(result);
             }
           }
         );
-
         uploadStream.end(req.file.buffer);
       });
 
@@ -168,9 +243,10 @@ const addCourseContent = async (req, res) => {
       type,
       title,
       description,
-      url: cloudinaryData.url,
-      publicId: cloudinaryData.publicId,
-      resourceType: cloudinaryData.resourceType,
+      url: cloudinaryData.url || req.body.url || "",
+      publicId: cloudinaryData.publicId || "",
+      resourceType:
+        cloudinaryData.resourceType || (type === "video" ? "video" : "raw"),
       content: type === "notes" ? content : "",
       duration,
       section,
@@ -185,7 +261,7 @@ const addCourseContent = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Course content added successfully",
-      courseContent,
+      courseContent: sanitizeContentUrl(courseContent),
     });
   } catch (error) {
     console.error("Add Course Content Error:", error);
@@ -198,6 +274,25 @@ const addCourseContent = async (req, res) => {
   }
 };
 
+/**
+ * Helper to sanitize content URLs (ensures Cloudinary video URLs have .mp4 for native browser playback)
+ */
+const sanitizeContentUrl = (item) => {
+  if (!item) return item;
+  const doc = item.toObject ? item.toObject() : { ...item };
+  if (
+    doc.type === "video" &&
+    doc.url &&
+    doc.url.includes("res.cloudinary.com") &&
+    doc.url.includes("/video/upload/")
+  ) {
+    if (!doc.url.match(/\.(mp4|webm|ogv|mov|m4v)(\?.*)?$/i)) {
+      const parts = doc.url.split("?");
+      doc.url = `${parts[0]}.mp4${parts[1] ? "?" + parts[1] : ""}`;
+    }
+  }
+  return doc;
+};
 
 // ==========================================
 // GET COURSE CONTENT
@@ -230,11 +325,13 @@ const getCourseContent = async (req, res) => {
       course: courseId,
     }).sort({ order: 1, createdAt: 1 });
 
+    const sanitizedContent = content.map((item) => sanitizeContentUrl(item));
+
     return res.status(200).json({
       success: true,
       message: "Course content fetched successfully",
       course: course,
-      content: content,
+      content: sanitizedContent,
     });
   } catch (error) {
     console.error("Get Course Content Error:", error);
@@ -321,16 +418,8 @@ const updateCourseContent = async (req, res) => {
     // Get updated data
     // ------------------------------------------
 
-    const {
-      type,
-      title,
-      description,
-      url,
-      content,
-      duration,
-      section,
-      order,
-    } = req.body;
+    const { type, title, description, url, content, duration, section, order } =
+      req.body;
 
     // ------------------------------------------
     // Validate content type if provided
@@ -350,29 +439,69 @@ const updateCourseContent = async (req, res) => {
     const finalType = type !== undefined ? type : courseContent.type;
 
     // ------------------------------------------
+    // Upload new file buffer if provided
+    // ------------------------------------------
+    if (req.file && req.file.buffer && (finalType === "video" || finalType === "pdf")) {
+      const isVideo = finalType === "video";
+      const isPdf = finalType === "pdf";
+
+      const uploadOptions = {
+        folder: `careerconnect/courses/${course._id}`,
+        resource_type: isVideo ? "video" : "raw",
+      };
+
+      if (isPdf) {
+        const ext = ".pdf";
+        const baseName = (req.file.originalname || title || courseContent.title || "document").replace(/\.[^/.]+$/, "");
+        const cleanName = baseName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40) || "document";
+        uploadOptions.public_id = `pdf_${Date.now()}_${cleanName}${ext}`;
+        uploadOptions.access_mode = "public";
+        uploadOptions.type = "upload";
+      } else if (isVideo) {
+        const baseName = (req.file.originalname || title || courseContent.title || "video").replace(/\.[^/.]+$/, "");
+        const cleanName = baseName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40) || "video";
+        uploadOptions.public_id = `video_${Date.now()}_${cleanName}`;
+      }
+
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          uploadOptions,
+          (error, result) => {
+            if (error) {
+              console.error("Cloudinary update upload error:", error);
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+        uploadStream.end(req.file.buffer);
+      });
+
+      let finalUrl = result.secure_url;
+      if (isVideo && !finalUrl.match(/\.(mp4|webm|ogv|mov|m4v)(\?.*)?$/i)) {
+        finalUrl += ".mp4";
+      }
+
+      courseContent.url = finalUrl;
+      courseContent.publicId = result.public_id;
+      courseContent.resourceType = result.resource_type;
+    } else if (url !== undefined) {
+      courseContent.url = url;
+    }
+
+    // ------------------------------------------
     // Video / PDF require URL
     // ------------------------------------------
 
     if (
       (finalType === "video" || finalType === "pdf") &&
-      url !== undefined &&
-      !url
+      !courseContent.url &&
+      !req.file
     ) {
       return res.status(400).json({
         success: false,
-        message: `${finalType} URL is required`,
-      });
-    }
-
-    // If changing to video/pdf, existing URL must also exist
-    if (
-      (finalType === "video" || finalType === "pdf") &&
-      url === undefined &&
-      !courseContent.url
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: `${finalType} URL is required`,
+        message: `${finalType} URL or file is required`,
       });
     }
 
@@ -380,11 +509,7 @@ const updateCourseContent = async (req, res) => {
     // Notes require text content
     // ------------------------------------------
 
-    if (
-      finalType === "notes" &&
-      content !== undefined &&
-      !content
-    ) {
+    if (finalType === "notes" && content !== undefined && !content) {
       return res.status(400).json({
         success: false,
         message: "Notes content is required",
@@ -409,7 +534,6 @@ const updateCourseContent = async (req, res) => {
     if (type !== undefined) courseContent.type = type;
     if (title !== undefined) courseContent.title = title;
     if (description !== undefined) courseContent.description = description;
-    if (url !== undefined) courseContent.url = url;
     if (content !== undefined) courseContent.content = content;
     if (duration !== undefined) courseContent.duration = duration;
     if (section !== undefined) courseContent.section = section;
@@ -424,7 +548,7 @@ const updateCourseContent = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Course content updated successfully",
-      courseContent,
+      courseContent: sanitizeContentUrl(courseContent),
     });
   } catch (error) {
     console.error("Update Course Content Error:", error);
@@ -572,6 +696,8 @@ const getStudentCourseContent = async (req, res) => {
       course: courseId,
     }).sort({ order: 1, createdAt: 1 });
 
+    const sanitizedContent = content.map((item) => sanitizeContentUrl(item));
+
     // ------------------------------------------
     // Response
     // ------------------------------------------
@@ -586,7 +712,7 @@ const getStudentCourseContent = async (req, res) => {
         thumbnail: course.thumbnail,
       },
       progress: application.progress || 0,
-      content,
+      content: sanitizedContent,
     });
   } catch (error) {
     console.error("Get Student Course Content Error:", error);
@@ -594,6 +720,77 @@ const getStudentCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch course content",
+      error: error.message,
+    });
+  }
+};
+
+// ==========================================
+// STREAM / VIEW COURSE PDF
+// GET /api/course-content/:contentId/view-pdf
+// ==========================================
+const streamPdfContent = async (req, res) => {
+  try {
+    const { contentId } = req.params;
+    const content = await CourseContent.findById(contentId);
+
+    if (!content) {
+      return res.status(404).json({
+        success: false,
+        message: "Course content not found",
+      });
+    }
+
+    if (content.type !== "pdf" || !content.url) {
+      return res.status(400).json({
+        success: false,
+        message: "Content is not a valid PDF",
+      });
+    }
+
+    let targetUrl = content.url;
+
+    // Handle Cloudinary-hosted PDFs (bypasses ACL / 401 & 404)
+    if (targetUrl.includes("res.cloudinary.com")) {
+      const isImage = targetUrl.includes("/image/upload/");
+
+      if (isImage) {
+        // Extract public ID from /image/upload/...
+        // Example: https://res.cloudinary.com/goajihdh/image/upload/v1789621697/careerconnect/courses/6aab758a73439e222e1617ef/jjte3alsaadaxxcoiucf.pdf
+        const match = targetUrl.match(/\/image\/upload\/(?:v\d+\/)?(.+?)(?:\.pdf)?$/i);
+        if (match && match[1]) {
+          const publicId = match[1];
+          try {
+            // Generate signed private download URL using Cloudinary SDK
+            const signedDownloadUrl = cloudinary.utils.private_download_url(
+              publicId,
+              "pdf",
+              {
+                resource_type: "image",
+                type: "upload",
+                attachment: false,
+              }
+            );
+            if (signedDownloadUrl) {
+              return res.redirect(signedDownloadUrl);
+            }
+          } catch (signErr) {
+            console.warn("Cloudinary private_download_url failed, falling back to fl_attachment flag:", signErr.message);
+          }
+
+          // Fallback: Use fl_attachment flag
+          const attachmentUrl = targetUrl.replace(/\/image\/upload\/(?:v\d+\/)?/, (m) => `${m}fl_attachment/`);
+          return res.redirect(attachmentUrl);
+        }
+      }
+    }
+
+    return res.redirect(targetUrl);
+  } catch (error) {
+    console.error("Stream PDF Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to serve PDF",
       error: error.message,
     });
   }
@@ -688,7 +885,7 @@ const markContentComplete = async (req, res) => {
     // ------------------------------------------
 
     const alreadyCompleted = courseProgress.completedContents.some(
-      (id) => id.toString() === contentId.toString()
+      (id) => id.toString() === contentId.toString(),
     );
 
     if (!alreadyCompleted) {
@@ -743,7 +940,6 @@ const markContentComplete = async (req, res) => {
     });
   } catch (error) {
     console.error("Mark Content Complete Error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to update course progress",
@@ -752,11 +948,98 @@ const markContentComplete = async (req, res) => {
   }
 };
 
+// ==========================================
+// STREAM / VIEW COURSE VIDEO
+// GET /api/course-content/:contentId/view-video
+// ==========================================
+const streamVideoContent = async (req, res) => {
+  try {
+    const { contentId } = req.params;
+    const content = await CourseContent.findById(contentId);
+
+    if (!content) {
+      return res.status(404).json({
+        success: false,
+        message: "Course content not found",
+      });
+    }
+
+    if (content.type !== "video" || !content.url) {
+      return res.status(400).json({
+        success: false,
+        message: "Content is not a valid video",
+      });
+    }
+
+    let targetUrl = content.url;
+
+    // 1. Check if it's a local file in server/uploads
+    if (targetUrl.startsWith("/uploads/") || targetUrl.startsWith("uploads/")) {
+      const cleanRelativePath = targetUrl.replace(/^\/?/, ""); // e.g. "uploads/courses/..."
+      const localFilePath = path.join(__dirname, "..", cleanRelativePath);
+
+      if (fs.existsSync(localFilePath)) {
+        const stat = fs.statSync(localFilePath);
+        const fileSize = stat.size;
+        const range = req.headers.range;
+
+        if (range) {
+          const parts = range.replace(/bytes=/, "").split("-");
+          const start = parseInt(parts[0], 10);
+          const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+          const chunkSize = end - start + 1;
+          const file = fs.createReadStream(localFilePath, { start, end });
+          const head = {
+            "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+            "Accept-Ranges": "bytes",
+            "Content-Length": chunkSize,
+            "Content-Type": "video/mp4",
+          };
+          res.writeHead(206, head);
+          return file.pipe(res);
+        } else {
+          const head = {
+            "Content-Length": fileSize,
+            "Content-Type": "video/mp4",
+            "Accept-Ranges": "bytes",
+          };
+          res.writeHead(200, head);
+          return fs.createReadStream(localFilePath).pipe(res);
+        }
+      }
+    }
+
+    // 2. If it's a Cloudinary video URL, ensure .mp4 format for browser decoding
+    if (targetUrl.includes("res.cloudinary.com")) {
+      if (targetUrl.includes("/video/upload/")) {
+        if (!targetUrl.match(/\.(mp4|webm|ogv|mov|m4v)(\?.*)?$/i)) {
+          const parts = targetUrl.split("?");
+          targetUrl = `${parts[0]}.mp4${parts[1] ? "?" + parts[1] : ""}`;
+        }
+      }
+      return res.redirect(targetUrl);
+    }
+
+    // 3. Fallback redirect
+    return res.redirect(targetUrl);
+  } catch (error) {
+    console.error("Stream Video Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to serve video stream",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
+  getUploadSignature,
   addCourseContent,
   getCourseContent,
   updateCourseContent,
   deleteCourseContent,
   getStudentCourseContent,
-  markContentComplete
+  streamPdfContent,
+  streamVideoContent,
+  markContentComplete,
 };

@@ -1,6 +1,7 @@
 const Course = require("../models/Course");
+const CourseContent = require("../models/CourseContent");
 const StudentProfile = require("../models/StudentProfile");
-const CourseApplication=require("../models/CourseApplication");
+const CourseApplication = require("../models/CourseApplication");
 const CourseProgress = require("../models/CourseProgress");
 
 // ==========================================
@@ -43,13 +44,7 @@ const createCourse = async (req, res) => {
     } = req.body;
 
     // Basic validation
-    if (
-      !title ||
-      !description ||
-      !domain ||
-      !category ||
-      !duration
-    ) {
+    if (!title || !description || !domain || !category || !duration) {
       return res.status(400).json({
         success: false,
         message:
@@ -138,8 +133,6 @@ const getMyCourses = async (req, res) => {
     });
   }
 };
-
-
 
 // ==========================================
 // UPDATE COURSE
@@ -267,7 +260,6 @@ const deleteCourse = async (req, res) => {
     });
   }
 };
-
 
 // ==========================================
 // PUBLISH / UNPUBLISH COURSE
@@ -397,24 +389,22 @@ const getRecommendedCourses = async (req, res) => {
     // ------------------------------------------
 
     const technicalSkills = (studentProfile.technicalSkills || []).map(
-      (skill) => skill.toLowerCase().trim()
+      (skill) => skill.toLowerCase().trim(),
     );
 
-    const softSkills = (studentProfile.softSkills || []).map(
-      (skill) => skill.toLowerCase().trim()
+    const softSkills = (studentProfile.softSkills || []).map((skill) =>
+      skill.toLowerCase().trim(),
     );
 
-    const interests = (studentProfile.interests || []).map(
-      (interest) => interest.toLowerCase().trim()
+    const interests = (studentProfile.interests || []).map((interest) =>
+      interest.toLowerCase().trim(),
     );
 
     const preferredRoles = (
       studentProfile.jobPreferences?.preferredRoles || []
     ).map((role) => role.toLowerCase().trim());
 
-    const careerGoal = (studentProfile.careerGoal || "")
-      .toLowerCase()
-      .trim();
+    const careerGoal = (studentProfile.careerGoal || "").toLowerCase().trim();
 
     // ------------------------------------------
     // Education information
@@ -440,8 +430,8 @@ const getRecommendedCourses = async (req, res) => {
       let score = 0;
       const matchedSkills = [];
 
-      const courseSkills = (course.skills || []).map(
-        (skill) => skill.toLowerCase().trim()
+      const courseSkills = (course.skills || []).map((skill) =>
+        skill.toLowerCase().trim(),
       );
 
       // ------------------------------------------
@@ -487,12 +477,10 @@ const getRecommendedCourses = async (req, res) => {
 
       if (
         careerGoal &&
-        (
-          textContains(course.title, careerGoal) ||
+        (textContains(course.title, careerGoal) ||
           textContains(course.description, careerGoal) ||
           textContains(course.category, careerGoal) ||
-          textContains(course.domain, careerGoal)
-        )
+          textContains(course.domain, careerGoal))
       ) {
         score += 4;
       }
@@ -569,7 +557,7 @@ const getRecommendedCourses = async (req, res) => {
     // ------------------------------------------
 
     recommendedCourses.sort(
-      (a, b) => b.recommendationScore - a.recommendationScore
+      (a, b) => b.recommendationScore - a.recommendationScore,
     );
 
     return res.status(200).json({
@@ -611,7 +599,7 @@ const courseSkillContains = (skills, searchText) => {
   }
 
   return skills.some((skill) =>
-    skill.toLowerCase().includes(searchText.toLowerCase())
+    skill.toLowerCase().includes(searchText.toLowerCase()),
   );
 };
 
@@ -625,10 +613,7 @@ const getCourseDetails = async (req, res) => {
     const course = await Course.findOne({
       _id: req.params.id,
       status: "Published",
-    }).populate(
-      "createdBy",
-      "fullName username email profileImage"
-    );
+    }).populate("createdBy", "fullName username email profileImage");
 
     if (!course) {
       return res.status(404).json({
@@ -637,9 +622,18 @@ const getCourseDetails = async (req, res) => {
       });
     }
 
+    // Fetch curriculum syllabus preview (lesson titles, duration, type, section, order)
+    const syllabus = await CourseContent.find({
+      course: course._id,
+    })
+      .select("type title description duration section order createdAt")
+      .sort({ order: 1, createdAt: 1 });
+
     return res.status(200).json({
       success: true,
       course,
+      syllabus,
+      lessonsCount: syllabus.length,
     });
   } catch (error) {
     console.error("Get Course Details Error:", error);
@@ -703,17 +697,39 @@ const applyCourse = async (req, res) => {
       });
     }
 
+    // Check if course is Free (price is 0 or not set)
+    const isFreeCourse = !course.price || course.price === 0;
+    const initialStatus = isFreeCourse ? "Enrolled" : "Applied";
+
     // Create application
     const application = await CourseApplication.create({
       student: user._id,
       course: course._id,
-      status: "Applied",
+      status: initialStatus,
+      appliedAt: new Date(),
     });
+
+    // If course is free, initialize student course progress immediately
+    if (isFreeCourse) {
+      await CourseProgress.findOneAndUpdate(
+        { student: user._id, course: course._id },
+        {
+          student: user._id,
+          course: course._id,
+          completedContents: [],
+          progress: 0,
+        },
+        { upsert: true, new: true }
+      );
+    }
 
     return res.status(201).json({
       success: true,
-      message: "Course application submitted successfully",
+      message: isFreeCourse
+        ? "Enrolled successfully! Course content is now unlocked."
+        : "Course application submitted successfully",
       application,
+      isEnrolled: isFreeCourse,
     });
   } catch (error) {
     console.error("Apply Course Error:", error);
@@ -791,10 +807,7 @@ const getCourseApplications = async (req, res) => {
     const applications = await CourseApplication.find({
       course: courseId,
     })
-      .populate(
-        "student",
-        "fullName username email profileImage"
-      )
+      .populate("student", "fullName username email profileImage")
       .sort({ createdAt: -1 });
 
     // ------------------------------------------
@@ -992,13 +1005,13 @@ const getStudentMyCourses = async (req, res) => {
     // Attach progress to every course
     // ------------------------------------------
 
+    const validApplications = applications.filter((app) => app.course);
     const courses = await Promise.all(
-      applications.map(async (application) => {
+      validApplications.map(async (application) => {
         const progressData = await CourseProgress.findOne({
           student: user._id,
           course: application.course._id,
         });
-
         return {
           applicationId: application._id,
           course: application.course,
@@ -1007,7 +1020,7 @@ const getStudentMyCourses = async (req, res) => {
             ? progressData.progress
             : application.progress || 0,
         };
-      })
+      }),
     );
 
     // ------------------------------------------
@@ -1029,7 +1042,6 @@ const getStudentMyCourses = async (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   createCourse,

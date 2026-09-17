@@ -11,5 +11,7 @@ router.post("/enroll", learningController.enrollInCourse);
 router.patch("/progress/:enrollmentId", learningController.updateProgress);
 router.get("/certificates", learningController.getMyCertificates);
 router.get("/skill-development", learningController.getSkillDevelopment);
+router.get("/learning-paths", learningController.getSkillDevelopment);
+router.post("/validate-competency", learningController.updateProgress);
 
 module.exports = router;

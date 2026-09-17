@@ -183,14 +183,20 @@ const CourseCard = ({
 
         {/* Footer Actions */}
         <div className="pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
-          {/* Price */}
+          {/* Price / Fee */}
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Course Fee
+              {price > 0 ? "Course Fee" : "Access"}
             </span>
-            <span className="text-sm font-extrabold text-slate-900">
-              {price > 0 ? `₹${price}` : "Free"}
-            </span>
+            {price > 0 ? (
+              <span className="text-sm font-extrabold text-slate-900">
+                ₹{price}
+              </span>
+            ) : (
+              <span className="text-xs font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 w-fit">
+                Free
+              </span>
+            )}
           </div>
 
           {/* CTAs */}
@@ -249,7 +255,13 @@ const CourseCard = ({
                 disabled={isApplying}
                 className="px-4 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs hover:shadow-md flex items-center gap-1 transition-all disabled:opacity-50"
               >
-                <span>{isApplying ? "Submitting..." : "Apply Now"}</span>
+                <span>
+                  {isApplying
+                    ? "Submitting..."
+                    : price > 0
+                    ? `Apply Now (₹${price})`
+                    : "Enroll for Free"}
+                </span>
                 <ArrowRight size={14} />
               </button>
             )}

@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const path = require("path");
 
 const authRoutes = require("./routes/authRoutes.js");
 const studentRoutes = require("./routes/studentRoutes.js");
@@ -25,7 +26,7 @@ const offerRoutes = require("./routes/offerRoutes.js");
 const organizationRoutes = require("./routes/organizationRoutes.js");
 const employerLearningRoutes = require("./routes/employerLearningRoutes.js");
 const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
-
+const recommendationRoutes = require("./routes/recommendationRoutes.js");
 const resumeRoutes = require("./routes/resumeRoutes.js");
 const opportunityRoutes = require("./routes/opportunityRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
@@ -61,7 +62,7 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (e.g., mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
-      
+
       const isAllowed =
         allowedOrigins.includes(origin) ||
         /^http:\/\/localhost:[0-9]+$/.test(origin) ||
@@ -81,6 +82,7 @@ app.use(
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(cookieParser());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Base & User Profile Routes
 app.use("/api/auth", authRoutes);
@@ -94,6 +96,7 @@ app.use("/api/profile/professional", professionalRoutes);
 // Core LMS Course Routes
 app.use("/api/courses", courseRoutes);
 app.use("/api/course-content", courseContentRoutes);
+app.use("/api/recommendations", recommendationRoutes);
 
 // Marketplace & Discovery Routes
 app.use("/api/jobs", jobRoutes);

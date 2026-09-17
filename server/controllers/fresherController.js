@@ -9,28 +9,84 @@ const { getAggregatedOpportunities } = require("../services/jobScraperService");
 // Skill benchmarks for target roles for Job Matching & Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
   "Full Stack Developer": [
-    "JavaScript", "React", "Node.js", "Express", "MongoDB", "REST API", "Git", "HTML", "CSS", "TypeScript"
+    "JavaScript",
+    "React",
+    "Node.js",
+    "Express",
+    "MongoDB",
+    "REST API",
+    "Git",
+    "HTML",
+    "CSS",
+    "TypeScript",
   ],
   "Frontend Developer": [
-    "JavaScript", "React", "HTML", "CSS", "Tailwind CSS", "TypeScript", "Redux", "Git"
+    "JavaScript",
+    "React",
+    "HTML",
+    "CSS",
+    "Tailwind CSS",
+    "TypeScript",
+    "Redux",
+    "Git",
   ],
   "Backend Developer": [
-    "Node.js", "Express", "MongoDB", "SQL", "REST API", "Python", "Docker", "Authentication", "Git"
+    "Node.js",
+    "Express",
+    "MongoDB",
+    "SQL",
+    "REST API",
+    "Python",
+    "Docker",
+    "Authentication",
+    "Git",
   ],
   "Software Developer": [
-    "Data Structures", "Algorithms", "Java", "C++", "Python", "SQL", "Git", "OOP"
+    "Data Structures",
+    "Algorithms",
+    "Java",
+    "C++",
+    "Python",
+    "SQL",
+    "Git",
+    "OOP",
   ],
   "Junior Software Engineer": [
-    "JavaScript", "Python", "Java", "Data Structures", "SQL", "Git", "Problem Solving"
+    "JavaScript",
+    "Python",
+    "Java",
+    "Data Structures",
+    "SQL",
+    "Git",
+    "Problem Solving",
   ],
   "Data Analyst": [
-    "Python", "SQL", "Excel", "Pandas", "NumPy", "Data Visualization", "PowerBI", "Tableau"
+    "Python",
+    "SQL",
+    "Excel",
+    "Pandas",
+    "NumPy",
+    "Data Visualization",
+    "PowerBI",
+    "Tableau",
   ],
   "QA Engineer": [
-    "JavaScript", "Selenium", "Manual Testing", "Automation Testing", "Postman", "Jest", "Git"
+    "JavaScript",
+    "Selenium",
+    "Manual Testing",
+    "Automation Testing",
+    "Postman",
+    "Jest",
+    "Git",
   ],
   "DevOps Engineer": [
-    "Linux", "Docker", "Kubernetes", "AWS", "CI/CD", "Git", "Shell Scripting"
+    "Linux",
+    "Docker",
+    "Kubernetes",
+    "AWS",
+    "CI/CD",
+    "Git",
+    "Shell Scripting",
   ],
 };
 
@@ -50,8 +106,13 @@ const calculateFresherProfileCompletion = (profile, user) => {
   if (hasBasicInfo) score += 10;
 
   // 2. Professional Headline & Objective (10%)
-  if (profile?.professionalHeadline && profile.professionalHeadline.trim().length >= 5) score += 5;
-  if (profile?.careerObjective && profile.careerObjective.trim().length >= 10) score += 5;
+  if (
+    profile?.professionalHeadline &&
+    profile.professionalHeadline.trim().length >= 5
+  )
+    score += 5;
+  if (profile?.careerObjective && profile.careerObjective.trim().length >= 10)
+    score += 5;
 
   // 3. Educational Qualification (15%)
   if (profile?.education && profile.education.length > 0) {
@@ -79,19 +140,28 @@ const calculateFresherProfileCompletion = (profile, user) => {
 
   // 6. Job Preferences & Availability (10%)
   const hasPreferences =
-    (profile?.jobPreferences?.preferredRoles?.length > 0 || profile?.targetRole) &&
-    (profile?.jobPreferences?.preferredLocations?.length > 0 || profile?.jobPreferences?.workMode?.length > 0);
+    (profile?.jobPreferences?.preferredRoles?.length > 0 ||
+      profile?.targetRole) &&
+    (profile?.jobPreferences?.preferredLocations?.length > 0 ||
+      profile?.jobPreferences?.workMode?.length > 0);
   if (hasPreferences) score += 10;
 
   // 7. Resume (10%)
-  const hasResume = !!(profile?.resume?.resumeUrl || profile?.resume?.resumeName || profile?.resume?.isGenerated);
+  const hasResume = !!(
+    profile?.resume?.resumeUrl ||
+    profile?.resume?.resumeName ||
+    profile?.resume?.isGenerated
+  );
   if (hasResume) score += 10;
 
   // 8. Experience / Internship OR Certifications / Achievements (15% flexible distribution)
   const hasInternship = profile?.internships && profile.internships.length > 0;
-  const hasCertifications = profile?.certifications && profile.certifications.length > 0;
-  const hasAchievements = profile?.achievements && profile.achievements.length > 0;
-  const hasCodingProfiles = profile?.codingProfiles && profile.codingProfiles.length > 0;
+  const hasCertifications =
+    profile?.certifications && profile.certifications.length > 0;
+  const hasAchievements =
+    profile?.achievements && profile.achievements.length > 0;
+  const hasCodingProfiles =
+    profile?.codingProfiles && profile.codingProfiles.length > 0;
 
   if (hasInternship && (hasCertifications || hasAchievements)) {
     score += 15;
@@ -122,13 +192,25 @@ const calculateFresherJobReadiness = (profile, completion) => {
   // Skills scoring based on categorized proficiencies
   let skillsCount = 0;
   let advancedCount = 0;
-  const categories = ["programmingLanguages", "frameworks", "databases", "tools", "softSkills", "technical"];
+  const categories = [
+    "programmingLanguages",
+    "frameworks",
+    "databases",
+    "tools",
+    "softSkills",
+    "technical",
+  ];
   categories.forEach((cat) => {
     const list = profile?.skills?.[cat] || [];
     skillsCount += list.length;
-    advancedCount += list.filter((s) => s.proficiency === "Advanced" || s.proficiency === "Intermediate").length;
+    advancedCount += list.filter(
+      (s) => s.proficiency === "Advanced" || s.proficiency === "Intermediate",
+    ).length;
   });
-  breakdown.skillsScore.score = Math.min(100, Math.round(skillsCount * 12 + advancedCount * 5));
+  breakdown.skillsScore.score = Math.min(
+    100,
+    Math.round(skillsCount * 12 + advancedCount * 5),
+  );
 
   // Projects scoring
   const projects = profile?.projects || [];
@@ -140,7 +222,11 @@ const calculateFresherJobReadiness = (profile, completion) => {
   breakdown.projectsScore.score = Math.min(100, projScore);
 
   // Resume scoring
-  const hasResume = !!(profile?.resume?.resumeUrl || profile?.resume?.resumeName || profile?.resume?.isGenerated);
+  const hasResume = !!(
+    profile?.resume?.resumeUrl ||
+    profile?.resume?.resumeName ||
+    profile?.resume?.isGenerated
+  );
   breakdown.resumeScore.score = hasResume ? 100 : 0;
 
   // Credentials (Certs, achievements, coding profiles, internships)
@@ -164,42 +250,77 @@ const calculateFresherJobReadiness = (profile, completion) => {
       breakdown.projectsScore.score * 0.2 +
       breakdown.resumeScore.score * 0.15 +
       breakdown.credentialsScore.score * 0.1 +
-      breakdown.preferencesScore.score * 0.1
+      breakdown.preferencesScore.score * 0.1,
   );
 
   const tips = [];
-  if (skillsCount < 5) tips.push("Add at least 5 key technical skills with proficiency levels.");
-  if (projects.length < 2) tips.push("Add 2 or more projects with live demo or GitHub links.");
-  if (!projects.some((p) => p.liveUrl)) tips.push("Include a live deployment link for your best project.");
-  if (!hasResume) tips.push("Build or upload your resume to unlock 1-click recruiter applications.");
-  if ((profile?.codingProfiles?.length || 0) === 0) tips.push("Connect your LeetCode, GitHub, or HackerRank profile to showcase coding agility.");
-  if ((profile?.certifications?.length || 0) === 0 && (profile?.internships?.length || 0) === 0) {
+  if (skillsCount < 5)
+    tips.push("Add at least 5 key technical skills with proficiency levels.");
+  if (projects.length < 2)
+    tips.push("Add 2 or more projects with live demo or GitHub links.");
+  if (!projects.some((p) => p.liveUrl))
+    tips.push("Include a live deployment link for your best project.");
+  if (!hasResume)
+    tips.push(
+      "Build or upload your resume to unlock 1-click recruiter applications.",
+    );
+  if ((profile?.codingProfiles?.length || 0) === 0)
+    tips.push(
+      "Connect your LeetCode, GitHub, or HackerRank profile to showcase coding agility.",
+    );
+  if (
+    (profile?.certifications?.length || 0) === 0 &&
+    (profile?.internships?.length || 0) === 0
+  ) {
     tips.push("Add a recognized certification or online course credential.");
   }
   if (!profile?.jobPreferences?.expectedSalary?.min) {
-    tips.push("Specify your expected salary range to get accurately matched openings.");
+    tips.push(
+      "Specify your expected salary range to get accurately matched openings.",
+    );
   }
 
   return {
     score: Math.min(100, Math.max(0, totalScore)),
     breakdown,
-    tips: tips.length > 0 ? tips : ["Your fresher profile is in top-tier shape! You are job-ready."],
+    tips:
+      tips.length > 0
+        ? tips
+        : ["Your fresher profile is in top-tier shape! You are job-ready."],
   };
 };
 
 // Calculate match percentage against a job
-const calculateJobMatch = (fresherProfile, jobRequiredSkills = [], jobRole = "") => {
+const calculateJobMatch = (
+  fresherProfile,
+  jobRequiredSkills = [],
+  jobRole = "",
+) => {
   const allProfileSkills = [];
-  const categories = ["programmingLanguages", "frameworks", "databases", "tools", "technical"];
+  const categories = [
+    "programmingLanguages",
+    "frameworks",
+    "databases",
+    "tools",
+    "technical",
+  ];
   categories.forEach((cat) => {
-    (fresherProfile?.skills?.[cat] || []).forEach((s) => allProfileSkills.push(s.name.toLowerCase()));
+    (fresherProfile?.skills?.[cat] || []).forEach((s) =>
+      allProfileSkills.push(s.name.toLowerCase()),
+    );
   });
 
   if (jobRequiredSkills.length === 0) return 85;
 
   let matched = 0;
   jobRequiredSkills.forEach((reqSkill) => {
-    if (allProfileSkills.some((s) => s.includes(reqSkill.toLowerCase()) || reqSkill.toLowerCase().includes(s))) {
+    if (
+      allProfileSkills.some(
+        (s) =>
+          s.includes(reqSkill.toLowerCase()) ||
+          reqSkill.toLowerCase().includes(s),
+      )
+    ) {
       matched += 1;
     }
   });
@@ -225,14 +346,15 @@ module.exports.getFresherProfile = async (req, res, next) => {
     const userId = req.user._id;
     let profile = await FresherProfile.findOne({ userId }).populate(
       "userId",
-      "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks"
+      "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks",
     );
 
     if (!profile) {
       // Auto initialize sensible fresher profile template
       profile = await FresherProfile.create({
         userId,
-        professionalHeadline: "Software Engineering Graduate | Seeking Entry-Level Opportunities",
+        professionalHeadline:
+          "Software Engineering Graduate | Seeking Entry-Level Opportunities",
         targetRole: "Full Stack Developer",
         targetIndustry: "Information Technology",
         careerObjective:
@@ -259,7 +381,10 @@ module.exports.getFresherProfile = async (req, res, next) => {
             { name: "Express", proficiency: "Intermediate" },
           ],
           databases: [{ name: "MongoDB", proficiency: "Intermediate" }],
-          tools: [{ name: "Git", proficiency: "Intermediate" }, { name: "Postman", proficiency: "Beginner" }],
+          tools: [
+            { name: "Git", proficiency: "Intermediate" },
+            { name: "Postman", proficiency: "Beginner" },
+          ],
           softSkills: [
             { name: "Problem Solving", proficiency: "Advanced" },
             { name: "Teamwork", proficiency: "Advanced" },
@@ -268,7 +393,11 @@ module.exports.getFresherProfile = async (req, res, next) => {
           technical: [],
         },
         jobPreferences: {
-          preferredRoles: ["Full Stack Developer", "Frontend Developer", "Junior Software Engineer"],
+          preferredRoles: [
+            "Full Stack Developer",
+            "Frontend Developer",
+            "Junior Software Engineer",
+          ],
           employmentTypes: ["Full-time", "Internship", "Graduate Trainee"],
           preferredLocations: ["Bangalore", "Hyderabad", "Pune", "Remote"],
           workMode: ["Hybrid", "Remote", "On-site"],
@@ -283,7 +412,7 @@ module.exports.getFresherProfile = async (req, res, next) => {
 
       profile = await profile.populate(
         "userId",
-        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks"
+        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks",
       );
     }
 
@@ -311,7 +440,8 @@ module.exports.updateFresherProfile = async (req, res, next) => {
 
     // Synchronize basic user fields if present in updateData
     const userUpdateFields = {};
-    if (updateData.fullName) userUpdateFields.fullName = updateData.fullName.trim();
+    if (updateData.fullName)
+      userUpdateFields.fullName = updateData.fullName.trim();
     if (updateData.phone !== undefined && String(updateData.phone).trim()) {
       const cleanPhone = String(updateData.phone).replace(/\D/g, "");
       const countryCode = updateData.countryCode?.trim() || "+91";
@@ -330,9 +460,11 @@ module.exports.updateFresherProfile = async (req, res, next) => {
         });
       }
       userUpdateFields.phone = cleanPhone;
-      if (updateData.countryCode) userUpdateFields.countryCode = updateData.countryCode.trim();
+      if (updateData.countryCode)
+        userUpdateFields.countryCode = updateData.countryCode.trim();
     }
-    if (updateData.profileImage !== undefined) userUpdateFields.profileImage = updateData.profileImage;
+    if (updateData.profileImage !== undefined)
+      userUpdateFields.profileImage = updateData.profileImage;
     if (updateData.socialLinks) {
       userUpdateFields.socialLinks = {
         linkedin: updateData.socialLinks.linkedin || "",
@@ -343,10 +475,10 @@ module.exports.updateFresherProfile = async (req, res, next) => {
     let profile = await FresherProfile.findOneAndUpdate(
       { userId },
       { $set: updateData },
-      { new: true, upsert: true, runValidators: true }
+      { new: true, upsert: true, runValidators: true },
     ).populate(
       "userId",
-      "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks"
+      "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks",
     );
 
     // Calculate updated completion & readiness
@@ -387,7 +519,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     const userId = req.user._id;
     let profile = await FresherProfile.findOne({ userId }).populate(
       "userId",
-      "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks"
+      "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks",
     );
 
     if (!profile) {
@@ -405,17 +537,21 @@ module.exports.getFresherDashboard = async (req, res, next) => {
           },
         ],
         skills: {
-          programmingLanguages: [{ name: "JavaScript", proficiency: "Intermediate" }],
+          programmingLanguages: [
+            { name: "JavaScript", proficiency: "Intermediate" },
+          ],
           frameworks: [{ name: "React", proficiency: "Intermediate" }],
           databases: [{ name: "MongoDB", proficiency: "Intermediate" }],
           tools: [{ name: "Git", proficiency: "Intermediate" }],
-          softSkills: [{ name: "Problem Solving", proficiency: "Intermediate" }],
+          softSkills: [
+            { name: "Problem Solving", proficiency: "Intermediate" },
+          ],
           technical: [],
         },
       });
       profile = await profile.populate(
         "userId",
-        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks"
+        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks",
       );
     }
 
@@ -480,13 +616,23 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         experienceRequired: job.experience?.level || "Fresher / 0-1 Yr",
         skillsRequired: job.requiredSkills || [],
         postedAt: "Active",
-        deadline: job.deadline ? new Date(job.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
-        matchPercentage: calculateJobMatch(profile, job.requiredSkills || [], job.title),
+        deadline: job.deadline
+          ? new Date(job.deadline).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "Open",
+        matchPercentage: calculateJobMatch(
+          profile,
+          job.requiredSkills || [],
+          job.title,
+        ),
       };
     });
 
     const eligibleDbInternships = (dbInternships || []).filter((job) =>
-      isEligibleForInternship(job, profile)
+      isEligibleForInternship(job, profile),
     );
 
     const recommendedInternships = eligibleDbInternships.map((job) => {
@@ -507,7 +653,13 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         type: "Internship",
         workMode: job.workMode || "Remote",
         skillsRequired: job.requiredSkills || [],
-        deadline: job.deadline ? new Date(job.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
+        deadline: job.deadline
+          ? new Date(job.deadline).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "Open",
       };
     });
 
@@ -518,26 +670,35 @@ module.exports.getFresherDashboard = async (req, res, next) => {
           opportunityType: "all",
           search: profile.targetRole || "Software Developer",
         });
-        const mappedJobs = (scraped.data || []).slice(0, 20).map((job, idx) => ({
-          _id: `scraped-fresher-job-${idx}`,
-          id: `scraped-fresher-job-${idx}`,
-          jobId: `scraped-fresher-job-${idx}`,
-          title: job.title,
-          company: job.company,
-          location: job.location,
-          salary: "₹4.5 - 12.0 LPA",
-          type: job.opportunityType || "Full-Time",
-          workMode: job.workMode || "Hybrid",
-          experienceRequired: "Fresher / 0-1 Yr",
-          skillsRequired: [job.title.split(" ")[0] || "Engineering", "Problem Solving"],
-          postedAt: job.postedDate || "Recently",
-          deadline: "Open until filled",
-          matchPercentage: calculateJobMatch(profile, [job.title.split(" ")[0] || "Development"], job.title),
-          applyLink: job.applyLink,
-          applyUrl: job.applyLink,
-          isExternal: true,
-          platformSource: job.platformSource,
-        }));
+        const mappedJobs = (scraped.data || [])
+          .slice(0, 20)
+          .map((job, idx) => ({
+            _id: `scraped-fresher-job-${idx}`,
+            id: `scraped-fresher-job-${idx}`,
+            jobId: `scraped-fresher-job-${idx}`,
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            salary: "₹4.5 - 12.0 LPA",
+            type: job.opportunityType || "Full-Time",
+            workMode: job.workMode || "Hybrid",
+            experienceRequired: "Fresher / 0-1 Yr",
+            skillsRequired: [
+              job.title.split(" ")[0] || "Engineering",
+              "Problem Solving",
+            ],
+            postedAt: job.postedDate || "Recently",
+            deadline: "Open until filled",
+            matchPercentage: calculateJobMatch(
+              profile,
+              [job.title.split(" ")[0] || "Development"],
+              job.title,
+            ),
+            applyLink: job.applyLink,
+            applyUrl: job.applyLink,
+            isExternal: true,
+            platformSource: job.platformSource,
+          }));
         finalRecommendedJobs = [...recommendedJobs, ...mappedJobs];
       } catch (e) {
         console.warn("Fresher scraped jobs fallback error:", e.message);
@@ -579,7 +740,8 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     const dbApplications = await Application.find({ candidateId: userId })
       .populate({
         path: "jobId",
-        select: "title department location employmentType workMode salaryRange deadline status",
+        select:
+          "title department location employmentType workMode salaryRange deadline status",
         populate: { path: "employerId", select: "companyName logo" },
       })
       .populate("employerId", "companyName logo")
@@ -588,10 +750,17 @@ module.exports.getFresherDashboard = async (req, res, next) => {
 
     const appStats = {
       applied: dbApplications.filter((a) => a.status === "Applied").length,
-      underReview: dbApplications.filter((a) => ["Screening", "Under Review"].includes(a.status)).length,
-      shortlisted: dbApplications.filter((a) => a.status === "Shortlisted").length,
-      interview: dbApplications.filter((a) => ["Interview", "Final Interview", "Assessment"].includes(a.status)).length,
-      selected: dbApplications.filter((a) => ["Offer", "Hired"].includes(a.status)).length,
+      underReview: dbApplications.filter((a) =>
+        ["Screening", "Under Review"].includes(a.status),
+      ).length,
+      shortlisted: dbApplications.filter((a) => a.status === "Shortlisted")
+        .length,
+      interview: dbApplications.filter((a) =>
+        ["Interview", "Final Interview", "Assessment"].includes(a.status),
+      ).length,
+      selected: dbApplications.filter((a) =>
+        ["Offer", "Hired"].includes(a.status),
+      ).length,
       rejected: dbApplications.filter((a) => a.status === "Rejected").length,
     };
 
@@ -600,7 +769,10 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       id: app._id.toString(),
       jobId: app.jobId?._id || "",
       title: app.jobId?.title || "Position",
-      company: app.jobId?.employerId?.companyName || app.employerId?.companyName || "Employer",
+      company:
+        app.jobId?.employerId?.companyName ||
+        app.employerId?.companyName ||
+        "Employer",
       appliedDate: new Date(app.createdAt).toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
@@ -622,12 +794,22 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       "Full Stack Developer";
 
     const benchmarks =
-      ROLE_SKILL_BENCHMARKS[targetRole] || ROLE_SKILL_BENCHMARKS["Full Stack Developer"];
+      ROLE_SKILL_BENCHMARKS[targetRole] ||
+      ROLE_SKILL_BENCHMARKS["Full Stack Developer"];
 
     const allProfileSkills = [];
-    const skillCategories = ["programmingLanguages", "frameworks", "databases", "tools", "technical", "softSkills"];
+    const skillCategories = [
+      "programmingLanguages",
+      "frameworks",
+      "databases",
+      "tools",
+      "technical",
+      "softSkills",
+    ];
     skillCategories.forEach((cat) => {
-      (profile?.skills?.[cat] || []).forEach((s) => allProfileSkills.push(s.name));
+      (profile?.skills?.[cat] || []).forEach((s) =>
+        allProfileSkills.push(s.name),
+      );
     });
     if (Array.isArray(profile.primarySkills)) {
       profile.primarySkills.forEach((s) => {
@@ -636,33 +818,53 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     }
 
     const userSkillsSet = new Set(allProfileSkills.map((s) => s.toLowerCase()));
-    const missingSkills = benchmarks.filter((s) => !userSkillsSet.has(s.toLowerCase()));
+    const missingSkills = benchmarks.filter(
+      (s) => !userSkillsSet.has(s.toLowerCase()),
+    );
 
     const skillReasons = {
-      "Node.js": "Crucial for building scalable, high-throughput backend services and APIs.",
-      "Express": "Industry-standard minimalist framework for RESTful routing and middleware.",
-      "Express.js": "Industry-standard minimalist framework for RESTful routing and middleware.",
-      "MongoDB": "Leading NoSQL database widely used in modern full-stack web applications.",
-      "SQL": "Essential for relational data querying, analytics, and enterprise data models.",
-      "React": "Most popular component-based frontend library demanded by tech companies.",
-      "Docker": "Key containerization tool expected in modern cloud and DevOps environments.",
-      "REST API": "Standard architectural style for client-server integration across web applications.",
-      "REST APIs": "Standard architectural style for client-server integration across web applications.",
-      "TypeScript": "Enables type safety and maintainability in production-grade JavaScript apps.",
-      "Git": "Essential version control and collaboration system used across all tech teams.",
-      "Python": "High versatility in automation, backend APIs, data engineering, and AI systems.",
-      "Data Structures": "Core requirement for passing technical interviews and problem-solving.",
-      "Algorithms": "Fundamental for optimizing execution time and scalable code efficiency.",
-      "Postman": "Industry tool for designing, testing, and documenting HTTP APIs.",
-      "Redux": "Predictable state management for complex Single Page Applications.",
-      "PowerBI": "Leading business intelligence tool for interactive data dashboards.",
-      "Tableau": "Powerful visual analytics platform used by top data-driven enterprises.",
-      "Pandas": "Core Python data manipulation and analysis library.",
+      "Node.js":
+        "Crucial for building scalable, high-throughput backend services and APIs.",
+      Express:
+        "Industry-standard minimalist framework for RESTful routing and middleware.",
+      "Express.js":
+        "Industry-standard minimalist framework for RESTful routing and middleware.",
+      MongoDB:
+        "Leading NoSQL database widely used in modern full-stack web applications.",
+      SQL: "Essential for relational data querying, analytics, and enterprise data models.",
+      React:
+        "Most popular component-based frontend library demanded by tech companies.",
+      Docker:
+        "Key containerization tool expected in modern cloud and DevOps environments.",
+      "REST API":
+        "Standard architectural style for client-server integration across web applications.",
+      "REST APIs":
+        "Standard architectural style for client-server integration across web applications.",
+      TypeScript:
+        "Enables type safety and maintainability in production-grade JavaScript apps.",
+      Git: "Essential version control and collaboration system used across all tech teams.",
+      Python:
+        "High versatility in automation, backend APIs, data engineering, and AI systems.",
+      "Data Structures":
+        "Core requirement for passing technical interviews and problem-solving.",
+      Algorithms:
+        "Fundamental for optimizing execution time and scalable code efficiency.",
+      Postman:
+        "Industry tool for designing, testing, and documenting HTTP APIs.",
+      Redux:
+        "Predictable state management for complex Single Page Applications.",
+      PowerBI:
+        "Leading business intelligence tool for interactive data dashboards.",
+      Tableau:
+        "Powerful visual analytics platform used by top data-driven enterprises.",
+      Pandas: "Core Python data manipulation and analysis library.",
     };
 
     const recommendedSkills = missingSkills.slice(0, 4).map((s) => ({
       name: s,
-      reason: skillReasons[s] || `Highly in-demand skill commonly required for ${targetRole} positions.`,
+      reason:
+        skillReasons[s] ||
+        `Highly in-demand skill commonly required for ${targetRole} positions.`,
       resourceUrl: `/courses?search=${encodeURIComponent(s)}`,
     }));
 
@@ -675,8 +877,9 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         skill: missingSkills[0] || "Full Stack Architecture",
         difficulty: "Beginner to Intermediate",
         duration: "6 Weeks (Self-paced)",
-        thumbnail: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=500&auto=format&fit=crop&q=60",
-        url: "/courses/explore/full-stack-bootcamp",
+        thumbnail:
+          "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=500&auto=format&fit=crop&q=60",
+        url: "/courses?search=Full+Stack",
         rating: 4.9,
       },
       {
@@ -686,8 +889,9 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         skill: "Problem Solving",
         difficulty: "Intermediate",
         duration: "8 Weeks",
-        thumbnail: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=500&auto=format&fit=crop&q=60",
-        url: "/courses/explore/dsa-mastery",
+        thumbnail:
+          "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=500&auto=format&fit=crop&q=60",
+        url: "/courses?search=Data+Structures",
         rating: 4.8,
       },
       {
@@ -697,7 +901,8 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         skill: missingSkills[0] || "Backend Development",
         difficulty: "Intermediate",
         duration: "4 Weeks",
-        thumbnail: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=500&auto=format&fit=crop&q=60",
+        thumbnail:
+          "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=500&auto=format&fit=crop&q=60",
         url: `/courses?search=${encodeURIComponent(missingSkills[0] || "Node.js")}`,
         rating: 4.9,
       },
@@ -708,8 +913,9 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         skill: "React & TypeScript",
         difficulty: "Advanced",
         duration: "3 Weeks",
-        thumbnail: "https://images.unsplash.com/photo-1581291518655-9523b932eed8?w=500&auto=format&fit=crop&q=60",
-        url: "/courses/explore/frontend-system-design",
+        thumbnail:
+          "https://images.unsplash.com/photo-1581291518655-9523b932eed8?w=500&auto=format&fit=crop&q=60",
+        url: "/courses?search=Frontend",
         rating: 4.7,
       },
     ];
@@ -743,7 +949,8 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       careerRecommendations.push({
         id: "rec-proj-1",
         title: "Add your latest project to showcase your practical experience",
-        description: "Freshers with 2+ projects receive 3.5x more recruiter shortlists.",
+        description:
+          "Freshers with 2+ projects receive 3.5x more recruiter shortlists.",
         ctaText: "Add Project",
         ctaAction: "/fresher/profile?step=2",
         type: "project",
@@ -754,7 +961,8 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       careerRecommendations.push({
         id: "rec-res-1",
         title: "Update your resume before applying to new opportunities",
-        description: "Upload your latest PDF or use our AI-powered Resume Builder.",
+        description:
+          "Upload your latest PDF or use our AI-powered Resume Builder.",
         ctaText: "Upload Resume",
         ctaAction: "/resume-builder",
         type: "resume",
@@ -764,7 +972,8 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     careerRecommendations.push({
       id: "rec-course-1",
       title: `Explore courses related to ${targetRole}`,
-      description: "Upgrade your technical credentials with verified certifications.",
+      description:
+        "Upgrade your technical credentials with verified certifications.",
       ctaText: "Browse Courses",
       ctaAction: "/courses",
       type: "course",
@@ -801,23 +1010,28 @@ module.exports.getFresherDashboard = async (req, res, next) => {
             },
           ]
         : []),
-      ...(recentApps.slice(0, 2).map((app, idx) => ({
+      ...recentApps.slice(0, 2).map((app, idx) => ({
         id: `act-app-${idx}`,
         type: "application",
         title: `Applied to ${app.title}`,
         subtitle: `${app.company} · ${app.status}`,
         timestamp: app.appliedDate,
-      }))),
+      })),
     ];
 
     const careerTarget = {
       targetRole,
-      targetRoles: profile.targetRoles?.length > 0 ? profile.targetRoles : [targetRole],
-      jobType: profile.jobPreferences?.employmentTypes?.join(", ") || "Full-time opportunities",
-      workMode: profile.jobPreferences?.workMode?.join(" / ") || "Remote / Hybrid",
-      preferredLocations: profile.jobPreferences?.preferredLocations?.length > 0
-        ? profile.jobPreferences.preferredLocations
-        : ["Bangalore", "Pune", "Remote"],
+      targetRoles:
+        profile.targetRoles?.length > 0 ? profile.targetRoles : [targetRole],
+      jobType:
+        profile.jobPreferences?.employmentTypes?.join(", ") ||
+        "Full-time opportunities",
+      workMode:
+        profile.jobPreferences?.workMode?.join(" / ") || "Remote / Hybrid",
+      preferredLocations:
+        profile.jobPreferences?.preferredLocations?.length > 0
+          ? profile.jobPreferences.preferredLocations
+          : ["Bangalore", "Pune", "Remote"],
       careerGoal: profile.careerGoal || "Get my first job",
       activelyLooking: profile.activelyLooking !== false,
     };
@@ -875,13 +1089,26 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
     const userId = req.user._id;
     const profile = await FresherProfile.findOne({ userId });
 
-    const targetRole = profile?.targetRole || profile?.jobPreferences?.preferredRoles?.[0] || "Full Stack Developer";
-    const benchmarkSkills = ROLE_SKILL_BENCHMARKS[targetRole] || ROLE_SKILL_BENCHMARKS["Full Stack Developer"];
+    const targetRole =
+      profile?.targetRole ||
+      profile?.jobPreferences?.preferredRoles?.[0] ||
+      "Full Stack Developer";
+    const benchmarkSkills =
+      ROLE_SKILL_BENCHMARKS[targetRole] ||
+      ROLE_SKILL_BENCHMARKS["Full Stack Developer"];
 
     const allProfileSkills = [];
-    const categories = ["programmingLanguages", "frameworks", "databases", "tools", "technical"];
+    const categories = [
+      "programmingLanguages",
+      "frameworks",
+      "databases",
+      "tools",
+      "technical",
+    ];
     categories.forEach((cat) => {
-      (profile?.skills?.[cat] || []).forEach((s) => allProfileSkills.push(s.name.toLowerCase()));
+      (profile?.skills?.[cat] || []).forEach((s) =>
+        allProfileSkills.push(s.name.toLowerCase()),
+      );
     });
 
     const mastered = [];
@@ -922,7 +1149,9 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
         targetRole,
         masteredSkills: mastered,
         skillsToLearn: missing,
-        matchPercentage: Math.round((mastered.length / benchmarkSkills.length) * 100),
+        matchPercentage: Math.round(
+          (mastered.length / benchmarkSkills.length) * 100,
+        ),
         recommendedCourses: skillGapCourses,
       },
     });
@@ -940,11 +1169,15 @@ module.exports.getPublicFresherProfile = async (req, res, next) => {
 
     let user = null;
     if (usernameOrId.match(/^[0-9a-fA-F]{24}$/)) {
-      user = await User.findById(usernameOrId).select("fullName username email phone profileImage socialLinks userType");
+      user = await User.findById(usernameOrId).select(
+        "fullName username email phone profileImage socialLinks userType",
+      );
     }
     if (!user) {
-      user = await User.findOne({ username: usernameOrId.toLowerCase() }).select(
-        "fullName username email phone profileImage socialLinks userType"
+      user = await User.findOne({
+        username: usernameOrId.toLowerCase(),
+      }).select(
+        "fullName username email phone profileImage socialLinks userType",
       );
     }
 
