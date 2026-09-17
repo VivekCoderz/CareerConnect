@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -348,7 +349,7 @@ const EmployerProfile = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center">
-        <div className="w-10 h-10 border-4 border-[#f59e0b] border-t-transparent rounded-full animate-spin mb-4" />
+        <JourneyLoader variant="employer" size="hero" className="mb-4" />
         <p className="text-sm font-semibold text-slate-600">
           Loading your company workspace...
         </p>

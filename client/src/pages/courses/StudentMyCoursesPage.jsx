@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -159,7 +160,7 @@ const StudentMyCoursesPage = () => {
   if (loading) {
     return (
       <div className="min-h-[50vh] flex flex-col items-center justify-center p-6 bg-white rounded-3xl border border-slate-200">
-        <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-4" />
+        <JourneyLoader variant="learning" size="md" className="mb-4" />
         <p className="text-xs font-semibold text-slate-600">Loading your enrolled courses & applications...</p>
       </div>
     );
@@ -253,7 +254,7 @@ const StudentMyCoursesPage = () => {
         <div className="space-y-4">
           {loadingOrders ? (
             <div className="p-12 text-center bg-white border border-slate-200 rounded-3xl">
-              <div className="w-8 h-8 border-3 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <JourneyLoader variant="learning" size="sm" className="mx-auto mb-3" />
               <p className="text-xs font-semibold text-slate-500">Loading payment history...</p>
             </div>
           ) : ordersList.length === 0 ? (
@@ -489,7 +490,7 @@ const StudentMyCoursesPage = () => {
 
               {loadingContent ? (
                 <div className="p-8 text-center">
-                  <div className="w-8 h-8 border-3 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                  <JourneyLoader variant="learning" size="sm" className="mx-auto mb-2" />
                   <p className="text-xs font-semibold text-slate-500">Loading lessons...</p>
                 </div>
               ) : courseContent.length === 0 ? (

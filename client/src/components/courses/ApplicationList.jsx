@@ -1,3 +1,4 @@
+import JourneyLoader from "../common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import {
   Users,
@@ -127,7 +128,7 @@ const ApplicationList = ({ courseId, courseTitle }) => {
   if (loading) {
     return (
       <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl">
-        <div className="w-8 h-8 border-3 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <JourneyLoader variant="learning" size="sm" className="mx-auto mb-3" />
         <p className="text-xs font-medium text-slate-500">
           Loading student applications...
         </p>

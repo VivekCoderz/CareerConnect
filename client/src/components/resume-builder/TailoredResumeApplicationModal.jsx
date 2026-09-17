@@ -1,3 +1,4 @@
+import JourneyLoader from "../common/JourneyLoader";
 import { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import {
@@ -505,7 +506,7 @@ export default function TailoredResumeApplicationModal({
               {/* Loading State */}
               {loadingAI || isReGenerating ? (
                 <div className="py-20 text-center space-y-4">
-                  <div className="w-12 h-12 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <JourneyLoader variant="resume" size="lg" className="mx-auto" />
                   <h3 className="text-base font-bold text-slate-800">
                     {isReGenerating ? "Updating Tailored Resume..." : "Tailoring Your Resume with AI..."}
                   </h3>
@@ -776,7 +777,7 @@ export default function TailoredResumeApplicationModal({
 
                   {loadingSaved ? (
                     <div className="py-12 text-center">
-                      <div className="w-8 h-8 border-3 border-slate-800 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      <JourneyLoader variant="resume" size="sm" className="mx-auto mb-2" />
                       <p className="text-xs text-slate-500">Loading your saved resumes...</p>
                     </div>
                   ) : savedResumes.length === 0 && !user?.resumeUrl ? (

@@ -1,0 +1,25 @@
+﻿ID,Target,Priority,Workstream,Deliverable / task,Owner,Reviewer,Done when (acceptance),Status
+L01,Week 1,P0,Product,Freeze launch scope and metrics,Ram,Tripti,"One signed checklist covers candidate, employer, resume, application and paid-course exclusions.",Not started
+L02,Week 1-2,P0,Supply,Secure verified pilot listings,Ram,Vivek,"Initial real jobs and internships have consent, working apply path, expiry and owner contact.",Not started
+L03,Week 2,P0,Trust + support,"Publish privacy, terms, support and FAQ copy",Ram,Tripti,Footer links reach accurate pages; support inbox/process and response owner are defined.,Not started
+L04,Pilot,P0,Launch,Run pilot and release decision,Ram,Tripti,"Pilot issues triaged; P0 defects closed; metrics, support and rollback owners agree to launch.",Not started
+L05,Week 1,P0,Backend,Harden employer listing publish/review API,Vivek,Imran,Only authorized employer/admin publishes; invalid/expired/demo listings stay off candidate surfaces.,Not started
+L06,Week 1-2,P0,Backend,Make apply flow safe and status consistent,Vivek,Tripti,Duplicate apply is blocked; candidate sees Applied; employer sees the same application record/status.,Not started
+L07,Week 2,P0,Backend,Bound search and recommendation queries,Vivek,Imran,"Job/internship lists paginate, filter and sort reliably; empty/error states are deterministic.",Not started
+L08,Week 3,P1,Data,Index and profile hot queries,Vivek,Imran,Explain/profile key queries; slow paths fixed against pilot-size data and measured again.,Not started
+L09,Week 1-2,P0,Frontend,Ship job/internship discovery UX,Sneha,Tripti,Home and listing pages show only live opportunities; filters/detail work on phone and desktop.,Not started
+L10,Week 2,P0,Frontend,Show applied state everywhere,Sneha,Vivek,Applied button is disabled on job and internship cards/details; status persists after refresh/login.,Not started
+L11,Week 2,P0,Frontend,Complete candidate apply journey,Sneha,Yug,From listing to resume choice to apply confirmation requires no dead end on mobile.,Not started
+L12,Week 1,P0,Scope,Hide paid courses across launch UI,Sneha,Ram,"No paid-course card, nav item, recommendation, pricing or checkout CTA is visible to launch users.",Not started
+L13,Week 1,P0,QA,Build critical journey test matrix,Tripti,Ram,"Tests cover account, search, listing detail, job-tailored resume, apply, duplicate apply and employer review.",Not started
+L14,Week 2-3,P1,QA,Run mobile/browser/accessibility pass,Tripti,Sneha,Core flow works in current Chrome/Safari and small screens; keyboard/forms have no blocker.,Not started
+L15,Week 3,P0,Security,"Regression-test auth, roles and uploads",Tripti,Vivek,Candidate cannot access employer data; untrusted upload and expired-session cases are tested.,Not started
+L16,Pilot,P0,Operations,Own pilot triage and bug board,Tripti,Ram,"Each pilot defect has severity, owner and reproduction; P0 issues block release.",Not started
+L17,Week 1-2,P0,Resume,Make resume profile/import reliable,Yug,Sneha,"Candidate can create or upload resume, edit key fields and retain data across sessions.",Not started
+L18,Week 2,P0,Resume,Tailor resume to chosen job,Yug,Vivek,Selected job requirements inform suggestions; user reviews edits before saving or applying.,Not started
+L19,Week 2-3,P0,Resume,Preview/export job-specific resume,Yug,Tripti,Exported PDF matches preview; version tied to the chosen job is selectable in apply flow.,Not started
+L20,Week 3,P1,Resume,Handle missing job data and AI failure,Yug,Sneha,User gets useful manual suggestions and can finish resume/apply if generation times out or fails.,Not started
+L21,Week 1,P0,Infrastructure,Create CI and staging release path,Imran,Vivek,Every merge runs build/tests; staging mirrors required config and has a documented deploy owner.,Not started
+L22,Week 2,P0,Observability,"Add errors, latency and application metrics",Imran,Ram,"Alerts/boards show auth failure, API errors, slow routes and apply success rate without exposing PII.",Not started
+L23,Week 3,P0,Performance,Load-test critical journeys and tune,Imran,Vivek,"Run agreed traffic scenario for search/detail/apply; record p95, error rate and bottlenecks; rerun after fixes.",Not started
+L24,Week 3,P0,Reliability,"Verify backup, restore and rollback",Imran,Ram,Restore drill passes in staging; deploy rollback steps and responsible person are recorded.,Not started

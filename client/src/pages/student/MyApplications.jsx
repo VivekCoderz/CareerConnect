@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { getMyApplications, withdraw } from "../../services/applicationService";
@@ -391,10 +392,10 @@ export default function MyApplications({ embedded = false }) {
 
           {loading ? (
             <div className="flex flex-col items-center py-16">
-              <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-3" />
+              <JourneyLoader size="md" className="mb-3" />
 
               <p className="text-sm text-slate-500">
-                Loading applications...
+                Bringing your applications together...
               </p>
             </div>
           ) : filtered.length === 0 ? (

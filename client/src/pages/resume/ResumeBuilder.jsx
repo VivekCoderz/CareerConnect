@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
@@ -644,9 +645,9 @@ const ResumeBuilder = () => {
               <>
                 {profileLoading ? (
                   <div className="text-center py-24 text-slate-500">
-                    <div className="inline-block w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
+                    <JourneyLoader variant="resume" size="md" className="mb-3" />
                     <p className="font-semibold text-sm text-slate-800">
-                      Loading your profile information…
+                      Bringing your experience into focus…
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
                       Pulling verified education, projects, skills & experiences
@@ -722,7 +723,7 @@ const ResumeBuilder = () => {
             {/* ── Generating Spinner ── */}
             {isGenerating && (
               <div className="text-center py-20 bg-white rounded-3xl border border-slate-200/80 shadow-sm max-w-2xl mx-auto">
-                <div className="inline-block w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
+                <JourneyLoader variant="resume" size="lg" className="mb-4" />
                 <h3 className="text-slate-900 font-bold text-lg">
                   AI is crafting your professional resume…
                 </h3>

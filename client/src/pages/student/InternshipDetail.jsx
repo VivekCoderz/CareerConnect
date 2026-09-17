@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -160,8 +161,8 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
   if (loading) {
     return (
       <div className={`flex flex-col items-center justify-center py-20 ${embedded ? "" : "min-h-screen bg-[#f8fafc]"}`}>
-        <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-3" />
-        <p className="text-sm font-medium text-slate-500">Loading details...</p>
+        <JourneyLoader size="md" className="mb-3" />
+        <p className="text-sm font-medium text-slate-500">Opening this opportunity...</p>
       </div>
     );
   }
