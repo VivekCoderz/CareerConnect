@@ -2,6 +2,7 @@ const express = require("express");
 const protect = require("../middleware/authMiddleware");
 const multer = require("multer");
 const { isResumeFile } = require("../utils/fileSignatures");
+const { getResumeDownload } = require("../controllers/resumeAccessController");
 const {
   generateResumeHandler,
   updateResumeHandler,
@@ -52,6 +53,7 @@ const validateResumeUpload = (req, res, next) => {
 // All resume routes require authentication
 router.use(protect);
 
+router.get("/download", getResumeDownload);
 router.get("/", getAllResumes);
 router.post("/save", saveFinalResume);
 router.post("/upload", upload.single("resume"), validateResumeUpload, uploadResumeHandler);

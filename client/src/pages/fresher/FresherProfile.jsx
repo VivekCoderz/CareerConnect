@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
@@ -551,7 +552,7 @@ const FresherProfile = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-4" />
+        <JourneyLoader variant="profile" size="hero" className="mb-4" />
         <h2 className="text-base font-bold text-slate-800">Setting up Fresher Workspace...</h2>
         <p className="text-xs text-slate-500 mt-1">Loading your profile preferences</p>
       </div>

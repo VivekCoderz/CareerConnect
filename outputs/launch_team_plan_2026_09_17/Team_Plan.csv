@@ -1,0 +1,7 @@
+﻿Member,Proposed role,Owns at launch,First action this week,Review partner
+Ram,Product + launch owner,"Scope, verified supply, policy/support copy, pilot sign-off",Freeze launch scope and acceptance checklist; line up real employer listings,Tripti
+Vivek,Backend + application flow,"Listings APIs, application state, search/recommendation reliability",Audit publish → discover → apply → review API path and prioritize blockers,Imran
+Sneha,Candidate frontend,"Job/internship discovery, application UX, launch navigation",Map candidate journey on mobile and remove paid-course entry points,Tripti
+Tripti,QA + release quality,"End-to-end tests, accessibility, security regression, pilot triage",Write test matrix for sign-up → search → resume → apply → status,Ram
+Yug,Resume personalization,"Resume builder, job-specific tailoring, preview/export, fallbacks",Define job-to-resume flow and ship one complete happy path,Sneha
+Imran,Infrastructure + performance,"CI/staging, monitoring, load tests, backup/rollback",Set launch environment checklist and baseline traffic test,Vivek

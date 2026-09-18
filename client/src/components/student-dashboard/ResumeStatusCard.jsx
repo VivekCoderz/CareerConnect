@@ -6,6 +6,7 @@ import { updateUserProfile } from "../../redux/features/authSlice";
 import ParsedResumeReviewModal from "../resume-builder/ParsedResumeReviewModal";
 import { updateStudentProfile } from "../../services/studentProfileService";
 import ResumeUploadInput from "../common/ResumeUploadInput";
+import { getResumeHref } from "../../utils/resumeAccess";
 
 const ResumeStatusCard = ({ resume, profile }) => {
   const navigate = useNavigate();
@@ -34,7 +35,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
 
   const handleDownload = () => {
     if (resume?.resumeUrl) {
-      window.open(resume.resumeUrl, "_blank");
+      window.open(getResumeHref(resume.resumeUrl), "_blank", "noopener,noreferrer");
     } else {
       navigate("/resume-builder");
     }

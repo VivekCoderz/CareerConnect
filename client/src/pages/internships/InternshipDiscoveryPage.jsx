@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -430,8 +431,8 @@ const InternshipDiscoveryPage = () => {
         {/* Results Content */}
         {loading ? (
           <div className="p-16 text-center bg-white rounded-3xl border border-slate-200/80 shadow-2xs">
-            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-xs font-semibold text-slate-500">Loading categorized internships from database...</p>
+            <JourneyLoader size="md" className="mx-auto mb-3" />
+            <p className="text-xs font-semibold text-slate-500">Finding internships worth exploring...</p>
           </div>
         ) : internships.length > 0 ? (
           <div className="space-y-4">

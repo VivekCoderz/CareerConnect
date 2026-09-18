@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { Navigate } from "react-router-dom";
@@ -225,7 +226,7 @@ const AdminCompanies = () => {
         {/* Companies Grid */}
         {loading ? (
           <div className="py-16 text-center">
-            <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <JourneyLoader variant="admin" size="sm" className="mx-auto mb-3" />
             <p className="text-xs text-slate-500">Querying live MongoDB company records...</p>
           </div>
         ) : companies.length === 0 ? (

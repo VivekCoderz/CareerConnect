@@ -72,6 +72,23 @@ describe('🔐 Auth Middleware — Unit Tests', () => {
       expect(next).toHaveBeenCalled();
       expect(req.user._id.toString()).toBe(user._id.toString());
     });
+
+    it('rejects a suspended user even if an existing session is present', async () => {
+      const user = await createTestUser({ isActive: false });
+      const destroy = jest.fn((callback) => callback());
+      const req = httpMocks.createRequest({
+        session: { user: { userId: user._id.toString(), authVersion: user.authVersion || 0 }, destroy },
+      });
+      const res = httpMocks.createResponse();
+      const next = jest.fn();
+
+      await protect(req, res, next);
+
+      expect(res.statusCode).toBe(403);
+      expect(JSON.parse(res._getData()).code).toBe('ACCOUNT_SUSPENDED');
+      expect(destroy).toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+    });
   });
 
   // ─── Invalid JWT ───────────────────────────────────────────────────────────

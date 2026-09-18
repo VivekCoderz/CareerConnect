@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -262,7 +263,7 @@ const EmployeeCoursesPage = ({
       {/* Loading State */}
       {loading && (
         <div className="p-12 text-center bg-white border border-slate-200 rounded-3xl">
-          <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <JourneyLoader variant="learning" size="md" className="mx-auto mb-3" />
           <p className="text-xs font-semibold text-slate-600">
             Loading your courses workspace...
           </p>

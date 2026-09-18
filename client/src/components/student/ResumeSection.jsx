@@ -4,6 +4,7 @@ import { updateStudentProfile } from "../../services/studentProfileService";
 import { parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
 import ParsedResumeReviewModal from "../resume-builder/ParsedResumeReviewModal";
 import ResumeUploadInput from "../common/ResumeUploadInput";
+import { getResumeHref } from "../../utils/resumeAccess";
 
 const ResumeSection = ({
   resume,
@@ -169,7 +170,7 @@ const ResumeSection = ({
 
           <div className="flex items-center gap-2">
             <a
-              href={resume.resumeUrl}
+              href={getResumeHref(resume.resumeUrl)}
               target="_blank"
               rel="noreferrer"
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition self-start sm:self-center"
