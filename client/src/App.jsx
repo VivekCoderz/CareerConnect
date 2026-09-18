@@ -494,7 +494,7 @@ function App() {
           {/* =================================================
               RESUME BUILDER
           ================================================= */}
-            <Route path="/resume-builder" element={<ResumeBuilder />} />
+          <Route path="/resume-builder" element={<ResumeBuilder />} />
 
           {/* ========== DEFAULT & 404 ========== */}
           <Route path="/" element={<RootRoute />} />
