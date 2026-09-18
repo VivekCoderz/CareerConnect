@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 /**
@@ -17,16 +17,38 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase app (singleton)
-const app = initializeApp(firebaseConfig);
+// Check if Firebase is properly configured with a valid API key
+const rawApiKey = firebaseConfig.apiKey;
+export const isFirebaseConfigured = Boolean(
+  rawApiKey &&
+  typeof rawApiKey === "string" &&
+  rawApiKey.trim() !== "" &&
+  !rawApiKey.includes("your-") &&
+  !rawApiKey.includes(":") &&
+  rawApiKey !== "undefined"
+);
 
-// Auth instance
-export const auth = getAuth(app);
+let app = null;
+let auth = null;
+let googleProvider = null;
 
-// Google OAuth provider
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: "select_account", // Always show account picker
-});
+if (isFirebaseConfigured) {
+  try {
+    app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    googleProvider = new GoogleAuthProvider();
+    googleProvider.setCustomParameters({
+      prompt: "select_account", // Always show account picker
+    });
+  } catch (err) {
+    console.error("[Firebase] Error initializing Firebase Auth:", err);
+  }
+} else {
+  console.warn(
+    "[Firebase] Firebase API key is missing or invalid in client/.env (VITE_FIREBASE_API_KEY).\n" +
+    "Firebase Auth / Google Sign-in will be disabled until valid credentials are configured."
+  );
+}
 
+export { auth, googleProvider };
 export default app;

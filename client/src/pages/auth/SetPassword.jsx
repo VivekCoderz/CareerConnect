@@ -107,8 +107,8 @@ const SetPassword = () => {
     setLoading(true);
 
     try {
-      let firebaseUser = auth.currentUser;
-      if (!firebaseUser && typeof auth.authStateReady === "function") {
+      let firebaseUser = auth?.currentUser;
+      if (!firebaseUser && auth && typeof auth.authStateReady === "function") {
         try {
           await auth.authStateReady();
           firebaseUser = auth.currentUser;
@@ -186,14 +186,14 @@ const SetPassword = () => {
         console.warn("[Cancel Google Signup] Backend cleanup:", err.message);
       }
 
-      const firebaseUser = auth.currentUser;
+      const firebaseUser = auth?.currentUser;
       if (firebaseUser && deletedOnServer) {
         try {
           await firebaseUser.delete();
         } catch {
-          await signOut(auth);
+          if (auth) await signOut(auth);
         }
-      } else {
+      } else if (auth) {
         await signOut(auth);
       }
     } finally {

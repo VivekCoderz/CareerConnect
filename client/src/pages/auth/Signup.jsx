@@ -292,6 +292,13 @@ const Signup = () => {
 
   // ─── Google Candidate Sign-Up ────────────────────────────────────────────────
   const handleGoogleSignup = async () => {
+    if (!auth || !googleProvider) {
+      setGoogleError(
+        "Google Sign-In is unavailable because Firebase API keys are not configured in client/.env"
+      );
+      return;
+    }
+
     setGoogleLoading(true);
     setGoogleError("");
     dispatch(clearMessages());
