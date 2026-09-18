@@ -77,14 +77,13 @@ describe('🔒 Security & RBAC — Integration Tests', () => {
 
   // ─── Input Sanitization / XSS ─────────────────────────────────────────
   describe('Input Sanitization', () => {
-    it('❌ should handle XSS-like email input without crash', async () => {
-      const res = await request(app)
-        .post('/api/auth/check-email')
-        .send({ email: '<script>alert(1)</script>@evil.com' });
-
-      // Should not return 500. Either reject or sanitize.
-      expect(res.statusCode).not.toBe(500);
-      expect([200, 400, 422]).toContain(res.statusCode);
+    it('does not expose account-existence lookup endpoints', async () => {
+      const [email, phone] = await Promise.all([
+        request(app).post('/api/auth/check-email').send({ email: 'someone@example.com' }),
+        request(app).post('/api/auth/check-phone').send({ phone: '9876543210' }),
+      ]);
+      expect(email.statusCode).toBe(404);
+      expect(phone.statusCode).toBe(404);
     });
 
     it('❌ API should not leak stack traces in production errors', async () => {

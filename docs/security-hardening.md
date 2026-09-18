@@ -28,6 +28,22 @@
 5. Run multiple API instances behind a load balancer with enough connection capacity for expected SSE concurrency. Configure the reverse proxy to avoid buffering `/api/notifications/stream` and allow long-lived connections.
 6. Load test registration, login, notification listing, and concurrent SSE connections with realistic data and target traffic before claiming capacity for 100,000–200,000 users. Size MongoDB, SMTP throughput, API memory, and the load balancer from measured peak concurrency.
 
-Existing Cloudinary resume files may still have predictable public IDs. New uploads use random IDs, but older files need a storage migration and access policy review if resumes must be private. File signatures reject obvious mismatches; add malware scanning before serving user uploads as trusted documents.
+New Cloudinary resume uploads use authenticated delivery and an immutable asset ownership record. A signed, one-minute download is issued only to the owner or the employer for an application that used that exact resume.
+
+### Resume privacy rollout (18 September 2026)
+
+- A private backup of the affected MongoDB documents was verified before migration: 6 collections and 60 documents. It is stored outside the repository in the operator's private temporary directory. Move it to approved encrypted backup storage before that directory is cleared.
+- The migration changed 27 referenced public resumes to authenticated delivery, with no ownership conflicts or failed items. Another 23 unreferenced public resume assets were restricted. `node scripts/verify-resume-privacy.js` then found 0 legacy database references, 27 authenticated recorded assets, 0 missing assets, and 0 remaining public resume assets in the Cloudinary folder. A sampled old public URL returned HTTP 404, and a signed private download returned HTTP 200.
+- Deploy the matching server and client changes together, then verify candidate preview and employer application download using real accounts. The database migration alone does not provide the new `/api/resume/download` route to a server still running old code. Re-run `node scripts/verify-resume-privacy.js` after deployment to catch any new public uploads from old instances. Cloudinary CDN invalidation may take several minutes; previously copied public URLs can remain cached briefly. Add malware scanning before treating uploaded files as trusted documents.
+
+### MongoDB credential rotation (still required)
+
+The current MongoDB database-user password has been disclosed and must be rotated by an Atlas Project Owner or Database Access administrator. The Atlas login is held by another developer, so this step cannot be completed from this workspace yet. The account owner should:
+
+1. Generate a strong, unique replacement password in a password manager. In Atlas **Database Access**, edit the affected database user and replace its password. Do not paste either the old or new connection string into chat, an issue, or the repository.
+2. Update `MONGODB_URI` in every backend deployment secret store and in each developer's local `server/.env` through a secure channel. Restart all API instances and verify database connectivity, sign-in, and a resume download. If zero downtime matters, create a new scoped database user first, switch all deployments, then delete the old user.
+3. Remove the old credential, review Atlas database access logs and user privileges for unexpected activity, and confirm the old connection string no longer authenticates. Rotate any other secrets that were stored or shared alongside it.
+
+The public opportunity feed now has shared MongoDB request limits, a maximum of 24 concurrent distinct feed fetches per API process, same-query request coalescing, and a bounded 50-entry cache. Load-test these settings at expected peak traffic; put a rate limit at the reverse proxy or CDN as the first line of defense for a large audience.
 
 Existing pending OTPs are invalid after the schema change; users must request a fresh code. Previously shared notification read flags become per-user state, so a user may see an old announcement as unread once.

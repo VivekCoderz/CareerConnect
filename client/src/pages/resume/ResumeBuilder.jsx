@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import { getResumeHref } from "../../utils/resumeAccess";
 import {
   setTemplate,
   nextStep,
@@ -1105,7 +1106,7 @@ const ResumeBuilder = () => {
                         <div className="flex items-center gap-1.5">
                           {resItem.resumeUrl && (
                             <a
-                              href={resItem.resumeUrl}
+                              href={getResumeHref(resItem.resumeUrl)}
                               target="_blank"
                               rel="noreferrer"
                               className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-[11px] transition flex items-center gap-1 cursor-pointer"
@@ -1183,7 +1184,7 @@ const ResumeBuilder = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <a
-                    href={user.resumeUrl}
+                    href={getResumeHref(user.resumeUrl)}
                     target="_blank"
                     rel="noreferrer"
                     className="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
@@ -1252,7 +1253,7 @@ const ResumeBuilder = () => {
                   <div className="flex justify-center gap-3 pt-2">
                     {user?.resumeUrl && (
                       <a
-                        href={user.resumeUrl}
+                        href={getResumeHref(user.resumeUrl)}
                         target="_blank"
                         rel="noreferrer"
                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition"

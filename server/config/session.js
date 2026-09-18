@@ -111,6 +111,9 @@ class MongooseStore extends session.Store {
 
 const isProduction =
   process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+if (!process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET is required before enabling session authentication");
+}
 
 /**
  * Production-ready Express Session Configuration with Mongoose
@@ -121,7 +124,7 @@ const isProduction =
 const sessionMiddleware = session({
   store: new MongooseStore({ ttl: IDLE_TIMEOUT_SECONDS }),
   name: "sid", // Session cookie name
-  secret: process.env.SESSION_SECRET || "careerconnect_session_secure_key_2026",
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   rolling: true, // Resets idle expiration timer on each incoming request

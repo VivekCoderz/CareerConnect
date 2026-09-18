@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { getMyApplications, withdraw } from "../../services/applicationService";
 import recruitmentService from "../../services/recruitmentService";
 import CandidateOfferResponseModal from "../../components/student/CandidateOfferResponseModal";
+import { getResumeHref } from "../../utils/resumeAccess";
 
 export default function MyApplications({ embedded = false }) {
   const [applications, setApplications] = useState([]);
@@ -639,7 +640,7 @@ export default function MyApplications({ embedded = false }) {
                     <p className="text-slate-500 text-[11px]">Your linked document</p>
                   </div>
                   <a
-                    href={viewingAppModal.resumeUrl}
+                    href={getResumeHref(viewingAppModal.resumeUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3.5 py-1.5 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold hover:bg-blue-800 transition"
