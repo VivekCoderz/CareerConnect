@@ -2,7 +2,11 @@ require("dotenv").config({ override: true });
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+<<<<<<< HEAD
 const path = require("path");
+=======
+const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
+>>>>>>> origin/develop
 
 const authRoutes = require("./routes/authRoutes.js");
 const studentRoutes = require("./routes/studentRoutes.js");
@@ -33,11 +37,13 @@ const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
 
 const app = express();
-app.set("trust proxy", 1);
+const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+const proxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || "0", 10);
+app.set("trust proxy", Number.isInteger(proxyHops) && proxyHops >= 0 && proxyHops <= 5 ? proxyHops : 0);
 
 // Allowed origins for CORS (loaded from CLIENT_URL in .env + local development fallbacks)
-const allowedOrigins = [
-    "https://careerconnect-v1.vercel.app",
+const allowedOrigins = isProduction ? [] : [
+  "https://careerconnect-v1.vercel.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
@@ -62,11 +68,16 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (e.g., mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
+<<<<<<< HEAD
 
       const isAllowed =
         allowedOrigins.includes(origin) ||
+=======
+      
+      const isAllowed = allowedOrigins.includes(origin) || (!isProduction && (
+>>>>>>> origin/develop
         /^http:\/\/localhost:[0-9]+$/.test(origin) ||
-        /^http:\/\/127\.0\.0\.1:[0-9]+$/.test(origin);
+        /^http:\/\/127\.0\.0\.1:[0-9]+$/.test(origin)));
 
       if (isAllowed) {
         return callback(null, true);
@@ -79,10 +90,12 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: "25mb" }));
-app.use(express.urlencoded({ extended: true, limit: "25mb" }));
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+app.use(cookieOriginMiddleware(allowedOrigins, isProduction));
 
 // Base & User Profile Routes
 app.use("/api/auth", authRoutes);
@@ -95,6 +108,7 @@ app.use("/api/profile/professional", professionalRoutes);
 
 // Core LMS Course Routes
 app.use("/api/courses", courseRoutes);
+app.use("/api/courses", courseContentRoutes);
 app.use("/api/course-content", courseContentRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 
@@ -142,11 +156,23 @@ app.use((err, req, res, next) => {
   if (res.headersSent) {
     return next(err);
   }
+  if (err.code === 11000) {
+    const keys = err.keyPattern || err.keyValue || {};
+    const field = ["phone", "email", "username"].find((key) => keys[key] !== undefined);
+    const message = field === "phone"
+      ? "This mobile number is already registered with another account"
+      : field === "email"
+        ? "This email is already registered"
+        : field === "username"
+          ? "This username is already taken"
+          : "This account is already registered";
+    return res.status(409).json({ success: false, field, message });
+  }
   console.error("Server Global Error:", err);
-  const status = err.statusCode || err.status || 500;
+  const status = err.code === "LIMIT_FILE_SIZE" ? 413 : err.statusCode || err.status || 500;
   return res.status(status).json({
     success: false,
-    message: err.message || "Internal server error",
+    message: status >= 500 && isProduction ? "Internal server error" : err.message || "Internal server error",
   });
 });
 

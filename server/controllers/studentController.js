@@ -6,6 +6,7 @@ const Course = require("../models/Course");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
 const mongoose = require("mongoose")
+const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 
 // Skill benchmarks for target roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -170,6 +171,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           Internship.find({ status: "Published" })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
+            .limit(20)
             .lean(),
           Job.find({
             status: "Published",
@@ -177,6 +179,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
+            .limit(20)
             .lean(),
           Job.find({
             status: "Published",
@@ -184,6 +187,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
+            .limit(20)
             .lean(),
         ]);
         dbInternships = [...(internshipDocs || []), ...(jobInternDocs || [])];
@@ -574,7 +578,7 @@ module.exports.getStudentProfile = async (req, res, next) => {
 module.exports.updateStudentProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const updateData = req.body;
+    const updateData = sanitizeProfileUpdate(req.body);
 
     // 1. Sync User-level fields if provided
     const userUpdates = {};
@@ -614,7 +618,7 @@ module.exports.updateStudentProfile = async (req, res, next) => {
     const profile = await StudentProfile.findOneAndUpdate(
       { userId },
       { $set: updateData },
-      { new: true, upsert: true, runValidators: false }
+      { new: true, upsert: true, runValidators: true }
     ).populate("userId", "fullName email username phone profileImage socialLinks");
 
     const updatedUser = await User.findById(userId).lean();

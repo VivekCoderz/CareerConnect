@@ -1,10 +1,15 @@
+<<<<<<< HEAD
 const fs = require("fs");
 const path = require("path");
+=======
+const { publicError } = require("../utils/publicError");
+>>>>>>> origin/develop
 const Course = require("../models/Course");
 const CourseContent = require("../models/CourseContent");
 const CourseApplication = require("../models/CourseApplication");
 const CourseProgress = require("../models/CourseProgress");
 const { cloudinary } = require("../config/cloudinary");
+const fs = require("fs");
 
 // ==========================================
 // GET UPLOAD SIGNATURE FOR DIRECT-TO-CLOUD UPLOADS
@@ -268,6 +273,7 @@ const addCourseContent = async (req, res) => {
       resourceType: req.body.resourceType || (type === "video" ? "video" : "raw"),
     };
 
+<<<<<<< HEAD
     if (req.file && req.file.buffer && (type === "video" || type === "pdf")) {
       uploadData = await uploadCourseFile(
         req.file.buffer,
@@ -276,6 +282,36 @@ const addCourseContent = async (req, res) => {
         course._id,
         title
       );
+=======
+    if (type === "video" || type === "pdf") {
+      const resourceType = type === "video" ? "video" : "raw";
+
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: `careerconnect/courses/${course._id}`,
+            resource_type: resourceType,
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+
+        const fileStream = fs.createReadStream(req.file.path);
+        fileStream.on("error", reject);
+        fileStream.pipe(uploadStream);
+      });
+
+      cloudinaryData = {
+        url: result.secure_url,
+        publicId: result.public_id,
+        resourceType: result.resource_type,
+      };
+>>>>>>> origin/develop
     }
 
     // ------------------------------------------
@@ -313,8 +349,10 @@ const addCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to add course content",
-      error: error.message,
+      error: process.env.NODE_ENV === "production" ? undefined : error.message,
     });
+  } finally {
+    if (req.file?.path) await fs.promises.unlink(req.file.path).catch(() => {});
   }
 };
 
@@ -383,7 +421,7 @@ const getCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -464,6 +502,15 @@ const updateCourseContent = async (req, res) => {
 
     const { type, title, description, url, content, duration, section, order } =
       req.body;
+
+    if (url !== undefined && url !== "") {
+      try {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.protocol !== "https:" || parsedUrl.username || parsedUrl.password) throw new Error("Unsafe URL");
+      } catch (_) {
+        return res.status(400).json({ success: false, message: "A valid HTTPS content URL is required" });
+      }
+    }
 
     // ------------------------------------------
     // Validate content type if provided
@@ -567,7 +614,7 @@ const updateCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update course content",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -619,7 +666,7 @@ const deleteCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -731,7 +778,7 @@ const getStudentCourseContent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch course content",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -966,7 +1013,7 @@ const markContentComplete = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update course progress",
-      error: error.message,
+      error: publicError(error),
     });
   }
 };
@@ -1073,7 +1120,11 @@ module.exports = {
   updateCourseContent,
   deleteCourseContent,
   getStudentCourseContent,
+<<<<<<< HEAD
   streamPdfContent,
   streamVideoContent,
   markContentComplete,
+=======
+  markContentComplete
+>>>>>>> origin/develop
 };

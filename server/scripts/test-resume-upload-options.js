@@ -3,7 +3,7 @@ const FormData = require("form-data");
 const fs = require("fs");
 const path = require("path");
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = `http://localhost:${process.env.PORT || 5001}/api`;
 
 async function runResumeTests() {
   console.log("==================================================");

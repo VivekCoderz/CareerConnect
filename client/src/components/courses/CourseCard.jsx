@@ -1,4 +1,3 @@
-import React from "react";
 import {
   BookOpen,
   Sparkles,
@@ -9,6 +8,7 @@ import {
   ArrowRight,
   User,
   ShieldCheck,
+  CreditCard,
 } from "lucide-react";
 
 /**
@@ -89,7 +89,7 @@ const CourseCard = ({
         )}
 
         {/* Recommendation Badge */}
-        {recommendation && (
+        {recommendation && !["Other", "General"].includes(recommendation) && (
           <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-amber-400 text-slate-950 text-[10.5px] font-extrabold shadow-md flex items-center gap-1">
             <Sparkles size={13} className="fill-slate-950" />
             <span>{recommendation}</span>
@@ -186,7 +186,10 @@ const CourseCard = ({
           {/* Price / Fee */}
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              {price > 0 ? "Course Fee" : "Access"}
+              Course Fee
+            </span>
+            <span className="text-sm font-extrabold text-slate-900">
+              {price > 0 ? `₹${Number(price).toLocaleString("en-IN")}` : "Free"}
             </span>
             {price > 0 ? (
               <span className="text-sm font-extrabold text-slate-900">
@@ -253,16 +256,22 @@ const CourseCard = ({
                 type="button"
                 onClick={() => onApply && onApply(course)}
                 disabled={isApplying}
-                className="px-4 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs hover:shadow-md flex items-center gap-1 transition-all disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs hover:shadow-md flex items-center gap-1.5 transition-all disabled:opacity-50"
               >
-                <span>
-                  {isApplying
-                    ? "Submitting..."
-                    : price > 0
-                    ? `Apply Now (₹${price})`
-                    : "Enroll for Free"}
-                </span>
-                <ArrowRight size={14} />
+                {isApplying ? (
+                  <span>Processing...</span>
+                ) : price > 0 ? (
+                  <>
+                    <CreditCard size={13} />
+                    <span>Buy Now</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={13} />
+                    <span>Enroll Free</span>
+                  </>
+                )}
+                <ArrowRight size={13} />
               </button>
             )}
           </div>

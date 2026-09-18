@@ -6,12 +6,14 @@ import { applyOpportunity, saveOpportunity } from "../../services/studentDashboa
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { getMyAppliedIds } from "../../services/applicationService";
 
 const InternshipDiscoveryPage = () => {
   const { city: cityParam, category: categoryParam } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
+  const userId = user?._id;
 
   const [selectedOpportunityForApply, setSelectedOpportunityForApply] = useState(null);
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
@@ -31,6 +33,8 @@ const InternshipDiscoveryPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [savedIds, setSavedIds] = useState([]);
+  const [appliedStatus, setAppliedStatus] = useState({ userId: null, internshipIds: new Set() });
+  const appliedInternshipIds = appliedStatus.userId === userId ? appliedStatus.internshipIds : new Set();
   const [toast, setToast] = useState(null);
 
   // Filters State
@@ -47,6 +51,25 @@ const InternshipDiscoveryPage = () => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+    let active = true;
+    getMyAppliedIds()
+      .then((response) => {
+        if (active) setAppliedStatus((previous) => ({
+          userId,
+          internshipIds: new Set([
+            ...(response.internshipIds || []),
+            ...(previous.userId === userId ? previous.internshipIds : []),
+          ]),
+        }));
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [userId]);
 
   // Sync state when URL params change
   useEffect(() => {
@@ -189,11 +212,11 @@ const InternshipDiscoveryPage = () => {
         <div className="flex items-center gap-4">
           <Link to="/home" className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              GU
+              CC
             </div>
             <div>
               <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-                GEETA UNIVERSITY
+                CAREERCONNECT
               </h1>
               <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
                 CareerConnect · Internship Hub
@@ -253,7 +276,7 @@ const InternshipDiscoveryPage = () => {
               <span className="px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 text-[11px] font-bold">
                 🎯 {totalCount} Opportunities Found
               </span>
-              <span className="text-xs text-blue-200/80">· Verified Geeta University Partner Employers</span>
+              <span className="text-xs text-blue-200/80">· Verified CareerConnect Partner Employers</span>
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -483,7 +506,11 @@ const InternshipDiscoveryPage = () => {
                       {isSaved ? "★ Saved" : "☆ Save"}
                     </button>
 
-                    {intItem.applyLink ? (
+                    {appliedInternshipIds.has(String(intItem._id || intItem.id)) ? (
+                      <button type="button" disabled className="px-5 py-2.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
+                        ✓ Applied
+                      </button>
+                    ) : intItem.applyLink ? (
                       <a
                         href={intItem.applyLink}
                         target="_blank"
@@ -598,6 +625,11 @@ const InternshipDiscoveryPage = () => {
         opportunity={selectedOpportunityForApply}
         opportunityType="Internship"
         onApplicationSubmitted={() => {
+          const appliedId = selectedOpportunityForApply?._id || selectedOpportunityForApply?.id;
+          if (appliedId) setAppliedStatus((previous) => ({
+            userId,
+            internshipIds: new Set(previous.userId === userId ? previous.internshipIds : []).add(String(appliedId)),
+          }));
           showToast(`Application submitted for "${selectedOpportunityForApply?.title || "internship"}"!`, "success");
         }}
       />

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import BrandLogo from "../common/BrandLogo";
 
 const ProfessionalHeader = ({
   user,
@@ -43,7 +44,9 @@ const ProfessionalHeader = ({
   const navLinks = [
     { id: "dashboard", label: "Dashboard", isTab: true },
     { id: "opportunities", label: "Opportunities", isTab: true },
-    { id: "growth", label: "Career Growth", isTab: true },
+    { id: "jobs", label: "Jobs", isTab: true },
+    { id: "courses", label: "Courses", isTab: true },
+    { id: "interviews", label: "Interviews", isTab: true },
     { id: "applications", label: "Applications", isTab: true },
     { id: "profile", label: "Profile", link: "/professional/profile" },
   ];
@@ -81,12 +84,8 @@ const ProfessionalHeader = ({
 
           {/* Logo */}
           <Link to="/professional/dashboard" className="flex items-center gap-2.5 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-purple-600 flex items-center justify-center font-bold text-white shadow-md shadow-purple-600/30 text-base">
-              C
-            </div>
-            <span className="font-bold text-slate-900 tracking-tight text-lg hidden sm:inline">
-              CareerConnect
-            </span>
+            <BrandLogo markOnly className="w-9 h-9 sm:hidden" />
+            <BrandLogo className="hidden h-9 w-44 sm:block" />
           </Link>
 
           {/* Navigation Links */}

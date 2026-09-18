@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { updateUserProfile } from "../../redux/features/authSlice";
+import BrandLogo from "../../components/common/BrandLogo";
 import {
   getFresherProfile,
   updateFresherProfile,
@@ -562,14 +563,11 @@ const FresherProfile = () => {
       {/* Top Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link to="/fresher/dashboard" className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-base shadow-sm">
-              GU
-            </div>
-            <div>
-              <p className="text-sm font-bold text-[#1e3a8a] tracking-tight">GEETA UNIVERSITY</p>
-              <p className="text-[10px] text-[#f59e0b] font-semibold tracking-wider uppercase">CareerConnect · Fresher Profile</p>
-            </div>
+          <Link to="/fresher/dashboard" className="flex items-center gap-2">
+            <BrandLogo className="h-9 w-44" />
+            <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase bg-blue-100 text-blue-800 rounded-md">
+              Fresher Profile
+            </span>
           </Link>
 
           <Link
@@ -743,7 +741,7 @@ const FresherProfile = () => {
                           type="text"
                           value={edu.institution}
                           onChange={(e) => handleEducationChange(idx, "institution", e.target.value)}
-                          placeholder="e.g. Geeta University / ABC Institute"
+                          placeholder="e.g. CareerConnect / ABC Institute"
                           className={`w-full h-11 px-3.5 rounded-xl border bg-white text-sm outline-none focus:ring-2 ${
                             fieldErrors[`edu_${idx}_institution`]
                               ? "border-red-400 focus:ring-red-100"

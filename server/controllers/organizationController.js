@@ -3,6 +3,17 @@ const Department = require("../models/Department");
 const TrainingAssignment = require("../models/TrainingAssignment");
 const EmployerProfile = require("../models/EmployerProfile");
 const Course = require("../models/Course");
+const mongoose = require("mongoose");
+const { escapeRegex } = require("../utils/listingSecurity");
+
+const employeeFields = new Set([
+  "fullName", "email", "phone", "designation", "department", "team",
+  "roleInCompany", "skills", "joinedDate", "status", "avatar",
+]);
+const getPage = (query) => ({
+  page: Math.max(1, Math.min(1000, Number.parseInt(query.page, 10) || 1)),
+  limit: Math.max(1, Math.min(200, Number.parseInt(query.limit, 10) || 50)),
+});
 
 const getEmployerProfileId = async (user) => {
   let profile = await EmployerProfile.findOne({ userId: user._id });
@@ -23,22 +34,34 @@ exports.getEmployees = async (req, res, next) => {
     const employerId = await getEmployerProfileId(req.user);
     const { department, status, search } = req.query;
 
+    if ((department && typeof department !== "string") ||
+        (status && typeof status !== "string") ||
+        (search && typeof search !== "string")) {
+      return res.status(400).json({ success: false, message: "Invalid employee filter" });
+    }
+
     const query = { employerId };
     if (department && department !== "All") query.department = department;
     if (status && status !== "All") query.status = status;
-    if (search) {
+    if (typeof search === "string" && search.trim()) {
+      const term = escapeRegex(search.trim());
       query.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { designation: { $regex: search, $options: "i" } },
+        { fullName: { $regex: term, $options: "i" } },
+        { email: { $regex: term, $options: "i" } },
+        { designation: { $regex: term, $options: "i" } },
       ];
     }
 
-    const employees = await Employee.find(query).sort({ createdAt: -1 });
+    const { page, limit } = getPage(req.query);
+    const [employees, total] = await Promise.all([
+      Employee.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Employee.countDocuments(query),
+    ]);
 
     return res.status(200).json({
       success: true,
       count: employees.length,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
       employees,
     });
   } catch (error) {
@@ -94,10 +117,21 @@ exports.addEmployee = async (req, res, next) => {
 exports.updateEmployee = async (req, res, next) => {
   try {
     const employerId = await getEmployerProfileId(req.user);
+    const update = Object.fromEntries(Object.entries(req.body || {})
+      .filter(([key]) => employeeFields.has(key)));
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ success: false, message: "No editable employee fields supplied" });
+    }
+    if (update.email !== undefined) {
+      if (typeof update.email !== "string" || !update.email.trim()) {
+        return res.status(400).json({ success: false, message: "Valid email is required" });
+      }
+      update.email = update.email.trim().toLowerCase();
+    }
     const employee = await Employee.findOneAndUpdate(
       { _id: req.params.id, employerId },
-      req.body,
-      { new: true }
+      { $set: update },
+      { returnDocument: "after", runValidators: true }
     );
 
     if (!employee) {
@@ -118,8 +152,9 @@ exports.updateEmployee = async (req, res, next) => {
 exports.deleteEmployee = async (req, res, next) => {
   try {
     const employerId = await getEmployerProfileId(req.user);
-    await Employee.findOneAndDelete({ _id: req.params.id, employerId });
-    await TrainingAssignment.deleteMany({ employeeId: req.params.id });
+    const employee = await Employee.findOneAndDelete({ _id: req.params.id, employerId });
+    if (!employee) return res.status(404).json({ success: false, message: "Employee not found" });
+    await TrainingAssignment.deleteMany({ employerId, employeeId: employee._id });
 
     return res.status(200).json({
       success: true,
@@ -191,14 +226,18 @@ exports.createDepartment = async (req, res, next) => {
 exports.getTrainingAssignments = async (req, res, next) => {
   try {
     const employerId = await getEmployerProfileId(req.user);
-    const assignments = await TrainingAssignment.find({ employerId })
+    const { page, limit } = getPage(req.query);
+    const [assignments, total] = await Promise.all([TrainingAssignment.find({ employerId })
       .populate("courseId", "title domain category duration durationUnit thumbnail skills")
       .populate("employeeId", "fullName email designation department team")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+      TrainingAssignment.countDocuments({ employerId }),
+    ]);
 
     return res.status(200).json({
       success: true,
       count: assignments.length,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
       assignments,
     });
   } catch (error) {
@@ -219,41 +258,60 @@ exports.assignTraining = async (req, res, next) => {
       });
     }
 
-    if (assignedToType === "Department" && departmentName) {
-      const employees = await Employee.find({ employerId, department: departmentName });
-      const createdAssignments = [];
+    const due = new Date(deadline);
+    if (!mongoose.Types.ObjectId.isValid(courseId) || Number.isNaN(due.getTime()) || due <= new Date() ||
+        !["Employee", "Department", "Team", undefined].includes(assignedToType)) {
+      return res.status(400).json({ success: false, message: "Invalid course, assignment type, or deadline" });
+    }
+    const course = await Course.findOne({
+      _id: courseId, $or: [{ status: "Published" }, { createdBy: req.user._id }],
+    }).select("_id").lean();
+    if (!course) return res.status(404).json({ success: false, message: "Course not available" });
 
-      for (const emp of employees) {
-        const assignment = await TrainingAssignment.create({
+    if (assignedToType === "Department" || assignedToType === "Team") {
+      const name = assignedToType === "Department" ? departmentName : teamName;
+      if (typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ success: false, message: "Department or team is required" });
+      }
+      const employees = await Employee.find({ employerId, [assignedToType === "Department" ? "department" : "team"]: name.trim() })
+        .select("_id").limit(501).lean();
+      if (employees.length > 500) {
+        return res.status(400).json({ success: false, message: "Assign training in batches of 500 or fewer employees" });
+      }
+      const createdAssignments = await TrainingAssignment.insertMany(employees.map((emp) => ({
           employerId,
           courseId,
-          assignedToType: "Department",
+          assignedToType,
           employeeId: emp._id,
-          departmentName,
+          departmentName: assignedToType === "Department" ? name.trim() : "",
+          teamName: assignedToType === "Team" ? name.trim() : "",
           assignedBy: req.user._id,
-          deadline: new Date(deadline),
+          deadline: due,
           status: "Assigned",
-        });
-        createdAssignments.push(assignment);
-      }
+      })));
 
       return res.status(201).json({
         success: true,
-        message: `Course assigned to all ${employees.length} employees in ${departmentName}`,
+        message: `Course assigned to ${employees.length} employees in ${name.trim()}`,
         assignments: createdAssignments,
       });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(employeeId) ||
+        !(await Employee.exists({ _id: employeeId, employerId }))) {
+      return res.status(404).json({ success: false, message: "Employee not found in your organization" });
     }
 
     // Single employee assignment
     const assignment = await TrainingAssignment.create({
       employerId,
       courseId,
-      assignedToType: assignedToType || "Employee",
-      employeeId: employeeId || null,
-      departmentName: departmentName || "",
-      teamName: teamName || "",
+      assignedToType: "Employee",
+      employeeId,
+      departmentName: "",
+      teamName: "",
       assignedBy: req.user._id,
-      deadline: new Date(deadline),
+      deadline: due,
       status: "Assigned",
     });
 

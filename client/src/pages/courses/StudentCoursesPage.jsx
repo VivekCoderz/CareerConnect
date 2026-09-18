@@ -1,24 +1,27 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import BrandLogo from "../../components/common/BrandLogo";
 import {
   Search,
   Sparkles,
   BookOpen,
-  Clock,
-  Layers,
   AlertCircle,
   X,
   ArrowRight,
   ShieldCheck,
-  GraduationCap,
   ArrowLeft,
+  ChevronRight,
+  Award,
 } from "lucide-react";
 import api from "../../api/api";
 import CourseCard from "../../components/courses/CourseCard";
 import StudentMyCoursesPage from "./StudentMyCoursesPage";
 import CourseDetailsPage from "./CourseDetailsPage";
+import { loadRazorpayScript } from "../../utils/razorpay";
+import { createCourseOrder, verifyCoursePayment } from "../../services/paymentService";
+import PaymentReceiptModal from "../../components/courses/PaymentReceiptModal";
 
 /**
  * StudentCoursesPage
@@ -26,7 +29,7 @@ import CourseDetailsPage from "./CourseDetailsPage";
  * Integrates directly inside the existing CareerConnect Student Dashboard framework.
  * (No duplicate inner navbar, notification bell, profile header, or logout button).
  */
-const StudentCoursesPage = ({ onViewDetails }) => {
+const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = false }) => {
 
   // Navigation tab state: "recommended" | "my-courses" | "all" | "details"
   const [activeTab, setActiveTab] = useState("recommended");
@@ -37,9 +40,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   const [allCourses, setAllCourses] = useState([]);
   const [myApplications, setMyApplications] = useState([]);
   const [applicationStatusMap, setApplicationStatusMap] = useState({});
-  const [studentProfile, setStudentProfile] = useState(null);
 
-  const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -56,6 +57,11 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   const [applicationMotivation, setApplicationMotivation] = useState("");
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
 
+  // Razorpay Checkout / Receipt state
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
+
   // Toast state
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -64,72 +70,174 @@ const StudentCoursesPage = ({ onViewDetails }) => {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Fetch Recommended Courses, Catalog, Enrolled Applications, and Profile
-  const fetchAllLmsData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const showMyCourses = () => {
+    if (onNavigateToMyCourses) onNavigateToMyCourses();
+    else setActiveTab("my-courses");
+  };
 
-      // Fetch recommended courses from backend
-      const recRes = await api.get("/courses/recommended").catch(() => null);
-      if (recRes?.data?.success) {
-        setRecommendedCourses(recRes.data.courses || []);
-        if (recRes.data.studentProfile) {
-          setStudentProfile(recRes.data.studentProfile);
-        }
-      }
-
-      // Fetch student's profile info if not populated yet
-      const profRes = await api.get("/student/profile").catch(() => null);
-      if (profRes?.data?.success && profRes.data.profile) {
-        setStudentProfile(profRes.data.profile);
-      }
-
-      // Fetch catalog for "All Courses"
-      const catalogRes = await api.get("/employer/learning/courses").catch(() => null);
+  // Load independent catalog, recommendations, and enrollment data together.
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      api.get("/courses/recommended").catch(() => null),
+      api.get("/courses/catalog").catch(() => null),
+      api.get("/student/courses").catch(() => null),
+    ]).then(([recRes, catalogRes, myRes]) => {
+      if (!active) return;
+      if (recRes?.data?.success) setRecommendedCourses(recRes.data.courses || []);
       if (catalogRes?.data?.courses) {
-        setAllCourses(catalogRes.data.courses.filter((c) => c.status === "Published"));
+        setAllCourses(catalogRes.data.courses.filter((course) => course.status === "Published"));
       }
-
-      // Fetch student's applications / enrolled courses to populate application status map
-      const myRes = await api.get("/student/courses").catch(() => null);
       if (myRes?.data?.success && myRes.data.courses) {
-        const apps = myRes.data.courses || [];
-        setMyApplications(apps);
-
+        const applications = myRes.data.courses;
+        setMyApplications(applications);
         const statusMap = {};
-        apps.forEach((item) => {
-          if (item.course?._id) {
-            statusMap[item.course._id] = item.status || "Applied";
-          }
+        applications.forEach((item) => {
+          if (item.course?._id) statusMap[item.course._id] = item.status || "Applied";
         });
         setApplicationStatusMap(statusMap);
       }
-    } catch (err) {
+    }).catch((err) => {
+      if (!active) return;
       console.error("Fetch Student LMS Data Error:", err);
       setError("Failed to load course catalog data.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAllLmsData();
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
   }, []);
 
-  // Open Application Form Modal
-  const handleOpenApplyModal = (course) => {
-    // Double check status before opening
+  // Handle direct buy or free enrollment from course cards
+  const handleEnrollOrBuyCourse = async (course) => {
     const currentStatus = applicationStatusMap[course._id];
-    if (currentStatus) {
-      showToast(`You have already applied for this course (Status: ${currentStatus}).`, "info");
+    if (currentStatus === "Enrolled" || currentStatus === "In Progress" || currentStatus === "Completed") {
+      showToast("You are already enrolled in this course.", "info");
+      showMyCourses();
       return;
     }
 
-    setSelectedCourseForApply(course);
-    setApplicationMotivation(
-      `I want to enroll in "${course.title}" to build hands-on skills in ${course.domain || "technology"} and advance my career readiness.`
-    );
+    try {
+      setIsProcessingCheckout(true);
+
+      // 1. Free Course -> Direct Enrollment
+      if (!course.price || course.price <= 0) {
+        const orderRes = await createCourseOrder(course._id);
+        if (orderRes.success) {
+          showToast("Enrolled in free course successfully!", "success");
+          setApplicationStatusMap((prev) => ({
+            ...prev,
+            [course._id]: "Enrolled",
+          }));
+          setMyApplications((prev) => [
+            {
+              applicationId: `enr-${Date.now()}`,
+              course,
+              status: "Enrolled",
+              progress: 0,
+            },
+            ...prev.filter((i) => i.course?._id !== course._id),
+          ]);
+          setReceiptData({
+            isFree: true,
+            amount: 0,
+            courseTitle: course.title,
+            courseId: course._id,
+            paidAt: new Date(),
+          });
+          setShowReceiptModal(true);
+        }
+        return;
+      }
+
+      // 2. Paid Course -> Razorpay Checkout
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        showToast("Unable to load Razorpay payment gateway.", "error");
+        return;
+      }
+
+      const orderRes = await createCourseOrder(course._id);
+      if (!orderRes.success) {
+        showToast(orderRes.message || "Failed to initiate payment.", "error");
+        return;
+      }
+
+      const options = {
+        key: orderRes.keyId || "rzp_test_TbSS4kb8G70xwq",
+        amount: orderRes.amount,
+        currency: orderRes.currency || "INR",
+        name: "CareerConnect",
+        description: `Enrollment: ${course.title}`,
+        image: "/favicon.svg",
+        order_id: orderRes.orderId,
+        handler: async function (response) {
+          try {
+            const verifyRes = await verifyCoursePayment({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+              courseId: course._id,
+            });
+
+            if (verifyRes.success) {
+              showToast("Payment verified! Course unlocked.", "success");
+              setApplicationStatusMap((prev) => ({
+                ...prev,
+                [course._id]: "Enrolled",
+              }));
+              setMyApplications((prev) => [
+                {
+                  applicationId: verifyRes.payment?.id || `enr-${Date.now()}`,
+                  course,
+                  status: "Enrolled",
+                  progress: 0,
+                },
+                ...prev.filter((i) => i.course?._id !== course._id),
+              ]);
+              setReceiptData({
+                paymentId: response.razorpay_payment_id,
+                orderId: response.razorpay_order_id,
+                amount: course.price,
+                courseTitle: course.title,
+                courseId: course._id,
+                paidAt: new Date(),
+              });
+              setShowReceiptModal(true);
+            }
+          } catch (err) {
+            console.error("Payment verification failed:", err);
+            showToast(err.response?.data?.message || "Payment verification failed.", "error");
+          } finally {
+            setIsProcessingCheckout(false);
+          }
+        },
+        prefill: {
+          name: orderRes.prefill?.name || user?.fullName || "",
+          email: orderRes.prefill?.email || user?.email || "",
+          contact: orderRes.prefill?.contact || user?.phone || "",
+        },
+        theme: {
+          color: "#1e3a8a",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessingCheckout(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (response) {
+        showToast(`Payment failed: ${response.error.description || "Declined"}`, "error");
+        setIsProcessingCheckout(false);
+      });
+      rzp.open();
+    } catch (err) {
+      console.error("Payment error:", err);
+      showToast(err.response?.data?.message || "Failed to start payment.", "error");
+    } finally {
+      setIsProcessingCheckout(false);
+    }
   };
 
   // Submit Application Form Modal
@@ -198,7 +306,9 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   };
 
   // Active list based on tab
-  const currentCourseList = activeTab === "all" ? allCourses : recommendedCourses;
+  const currentCourseList = activeTab === "all" || recommendedCourses.length === 0
+    ? allCourses
+    : recommendedCourses;
 
   // Filter courses by search & domain/level
   const filteredCourses = currentCourseList.filter((course) => {
@@ -220,17 +330,13 @@ const StudentCoursesPage = ({ onViewDetails }) => {
     return matchesSearch && matchesDomain && matchesLevel;
   });
 
-  // Reset page to 1 when filters or tabs change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedDomain, selectedLevel, activeTab]);
-
   const totalPages = Math.ceil(filteredCourses.length / PAGE_SIZE) || 1;
-  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const visiblePage = Math.min(currentPage, totalPages);
+  const startIndex = (visiblePage - 1) * PAGE_SIZE;
   const paginatedCourses = filteredCourses.slice(startIndex, startIndex + PAGE_SIZE);
 
   const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== visiblePage) {
       setCurrentPage(newPage);
       window.scrollTo({ top: 300, behavior: "smooth" });
     }
@@ -247,49 +353,120 @@ const StudentCoursesPage = ({ onViewDetails }) => {
   };
 
   const studentName = user?.fullName || user?.name || "Student";
-  const studentSkillsList = [
-    ...(studentProfile?.technicalSkills || []),
-    ...(studentProfile?.softSkills || []),
-  ].filter(Boolean);
+  const dashboardPath = getDashboardPath(user?.userType || user?.role, user);
+  const enrolledCount = myApplications.filter((item) =>
+    ["Enrolled", "In Progress", "Completed"].includes(item.status)
+  ).length;
 
   return (
-    <div className="space-y-6">
+    <div className={embedded ? "space-y-7" : "min-h-screen bg-[#f5f7fc] text-slate-900"}>
+      {!embedded && (
+        <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
+          <div className="mx-auto flex h-17 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+            <Link to={dashboardPath} className="flex min-w-0 items-center gap-3">
+              <BrandLogo markOnly className="h-9 w-11 shrink-0 sm:hidden" />
+              <BrandLogo className="hidden h-9 w-44 shrink-0 sm:block" />
+              <span className="hidden border-l border-slate-200 pl-3 text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600 md:inline">Learning hub</span>
+            </Link>
+            <div className="flex items-center gap-2">
+              <Link to={dashboardPath} className="hidden items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 sm:inline-flex">
+                <ArrowLeft size={15} /> Dashboard
+              </Link>
+              <button type="button" onClick={showMyCourses} className="inline-flex items-center gap-2 rounded-xl bg-[#213f94] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#182e72]">
+                <BookOpen size={15} /> My learning
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
+
+      <div className={embedded ? "space-y-7" : "mx-auto max-w-7xl space-y-8 px-4 py-7 sm:px-6 sm:py-9 lg:px-8"}>
+      {!embedded && (
+        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+          <Link to={dashboardPath} className="hover:text-[#213f94]">Dashboard</Link>
+          <ChevronRight size={14} className="text-slate-300" />
+          <span className="text-[#213f94]">Learning hub</span>
+        </nav>
+      )}
+
+      <section className="relative isolate overflow-hidden rounded-[30px] bg-gradient-to-br from-[#101d46] via-[#252467] to-[#5633a9] px-6 py-8 text-white shadow-xl shadow-indigo-950/10 sm:px-9 sm:py-10 lg:px-12">
+        <div className="pointer-events-none absolute -right-16 -top-28 h-80 w-80 rounded-full border-[44px] border-white/10" />
+        <div className="pointer-events-none absolute bottom-[-7rem] right-44 h-64 w-64 rounded-full bg-fuchsia-400/20 blur-3xl" />
+        <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(270px,0.75fr)] lg:items-end">
+          <div className="max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-indigo-100">
+              <Sparkles size={14} className="text-amber-300" /> CareerConnect learning
+            </span>
+            <h1 className="mt-5 text-3xl font-black leading-tight tracking-tight sm:text-4xl lg:text-[44px]">
+              Build the skills for your next opportunity.
+            </h1>
+            <p className="mt-4 max-w-xl text-sm leading-6 text-indigo-100/90 sm:text-base">
+              Hi {studentName.split(" ")[0]}, explore courses that fit your goals, learn at your pace, and track everything in one place.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button type="button" onClick={() => { setActiveTab("all"); setCurrentPage(1); }} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-extrabold text-[#263875] shadow-sm transition hover:bg-indigo-50">
+                Explore all courses <ArrowRight size={15} />
+              </button>
+              <button type="button" onClick={showMyCourses} className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-3 text-xs font-bold text-white transition hover:bg-white/20">
+                My learning <BookOpen size={15} />
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur-md sm:gap-3 lg:grid-cols-1">
+            {[
+              { icon: BookOpen, value: allCourses.length, label: "Courses to explore" },
+              { icon: Sparkles, value: recommendedCourses.length, label: "Picked for you" },
+              { icon: Award, value: enrolledCount, label: "In your learning" },
+            ].map(({ icon: Icon, value, label }) => (
+              <div key={label} className="flex flex-col gap-1 rounded-xl bg-white/10 p-3 sm:p-4 lg:flex-row lg:items-center lg:gap-3">
+                <span className="hidden h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-amber-200 sm:flex"><Icon size={18} /></span>
+                <span className="text-xl font-black leading-none sm:text-2xl">{value}</span>
+                <span className="text-[10px] font-medium leading-tight text-indigo-100 sm:text-xs">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ================= PAGE CONTROL & NAVIGATION TABS ================= */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Student Courses & Learning Hub
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Explore recommended LMS courses, apply for enrollments, and complete video/notes curriculum.
+          <h2 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">Explore learning</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Find a course, check the details, and keep track of your progress.
           </p>
         </div>
 
         {/* Course View Tabs */}
-        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80">
+        <div role="tablist" aria-label="Course views" className="flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
           <button
             type="button"
             onClick={() => {
               setActiveTab("recommended");
               setSelectedCourseId(null);
+              setCurrentPage(1);
             }}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            role="tab"
+            aria-selected={activeTab === "recommended"}
+            className={`whitespace-nowrap px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeTab === "recommended"
                 ? "bg-[#1e3a8a] text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <Sparkles size={14} className="text-amber-400" />
-            <span>Recommended Courses</span>
+            <span>For you</span>
           </button>
 
           <button
             type="button"
             onClick={() => {
-              setActiveTab("my-courses");
+              showMyCourses();
               setSelectedCourseId(null);
             }}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            role="tab"
+            aria-selected={activeTab === "my-courses"}
+            className={`whitespace-nowrap px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeTab === "my-courses"
                 ? "bg-[#1e3a8a] text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
@@ -304,8 +481,11 @@ const StudentCoursesPage = ({ onViewDetails }) => {
             onClick={() => {
               setActiveTab("all");
               setSelectedCourseId(null);
+              setCurrentPage(1);
             }}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            role="tab"
+            aria-selected={activeTab === "all"}
+            className={`whitespace-nowrap px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeTab === "all"
                 ? "bg-[#1e3a8a] text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
@@ -327,51 +507,25 @@ const StudentCoursesPage = ({ onViewDetails }) => {
         />
       ) : (
         <>
-          {/* ================= WELCOME BANNER ================= */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-indigo-900 text-white shadow-md relative overflow-hidden">
-            <div className="relative z-10 max-w-3xl space-y-2">
-              <span className="px-3 py-1 rounded-full bg-white/20 text-[11px] font-extrabold text-amber-300 uppercase tracking-wider border border-white/20 inline-flex items-center gap-1.5">
-                <Sparkles size={13} /> CareerConnect Skill Recommendations
-              </span>
-
-              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Welcome back, {studentName} 👋
-              </h2>
-
-              <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed">
-                {studentSkillsList.length > 0 ? (
-                  <>
-                    Recommended courses matched against your profile skills (
-                    <span className="text-amber-300 font-bold">
-                      {studentSkillsList.slice(0, 4).join(", ")}
-                    </span>
-                    ). Apply for courses to unlock video lectures, study notes, and certificates.
-                  </>
-                ) : (
-                  "Explore top LMS courses designed to build job-ready skills and earn industry credentials."
-                )}
-              </p>
-            </div>
-          </div>
-
           {/* ================= SEARCH & FILTER TOOLBAR ================= */}
-          <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3 sm:space-y-0 sm:flex sm:items-center justify-between gap-4">
+          <div className="space-y-3 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-4 sm:space-y-0 sm:p-5">
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-3 text-slate-400" size={16} />
+              <Search className="absolute left-4 top-3.5 text-slate-400" size={18} />
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search courses by skill, title, category, or domain..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                placeholder="Search a course, skill, or topic"
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-11 pr-4 text-sm font-medium outline-none transition-all focus:border-[#1e3a8a] focus:bg-white focus:ring-4 focus:ring-blue-100"
               />
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
               <select
                 value={selectedDomain}
-                onChange={(e) => setSelectedDomain(e.target.value)}
-                className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white outline-none focus:border-[#1e3a8a] text-slate-700"
+                onChange={(e) => { setSelectedDomain(e.target.value); setCurrentPage(1); }}
+                aria-label="Filter by domain"
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 outline-none focus:border-[#1e3a8a]"
               >
                 {domainList.map((d) => (
                   <option key={d} value={d}>
@@ -382,8 +536,9 @@ const StudentCoursesPage = ({ onViewDetails }) => {
 
               <select
                 value={selectedLevel}
-                onChange={(e) => setSelectedLevel(e.target.value)}
-                className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white outline-none focus:border-[#1e3a8a] text-slate-700"
+                onChange={(e) => { setSelectedLevel(e.target.value); setCurrentPage(1); }}
+                aria-label="Filter by level"
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 outline-none focus:border-[#1e3a8a]"
               >
                 <option value="All">Level: All</option>
                 <option value="beginner">Beginner</option>
@@ -394,12 +549,13 @@ const StudentCoursesPage = ({ onViewDetails }) => {
           </div>
 
           {/* Section Header */}
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+            <h3 className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-slate-900">
               {activeTab === "recommended" ? (
                 <>
-                  <Sparkles size={18} className="text-amber-500" />
-                  <span>Recommended Courses</span>
+                  <Sparkles size={19} className="text-violet-600" />
+                  <span>{recommendedCourses.length > 0 ? "Picked for you" : "Start exploring"}</span>
                 </>
               ) : (
                 <>
@@ -408,8 +564,14 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                 </>
               )}
             </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {activeTab === "recommended" && recommendedCourses.length > 0
+                ? "Course suggestions based on your learning profile."
+                : "Browse the published courses available right now."}
+            </p>
+            </div>
 
-            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+            <span className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700">
               {filteredCourses.length > 0
                 ? `Showing ${startIndex + 1}–${Math.min(startIndex + PAGE_SIZE, filteredCourses.length)} of ${filteredCourses.length} Courses`
                 : "0 Courses Available"}
@@ -434,12 +596,19 @@ const StudentCoursesPage = ({ onViewDetails }) => {
 
           {/* Course Grid */}
           {!loading && filteredCourses.length === 0 ? (
-            <div className="p-12 text-center bg-white border border-slate-200 rounded-3xl space-y-2">
-              <BookOpen size={36} className="mx-auto text-slate-300" />
-              <h4 className="text-base font-bold text-slate-800">No courses match your filter</h4>
-              <p className="text-xs text-slate-500">
-                Try adjusting your search query or switching domain filter.
+            <div className="rounded-3xl border border-dashed border-indigo-200 bg-white px-6 py-14 text-center shadow-sm">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600"><BookOpen size={27} /></span>
+              <h4 className="mt-5 text-lg font-bold text-slate-900">No courses found</h4>
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
+                {searchQuery || selectedDomain !== "All" || selectedLevel !== "All"
+                  ? "Try a different search or clear your filters to see more courses."
+                  : "New courses are on their way. Check back soon for fresh learning opportunities."}
               </p>
+              {(searchQuery || selectedDomain !== "All" || selectedLevel !== "All") && (
+                <button type="button" onClick={() => { setSearchQuery(""); setSelectedDomain("All"); setSelectedLevel("All"); }} className="mt-5 rounded-xl bg-[#213f94] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#182e72]">
+                  Clear filters
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-6">
@@ -451,12 +620,16 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                     matchedSkills={course.matchedSkills || []}
                     applicationStatus={getCourseStatus(course._id)}
                     onViewDetails={(id) => {
-                      setSelectedCourseId(id);
-                      setActiveTab("details");
+                      if (onViewDetails) onViewDetails(id);
+                      else {
+                        setSelectedCourseId(id);
+                        setActiveTab("details");
+                      }
                     }}
-                    onApply={(c) => handleOpenApplyModal(c)}
+                    onApply={(c) => handleEnrollOrBuyCourse(c)}
+                    isApplying={isProcessingCheckout}
                     onContinueLearning={() => {
-                      setActiveTab("my-courses");
+                      showMyCourses();
                     }}
                   />
                 ))}
@@ -466,14 +639,14 @@ const StudentCoursesPage = ({ onViewDetails }) => {
               {totalPages > 1 && (
                 <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
                   <p className="text-xs font-semibold text-slate-500">
-                    Page <span className="text-slate-900 font-bold">{currentPage}</span> of{" "}
+                    Page <span className="text-slate-900 font-bold">{visiblePage}</span> of{" "}
                     <span className="text-slate-900 font-bold">{totalPages}</span>
                   </p>
 
                   <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage <= 1}
+                      onClick={() => handlePageChange(visiblePage - 1)}
+                      disabled={visiblePage <= 1}
                       className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
                     >
                       ← Previous
@@ -481,7 +654,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
 
                     <div className="flex items-center gap-1">
                       {Array.from({ length: totalPages }, (_, i) => i + 1)
-                        .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .filter((p) => p === 1 || p === totalPages || Math.abs(p - visiblePage) <= 1)
                         .reduce((acc, p, idx, arr) => {
                           if (idx > 0 && p - arr[idx - 1] > 1) {
                             acc.push("...");
@@ -499,7 +672,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                               key={p}
                               onClick={() => handlePageChange(p)}
                               className={`min-w-[36px] h-9 px-2.5 rounded-xl text-xs font-bold transition ${
-                                currentPage === p
+                                visiblePage === p
                                   ? "bg-[#1e3a8a] text-white shadow-xs"
                                   : "text-slate-600 hover:bg-slate-100"
                               }`}
@@ -511,8 +684,8 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                     </div>
 
                     <button
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage >= totalPages}
+                      onClick={() => handlePageChange(visiblePage + 1)}
+                      disabled={visiblePage >= totalPages}
                       className="px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
                     >
                       Next →
@@ -569,7 +742,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
                   <label className="font-bold text-slate-700 block mb-1">Email Address</label>
                   <input
                     type="email"
-                    value={user?.email || "student@geetauniversity.edu.in"}
+                    value={user?.email || "student@careerconnect.com"}
                     disabled
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 font-semibold cursor-not-allowed"
                   />
@@ -645,6 +818,18 @@ const StudentCoursesPage = ({ onViewDetails }) => {
           <span>{toastMessage.message}</span>
         </div>
       )}
+
+      {/* Razorpay Payment Receipt / Confirmation Modal */}
+      <PaymentReceiptModal
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        receiptData={receiptData}
+        onStartLearning={() => {
+          setShowReceiptModal(false);
+          showMyCourses();
+        }}
+      />
+      </div>
     </div>
   );
 };

@@ -131,7 +131,7 @@ const EducationSection = ({ education = [], setProfile }) => {
               <label className="block text-xs font-semibold text-slate-700 mb-1">College / University *</label>
               <input
                 name="institution"
-                placeholder="e.g. Geeta University"
+                placeholder="e.g. CareerConnect"
                 value={form.institution}
                 onChange={handleChange}
                 required

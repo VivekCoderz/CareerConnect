@@ -29,6 +29,9 @@ import {
 import api from "../../api/api";
 import ApplicationList from "../../components/courses/ApplicationList";
 import ContentCard from "../../components/courses/ContentCard";
+import { loadRazorpayScript } from "../../utils/razorpay";
+import { createCourseOrder, verifyCoursePayment } from "../../services/paymentService";
+import PaymentReceiptModal from "../../components/courses/PaymentReceiptModal";
 
 /**
  * CourseDetailsPage
@@ -55,6 +58,11 @@ const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
   const [motivation, setMotivation] = useState("");
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
   const [applySuccess, setApplySuccess] = useState(null);
+
+  // Razorpay Payment states
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
 
   const isEmployer = user?.role === "employer";
 
@@ -219,6 +227,112 @@ const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
       alert(err.response?.data?.message || "Failed to apply/enroll in course.");
     } finally {
       setIsSubmittingApp(false);
+    }
+  };
+
+  // Razorpay Checkout / Free Instant Enrollment
+  const handleEnrollOrBuy = async () => {
+    if (!course) return;
+
+    try {
+      setIsProcessingPayment(true);
+
+      // 1. If course is free (price === 0)
+      if (!course.price || course.price <= 0) {
+        const orderRes = await createCourseOrder(course._id);
+        if (orderRes.success) {
+          setStudentApplication({ status: "Enrolled", progress: 0 });
+          setReceiptData({
+            isFree: true,
+            amount: 0,
+            courseTitle: course.title,
+            courseId: course._id,
+            paidAt: new Date(),
+          });
+          setShowReceiptModal(true);
+        }
+        return;
+      }
+
+      // 2. Paid Course -> Load Razorpay checkout script
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        alert("Unable to load Razorpay payment gateway. Please check your internet connection and try again.");
+        return;
+      }
+
+      // 3. Create Razorpay order on backend
+      const orderRes = await createCourseOrder(course._id);
+      if (!orderRes.success) {
+        alert(orderRes.message || "Could not initiate payment order.");
+        return;
+      }
+
+      // 4. Configure Razorpay checkout popup modal
+      const options = {
+        key: orderRes.keyId || "rzp_test_TbSS4kb8G70xwq",
+        amount: orderRes.amount,
+        currency: orderRes.currency || "INR",
+        name: "CareerConnect",
+        description: `Enrollment: ${course.title}`,
+        image: "/favicon.svg",
+        order_id: orderRes.orderId,
+        handler: async function (response) {
+          try {
+            const verifyRes = await verifyCoursePayment({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+              courseId: course._id,
+            });
+
+            if (verifyRes.success) {
+              setStudentApplication({ status: "Enrolled", progress: 0 });
+              setReceiptData({
+                paymentId: response.razorpay_payment_id,
+                orderId: response.razorpay_order_id,
+                amount: course.price,
+                courseTitle: course.title,
+                courseId: course._id,
+                paidAt: new Date(),
+              });
+              setShowReceiptModal(true);
+            }
+          } catch (err) {
+            console.error("Payment verification failed:", err);
+            alert(err.response?.data?.message || "Payment signature verification failed. Please contact support.");
+          } finally {
+            setIsProcessingPayment(false);
+          }
+        },
+        prefill: {
+          name: orderRes.prefill?.name || user?.fullName || "",
+          email: orderRes.prefill?.email || user?.email || "",
+          contact: orderRes.prefill?.contact || user?.phone || "",
+        },
+        theme: {
+          color: "#1e3a8a",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessingPayment(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (response) {
+        console.error("Payment failed:", response.error);
+        alert(`Payment Failed: ${response.error.description || response.error.reason || "Transaction was declined."}`);
+        setIsProcessingPayment(false);
+      });
+
+      rzp.open();
+    } catch (err) {
+      console.error("Payment initiation error:", err);
+      alert(err.response?.data?.message || "Failed to initiate payment. Please try again.");
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
@@ -480,18 +594,41 @@ const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
                   <CheckCircle2 size={16} /> {applySuccess}
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowApplyModal(true)}
-                  className="px-6 py-2.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-md flex items-center gap-2 transition-all"
-                >
-                  <span>
-                    {!course.price || course.price === 0
-                      ? "Enroll for Free"
-                      : `Apply Now (₹${course.price})`}
-                  </span>
-                  <ArrowRight size={14} />
-                </button>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleEnrollOrBuy}
+                    disabled={isProcessingPayment}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#1e3a8a] to-[#2563eb] hover:from-[#1e40af] hover:to-[#1d4ed8] text-white text-xs font-bold shadow-md hover:shadow-lg flex items-center gap-2 transition-all disabled:opacity-60 cursor-pointer"
+                  >
+                    {isProcessingPayment ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Securing Gateway...</span>
+                      </>
+                    ) : course.price > 0 ? (
+                      <>
+                        <CreditCard size={15} />
+                        <span>Buy Now • ₹{course.price}</span>
+                        <ArrowRight size={14} />
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={15} />
+                        <span>Enroll For Free</span>
+                        <ArrowRight size={14} />
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowApplyModal(true)}
+                    className="text-xs font-semibold text-slate-500 hover:text-[#1e3a8a] transition-colors underline-offset-4 hover:underline"
+                  >
+                    Apply with Statement of Purpose
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -654,18 +791,9 @@ const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
                 />
               </div>
 
-              {!course.price || course.price === 0 ? (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900 text-[11.5px] font-semibold flex items-center gap-1.5">
-                  <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
-                  <span>
-                    🎉 This course is 100% Free! You will get instant access to all lectures and study materials upon clicking Enroll.
-                  </span>
-                </div>
-              ) : (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-[11.5px] font-semibold">
-                  💳 Course Fee: ₹{course.price}. Payment verification & employer approval will be required to unlock lessons.
-                </div>
-              )}
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-blue-900 text-[11.5px]">
+                ℹ️ Manual applications are reviewed by instructors. To access instantly, you can enroll directly via secure Razorpay checkout.
+              </div>
 
               <div className="pt-2 flex justify-end gap-2">
                 <button
@@ -699,6 +827,17 @@ const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
           </div>
         </div>
       )}
+
+      {/* Razorpay Payment Receipt / Confirmation Modal */}
+      <PaymentReceiptModal
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        receiptData={receiptData}
+        onStartLearning={() => {
+          setShowReceiptModal(false);
+          navigate("/student/courses");
+        }}
+      />
     </div>
   );
 };

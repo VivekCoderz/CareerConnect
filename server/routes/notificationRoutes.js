@@ -2,9 +2,8 @@ const express = require("express");
 const router = express.Router();
 const notificationController = require("../controllers/notificationController");
 const protect = require("../middleware/authMiddleware");
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
 
+<<<<<<< HEAD
 // Optional auth helper for SSE stream where cookies or query token might be passed
 const authOrQuery = async (req, res, next) => {
   try {
@@ -34,15 +33,22 @@ const authOrQuery = async (req, res, next) => {
 router.get("/stream", authOrQuery, notificationController.streamNotifications);
 
 // Protected notification management routes
+=======
+>>>>>>> origin/develop
 router.use(protect);
-
+router.get("/stream", notificationController.streamNotifications);
 router.get("/", notificationController.getNotifications);
+<<<<<<< HEAD
 router.get("/:id", notificationController.getNotificationById);
 
 // Support both PUT and PATCH for read operations
 router.put("/read-all", notificationController.markAllAsRead);
 router.patch("/read-all", notificationController.markAllAsRead);
 
+=======
+router.put("/read-all", notificationController.markAllAsRead);
+router.get("/:id", notificationController.getNotificationById);
+>>>>>>> origin/develop
 router.put("/:id/read", notificationController.markAsRead);
 router.patch("/:id/read", notificationController.markAsRead);
 
