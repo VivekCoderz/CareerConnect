@@ -332,6 +332,13 @@ const EmployerRegister = () => {
 
   // ─── Google Employer Sign-Up ─────────────────────────────────────────────────
   const handleGoogleEmployerSignup = async () => {
+    if (!auth || !googleProvider) {
+      setGoogleError(
+        "Google Sign-In is unavailable because Firebase API keys are not configured in client/.env"
+      );
+      return;
+    }
+
     setGoogleLoading(true);
     setGoogleError("");
     dispatch(clearMessages());

@@ -785,7 +785,11 @@ module.exports.firebaseLogin = async (req, res, next) => {
       ).select("+password");
       if (!user) return res.status(409).json({ success: false, message: "This account was linked to another sign-in identity." });
     }
-    const provider = decoded.firebase?.sign_in_provider === "google.com" ? "google" : "email";
+    const isGoogle =
+      decoded.firebase?.sign_in_provider === "google.com" ||
+      Boolean(decoded.firebase?.identities?.["google.com"]) ||
+      decoded.firebase?.sign_in_provider === "google";
+    const provider = isGoogle ? "google" : "email";
     if (!user.authProviders.includes(provider)) {
       user.authProviders.push(provider);
     }
@@ -848,11 +852,31 @@ module.exports.googleAuth = async (req, res, next) => {
     const { uid, email, name, picture } = decoded;
     const normalizedEmail = email?.toLowerCase();
 
-    if (!uid || !normalizedEmail || decoded.email_verified !== true ||
-        decoded.firebase?.sign_in_provider !== "google.com") {
+    const isGoogleProvider =
+      decoded.firebase?.sign_in_provider === "google.com" ||
+      Boolean(decoded.firebase?.identities?.["google.com"]) ||
+      decoded.firebase?.sign_in_provider === "google";
+
+    const isEmailVerified =
+      decoded.email_verified === true ||
+      decoded.email_verified === "true" ||
+      (isGoogleProvider && (normalizedEmail?.endsWith("@gmail.com") || normalizedEmail?.endsWith("@googlemail.com")));
+
+    if (!uid || !normalizedEmail || !isGoogleProvider || !isEmailVerified) {
+      console.warn("[GoogleAuth] Rejected Google sign-in claims:", {
+        uid: Boolean(uid),
+        email: normalizedEmail,
+        email_verified: decoded.email_verified,
+        sign_in_provider: decoded.firebase?.sign_in_provider,
+        identities: decoded.firebase?.identities,
+        isGoogleProvider,
+        isEmailVerified,
+      });
       return res.status(403).json({
         success: false,
-        message: "A verified Google sign-in is required",
+        message: !isEmailVerified
+          ? "Your Google account email is not verified. Please verify your email with Google or sign in with a verified Gmail account."
+          : "A verified Google sign-in is required",
       });
     }
 
@@ -1071,11 +1095,22 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       });
     }
 
+    const isGoogleProvider =
+      decoded.firebase?.sign_in_provider === "google.com" ||
+      Boolean(decoded.firebase?.identities?.["google.com"]) ||
+      decoded.firebase?.sign_in_provider === "google";
+
+    const normalizedTokenEmail = decoded.email?.toLowerCase();
+    const isEmailVerified =
+      decoded.email_verified === true ||
+      decoded.email_verified === "true" ||
+      (isGoogleProvider && (normalizedTokenEmail?.endsWith("@gmail.com") || normalizedTokenEmail?.endsWith("@googlemail.com")));
+
     if (user.password || user.hasPassword || !user.firebaseUid ||
         user.firebaseUid !== decoded.uid ||
-        user.email !== decoded.email?.toLowerCase() ||
-        decoded.email_verified !== true ||
-        decoded.firebase?.sign_in_provider !== "google.com") {
+        user.email !== normalizedTokenEmail ||
+        !isEmailVerified ||
+        !isGoogleProvider) {
       return res.status(403).json({ success: false, message: "Password setup is not available for this account." });
     }
 
