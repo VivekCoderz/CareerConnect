@@ -572,11 +572,11 @@ const AdminCompanies = () => {
                         <tr key={req._id} className="hover:bg-slate-50/60 transition">
                           <td className="py-3.5 px-4">
                             <div className="font-bold text-slate-900">{req.organizationName}</div>
-                            <span className="text-[10px] text-slate-400">{req.organizationType || "Private"}</span>
+                            <span className="text-[10px] text-slate-400">{req.industry || req.organizationType || "Organization"}</span>
                           </td>
                           <td className="py-3.5 px-4">
-                            <div className="font-semibold text-slate-800">{req.contactPerson}</div>
-                            <span className="text-[10px] text-slate-400">{req.designation}</span>
+                            <div className="font-semibold text-slate-800">{req.requestingEmployeeName || req.contactPerson}</div>
+                            <span className="text-[10px] text-slate-400">{req.employeeDesignation || req.designation}</span>
                           </td>
                           <td className="py-3.5 px-4 text-slate-600 font-mono text-[11px]">
                             {req.officialEmail}
@@ -699,72 +699,98 @@ const AdminCompanies = () => {
               ) : (
                 <>
                   {/* Request Details Grid */}
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div className="col-span-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-                      <span className="text-slate-400 font-medium">Organization Legal Name</span>
-                      <p className="text-sm font-bold text-slate-900">{selectedRequest.organizationName}</p>
-                      <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-500">
-                        <span>Type: <b>{selectedRequest.organizationType}</b></span>
-                        <span>•</span>
-                        <span>
-                          Status:{" "}
-                          <span className="font-bold text-indigo-600">{selectedRequest.status}</span>
+                  <div className="space-y-4 text-xs">
+                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider">Company Details</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${
+                          selectedRequest.status === "APPROVED"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : selectedRequest.status === "UNDER_REVIEW"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : selectedRequest.status === "REJECTED"
+                            ? "bg-rose-50 text-rose-700 border-rose-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}>
+                          {selectedRequest.status}
                         </span>
                       </div>
-                    </div>
-
-                    <div>
-                      <span className="text-slate-400 font-medium">Official Contact Person</span>
-                      <p className="font-semibold text-slate-800 mt-0.5">{selectedRequest.contactPerson}</p>
-                      <p className="text-[11px] text-slate-500">{selectedRequest.designation}</p>
-                    </div>
-
-                    <div>
-                      <span className="text-slate-400 font-medium">Official Email</span>
-                      <p className="font-semibold text-slate-800 mt-0.5">{selectedRequest.officialEmail}</p>
-                      <p className="text-[11px] text-slate-500">{selectedRequest.phone}</p>
-                    </div>
-
-                    <div className="col-span-2">
-                      <span className="text-slate-400 font-medium">Website</span>
-                      <p className="mt-0.5">
-                        <a
-                          href={selectedRequest.website?.startsWith("http") ? selectedRequest.website : `https://${selectedRequest.website}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-indigo-600 hover:underline font-medium inline-flex items-center gap-1"
-                        >
-                          {selectedRequest.website}
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </p>
-                    </div>
-
-                    <div className="col-span-2">
-                      <span className="text-slate-400 font-medium">Location & Address</span>
-                      <p className="text-slate-700 mt-0.5">
-                        {selectedRequest.address}, {selectedRequest.city}, {selectedRequest.state}, {selectedRequest.country}
-                      </p>
-                    </div>
-
-                    <div className="col-span-2">
-                      <span className="text-slate-400 font-medium">Reason for Using CareerConnect</span>
-                      <p className="text-slate-700 mt-0.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                        {selectedRequest.reason}
-                      </p>
-                    </div>
-
-                    {selectedRequest.description && (
-                      <div className="col-span-2">
-                        <span className="text-slate-400 font-medium">Organization Description</span>
-                        <p className="text-slate-700 mt-0.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          {selectedRequest.description}
-                        </p>
+                      <p className="text-base font-bold text-slate-900">{selectedRequest.organizationName}</p>
+                      <div className="grid grid-cols-2 gap-2 pt-2 text-[11px]">
+                        <div>
+                          <span className="text-slate-400 font-medium">Industry:</span>
+                          <span className="ml-1 font-semibold text-slate-700">{selectedRequest.industry || selectedRequest.organizationType || "Not specified"}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-medium">Company Size:</span>
+                          <span className="ml-1 font-semibold text-slate-700">{selectedRequest.companySize || "Not specified"}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-medium">Company Email:</span>
+                          <span className="ml-1 font-semibold text-slate-700">{selectedRequest.officialEmail}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-medium">Website:</span>
+                          <a
+                            href={selectedRequest.website?.startsWith("http") ? selectedRequest.website : `https://${selectedRequest.website}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ml-1 text-indigo-600 hover:underline font-semibold inline-flex items-center gap-0.5"
+                          >
+                            <span>{selectedRequest.website?.replace(/^https?:\/\//, "")}</span>
+                            <ExternalLink className="w-3 h-3 inline" />
+                          </a>
+                        </div>
                       </div>
-                    )}
+                    </div>
+
+                    {/* Requesting Employee Credentials */}
+                    <div className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-2">
+                      <span className="text-indigo-900 font-bold text-[11px] uppercase tracking-wider">Requesting Employee</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Name</span>
+                          <span className="font-semibold text-slate-800">{selectedRequest.requestingEmployeeName || selectedRequest.contactPerson}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Designation</span>
+                          <span className="font-semibold text-slate-800">{selectedRequest.employeeDesignation || selectedRequest.designation}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Official Email</span>
+                          <span className="font-semibold text-slate-800 truncate block">{selectedRequest.officialEmployeeEmail || selectedRequest.officialEmail}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Verification Document */}
+                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                      <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block mb-1.5">
+                        Company Registration / Verification Document
+                      </span>
+                      {selectedRequest.verificationDocument ? (
+                        <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-indigo-600" />
+                            <span className="font-medium text-slate-800 text-xs">Official Verification Document</span>
+                          </div>
+                          <a
+                            href={selectedRequest.verificationDocument}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition shadow-2xs"
+                          >
+                            <span>View Document</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="text-slate-500 italic text-[11px]">No document provided.</p>
+                      )}
+                    </div>
 
                     {selectedRequest.rejectionReason && (
-                      <div className="col-span-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs">
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs">
                         <span className="font-bold">Rejection Reason:</span>
                         <p className="mt-0.5">{selectedRequest.rejectionReason}</p>
                       </div>

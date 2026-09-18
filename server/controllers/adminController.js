@@ -99,8 +99,8 @@ function getStartDateForRange(range) {
  */
 exports.adminLogin = async (req, res) => {
   try {
-    const { email, username, password } = req.body;
-    const loginIdentifier = (email || username || "").trim().toLowerCase();
+    const { email, username, emailOrUsername, password } = req.body;
+    const loginIdentifier = (email || username || emailOrUsername || "").trim().toLowerCase();
 
     if (!loginIdentifier || !password) {
       return res.status(400).json({
@@ -1470,20 +1470,31 @@ exports.approveOrganizationRequest = async (req, res, next) => {
         name: request.organizationName.trim(),
         description: request.description || request.reason || `Official profile for ${request.organizationName}`,
         email: request.officialEmail.trim().toLowerCase(),
-        phone: request.phone.trim(),
-        website: request.website.trim(),
+        phone: request.phone ? request.phone.trim() : "",
+        website: request.website ? request.website.trim() : "",
         companyType: request.organizationType || "Private",
+        industry: request.industry || "Information Technology",
         location: fullLocation,
-        address: request.address.trim(),
-        contactPerson: request.contactPerson.trim(),
+        address: request.address ? request.address.trim() : "",
+        contactPerson: request.requestingEmployeeName || request.contactPerson.trim(),
         status: "active",
         settings: { emailNotifications: true, autoShortlist: false },
       });
     } else {
       company.status = "active";
       if (!company.email) company.email = request.officialEmail.trim().toLowerCase();
-      if (!company.website) company.website = request.website.trim();
+      if (!company.website && request.website) company.website = request.website.trim();
+      if (!company.industry && request.industry) company.industry = request.industry;
       await company.save();
+    }
+
+    // Link requesting employee to this company if request originated from logged-in employee
+    if (request.requestedBy) {
+      await User.findByIdAndUpdate(request.requestedBy, { companyId: company._id });
+      await EmployerProfile.findOneAndUpdate(
+        { userId: request.requestedBy },
+        { companyId: company._id }
+      );
     }
 
     // 2. Prepare Company Admin Account / Invitation
@@ -1713,43 +1724,85 @@ exports.updateCompanyAdminStatus = async (req, res, next) => {
  */
 exports.getAdminUsers = async (req, res, next) => {
   try {
-    const { userType = "", search = "", status = "", page = 1, limit = 15 } = req.query;
-    const query = {};
+    const {
+      userType = "",
+      search = "",
+      status = "",
+      page = 1,
+      limit = 25,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    const andConditions = [];
 
     // Strict Scope: Company Admins only see their own company users
     if (req.user.role === "COMPANY_ADMIN") {
-      query.companyId = req.user.companyId;
+      andConditions.push({ companyId: req.user.companyId });
     } else if (req.isSuperAdmin) {
       // Super Admin can optionally filter by companyId
       if (req.query.companyId) {
-        query.companyId = req.query.companyId;
+        andConditions.push({ companyId: req.query.companyId });
       }
     }
 
+    // User Type Filtering (support student, employer, fresher, professional, admin)
     if (userType && userType !== "all") {
-      query.userType = userType;
+      if (userType === "admin") {
+        andConditions.push({
+          $or: [
+            { role: { $in: ["SUPER_ADMIN", "COMPANY_ADMIN", "admin"] } },
+            { userType: "admin" },
+          ],
+        });
+      } else {
+        andConditions.push({
+          $or: [{ userType: userType }, { role: userType }],
+        });
+      }
     }
 
+    // Status Filtering (active / inactive)
     if (status && status !== "all") {
-      query.status = status;
+      if (status === "active") {
+        andConditions.push({
+          $or: [{ status: "active" }, { isActive: true }],
+        });
+      } else if (status === "inactive") {
+        andConditions.push({
+          $or: [{ status: "inactive" }, { isActive: false }],
+        });
+      }
     }
 
-    if (search.trim()) {
-      query.$or = [
-        { fullName: { $regex: search.trim(), $options: "i" } },
-        { email: { $regex: search.trim(), $options: "i" } },
-        { username: { $regex: search.trim(), $options: "i" } },
-      ];
+    // Search sanitization: Escape regex characters to prevent ReDoS attacks
+    if (search && search.trim()) {
+      const sanitized = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      andConditions.push({
+        $or: [
+          { fullName: { $regex: sanitized, $options: "i" } },
+          { email: { $regex: sanitized, $options: "i" } },
+          { username: { $regex: sanitized, $options: "i" } },
+        ],
+      });
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
+    const query = andConditions.length > 0 ? { $and: andConditions } : {};
+
+    const parsedLimit = limit === "all" ? 1000 : Math.min(Math.max(Number(limit) || 25, 1), 200);
+    const parsedPage = Math.max(Number(page) || 1, 1);
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
+    const sortField = ["createdAt", "fullName", "email"].includes(sortBy) ? sortBy : "createdAt";
+
     const [users, total] = await Promise.all([
       User.find(query)
         .populate("companyId", "name industry")
-        .select("-password")
-        .sort({ createdAt: -1 })
+        .select("-password -resetPasswordToken -resetPasswordExpire")
+        .sort({ [sortField]: sortDirection })
         .skip(skip)
-        .limit(Number(limit))
+        .limit(parsedLimit)
         .lean(),
       User.countDocuments(query),
     ]);
@@ -1758,8 +1811,9 @@ exports.getAdminUsers = async (req, res, next) => {
       success: true,
       users,
       total,
-      page: Number(page),
-      totalPages: Math.ceil(total / Number(limit)),
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages: Math.ceil(total / parsedLimit) || 1,
     });
   } catch (error) {
     next(error);
@@ -1772,9 +1826,24 @@ exports.getAdminUsers = async (req, res, next) => {
 exports.updateUserStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
+    if (!["active", "inactive"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status value. Must be 'active' or 'inactive'",
+      });
+    }
+
     const targetUser = await User.findById(req.params.id);
     if (!targetUser) {
       return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Security: Prevent self-deactivation of current administrative account
+    if (targetUser._id.toString() === req.user._id.toString() && status === "inactive") {
+      return res.status(400).json({
+        success: false,
+        message: "Security violation: You cannot deactivate your own administrative account.",
+      });
     }
 
     // Company Admin cannot modify users outside their company
@@ -1787,6 +1856,15 @@ exports.updateUserStatus = async (req, res, next) => {
       }
     }
 
+    // Super Admin protection: Non-superadmins cannot modify an admin account
+    const isTargetAdmin = ["SUPER_ADMIN", "COMPANY_ADMIN", "admin"].includes(targetUser.role);
+    if (isTargetAdmin && req.user.role !== "SUPER_ADMIN" && !req.isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "Security violation: Only a Super Administrator can alter administrative privileges.",
+      });
+    }
+
     targetUser.status = status;
     targetUser.isActive = status === "active";
     await targetUser.save();
@@ -1794,7 +1872,13 @@ exports.updateUserStatus = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: `User status updated to ${status}`,
-      user: targetUser,
+      user: {
+        _id: targetUser._id,
+        fullName: targetUser.fullName,
+        email: targetUser.email,
+        status: targetUser.status,
+        isActive: targetUser.isActive,
+      },
     });
   } catch (error) {
     next(error);

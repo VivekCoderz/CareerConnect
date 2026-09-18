@@ -39,25 +39,62 @@ const organizationRequestSchema = new mongoose.Schema(
       trim: true,
       maxlength: 100,
     },
+    industry: {
+      type: String,
+      trim: true,
+      default: "Information Technology",
+    },
+    companySize: {
+      type: String,
+      trim: true,
+      default: "11-50",
+    },
+    verificationDocument: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    requestingEmployeeName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    employeeDesignation: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    officialEmployeeEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+    },
+    requestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
     phone: {
       type: String,
-      required: [true, "Phone number is required"],
       trim: true,
+      default: "",
     },
     address: {
       type: String,
-      required: [true, "Address is required"],
       trim: true,
+      default: "",
     },
     city: {
       type: String,
-      required: [true, "City is required"],
       trim: true,
+      default: "",
     },
     state: {
       type: String,
-      required: [true, "State is required"],
       trim: true,
+      default: "",
     },
     country: {
       type: String,
@@ -66,7 +103,7 @@ const organizationRequestSchema = new mongoose.Schema(
     },
     reason: {
       type: String,
-      required: [true, "Reason for using CareerConnect is required"],
+      default: "",
       trim: true,
       maxlength: 1000,
     },

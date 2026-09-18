@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { setUser } from "../../redux/features/authSlice";
 import { adminLogin } from "../../services/adminService";
 import { ShieldCheck, Lock, User, AlertCircle, ArrowRight } from "lucide-react";
+import BrandLogo from "../../components/common/BrandLogo";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -83,14 +84,15 @@ const AdminLogin = () => {
 
       <div className="relative w-full max-w-md space-y-6">
         {/* Brand Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 mb-2">
-            <ShieldCheck className="w-6 h-6" />
+        <div className="text-center space-y-2.5">
+          <div className="flex justify-center mb-1">
+            <div className="bg-white/95 rounded-2xl px-4 py-2.5 shadow-xl inline-flex items-center">
+              <BrandLogo className="h-10 w-48" />
+            </div>
           </div>
           <div className="flex items-center justify-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-white">CareerConnect</h1>
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-900/60 text-indigo-300 border border-indigo-700/60 uppercase tracking-wider">
-              Internal Portal
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-900/60 text-indigo-300 border border-indigo-700/60 uppercase tracking-wider">
+              Internal Admin Portal
             </span>
           </div>
           <p className="text-xs text-slate-400">

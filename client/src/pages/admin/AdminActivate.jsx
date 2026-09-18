@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { setUser } from "../../redux/features/authSlice";
 import { verifyAdminInvitation, activateAdmin } from "../../services/adminService";
+import BrandLogo from "../../components/common/BrandLogo";
 import {
   ShieldCheck,
   Building2,
@@ -112,10 +113,11 @@ const AdminActivate = () => {
     <div className="min-h-screen bg-slate-900 text-white flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         {/* Branding */}
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 mb-4 shadow-lg shadow-indigo-500/10">
-          <ShieldCheck className="w-6 h-6" />
+        <div className="flex justify-center mb-3">
+          <div className="bg-white/95 rounded-2xl px-4 py-2.5 shadow-xl inline-flex items-center">
+            <BrandLogo className="h-10 w-48" />
+          </div>
         </div>
-        <h1 className="text-2xl font-black tracking-tight text-white">CareerConnect</h1>
         <p className="mt-1 text-xs font-semibold text-indigo-300 uppercase tracking-widest">
           Company Admin Setup
         </p>

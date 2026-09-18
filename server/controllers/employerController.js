@@ -619,17 +619,33 @@ exports.getOrganizationStatus = async (req, res, next) => {
       });
     }
 
-    // 2. Check if an OrganizationRequest exists for this user's email or employer profile
+    // 2. Check if an OrganizationRequest exists for this user
     const profile = await EmployerProfile.findOne({ userId: req.user._id });
     const searchEmails = [req.user.email, profile?.officialEmail].filter(Boolean);
     const searchName = profile?.companyName;
 
-    const queryConditions = [{ officialEmail: { $in: searchEmails } }];
+    const queryConditions = [
+      { requestedBy: req.user._id },
+      { officialEmail: { $in: searchEmails } },
+      { officialEmployeeEmail: { $in: searchEmails } },
+    ];
     if (searchName && searchName !== "My Company") {
       queryConditions.push({ organizationName: { $regex: `^${searchName.trim()}$`, $options: "i" } });
     }
 
     const orgRequest = await OrganizationRequest.findOne({ $or: queryConditions }).sort({ createdAt: -1 });
+
+    const prefillData = {
+      companyName: profile?.companyName || user?.companyName || "",
+      officialCompanyEmail: profile?.officialEmail || "",
+      companyWebsite: profile?.website || "",
+      industry: profile?.industry || "Information Technology",
+      companySize: profile?.companySize || profile?.employeesCount || "11-50",
+      requestingEmployeeName: req.user.fullName || profile?.contactPerson || "",
+      employeeDesignation: req.user.designation || profile?.designation || "Talent Acquisition / HR",
+      officialEmployeeEmail: req.user.email || "",
+      verificationDocument: profile?.verificationDocument || "",
+    };
 
     if (orgRequest) {
       return res.status(200).json({
@@ -637,19 +653,23 @@ exports.getOrganizationStatus = async (req, res, next) => {
         status: orgRequest.status, // "PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED"
         hasCompany: false,
         company: null,
+        prefill: prefillData,
         organizationRequest: {
           _id: orgRequest._id,
+          companyName: orgRequest.organizationName,
           organizationName: orgRequest.organizationName,
-          organizationType: orgRequest.organizationType,
+          officialCompanyEmail: orgRequest.officialEmail,
           officialEmail: orgRequest.officialEmail,
+          companyWebsite: orgRequest.website,
           website: orgRequest.website,
-          contactPerson: orgRequest.contactPerson,
-          designation: orgRequest.designation,
-          phone: orgRequest.phone,
-          address: orgRequest.address,
-          city: orgRequest.city,
-          state: orgRequest.state,
-          country: orgRequest.country,
+          industry: orgRequest.industry || "Information Technology",
+          companySize: orgRequest.companySize || "11-50",
+          verificationDocument: orgRequest.verificationDocument || "",
+          requestingEmployeeName: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
+          contactPerson: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
+          employeeDesignation: orgRequest.employeeDesignation || orgRequest.designation,
+          designation: orgRequest.employeeDesignation || orgRequest.designation,
+          officialEmployeeEmail: orgRequest.officialEmployeeEmail || req.user.email,
           status: orgRequest.status,
           rejectionReason: orgRequest.rejectionReason,
           createdAt: orgRequest.createdAt,
@@ -663,6 +683,7 @@ exports.getOrganizationStatus = async (req, res, next) => {
       status: "NOT_REQUESTED",
       hasCompany: false,
       company: null,
+      prefill: prefillData,
       organizationRequest: null,
     });
   } catch (error) {
@@ -672,91 +693,104 @@ exports.getOrganizationStatus = async (req, res, next) => {
 
 /**
  * POST /api/employer/request-company-approval
- * Allows logged-in employer to submit/send their company to the Super Admin for official verification & approval
+ * Submits minimal 9-field company connection request to Super Admin for verification & approval
  */
 exports.requestCompanyApproval = async (req, res, next) => {
   try {
     const {
+      companyName,
       organizationName,
-      organizationType,
+      officialCompanyEmail,
       officialEmail,
+      companyWebsite,
       website,
+      industry,
+      companySize,
+      verificationDocument,
+      requestingEmployeeName,
       contactPerson,
+      employeeDesignation,
       designation,
-      phone,
-      address,
-      city,
-      state,
-      country,
-      reason,
-      description,
+      officialEmployeeEmail,
     } = req.body;
 
-    if (!organizationName || !officialEmail || !contactPerson) {
+    const trimmedCompanyName = (companyName || organizationName || "").trim();
+    const cleanCompanyEmail = (officialCompanyEmail || officialEmail || "").trim().toLowerCase();
+    const cleanWebsite = (companyWebsite || website || "").trim();
+    const cleanIndustry = (industry || "Information Technology").trim();
+    const cleanCompanySize = (companySize || "11-50").trim();
+    const cleanVerificationDoc = (verificationDocument || "").trim();
+    const cleanEmployeeName = (requestingEmployeeName || contactPerson || req.user.fullName || "").trim();
+    const cleanDesignation = (employeeDesignation || designation || req.user.designation || "").trim();
+    const cleanEmployeeEmail = (officialEmployeeEmail || req.user.email || "").trim().toLowerCase();
+
+    // 1. Mandatory Field Validations
+    if (!trimmedCompanyName) {
+      return res.status(400).json({ success: false, message: "Company name is required." });
+    }
+    if (!cleanCompanyEmail) {
+      return res.status(400).json({ success: false, message: "Official company email is required." });
+    }
+    if (!cleanWebsite) {
+      return res.status(400).json({ success: false, message: "Company website is required." });
+    }
+    if (!cleanIndustry) {
+      return res.status(400).json({ success: false, message: "Industry is required." });
+    }
+    if (!cleanCompanySize) {
+      return res.status(400).json({ success: false, message: "Company size is required." });
+    }
+    if (!cleanVerificationDoc) {
       return res.status(400).json({
         success: false,
-        message: "Please fill in all required organization fields: company name, official email, and contact person.",
+        message: "Company registration or verification document is required.",
       });
     }
+    if (!cleanEmployeeName) {
+      return res.status(400).json({ success: false, message: "Requesting employee name is required." });
+    }
+    if (!cleanDesignation) {
+      return res.status(400).json({ success: false, message: "Employee designation is required." });
+    }
+    if (!cleanEmployeeEmail) {
+      return res.status(400).json({ success: false, message: "Official employee email is required." });
+    }
 
-    const trimmedOrgName = organizationName.trim();
-    const cleanEmail = officialEmail.trim().toLowerCase();
+    // Email format checks
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanCompanyEmail)) {
+      return res.status(400).json({ success: false, message: "Invalid official company email address." });
+    }
+    if (!emailRegex.test(cleanEmployeeEmail)) {
+      return res.status(400).json({ success: false, message: "Invalid official employee email address." });
+    }
 
-    // Normalize organizationType to match OrganizationRequest schema enum
-    const typeMapping = {
-      COMPANY: "Enterprise",
-      Private: "Private",
-      Public: "Public",
-      Startup: "Startup",
-      Enterprise: "Enterprise",
-      UNIVERSITY: "Educational Institution",
-      "Educational Institution": "Educational Institution",
-      TRAINING_INSTITUTE: "Educational Institution",
-      Government: "Government",
-      "Non-Profit": "Non-Profit",
-      OTHER: "Other",
-      Other: "Other",
-    };
-    const validOrgType = typeMapping[organizationType] || "Private";
-
-    const cleanWebsite =
-      (website && website.trim()) ||
-      `https://${cleanEmail.split("@")[1] || "company.com"}`;
-    const cleanDesignation =
-      (designation && designation.trim()) || "Talent Acquisition / HR";
-    const cleanPhone = (phone && phone.trim()) || "+91 00000 00000";
-    const cleanAddress = (address && address.trim()) || "Corporate Office";
-    const cleanCity = (city && city.trim()) || "Gurugram";
-    const cleanState = (state && state.trim()) || "Haryana";
-    const cleanReason =
-      (reason && reason.trim()) ||
-      (description && description.trim()) ||
-      "Official platform verification and enterprise tenant provisioning.";
-
-    // 1. Check if Company is already registered and active
-    const existingCompany = await Company.findOne({
+    // 2. Check if Company is already registered and active
+    const existingActiveCompany = await Company.findOne({
       $or: [
-        { email: cleanEmail },
-        { name: { $regex: `^${trimmedOrgName}$`, $options: "i" } },
+        { email: cleanCompanyEmail },
+        { name: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
       ],
+      status: "active",
     });
 
-    if (existingCompany && existingCompany.status === "active") {
-      req.user.companyId = existingCompany._id;
+    if (existingActiveCompany) {
+      req.user.companyId = existingActiveCompany._id;
       await req.user.save();
       return res.status(200).json({
         success: true,
         status: "APPROVED",
-        message: `Your organization "${existingCompany.name}" is already verified and approved on CareerConnect! Your employer account is now linked.`,
-        company: existingCompany,
+        message: `Your company "${existingActiveCompany.name}" is already verified on CareerConnect! Your account is connected.`,
+        company: existingActiveCompany,
       });
     }
 
-    // 2. Check if a pending or under_review request already exists
+    // 3. Prevent duplicate connection requests (same company or email pending/under review)
     const existingPending = await OrganizationRequest.findOne({
       $or: [
-        { officialEmail: cleanEmail },
-        { organizationName: { $regex: `^${trimmedOrgName}$`, $options: "i" } },
+        { officialEmail: cleanCompanyEmail },
+        { organizationName: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+        { requestedBy: req.user._id },
       ],
       status: { $in: ["PENDING", "UNDER_REVIEW"] },
     });
@@ -764,80 +798,80 @@ exports.requestCompanyApproval = async (req, res, next) => {
     if (existingPending) {
       return res.status(409).json({
         success: false,
-        message: "This organization already has a pending onboarding request under review by the Super Admin.",
+        message: "A connection request for this company is already pending review by the Super Admin.",
         organizationRequest: existingPending,
       });
     }
 
-    // 3. Create or update OrganizationRequest document in MongoDB
-    // If a rejected request already existed for this user/email, allow re-submitting with status PENDING!
-    let newRequest = await OrganizationRequest.findOne({
+    // 4. Create or update OrganizationRequest document
+    // If a rejected request existed for this user/company, re-submit back to PENDING
+    let connectionRequest = await OrganizationRequest.findOne({
       $or: [
-        { officialEmail: cleanEmail },
-        { organizationName: { $regex: `^${trimmedOrgName}$`, $options: "i" } },
+        { officialEmail: cleanCompanyEmail },
+        { organizationName: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+        { requestedBy: req.user._id },
       ],
       status: "REJECTED",
     });
 
-    if (newRequest) {
-      newRequest.organizationName = trimmedOrgName;
-      newRequest.organizationType = validOrgType;
-      newRequest.officialEmail = cleanEmail;
-      newRequest.website = cleanWebsite;
-      newRequest.contactPerson = contactPerson.trim();
-      newRequest.designation = cleanDesignation;
-      newRequest.phone = cleanPhone;
-      newRequest.address = cleanAddress;
-      newRequest.city = cleanCity;
-      newRequest.state = cleanState;
-      newRequest.country = (country || "India").trim();
-      newRequest.reason = cleanReason;
-      newRequest.description = (description || cleanReason).trim();
-      newRequest.status = "PENDING";
-      newRequest.rejectionReason = "";
-      await newRequest.save();
+    if (connectionRequest) {
+      connectionRequest.organizationName = trimmedCompanyName;
+      connectionRequest.officialEmail = cleanCompanyEmail;
+      connectionRequest.website = cleanWebsite;
+      connectionRequest.industry = cleanIndustry;
+      connectionRequest.companySize = cleanCompanySize;
+      connectionRequest.verificationDocument = cleanVerificationDoc;
+      connectionRequest.requestingEmployeeName = cleanEmployeeName;
+      connectionRequest.contactPerson = cleanEmployeeName;
+      connectionRequest.employeeDesignation = cleanDesignation;
+      connectionRequest.designation = cleanDesignation;
+      connectionRequest.officialEmployeeEmail = cleanEmployeeEmail;
+      connectionRequest.requestedBy = req.user._id;
+      connectionRequest.status = "PENDING";
+      connectionRequest.rejectionReason = "";
+      await connectionRequest.save();
     } else {
-      newRequest = await OrganizationRequest.create({
-        organizationName: trimmedOrgName,
-        organizationType: validOrgType,
-        officialEmail: cleanEmail,
+      connectionRequest = await OrganizationRequest.create({
+        organizationName: trimmedCompanyName,
+        officialEmail: cleanCompanyEmail,
         website: cleanWebsite,
-        contactPerson: contactPerson.trim(),
+        industry: cleanIndustry,
+        companySize: cleanCompanySize,
+        verificationDocument: cleanVerificationDoc,
+        requestingEmployeeName: cleanEmployeeName,
+        contactPerson: cleanEmployeeName,
+        employeeDesignation: cleanDesignation,
         designation: cleanDesignation,
-        phone: cleanPhone,
-        address: cleanAddress,
-        city: cleanCity,
-        state: cleanState,
-        country: (country || "India").trim(),
-        reason: cleanReason,
-        description: (description || cleanReason).trim(),
+        officialEmployeeEmail: cleanEmployeeEmail,
+        requestedBy: req.user._id,
         status: "PENDING",
       });
     }
 
-    // 4. Update employer profile with company details
+    // 5. Update EmployerProfile with latest company information
     await EmployerProfile.findOneAndUpdate(
       { userId: req.user._id },
       {
-        companyName: trimmedOrgName,
-        officialEmail: cleanEmail,
-        website: website.trim(),
-        "headquarters.city": city.trim(),
-        "headquarters.state": state.trim(),
-        "headquarters.country": (country || "India").trim(),
+        companyName: trimmedCompanyName,
+        officialEmail: cleanCompanyEmail,
+        website: cleanWebsite,
+        industry: cleanIndustry,
+        companySize: cleanCompanySize,
+        contactPerson: cleanEmployeeName,
+        designation: cleanDesignation,
       },
       { upsert: true }
     );
 
-    // 5. Audit Log
+    // 6. Audit Log
     try {
       await AuditLog.create({
         actorId: req.user._id,
-        actorName: req.user.fullName || contactPerson.trim(),
-        action: "EMPLOYER_REQUESTED_COMPANY_APPROVAL",
+        actorName: cleanEmployeeName,
+        action: "EMPLOYER_REQUESTED_COMPANY_CONNECTION",
         module: "Settings",
-        target: trimmedOrgName,
-        details: `Employer submitted organization approval request for "${trimmedOrgName}" (${cleanEmail}) to Super Admin.`,
+        target: trimmedCompanyName,
+        details: `Employee ${cleanEmployeeName} (${cleanEmployeeEmail}) submitted connection request for "${trimmedCompanyName}" (${cleanCompanyEmail}).`,
         ipAddress: req.ip || req.headers["x-forwarded-for"] || "127.0.0.1",
       });
     } catch (auditErr) {
@@ -847,8 +881,8 @@ exports.requestCompanyApproval = async (req, res, next) => {
     return res.status(201).json({
       success: true,
       status: "PENDING",
-      message: "Organization approval request successfully submitted to Super Admin! You will be notified once reviewed.",
-      organizationRequest: newRequest,
+      message: "Company connection request submitted successfully! Super Admin review is now Pending Approval.",
+      organizationRequest: connectionRequest,
     });
   } catch (error) {
     next(error);
