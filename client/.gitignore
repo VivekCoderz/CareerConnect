@@ -26,5 +26,8 @@ dist-ssr
 # Local environment values
 .env
 .env.*
-!.env.example
+.env.example
+env.example
+*.env.example
+*env.example*
 

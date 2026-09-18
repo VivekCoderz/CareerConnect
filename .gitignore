@@ -8,13 +8,16 @@ coverage/
 *.log
 .DS_Store
 
-# Local environment files; keep only placeholder templates in Git
+# Local environment files
 .env
 .env.*
 *.env
 *.env.*
 .envrc
-!.env.example
+.env.example
+env.example
+*.env.example
+*env.example*
 
 # Private credentials and keys
 *.pem
