@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -255,9 +256,9 @@ const StudentDashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-semibold text-slate-700">
-          Loading your student workspace...
+        <JourneyLoader size="hero" className="mb-4" />
+        <p className="text-lg font-semibold text-slate-700">
+          Preparing your opportunity dashboard...
         </p>
       </div>
     );

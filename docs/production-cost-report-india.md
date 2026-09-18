@@ -1,6 +1,6 @@
 # CareerConnect: production cost estimate for India
 
-**Prepared:** 16 September 2026
+**Updated:** 17 September 2026  
 
 **Planning scale:** 10,000 registered candidates, 3,000 monthly active candidates, about 500 daily active candidates, plus employers
 
@@ -39,7 +39,7 @@ The estimate assumes no paid course video viewing yet. Video consumption can dom
 
 ## 3. Monthly run rate at 10,000 registered candidates
 
-The right unit is **actual activity**, not account count. This model assumes 12,000 Indian mobile OTP messages per month (a conservative launch-month load), 20,000 transactional emails, 5,000 AI requests, about 20 GB of stored resumes plus other images, and moderate API traffic. It assumes one development seat on Vercel. Rates and plan limits can change.
+The right unit is **actual activity**, not account count. This model assumes 12,000 Indian mobile OTP messages per month (a conservative launch-month load), 20,000 transactional emails, 5,000 general AI requests, about 20 GB of stored resumes plus other images, and moderate API traffic. It assumes one development seat on Vercel. The five-opening tailored-resume scenario in Section 8 is **additional** to these general AI requests. Rates and plan limits can change.
 
 | Cost item | Published basis or calculation | Monthly allowance |
 |---|---:|---:|
@@ -51,7 +51,7 @@ The right unit is **actual activity**, not account count. This model assumes 12,
 | Cloudinary Plus | US$99/month, 225 monthly credits, if free 25 credits are exceeded | **₹9,504** |
 | SendGrid Essentials | Starts at US$19.95/month; 20,000 emails assumed within plan | **₹1,915** |
 | SMS OTP provider | 12,000 × ₹0.17 using an India provider's published priority OTP rate | **₹2,040** |
-| Gemini 3.5 Flash | 5,000 requests × (3,000 input + 800 output tokens) = US$58.50 | **₹5,616** |
+| Gemini 3.5 Flash | 5,000 general AI requests × (3,000 input + 800 output tokens) = US$58.50 | **₹5,616** |
 | Domain renewal | Planning allowance of ₹1,500/year; exact domain/TLD quote varies | **₹125** |
 | Monitoring/log retention | Small operational allowance; free tiers may cover it | **₹500** |
 | **Estimated known monthly run rate** | **Before tax and DigiLocker quote** | **₹31,724 ≈ ₹32,000** |
@@ -116,6 +116,43 @@ Because the client is a static React/Vite build, it could move from Vercel Pro t
 - **DigiLocker:** partner approval and price are unresolved; no honest all-in total is possible until written terms arrive.
 - **Taxes:** the estimate is before tax except the cited DLT figure and examples explicitly including GST. Foreign SaaS invoices, local tax, and bank FX charges depend on account and billing setup.
 
+## 8. Five tailored resumes for five matching openings
+
+### How this feature works in CareerConnect
+
+The current `/api/resume/tailor` path checks whether a tailored resume already exists for a job or internship **when the opening has an opportunity ID**. If it does and the user has not requested regeneration, CareerConnect reuses that saved version. For a new opening, it sends the verified profile or primary resume and the opportunity details to Gemini **once**, creates a PDF with PDFKit, uploads it to Cloudinary, and saves a separate MongoDB resume record. The five-opportunity recommendation itself can use the existing scoring engine; this calculation prices the **five new tailored resumes**, not an extra AI ranking step. These are planning estimates because the application does not yet record actual token usage per resume.
+
+At the existing [`gemini-3.5-flash` standard API prices](https://ai.google.dev/gemini-api/docs/pricing) of **US$1.50 per million input tokens** and **US$9.00 per million output tokens**, use a central planning assumption of **4,000 input + 2,000 output tokens per tailored resume**. The output allowance includes any billable thinking tokens. With the report's ₹96/US$ planning exchange rate:
+
+`(4,000 × $1.50 + 2,000 × $9.00) / 1,000,000 × ₹96 = ₹2.304 per tailored resume`
+
+**Five new resumes cost about ₹11.52 in AI usage per participating user.** Shorter responses might cost about **₹6.48 for five** (3,000 input + 1,000 output each); longer responses might cost about **₹23.04 for five** (8,000 input + 4,000 output each). Retries or regeneration add another charge. These figures are marginal AI costs, not the average cost of running the whole website.
+
+| Users generating five new resumes in a month | New AI calls | Added Gemini cost | New monthly total, before tax | Total divided by 10,000 registered users |
+|---|---:|---:|---:|---:|
+| 1,000 users (10%) | 5,000 | ₹11,520 | ₹43,244 | ₹4.32/user |
+| 3,000 users (30%; equal to assumed monthly active users) | 15,000 | ₹34,560 | ₹66,284 | ₹6.63/user |
+| 10,000 users (100%) | 50,000 | ₹115,200 | ₹146,924 | ₹14.69/user |
+
+The table adds tailored-resume calls **on top of** the original ₹31,724 monthly estimate, which already budgets 5,000 general AI requests. If those original requests already include tailored resumes in practice, deduct the overlapping calls before using these totals. A month with 10,000 students all making five new resumes is also a **10,000-monthly-active-user** month, so the original 3,000-active-user assumption would need rechecking for other traffic.
+
+### PDF storage and plan limits
+
+The tailored output is a text-based PDF plus a MongoDB record, so there is no separate PDF-generation vendor charge. As a deliberately generous storage example, **50,000 PDFs × 100 KB = about 5 GB**. If each PDF is downloaded once, delivery adds roughly another 5 GB. [Cloudinary counts storage and delivered bandwidth against its credit allowance](https://cloudinary.com/documentation/billing_and_plans); this would consume roughly 10 credits before other media usage. The existing Plus plan includes 225 credits, so the extra PDFs may fit without a new subscription, but check actual PDF sizes, existing usage, and downloads. If usage forces a move from [Plus at US$99 to Advanced at US$249/month](https://cloudinary.com/pricing), the difference is **US$150 ≈ ₹14,400/month**. MongoDB storage or compute may also need more capacity if actual records or traffic exceed the M10 allowance. Those possible tier changes are **not** in the scenario table.
+
+### What one user costs
+
+The base website cost is shared across users. Using the report's exact **₹31,724/month** estimate:
+
+| Measure | Calculation | Approximate monthly amount |
+|---|---:|---:|
+| Average per registered user | ₹31,724 ÷ 10,000 accounts | **₹3.17** |
+| Average per monthly active user | ₹31,724 ÷ 3,000 active users | **₹10.57** |
+| Extra AI for one user creating five new tailored resumes | 5 × ₹2.304 | **₹11.52** |
+| Allocated total if all 3,000 active users create five | ₹66,284 ÷ 3,000 active users | **₹22.09 per active user** |
+
+These are **average cost allocations**, not a charge from AWS or MongoDB for each account. The marginal cost of an inactive registered account is very low; the cost rises when that person sends OTPs, uses AI, downloads files, or watches course videos. A user who returns to the **same five openings linked by opportunity ID** can receive the cached tailored resumes without five new Gemini calls, unless regeneration is requested.
+
 ## Decision-ready figure
 
-**Current-stack planning estimate:** **₹32,000/month before tax** for 10,000 registered candidates at the stated activity level. Keep **₹38,000–₹45,000/month** available for ordinary variance and billed taxes. The **DigiLocker quote and paid course video are additional**. If the team is willing to change hosting and media storage, target **₹20,000–₹22,000/month** before those same additions. Recalculate after the first month of actual usage and after DigiLocker approval.
+**Current-stack baseline:** **₹31,724 ≈ ₹32,000/month before tax**, or **₹3.17 per registered user** at 10,000 accounts and **₹10.57 per monthly active user** at 3,000 active users. **Five new tailored resumes add about ₹11.52 per participating user** at the stated token assumption. If all 3,000 monthly active users use that feature, the modeled total becomes **₹66,284/month before tax**; if all 10,000 users use it in the same month, **₹146,924/month before tax**. Keep a reserve for real token use, taxes, and possible media/database tier changes. The **DigiLocker quote and paid course video remain additional**. Recalculate after measuring actual usage in production.

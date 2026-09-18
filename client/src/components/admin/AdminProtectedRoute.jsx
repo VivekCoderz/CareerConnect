@@ -1,3 +1,4 @@
+import JourneyLoader from "../common/JourneyLoader";
 import React from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -18,7 +19,7 @@ const AdminProtectedRoute = ({ allowedRoles = [], children }) => {
   if (!isInitialized) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center">
-        <div className="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+        <JourneyLoader variant="access" size="hero" className="mb-3" />
         <p className="text-xs font-semibold text-slate-400">Authenticating administrative session...</p>
       </div>
     );

@@ -233,6 +233,7 @@ const CAMPUS_DRIVES = [
 ];
 
 const searchCache = {};
+const MAX_CACHE_ENTRIES = 50;
 
 function clearSearchCache() {
   for (const key in searchCache) {
@@ -886,6 +887,12 @@ async function getAggregatedOpportunities({
     combinedResults = [...dbOpportunities, ...scrapedResults];
   }
 
+  for (const [key, entry] of Object.entries(searchCache)) {
+    if (Date.now() - entry.timestamp >= 30 * 60 * 1000) delete searchCache[key];
+  }
+  while (Object.keys(searchCache).length >= MAX_CACHE_ENTRIES) {
+    delete searchCache[Object.keys(searchCache)[0]];
+  }
   searchCache[cacheKey] = {
     timestamp: Date.now(),
     data: combinedResults,

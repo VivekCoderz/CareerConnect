@@ -82,10 +82,8 @@ router.patch(
 );
 
 // ==========================================
-// PUBLIC — Email & Phone checks & OTP
+// PUBLIC — OTP. Account-existence lookup endpoints are intentionally not exposed.
 // ==========================================
-router.post("/check-email", sanitizeInputs, authControllers.checkEmail);
-router.post("/check-phone", sanitizeInputs, authControllers.checkPhone);
 router.post("/send-otp", sanitizeInputs, limitOtpAction("send"), authControllers.sendOTP);
 router.post("/verify-otp", sanitizeInputs, limitOtpAction("verify"), authControllers.verifyOTP);
 

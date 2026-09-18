@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -121,7 +122,7 @@ const FresherDashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-4" />
+        <JourneyLoader variant="profile" size="hero" className="mb-4" />
         <h2 className="text-base font-bold text-slate-800">
           Loading Fresher Workspace...
         </h2>

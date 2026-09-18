@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { getById, update } from "../../services/internshipService";
@@ -122,7 +123,7 @@ export default function EditInternship({ id, onCancel, onSuccess }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex justify-center items-center py-20">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#f59e0b]"></div>
+        <JourneyLoader variant="employer" size="md" />
       </div>
     );
   }

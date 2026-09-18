@@ -140,7 +140,6 @@ const userPayload = (user, extra = {}) => ({
 module.exports.sendOTP = async (req, res, next) => {
   try {
     const { email, fullName } = req.body;
-    console.log("1. [sendOTP Triggered] Body:", req.body);
 
     if (!email?.trim()) {
       return res.status(400).json({
@@ -1195,55 +1194,6 @@ module.exports.updateExperienceLevel = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
-  }
-};
-
-// ==========================================
-// CHECK EMAIL
-// ==========================================
-module.exports.checkEmail = async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ exists: false });
-    }
-
-    const user = await User.findOne({
-      email: email.trim().toLowerCase(),
-    });
-
-    return res.status(200).json({
-      exists: !!user,
-    });
-  } catch (error) {
-    return res.status(200).json({ exists: false });
-  }
-};
-
-// ==========================================
-// CHECK PHONE
-// ==========================================
-module.exports.checkPhone = async (req, res) => {
-  try {
-    const { phone, countryCode = "+91" } = req.body;
-    if (!phone) {
-      return res.status(200).json({ exists: false });
-    }
-
-    const cleanPhone = String(phone).replace(/\D/g, "");
-    const cleanCountryCode = countryCode.trim() || "+91";
-
-    const exists = await isPhoneAlreadyTaken(
-      cleanPhone,
-      cleanCountryCode,
-      req.user?._id || req.user?.id || null
-    );
-
-    return res.status(200).json({
-      exists,
-    });
-  } catch (error) {
-    return res.status(200).json({ exists: false });
   }
 };
 
