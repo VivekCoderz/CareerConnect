@@ -29,6 +29,9 @@ import {
 import api from "../../api/api";
 import ApplicationList from "../../components/courses/ApplicationList";
 import ContentCard from "../../components/courses/ContentCard";
+import { loadRazorpayScript } from "../../utils/razorpay";
+import { createCourseOrder, verifyCoursePayment } from "../../services/paymentService";
+import PaymentReceiptModal from "../../components/courses/PaymentReceiptModal";
 
 /**
  * CourseDetailsPage
@@ -55,6 +58,11 @@ const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
   const [motivation, setMotivation] = useState("");
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
   const [applySuccess, setApplySuccess] = useState(null);
+
+  // Razorpay Payment states
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
 
   const isEmployer = user?.role === "employer";
 
@@ -219,6 +227,112 @@ const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
       alert(err.response?.data?.message || "Failed to apply/enroll in course.");
     } finally {
       setIsSubmittingApp(false);
+    }
+  };
+
+  // Razorpay Checkout / Free Instant Enrollment
+  const handleEnrollOrBuy = async () => {
+    if (!course) return;
+
+    try {
+      setIsProcessingPayment(true);
+
+      // 1. If course is free (price === 0)
+      if (!course.price || course.price <= 0) {
+        const orderRes = await createCourseOrder(course._id);
+        if (orderRes.success) {
+          setStudentApplication({ status: "Enrolled", progress: 0 });
+          setReceiptData({
+            isFree: true,
+            amount: 0,
+            courseTitle: course.title,
+            courseId: course._id,
+            paidAt: new Date(),
+          });
+          setShowReceiptModal(true);
+        }
+        return;
+      }
+
+      // 2. Paid Course -> Load Razorpay checkout script
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        alert("Unable to load Razorpay payment gateway. Please check your internet connection and try again.");
+        return;
+      }
+
+      // 3. Create Razorpay order on backend
+      const orderRes = await createCourseOrder(course._id);
+      if (!orderRes.success) {
+        alert(orderRes.message || "Could not initiate payment order.");
+        return;
+      }
+
+      // 4. Configure Razorpay checkout popup modal
+      const options = {
+        key: orderRes.keyId || "rzp_test_TbSS4kb8G70xwq",
+        amount: orderRes.amount,
+        currency: orderRes.currency || "INR",
+        name: "CareerConnect",
+        description: `Enrollment: ${course.title}`,
+        image: "/favicon.svg",
+        order_id: orderRes.orderId,
+        handler: async function (response) {
+          try {
+            const verifyRes = await verifyCoursePayment({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+              courseId: course._id,
+            });
+
+            if (verifyRes.success) {
+              setStudentApplication({ status: "Enrolled", progress: 0 });
+              setReceiptData({
+                paymentId: response.razorpay_payment_id,
+                orderId: response.razorpay_order_id,
+                amount: course.price,
+                courseTitle: course.title,
+                courseId: course._id,
+                paidAt: new Date(),
+              });
+              setShowReceiptModal(true);
+            }
+          } catch (err) {
+            console.error("Payment verification failed:", err);
+            alert(err.response?.data?.message || "Payment signature verification failed. Please contact support.");
+          } finally {
+            setIsProcessingPayment(false);
+          }
+        },
+        prefill: {
+          name: orderRes.prefill?.name || user?.fullName || "",
+          email: orderRes.prefill?.email || user?.email || "",
+          contact: orderRes.prefill?.contact || user?.phone || "",
+        },
+        theme: {
+          color: "#1e3a8a",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessingPayment(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (response) {
+        console.error("Payment failed:", response.error);
+        alert(`Payment Failed: ${response.error.description || response.error.reason || "Transaction was declined."}`);
+        setIsProcessingPayment(false);
+      });
+
+      rzp.open();
+    } catch (err) {
+      console.error("Payment initiation error:", err);
+      alert(err.response?.data?.message || "Failed to initiate payment. Please try again.");
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
@@ -699,6 +813,17 @@ const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
           </div>
         </div>
       )}
+
+      {/* Razorpay Payment Receipt / Confirmation Modal */}
+      <PaymentReceiptModal
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        receiptData={receiptData}
+        onStartLearning={() => {
+          setShowReceiptModal(false);
+          navigate("/student/courses");
+        }}
+      />
     </div>
   );
 };

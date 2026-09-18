@@ -38,6 +38,11 @@ export const getMyApplications = async () => {
   return data;
 };
 
+export const getMyAppliedIds = async () => {
+  const { data } = await api.get("/applications/me/applied-ids");
+  return data;
+};
+
 /**
  * Get single application by ID
  */
@@ -83,6 +88,7 @@ export default {
   applyToJob,
   applyToInternship,
   getMyApplications,
+  getMyAppliedIds,
   getApplicationById,
   withdraw,
   getEmployerApplications,

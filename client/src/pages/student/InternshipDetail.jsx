@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getById } from "../../services/internshipService";
-import { applyToInternship } from "../../services/applicationService";
+import { applyToInternship, getMyAppliedIds } from "../../services/applicationService";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { getStudentProfile } from "../../services/studentProfileService";
 import ResumeUploadInput from "../../components/common/ResumeUploadInput";
+import BrandLogo from "../../components/common/BrandLogo";
 
-export default function InternshipDetail({ id, onBack, embedded = false }) {
+export default function InternshipDetail({ id, onBack, embedded = false, isApplied = false, onAppliedSuccess }) {
   const { id: paramId } = useParams();
   const internshipId = id || paramId;
   const { user } = useSelector((state) => state.auth);
@@ -17,9 +18,25 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
   const [error, setError] = useState("");
   const [applying, setApplying] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
+  const [standaloneApplied, setStandaloneApplied] = useState({ userId: null, internshipId: null });
+  const hasStandaloneApplied = standaloneApplied.userId === user?._id &&
+    standaloneApplied.internshipId === String(internshipId);
   const [coverNote, setCoverNote] = useState("");
   const [resumeUrl, setResumeUrl] = useState("");
   const [isTailorModalOpen, setIsTailorModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (embedded || !user?._id || !internshipId) return;
+    let active = true;
+    getMyAppliedIds()
+      .then((response) => {
+        if (active && (response.internshipIds || []).includes(String(internshipId))) {
+          setStandaloneApplied({ userId: user._id, internshipId: String(internshipId) });
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [embedded, user?._id, internshipId]);
 
   // Comprehensive student form fields
   const [formData, setFormData] = useState({
@@ -76,7 +93,7 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
               email: prev.email || p.userId?.email || user.email || "",
               phone: prev.phone || p.userId?.phone || user.phone || "",
               education: prev.education || p.education?.[0]?.degree || "",
-              college: prev.college || p.education?.[0]?.institution || "Geeta University",
+              college: prev.college || p.education?.[0]?.institution || "CareerConnect",
               graduationYear: prev.graduationYear || (p.education?.[0]?.endYear ? String(p.education[0].endYear) : ""),
               skills: prev.skills || (p.technicalSkills || []).join(", "),
               experience: prev.experience || (p.experience?.[0] ? `${p.experience[0].title || ""} - ${p.experience[0].company || ""}`.trim() : ""),
@@ -125,6 +142,8 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
       const res = await applyToInternship(internshipId, payload);
       if (res.success) {
         setSuccessMsg(res.message || "Application submitted successfully!");
+        setStandaloneApplied({ userId: user?._id, internshipId: String(internshipId) });
+        onAppliedSuccess?.(res);
       } else {
         setError(res.message || "Failed to submit application");
       }
@@ -312,9 +331,9 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
           </section>
 
           <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
-            {successMsg && (
+            {(successMsg || isApplied || hasStandaloneApplied) && (
               <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center mb-2">
-                <p className="text-sm font-bold text-emerald-800">{successMsg}</p>
+                <p className="text-sm font-bold text-emerald-800">{successMsg || "✓ Applied — your application has been submitted."}</p>
                 {!embedded && (
                   <Link
                     to="/applications"
@@ -347,7 +366,7 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
                 </a>
               </div>
             ) : (
-              !successMsg && (
+              !successMsg && !isApplied && !hasStandaloneApplied && (
                 <form onSubmit={handleApply} className="space-y-4">
                   <div>
                     <h4 className="text-sm font-bold text-slate-900">Apply via CareerConnect</h4>
@@ -439,7 +458,7 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
                           type="text"
                           value={formData.college}
                           onChange={(e) => handleChange("college", e.target.value)}
-                          placeholder="Geeta University"
+                          placeholder="CareerConnect"
                           className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
                         />
                       </div>
@@ -553,9 +572,11 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
         onClose={() => setIsTailorModalOpen(false)}
         opportunity={internship}
         opportunityType="Internship"
-        onApplicationSubmitted={() => {
+        onApplicationSubmitted={(res) => {
           setSuccessMsg("Application submitted successfully with your tailored resume!");
+          setStandaloneApplied({ userId: user?._id, internshipId: String(internshipId) });
           setIsTailorModalOpen(false);
+          onAppliedSuccess?.(res);
         }}
       />
     </>
@@ -570,15 +591,7 @@ export default function InternshipDetail({ id, onBack, embedded = false }) {
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/home" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
-              GU
-            </div>
-            <div className="leading-tight">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                Geeta University
-              </p>
-              <p className="text-sm font-bold text-slate-900">CareerConnect</p>
-            </div>
+            <BrandLogo className="h-9 w-44" />
           </Link>
           <Link to="/applications" className="text-xs font-bold text-[#1e3a8a]">
             My Applications →

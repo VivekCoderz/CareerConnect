@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import BrandLogo from "../../components/common/BrandLogo";
 import { useDispatch, useSelector } from "react-redux";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../../config/firebase";
@@ -104,7 +105,7 @@ const Login = () => {
     dispatch(loginStart());
 
     try {
-      const finalCaptchaToken = captchaToken || (await getCaptchaToken("login"));
+      const finalCaptchaToken = await getCaptchaToken("login");
 
       // Check details directly from MongoDB database (not from Firebase)
       const response = await api.post("/auth/login", {
@@ -201,14 +202,10 @@ const Login = () => {
         <div className="absolute bottom-0 left-0 w-56 h-56 bg-white/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
 
         <div className="relative z-10">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center font-bold text-sm">
-              GU
-            </div>
-            <div>
-              <p className="text-[15px] font-bold tracking-tight">GEETA UNIVERSITY</p>
-              <p className="text-[11px] text-[#fbbf24] font-semibold">CareerConnect</p>
-            </div>
+          <Link to="/" className="inline-block">
+            <span className="flex h-14 items-center rounded-2xl bg-white/95 px-3 shadow-sm">
+              <BrandLogo className="h-10 w-48" />
+            </span>
           </Link>
         </div>
 
@@ -242,14 +239,10 @@ const Login = () => {
       <div className="flex-1 flex items-center justify-center p-5 sm:p-8">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
-            <div className="w-9 h-9 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-xs">
-              GU
-            </div>
-            <div>
-              <p className="text-sm font-bold text-[#1e3a8a]">GEETA UNIVERSITY</p>
-              <p className="text-[10px] text-[#f59e0b] font-semibold">CareerConnect</p>
-            </div>
+          <div className="lg:hidden flex items-center justify-center mb-8">
+            <Link to="/">
+              <BrandLogo className="h-11 w-52" />
+            </Link>
           </div>
 
           {/* Session expired banner */}

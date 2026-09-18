@@ -3,6 +3,7 @@ const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
+const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
 const { getAggregatedOpportunities, clearSearchCache } = require("../services/jobScraperService");
 
 /**
@@ -43,16 +44,23 @@ exports.getJobs = async (req, res, next) => {
       limit = 10,
     } = req.query;
 
+    const pageNum = Math.max(1, Number.parseInt(page, 10) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number.parseInt(limit, 10) || 10));
+    const windowSize = pageNum * pageSize;
+    if (windowSize > 5000) {
+      return res.status(400).json({ success: false, message: "Please narrow your search to view more results" });
+    }
+
     const query = {};
 
     if (myJobs === "true" && req.user) {
       const employerId = await getEmployerProfileId(req.user);
       query.employerId = employerId;
     } else {
-      query.status = status || "Published";
+      query.status = "Published";
     }
 
-    const searchTerm = (search || q || "").trim();
+    const searchTerm = escapeRegex((search || q || "").trim());
     if (searchTerm) {
       query.$or = [
         { title: { $regex: searchTerm, $options: "i" } },
@@ -72,7 +80,7 @@ exports.getJobs = async (req, res, next) => {
       ) {
         query.employmentType = { $not: /^internship$/i };
       } else {
-        query.employmentType = { $regex: new RegExp(reqType, "i") };
+        query.employmentType = { $regex: new RegExp(escapeRegex(reqType), "i") };
       }
     } else if (myJobs !== "true") {
       query.employmentType = { $not: /^internship$/i };
@@ -80,7 +88,7 @@ exports.getJobs = async (req, res, next) => {
 
     if (department && department !== "All") query.department = department;
     if (category && category !== "All") {
-      const catRegex = new RegExp(category, "i");
+      const catRegex = new RegExp(escapeRegex(category), "i");
       if (query.$or) {
         query.$and = [{ $or: query.$or }, { $or: [{ category: catRegex }, { department: catRegex }, { title: catRegex }] }];
         delete query.$or;
@@ -91,15 +99,22 @@ exports.getJobs = async (req, res, next) => {
     if (employmentType && employmentType !== "All") query.employmentType = employmentType;
     if (workMode && workMode !== "All") query.workMode = workMode;
     const locFilter = (city || location || "").trim();
-    if (locFilter && locFilter !== "All") query.location = { $regex: locFilter, $options: "i" };
+    if (locFilter && locFilter !== "All") {
+      query[city ? "city" : "location"] = { $regex: escapeRegex(locFilter), $options: "i" };
+    }
 
     let campusJobs = [];
+    let campusTotal = 0;
     if (source !== "external" && mongoose.connection.readyState === 1) {
       try {
-        const rawJobs = await Job.find(query)
+        const dbSort = sort === "salary_high" ? { "salaryRange.min": -1, _id: -1 }
+          : sort === "salary_low" ? { "salaryRange.min": 1, _id: -1 }
+            : { createdAt: -1, _id: -1 };
+        const [rawJobs, totalMatches] = await Promise.all([Job.find(query)
           .populate("employerId", "companyName logo headquarters industry")
-          .sort({ createdAt: -1 })
-          .lean();
+          .sort(dbSort).limit(windowSize)
+          .lean(), Job.countDocuments(query)]);
+        campusTotal = totalMatches;
 
         campusJobs = rawJobs.map((j) => {
           const salaryStr =
@@ -117,6 +132,7 @@ exports.getJobs = async (req, res, next) => {
             companyName: j.employerId?.companyName || "CareerConnect Partner",
             companyId: j.employerId?._id || "",
             location: j.location,
+            city: j.city,
             salary: salaryStr,
             type: j.employmentType || "Full-Time",
             opportunityType: j.employmentType || "Full-Time",
@@ -145,7 +161,9 @@ exports.getJobs = async (req, res, next) => {
           search: searchTerm || (category && category !== "All" ? category : ""),
         });
 
-        const formattedScraped = (scraped.data || []).map((item, idx) => ({
+        const formattedScraped = (scraped.data || [])
+          .filter((item) => !city || String(item.location || "").toLowerCase().includes(String(city).toLowerCase()))
+          .map((item, idx) => ({
           _id: `scraped-job-${idx}`,
           id: `scraped-job-${idx}`,
           jobId: `scraped-job-${idx}`,
@@ -156,6 +174,7 @@ exports.getJobs = async (req, res, next) => {
             headquarters: item.location,
           },
           location: item.location,
+          city: item.location,
           employmentType: item.opportunityType || "Full-Time",
           workMode: item.workMode || "On-Site",
           salary: "Competitive Package",
@@ -204,9 +223,7 @@ exports.getJobs = async (req, res, next) => {
       allJobs.sort((a, b) => getTimestamp(b) - getTimestamp(a));
     }
 
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
-    const total = allJobs.length;
+    const total = campusTotal + allJobs.length - campusJobs.length;
     const paginatedJobs = allJobs.slice((pageNum - 1) * pageSize, pageNum * pageSize);
 
     return res.status(200).json({
@@ -229,12 +246,18 @@ exports.getJobs = async (req, res, next) => {
 // GET /api/jobs/:id
 exports.getJobById = async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Job not found" });
+    }
     const job = await Job.findById(req.params.id).populate(
       "employerId",
       "companyName logo headquarters industry description website"
     );
 
-    if (!job) {
+    if (!job || (job.status !== "Published" && (!req.user ||
+      !(String(job.createdBy) === String(req.user._id) || await EmployerProfile.exists({
+        _id: job.employerId, userId: req.user._id,
+      }))))) {
       return res.status(404).json({
         success: false,
         message: "Job not found",
@@ -242,8 +265,7 @@ exports.getJobById = async (req, res, next) => {
     }
 
     // Increment view count
-    job.viewsCount += 1;
-    await job.save();
+    if (job.status === "Published") await Job.updateOne({ _id: job._id }, { $inc: { viewsCount: 1 } });
 
     return res.status(200).json({
       success: true,
@@ -331,7 +353,7 @@ exports.updateJob = async (req, res, next) => {
       });
     }
 
-    Object.assign(job, req.body);
+    Object.assign(job, pickListingUpdate(req.body));
     await job.save();
     clearSearchCache();
 

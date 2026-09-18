@@ -186,7 +186,7 @@ const EmployerDashboard = () => {
       const res = await jobService.createJob(jobPayload);
       if (res?.success) {
         setJobs((prev) => [res.job, ...prev]);
-        showToast("New job posted to Geeta University talent portal!");
+        showToast("New job posted to CareerConnect talent portal!");
       }
     }
   };
@@ -525,7 +525,7 @@ const EmployerDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-slate-900">Active Job Listings</h3>
-                      <p className="text-xs text-slate-400">Open roles visible to Geeta University talent</p>
+                      <p className="text-xs text-slate-400">Open roles visible to CareerConnect talent</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -663,7 +663,7 @@ const EmployerDashboard = () => {
                     </div>
                   </div>
 
-                  {/* Geeta University Campus Connect Card */}
+                  {/* CareerConnect Campus Connect Card */}
                   <div className="p-5 rounded-3xl bg-gradient-to-br from-blue-900 to-indigo-900 text-white shadow-xs space-y-2">
                     <span className="text-xl">🏛️</span>
                     <h4 className="text-xs font-bold text-blue-100 uppercase tracking-wide">University Campus Drives</h4>
@@ -847,7 +847,7 @@ const EmployerDashboard = () => {
             <div className="space-y-5 animate-fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">Geeta University Talent Pool</h2>
+                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">CareerConnect Talent Pool</h2>
                   <p className="text-xs text-slate-500">Live candidate matching with strong & missing skill analysis</p>
                 </div>
               </div>

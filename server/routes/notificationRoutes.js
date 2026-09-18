@@ -2,8 +2,6 @@ const express = require("express");
 const router = express.Router();
 const notificationController = require("../controllers/notificationController");
 const protect = require("../middleware/authMiddleware");
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
 
 // Optional auth helper for SSE stream where cookies or query token might be passed
 const authOrQuery = async (req, res, next) => {
@@ -35,7 +33,7 @@ router.get("/stream", authOrQuery, notificationController.streamNotifications);
 
 // Protected notification management routes
 router.use(protect);
-
+router.get("/stream", notificationController.streamNotifications);
 router.get("/", notificationController.getNotifications);
 router.get("/:id", notificationController.getNotificationById);
 

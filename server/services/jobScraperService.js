@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
+const { escapeRegex } = require("../utils/listingSecurity");
 
 // =========================================================================
 // 1. CLEAN DEGREE KEYWORD MAP (SIMPLIFIED NAMES)
@@ -491,7 +492,8 @@ async function getAggregatedOpportunities({
   search = "",
   q = "",
 } = {}) {
-  const customQuery = (search || q || "").trim();
+  const rawQuery = search || q || "";
+  const customQuery = typeof rawQuery === "string" ? rawQuery.trim().slice(0, 100) : "";
 
   let queryKeywords = "";
   if (customQuery) {
@@ -739,7 +741,7 @@ async function getAggregatedOpportunities({
       const internFilter = { status: "Published" };
 
       if (customQuery) {
-        const sRegex = new RegExp(customQuery, "i");
+        const sRegex = new RegExp(escapeRegex(customQuery), "i");
         jobFilter.$or = [
           { title: sRegex },
           { description: sRegex },
@@ -785,6 +787,7 @@ async function getAggregatedOpportunities({
         dbJobs = await Job.find(pureJobFilter)
           .populate("employerId", "companyName logo headquarters industry")
           .sort({ createdAt: -1 })
+          .limit(500)
           .lean();
       }
 
@@ -794,6 +797,7 @@ async function getAggregatedOpportunities({
           Internship.find(internFilter)
             .populate("employerId", "companyName logo headquarters industry")
             .sort({ createdAt: -1 })
+            .limit(500)
             .lean(),
           Job.find({
             ...jobFilter,
@@ -801,6 +805,7 @@ async function getAggregatedOpportunities({
           })
             .populate("employerId", "companyName logo headquarters industry")
             .sort({ createdAt: -1 })
+            .limit(500)
             .lean(),
         ]);
         dbInterns = [...(internDocs || []), ...(jobInternDocs || [])];

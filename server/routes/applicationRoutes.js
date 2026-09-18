@@ -23,6 +23,7 @@ const {
   applyToInternship,
   applyToJob,
   getMyApplications,
+  getMyAppliedIds,
   getEmployerApplications,
   getApplicationById,
   updateApplicationStatus,
@@ -32,6 +33,10 @@ const {
 } = applicationController;
 
 // ========== CANDIDATE ==========
+router.post("/", protect, (_req, res) => res.status(405).json({
+  success: false, message: "Use the job or internship application endpoint",
+}));
+
 router.post(
   "/internship/:internshipId",
   protect,
@@ -42,6 +47,12 @@ router.post(
   "/job/:jobId",
   protect,
   ensureFn(applyToJob, "applyToJob")
+);
+
+router.get(
+  "/me/applied-ids",
+  protect,
+  ensureFn(getMyAppliedIds, "getMyAppliedIds")
 );
 
 router.get(

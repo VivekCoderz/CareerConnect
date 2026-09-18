@@ -27,6 +27,15 @@ import ApplicationSuccessModal from "../../components/professional-dashboard/App
 import ExternalApplicationFollowupModal from "../../components/professional-dashboard/ExternalApplicationFollowupModal";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 
+// Embedded full pages
+import Jobs from "../student/Jobs";
+import Internships from "../student/Internships";
+import InternshipDetail from "../student/InternshipDetail";
+import StudentCoursesPage from "../courses/StudentCoursesPage";
+import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
+import CourseDetailsPage from "../courses/CourseDetailsPage";
+import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
+
 const INITIAL_APPLICATIONS = [
   {
     id: "app-101",
@@ -104,6 +113,12 @@ const ProfessionalDashboard = () => {
 
   const [toast, setToast] = useState(null);
 
+  // Sub-view state for embedded tabs
+  const [internshipView, setInternshipView] = useState("list");
+  const [selectedInternshipId, setSelectedInternshipId] = useState(null);
+  const [coursesView, setCoursesView] = useState("catalog");
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
+
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
@@ -127,6 +142,19 @@ const ProfessionalDashboard = () => {
   useEffect(() => {
     fetchDashboard();
   }, []);
+
+  const handleSelectTab = (tab) => {
+    setActiveTab(tab);
+    if (tab === "internships") {
+      setInternshipView("list");
+      setSelectedInternshipId(null);
+    }
+    if (tab === "courses") {
+      setCoursesView("catalog");
+      setSelectedCourseId(null);
+    }
+    setMobileSidebarOpen(false);
+  };
 
   const handleLogout = () => {
     logout();
@@ -301,7 +329,7 @@ const ProfessionalDashboard = () => {
       {/* Left Side Navigation Sidebar */}
       <ProfessionalSidebar
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
         onLogout={handleLogout}
@@ -322,7 +350,7 @@ const ProfessionalDashboard = () => {
           professionalName={professionalName}
           professionalRole={currentRole}
           activeTab={activeTab}
-          onSelectTab={setActiveTab}
+          onSelectTab={handleSelectTab}
           onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           onLogout={handleLogout}
@@ -336,7 +364,7 @@ const ProfessionalDashboard = () => {
               {/* 1. Welcome Section */}
               <WelcomeSection
                 name={professionalName}
-                role={currentRole}
+                currentRole={currentRole}
                 profileStrength={profileStrength}
                 careerStrength={careerStrengthScore}
               />
@@ -425,6 +453,93 @@ const ProfessionalDashboard = () => {
             </div>
           )}
 
+          {/* ==================== JOBS (Full Browse) ==================== */}
+          {activeTab === "jobs" && (
+            <div className="animate-fade-in">
+              <Jobs
+                embedded
+                onApply={(job) => {
+                  setTailoringOpportunity({
+                    _id: job._id || job.id,
+                    id: job._id || job.id,
+                    title: job.title,
+                    company: job.company || job.companyName,
+                    companyName: job.company || job.companyName,
+                    type: "Job",
+                    opportunityType: "Job",
+                    description: job.description || "",
+                    skillsRequired: job.skillsRequired || job.skills || [],
+                  });
+                  setIsTailoredModalOpen(true);
+                }}
+              />
+            </div>
+          )}
+
+          {/* ==================== INTERNSHIPS ==================== */}
+          {activeTab === "internships" && (
+            <div className="animate-fade-in">
+              {internshipView === "list" && (
+                <Internships
+                  embedded
+                  onSelectInternship={(id) => {
+                    setSelectedInternshipId(id);
+                    setInternshipView("detail");
+                  }}
+                />
+              )}
+              {internshipView === "detail" && (
+                <InternshipDetail
+                  embedded
+                  id={selectedInternshipId}
+                  onBack={() => {
+                    setInternshipView("list");
+                    setSelectedInternshipId(null);
+                  }}
+                />
+              )}
+            </div>
+          )}
+
+          {/* ==================== COURSES ==================== */}
+          {activeTab === "courses" && (
+            <div className="animate-fade-in">
+              {coursesView === "catalog" && (
+                <StudentCoursesPage
+                  embedded
+                  onViewDetails={(id) => {
+                    setSelectedCourseId(id);
+                    setCoursesView("detail");
+                  }}
+                  onNavigateToMyCourses={() => setCoursesView("my-courses")}
+                />
+              )}
+              {coursesView === "my-courses" && (
+                <StudentMyCoursesPage
+                  embedded
+                  onBackToCatalog={() => setCoursesView("catalog")}
+                />
+              )}
+              {coursesView === "detail" && (
+                <CourseDetailsPage
+                  embedded
+                  id={selectedCourseId}
+                  onBack={() => {
+                    setCoursesView("catalog");
+                    setSelectedCourseId(null);
+                  }}
+                />
+              )}
+            </div>
+          )}
+
+          {/* ==================== INTERVIEWS ==================== */}
+          {activeTab === "interviews" && (
+            <div className="animate-fade-in">
+              <CandidateInterviewsView />
+            </div>
+          )}
+
           {/* Career Growth Dedicated Tab */}
           {activeTab === "growth" && (
             <div className="space-y-6">
@@ -459,6 +574,48 @@ const ProfessionalDashboard = () => {
                 skills={skillFocusList}
                 onViewSkills={() => navigate("/professional/profile")}
               />
+
+              {/* Core Technical Skills */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Technical Expertise</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Core skills from your professional experience
+                    </p>
+                  </div>
+                  <Link
+                    to="/professional/profile"
+                    className="px-3.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 border border-purple-200 transition"
+                  >
+                    Edit Skills
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { name: "System Design", level: 90, color: "bg-purple-500" },
+                    { name: "Cloud Architecture (AWS)", level: 85, color: "bg-indigo-500" },
+                    { name: "Distributed Systems", level: 82, color: "bg-blue-500" },
+                    { name: "Engineering Leadership", level: 75, color: "bg-violet-500" },
+                    { name: "Microservices", level: 88, color: "bg-purple-600" },
+                    { name: "Kubernetes / Docker", level: 78, color: "bg-indigo-600" },
+                  ].map((skill) => (
+                    <div key={skill.name} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-medium">
+                        <span className="text-slate-700">{skill.name}</span>
+                        <span className="text-slate-400 font-semibold">{skill.level}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${skill.color} transition-all duration-700`}
+                          style={{ width: `${skill.level}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -470,6 +627,34 @@ const ProfessionalDashboard = () => {
                 onViewResume={() => navigate("/professional/profile")}
                 onDownload={handleDownloadResume}
               />
+
+              {/* Resume Tips */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Executive Resume Tips</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Optimize your resume for senior-level opportunities
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { icon: "📊", title: "Quantify Impact", desc: "Add metrics: '35% latency reduction', '₹15L cost savings', '10M+ daily transactions handled'." },
+                    { icon: "🎯", title: "Tailor for Each Role", desc: "Use our AI tailoring tool to customize your resume keywords for each specific job description." },
+                    { icon: "🏆", title: "Lead with Achievements", desc: "Put your biggest wins in the first two bullet points of each role. Recruiters skim." },
+                    { icon: "🔑", title: "Include Leadership Signals", desc: "Mention team sizes managed, hiring done, and architecture decisions made." },
+                  ].map((tip) => (
+                    <div key={tip.title} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex gap-3">
+                      <span className="text-xl shrink-0">{tip.icon}</span>
+                      <div>
+                        <h3 className="text-xs font-bold text-slate-900">{tip.title}</h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{tip.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 

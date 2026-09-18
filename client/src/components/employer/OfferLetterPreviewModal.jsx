@@ -11,7 +11,7 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "Career
   const department = offer.department || "Engineering";
   const employmentType = offer.employmentType || "Full-time";
   const workLocationType = offer.workLocationType || "Hybrid";
-  const location = offer.location || "Gurugram / Geeta University Campus";
+  const location = offer.location || "Gurugram / CareerConnect Campus";
   const reportingManager = offer.reportingManager || "Head of Department";
   const probationPeriod = offer.probationPeriod || "3 Months";
   const noticePeriod = offer.noticePeriod || "30 Days";
@@ -34,7 +34,7 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "Career
 
   const signatoryName = offer.signatoryName || "Dr. Rajesh Verma";
   const signatoryTitle = offer.signatoryTitle || "Head of Talent Acquisition & Campus Partnerships";
-  const signatoryOrg = offer.signatoryOrganization || "Geeta University Placement & Career Center";
+  const signatoryOrg = offer.signatoryOrganization || "CareerConnect Placement & Career Center";
 
   const benefitsList = Array.isArray(offer.benefits) && offer.benefits.length > 0
     ? offer.benefits
@@ -108,7 +108,7 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "Career
             <div className="border-b-2 border-slate-900/80 pb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <span className="text-[11px] font-extrabold tracking-widest text-amber-600 uppercase block">
-                  GEETA UNIVERSITY
+                  CAREERCONNECT
                 </span>
                 <h1 className="text-2xl font-black text-[#1e3a8a] tracking-tight">
                   CAREERCONNECT
@@ -142,7 +142,7 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "Career
               </p>
 
               <p className="text-slate-700 text-justify">
-                On behalf of <strong className="text-slate-900">{companyName}</strong> and the placement governing board at CareerConnect, Geeta University, we are exceptionally delighted to extend this formal offer of employment to you. We were thoroughly impressed by your academic record, technical competencies, and interview performance, and we are confident that you will make significant contributions to our team.
+                On behalf of <strong className="text-slate-900">{companyName}</strong> and the placement governing board at CareerConnect, CareerConnect, we are exceptionally delighted to extend this formal offer of employment to you. We were thoroughly impressed by your academic record, technical competencies, and interview performance, and we are confident that you will make significant contributions to our team.
               </p>
             </div>
 

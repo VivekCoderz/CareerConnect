@@ -12,7 +12,7 @@
 const PROD_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 const DEV_SITE_KEY = "6Lc4s6ctAAAAAOfgmjg_OvVijH4CDWoJGqWF0aD7";
 
-const SITE_KEY = PROD_SITE_KEY || DEV_SITE_KEY;
+const SITE_KEY = PROD_SITE_KEY || (import.meta.env.DEV ? DEV_SITE_KEY : "");
 
 let scriptLoaded = false;
 let scriptLoading = false;
@@ -59,6 +59,7 @@ const loadRecaptchaScript = () => {
  */
 export const getCaptchaToken = async (action = "submit") => {
   try {
+    if (!SITE_KEY) return "";
     await loadRecaptchaScript();
 
     if (typeof window.grecaptcha === "undefined") {

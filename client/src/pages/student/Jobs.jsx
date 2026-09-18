@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import BrandLogo from "../../components/common/BrandLogo";
 import { getJobs } from "../../services/jobService";
 import { applyOpportunity } from "../../services/studentDashboardService";
 
@@ -96,7 +97,7 @@ export default function Jobs({
         <div>
           {!embedded && (
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              Geeta University · CareerConnect
+              CareerConnect · CareerConnect
             </p>
           )}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -371,15 +372,7 @@ export default function Jobs({
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/home" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
-              GU
-            </div>
-            <div className="leading-tight">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                Geeta University
-              </p>
-              <p className="text-sm font-bold text-slate-900">CareerConnect</p>
-            </div>
+            <BrandLogo className="h-9 w-44" />
           </Link>
           <Link
             to="/applications"

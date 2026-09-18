@@ -46,12 +46,12 @@ if (!SESSION_SECRET) {
 const app = require("./app.js");
 const connectDB = require("./config/db");
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Connect Database
 connectDB();
 
-const server = app.listen(PORT || 5000, () => {
+const server = app.listen(PORT, () => {
     console.log(`CareerConnect server running on port ${PORT} 🔥`);
 });
 
