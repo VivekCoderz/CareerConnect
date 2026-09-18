@@ -115,6 +115,20 @@ if (!process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET is required before enabling session authentication");
 }
 
+const SESSION_SECRET = process.env.SESSION_SECRET;
+
+if (!SESSION_SECRET) {
+  throw new Error(
+    "FATAL: SESSION_SECRET environment variable is not set. A secure secret is required for session signing."
+  );
+}
+
+if (process.env.NODE_ENV === "production" && SESSION_SECRET.length < 32) {
+  throw new Error(
+    "FATAL: SESSION_SECRET must be at least 32 characters long in production."
+  );
+}
+
 /**
  * Production-ready Express Session Configuration with Mongoose
  * - rolling: true resets cookie expiration & MongoDB TTL on every user activity
@@ -123,8 +137,7 @@ if (!process.env.SESSION_SECRET) {
  */
 const sessionMiddleware = session({
   store: new MongooseStore({ ttl: IDLE_TIMEOUT_SECONDS }),
-  name: "sid", // Session cookie name
-  secret: process.env.SESSION_SECRET,
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   rolling: true, // Resets idle expiration timer on each incoming request

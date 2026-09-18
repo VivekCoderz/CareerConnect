@@ -54,6 +54,16 @@ export const getPublicCompanyProfile = async (companyId) => {
   return response.data;
 };
 
+export const getOrganizationStatus = async () => {
+  const response = await api.get("/employer/organization-status");
+  return response.data;
+};
+
+export const requestCompanyApproval = async (formData) => {
+  const response = await api.post("/employer/request-company-approval", formData);
+  return response.data;
+};
+
 export default {
   getEmployerProfile,
   createEmployerProfile,
@@ -65,4 +75,6 @@ export default {
   deleteEmployerProfile,
   getEmployerDashboard,
   getPublicCompanyProfile,
+  getOrganizationStatus,
+  requestCompanyApproval,
 };

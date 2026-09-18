@@ -4,6 +4,8 @@ const Application = require("../models/Application");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const User = require("../models/User");
+const notificationService = require("../services/notificationService");
+const socketService = require("../services/socketService");
 
 // Helper to get or create EmployerProfile for the authenticated user
 const getEmployerProfileId = async (user) => {
@@ -158,10 +160,54 @@ exports.getInterviews = async (req, res, next) => {
       });
     }
 
+    // Base query for stats and tabCounts
+    const allForCounts = await Interview.find(isEmployer ? {
+      $or: [
+        { employerId: await getEmployerProfileId(req.user) },
+        { employerId: req.user._id },
+      ],
+    } : query.$or ? { $or: query.$or } : {});
+
+    const total = allForCounts.length;
+    const scheduled = allForCounts.filter((i) => (i.status || "").toLowerCase() === "scheduled").length;
+    const completed = allForCounts.filter((i) => (i.status || "").toLowerCase() === "completed").length;
+    const rescheduled = allForCounts.filter((i) => (i.status || "").toLowerCase() === "rescheduled").length;
+    const cancelled = allForCounts.filter((i) => (i.status || "").toLowerCase() === "cancelled").length;
+
+    const upcoming = scheduled + rescheduled;
+    const pendingEvaluation = allForCounts.filter((i) => {
+      const isComp = (i.status || "").toLowerCase() === "completed";
+      const hasScorecard =
+        (i.scorecard && i.scorecard.submittedAt) ||
+        (i.feedback && i.feedback.submittedAt) ||
+        (i.scorecard?.overallScore > 0);
+      return isComp && !hasScorecard;
+    }).length;
+
+    const stats = {
+      upcoming,
+      completed,
+      pendingEvaluation,
+      total,
+      scheduled,
+      rescheduled,
+      cancelled,
+    };
+
+    const tabCounts = {
+      All: total,
+      Scheduled: scheduled,
+      Completed: completed,
+      Rescheduled: rescheduled,
+      Cancelled: cancelled,
+    };
+
     return res.status(200).json({
       success: true,
       count: interviews.length,
       interviews,
+      stats,
+      tabCounts,
     });
   } catch (error) {
     next(error);
@@ -207,15 +253,20 @@ exports.getInterviewStats = async (req, res, next) => {
     const todayStr = new Date().toISOString().split("T")[0];
 
     const total = allInterviews.length;
-    const upcoming = allInterviews.filter((i) => {
-      const s = (i.status || "").toLowerCase();
-      const isSched = s === "scheduled" || s === "rescheduled";
-      return isSched && (!i.scheduledDate || i.scheduledDate >= todayStr);
-    }).length;
-
+    const scheduled = allInterviews.filter((i) => (i.status || "").toLowerCase() === "scheduled").length;
     const completed = allInterviews.filter((i) => (i.status || "").toLowerCase() === "completed").length;
     const rescheduled = allInterviews.filter((i) => (i.status || "").toLowerCase() === "rescheduled").length;
     const cancelled = allInterviews.filter((i) => (i.status || "").toLowerCase() === "cancelled").length;
+
+    const upcoming = scheduled + rescheduled;
+    const pendingEvaluation = allInterviews.filter((i) => {
+      const isComp = (i.status || "").toLowerCase() === "completed";
+      const hasScorecard =
+        (i.scorecard && i.scorecard.submittedAt) ||
+        (i.feedback && i.feedback.submittedAt) ||
+        (i.scorecard?.overallScore > 0);
+      return isComp && !hasScorecard;
+    }).length;
 
     const scored = allInterviews.filter((i) => {
       const score = i.scorecard?.overallScore || i.feedback?.overallScore || i.feedback?.rating;
@@ -249,9 +300,11 @@ exports.getInterviewStats = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       stats: {
-        total,
         upcoming,
         completed,
+        pendingEvaluation,
+        total,
+        scheduled,
         rescheduled,
         cancelled,
         avgScore,
@@ -259,6 +312,13 @@ exports.getInterviewStats = async (req, res, next) => {
         failed,
         selected: selectedCount,
         recommendedHire: passed,
+      },
+      tabCounts: {
+        All: total,
+        Scheduled: scheduled,
+        Completed: completed,
+        Rescheduled: rescheduled,
+        Cancelled: cancelled,
       },
     });
   } catch (error) {
@@ -348,6 +408,54 @@ exports.getEligibleCandidates = async (req, res, next) => {
           }
         }
 
+        // Configured interview process rounds with real completion and lock status
+        const defaultRounds = [
+          { roundNumber: 1, name: "Round 1 - Technical Assessment", type: "Technical", durationMinutes: 45 },
+          { roundNumber: 2, name: "Round 2 - Live Problem Solving & Coding", type: "Coding", durationMinutes: 45 },
+          { roundNumber: 3, name: "Round 3 - HR & Culture Fit Discussion", type: "HR", durationMinutes: 30 },
+        ];
+
+        const roundsPipeline = defaultRounds.map((r) => {
+          const matchingInterview = appInterviews.find((i) => i.roundNumber === r.roundNumber);
+          if (matchingInterview) {
+            const s = (matchingInterview.status || "").toLowerCase();
+            const res = (matchingInterview.result || "").toLowerCase();
+            if (s === "completed") {
+              return {
+                ...r,
+                status: res === "passed" ? "completed" : "failed",
+                label: res === "passed" ? "Completed" : "Not Cleared",
+                interviewId: matchingInterview._id,
+                isSelectable: false,
+              };
+            } else {
+              return {
+                ...r,
+                status: "scheduled",
+                label: "Already Scheduled",
+                interviewId: matchingInterview._id,
+                isSelectable: false,
+              };
+            }
+          }
+
+          if (r.roundNumber === nextRoundNumber && isEligible) {
+            return {
+              ...r,
+              status: "available",
+              label: "Available",
+              isSelectable: true,
+            };
+          }
+
+          return {
+            ...r,
+            status: "locked",
+            label: "Locked",
+            isSelectable: false,
+          };
+        });
+
         return {
           applicationId: app._id,
           candidateId: app.candidateId?._id,
@@ -366,6 +474,7 @@ exports.getEligibleCandidates = async (req, res, next) => {
           nextRoundNumber,
           isEligible,
           eligibilityReason,
+          roundsPipeline,
           lastInterview: lastInterview
             ? {
                 roundNumber: lastInterview.roundNumber,
@@ -383,6 +492,113 @@ exports.getEligibleCandidates = async (req, res, next) => {
       success: true,
       count: eligibleList.length,
       candidates: eligibleList,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/interviews/availability
+ * Returns available time slots for a given date, checking interviewer & candidate conflicts
+ */
+exports.getInterviewAvailability = async (req, res, next) => {
+  try {
+    const employerProfileId = await getEmployerProfileId(req.user);
+    const { date, interviewerId, interviewerName, candidateId, duration = 45 } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ success: false, message: "Date is required to check availability" });
+    }
+
+    const durationNum = Number(duration) || 45;
+
+    // Define standard business hour slot templates
+    const baseSlotDefinitions = [
+      { start: "09:30 AM", end: "10:15 AM" },
+      { start: "10:30 AM", end: "11:15 AM" },
+      { start: "11:30 AM", end: "12:15 PM" },
+      { start: "02:00 PM", end: "02:45 PM" },
+      { start: "03:00 PM", end: "03:45 PM" },
+      { start: "04:00 PM", end: "04:45 PM" },
+      { start: "05:00 PM", end: "05:45 PM" },
+    ];
+
+    // Find all active scheduled or rescheduled interviews on that date
+    const query = {
+      scheduledDate: date,
+      status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
+    };
+
+    query.$or = [{ employerId: employerProfileId }, { employerId: req.user._id }];
+
+    const existingInterviews = await Interview.find(query).select(
+      "scheduledTime startTime endTime interviewerId interviewerName candidateId status"
+    );
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const isToday = date === todayStr;
+    const now = new Date();
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+
+    const slots = baseSlotDefinitions.map((slot) => {
+      const slotTimeStr = `${slot.start} - ${slot.end}`;
+
+      // Check if slot has already passed today
+      let isPast = false;
+      if (isToday) {
+        const [timePart, meridiem] = slot.start.split(" ");
+        const [hStr, mStr] = timePart.split(":");
+        let h = parseInt(hStr, 10);
+        const m = parseInt(mStr, 10);
+        if (meridiem === "PM" && h !== 12) h += 12;
+        if (meridiem === "AM" && h === 12) h = 0;
+
+        if (h < currentHours || (h === currentHours && m <= currentMinutes)) {
+          isPast = true;
+        }
+      }
+
+      // Check conflict with existing interview
+      let conflictReason = null;
+      for (const inv of existingInterviews) {
+        const invTime = (inv.scheduledTime || inv.startTime || "").trim().toLowerCase();
+        const matchesSlot =
+          invTime.includes(slot.start.toLowerCase()) ||
+          invTime === slotTimeStr.toLowerCase();
+
+        if (matchesSlot) {
+          if (
+            (interviewerId && inv.interviewerId && inv.interviewerId.toString() === interviewerId.toString()) ||
+            (interviewerName && inv.interviewerName && inv.interviewerName.toLowerCase() === interviewerName.toLowerCase())
+          ) {
+            conflictReason = "Interviewer has a conflicting interview";
+            break;
+          }
+          if (candidateId && inv.candidateId && inv.candidateId.toString() === candidateId.toString()) {
+            conflictReason = "Candidate already booked at this time";
+            break;
+          }
+        }
+      }
+
+      const available = !isPast && !conflictReason;
+
+      return {
+        slot: slotTimeStr,
+        startTime: slot.start,
+        endTime: slot.end,
+        durationMinutes: durationNum,
+        available,
+        reason: conflictReason || (isPast ? "Time slot has passed" : "Available"),
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      date,
+      slots,
     });
   } catch (error) {
     next(error);
@@ -589,9 +805,40 @@ exports.scheduleInterview = async (req, res, next) => {
     const finalTime = startTime || scheduledTime || "11:00 AM";
     const finalDuration = Number(duration || durationMinutes) || 45;
 
+    // 6.1 Prevent double-booking / conflicting slot for this interviewer or candidate
+    const conflictQuery = {
+      scheduledDate,
+      status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
+      $or: [
+        { scheduledTime: finalTime },
+        { startTime: finalTime },
+      ],
+    };
+
+    const conflictOr = [];
+    if (interviewerId) conflictOr.push({ interviewerId });
+    if (interviewerName) conflictOr.push({ interviewerName });
+    conflictOr.push({ candidateId: application.candidateId });
+
+    const conflictingInterview = await Interview.findOne({
+      ...conflictQuery,
+      $or: conflictOr,
+    });
+
+    if (conflictingInterview) {
+      const isCandidateConflict = conflictingInterview.candidateId?.toString() === application.candidateId?.toString();
+      return res.status(409).json({
+        success: false,
+        message: isCandidateConflict
+          ? `The candidate already has an interview scheduled on ${scheduledDate} at ${finalTime}. Please choose another time slot.`
+          : `Interviewer ${interviewerName || "selected"} is already booked for an interview on ${scheduledDate} at ${finalTime}. Please choose another available slot.`,
+      });
+    }
+
     // 7. Create Interview
     const interview = await Interview.create({
       employerId: employerProfileId,
+      companyId: application.companyId || req.user.companyId || null,
       candidateId: application.candidateId,
       jobId: application.jobId || jobId || null,
       internshipId: application.internshipId || internshipId || null,
@@ -629,6 +876,40 @@ exports.scheduleInterview = async (req, res, next) => {
     });
     await application.save();
 
+    // 9. Dispatch in-app notification to candidate
+    try {
+      const oppTitle =
+        application.opportunityTitle ||
+        (await Job.findById(interview.jobId).select("title"))?.title ||
+        (await Internship.findById(interview.internshipId).select("title"))?.title ||
+        "Opportunity";
+      const compName = application.companyName || req.user.fullName || "Employer";
+
+      await notificationService.createNotification({
+        recipientId: application.candidateId,
+        senderId: req.user._id,
+        title: "Interview Scheduled 📅",
+        message: `Your ${interview.roundName || `Round ${roundNum}`} for ${oppTitle} at ${compName} has been scheduled for ${scheduledDate} at ${finalTime}.`,
+        notificationType: "INTERVIEW_SCHEDULED",
+        relatedInterviewId: interview._id,
+        relatedApplicationId: application._id,
+        actionUrl: "/student/dashboard?tab=interviews",
+        metadata: {
+          roundNumber: roundNum,
+          scheduledDate,
+          scheduledTime: finalTime,
+          meetingMode: finalType,
+          meetingLink: interview.meetingLink,
+        },
+      });
+    } catch (notifErr) {
+      console.warn("Failed to dispatch schedule notification:", notifErr.message);
+    }
+
+    // Real-time socket broadcast
+    socketService.emitInterviewScheduled(application.candidateId, interview);
+    socketService.emitApplicationUpdated(application);
+
     return res.status(201).json({
       success: true,
       message: `Interview Round ${roundNum} scheduled successfully. Candidate dashboard has been updated.`,
@@ -641,7 +922,7 @@ exports.scheduleInterview = async (req, res, next) => {
 
 /**
  * PUT /api/interviews/:id/reschedule (also supports PATCH)
- * Reschedules an existing interview record
+ * Reschedules an existing interview record without creating duplicate documents
  */
 exports.rescheduleInterview = async (req, res, next) => {
   try {
@@ -651,6 +932,8 @@ exports.rescheduleInterview = async (req, res, next) => {
       startTime,
       scheduledTime,
       duration,
+      durationMinutes,
+      meetingMode,
       meetingLink,
       location,
       rescheduledReason,
@@ -665,6 +948,13 @@ exports.rescheduleInterview = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Interview not found" });
     }
 
+    if (interview.status === "cancelled" || interview.status === "Cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot reschedule a cancelled interview. Please schedule a new interview instead.",
+      });
+    }
+
     if (!scheduledDate) {
       return res.status(400).json({ success: false, message: "New interview date is required." });
     }
@@ -674,32 +964,89 @@ exports.rescheduleInterview = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "New interview date cannot be in the past." });
     }
 
-    const newTime = startTime || scheduledTime || interview.startTime;
+    const prevDate = interview.scheduledDate;
+    const prevTime = interview.scheduledTime || interview.startTime || "";
+    const newTime = startTime || scheduledTime || prevTime || "11:00 AM";
+    const finalReason = rescheduledReason || "Rescheduled by employer";
 
+    // Archive previous schedule into history
+    if (!interview.rescheduleHistory) {
+      interview.rescheduleHistory = [];
+    }
+    interview.rescheduleHistory.push({
+      previousDate: prevDate,
+      previousStartTime: prevTime,
+      newDate: scheduledDate,
+      newStartTime: newTime,
+      reason: finalReason,
+      rescheduledAt: new Date(),
+      rescheduledBy: req.user._id,
+    });
+
+    interview.previousDate = prevDate;
+    interview.previousStartTime = prevTime;
+    interview.newDate = scheduledDate;
+    interview.newStartTime = newTime;
     interview.scheduledDate = scheduledDate;
     interview.startTime = newTime;
     interview.scheduledTime = newTime;
-    if (duration) {
-      interview.duration = Number(duration);
-      interview.durationMinutes = Number(duration);
+    if (duration || durationMinutes) {
+      const dur = Number(duration || durationMinutes);
+      interview.duration = dur;
+      interview.durationMinutes = dur;
     }
+    if (meetingMode) interview.meetingMode = meetingMode;
     if (meetingLink) interview.meetingLink = meetingLink;
     if (location) interview.location = location;
     interview.status = "rescheduled";
-    interview.rescheduledReason = rescheduledReason || "Rescheduled by employer";
+    interview.rescheduledAt = new Date();
+    interview.rescheduledBy = req.user._id;
+    interview.rescheduledReason = finalReason;
 
     await interview.save();
 
     // Update application timeline note
     await Application.findByIdAndUpdate(interview.applicationId, {
+      status: "Interview Scheduled",
+      stage: `Interview Round ${interview.roundNumber}`,
       $push: {
         notes: {
-          text: `Interview Round ${interview.roundNumber} rescheduled to ${scheduledDate} at ${newTime}. Reason: ${interview.rescheduledReason}`,
+          text: `Interview Round ${interview.roundNumber} rescheduled from ${prevDate} (${prevTime}) to ${scheduledDate} (${newTime}). Reason: ${finalReason}`,
           addedBy: req.user._id,
           createdAt: new Date(),
         },
       },
     });
+
+    // Create Candidate In-App Notification
+    try {
+      const app = await Application.findById(interview.applicationId).select("opportunityTitle companyName candidateId");
+      const oppTitle = app?.opportunityTitle || "Opportunity";
+
+      await notificationService.createNotification({
+        recipientId: interview.candidateId || app?.candidateId,
+        senderId: req.user._id,
+        title: "Interview Rescheduled 🔄",
+        message: `Your ${interview.roundName || `Round ${interview.roundNumber}`} interview for ${oppTitle} has been rescheduled from ${prevDate} (${prevTime}) to ${scheduledDate} (${newTime}).`,
+        notificationType: "INTERVIEW_RESCHEDULED",
+        relatedInterviewId: interview._id,
+        relatedApplicationId: interview.applicationId,
+        actionUrl: "/student/dashboard?tab=interviews",
+        metadata: {
+          roundNumber: interview.roundNumber,
+          previousDate: prevDate,
+          previousTime: prevTime,
+          newDate: scheduledDate,
+          newTime,
+          reason: finalReason,
+        },
+      });
+    } catch (notifErr) {
+      console.warn("Failed to dispatch reschedule notification:", notifErr.message);
+    }
+
+    // Real-time socket broadcast
+    socketService.emitInterviewRescheduled(interview.candidateId, interview);
 
     return res.status(200).json({
       success: true,
@@ -713,12 +1060,13 @@ exports.rescheduleInterview = async (req, res, next) => {
 
 /**
  * PUT /api/interviews/:id/cancel (also supports PATCH)
- * Cancels an interview document (does NOT delete)
+ * Cancels an interview document (does NOT delete).
+ * Decoupled from application: candidate stays Shortlisted!
  */
 exports.cancelInterview = async (req, res, next) => {
   try {
     const employerProfileId = await getEmployerProfileId(req.user);
-    const { cancellationReason } = req.body;
+    const { cancellationReason, cancellationMessage } = req.body;
 
     const interview = await Interview.findOne({
       _id: req.params.id,
@@ -729,8 +1077,14 @@ exports.cancelInterview = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Interview not found" });
     }
 
+    const finalReason = cancellationReason || "Interviewer unavailable";
+    const finalMessage = cancellationMessage || "";
+
     interview.status = "cancelled";
-    interview.cancellationReason = cancellationReason || "Cancelled by employer";
+    interview.cancelledAt = new Date();
+    interview.cancelledBy = req.user._id;
+    interview.cancellationReason = finalReason;
+    interview.cancellationMessage = finalMessage;
     await interview.save();
 
     // Check if any other scheduled interviews remain for this application
@@ -739,13 +1093,25 @@ exports.cancelInterview = async (req, res, next) => {
       status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
     });
 
+    // IMPORTANT: Cancelling an interview must NOT reject the candidate.
+    // Ensure application remains Shortlisted so employer can schedule a new interview or reschedule.
     if (activeRemaining === 0) {
-      // Revert application status back to Shortlisted so it can be re-scheduled if desired
       await Application.findByIdAndUpdate(interview.applicationId, {
         status: "Shortlisted",
+        stage: "Shortlisted",
         $push: {
           notes: {
-            text: `Interview Round ${interview.roundNumber} cancelled. Reason: ${interview.cancellationReason}`,
+            text: `Interview Round ${interview.roundNumber} cancelled. Reason: ${finalReason}.${finalMessage ? ` Note: ${finalMessage}` : ""}`,
+            addedBy: req.user._id,
+            createdAt: new Date(),
+          },
+        },
+      });
+    } else {
+      await Application.findByIdAndUpdate(interview.applicationId, {
+        $push: {
+          notes: {
+            text: `Interview Round ${interview.roundNumber} cancelled. Reason: ${finalReason}.`,
             addedBy: req.user._id,
             createdAt: new Date(),
           },
@@ -753,10 +1119,79 @@ exports.cancelInterview = async (req, res, next) => {
       });
     }
 
+    // Create Candidate In-App Notification
+    try {
+      const app = await Application.findById(interview.applicationId).select("opportunityTitle companyName candidateId");
+      const oppTitle = app?.opportunityTitle || "Opportunity";
+
+      await notificationService.createNotification({
+        recipientId: interview.candidateId || app?.candidateId,
+        senderId: req.user._id,
+        title: "Interview Cancelled ✕",
+        message: `Your ${interview.roundName || `Round ${interview.roundNumber}`} interview for ${oppTitle} scheduled for ${interview.scheduledDate} at ${interview.scheduledTime} has been cancelled. Reason: ${finalReason}.${finalMessage ? ` Note: ${finalMessage}` : ""}`,
+        notificationType: "INTERVIEW_CANCELLED",
+        relatedInterviewId: interview._id,
+        relatedApplicationId: interview.applicationId,
+        actionUrl: "/student/dashboard?tab=interviews",
+        metadata: {
+          roundNumber: interview.roundNumber,
+          cancelledDate: interview.scheduledDate,
+          cancelledTime: interview.scheduledTime,
+          cancellationReason: finalReason,
+          cancellationMessage: finalMessage,
+        },
+      });
+    } catch (notifErr) {
+      console.warn("Failed to dispatch cancel notification:", notifErr.message);
+    }
+
+    // Real-time socket broadcast
+    socketService.emitInterviewCancelled(interview.candidateId, interview);
+
     return res.status(200).json({
       success: true,
-      message: "Interview has been cancelled.",
+      message: "Interview has been cancelled. Application remains shortlisted.",
       interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/interviews/:id
+ * DELETE INTERVIEW RULE:
+ * Only allows deleting DRAFT interviews.
+ * Scheduled, completed, rescheduled, or cancelled interviews CANNOT be deleted to preserve audit history.
+ */
+exports.deleteInterview = async (req, res, next) => {
+  try {
+    const employerProfileId = await getEmployerProfileId(req.user);
+    const interview = await Interview.findOne({
+      _id: req.params.id,
+      employerId: employerProfileId,
+    });
+
+    if (!interview) {
+      return res.status(404).json({ success: false, message: "Interview record not found" });
+    }
+
+    // Strict Rule: Non-drafts cannot be deleted
+    const isDraft = interview.isDraft === true || interview.status === "draft" || interview.status === "Draft";
+    if (!isDraft) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Cannot delete active or historical interview records. Scheduled, completed, rescheduled, or cancelled interviews must be preserved for audit history. Use Cancel Interview instead.",
+      });
+    }
+
+    // Permanent delete only if it is a draft
+    await Interview.findByIdAndDelete(req.params.id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Draft interview deleted successfully.",
     });
   } catch (error) {
     next(error);
@@ -785,6 +1220,9 @@ exports.completeInterview = async (req, res, next) => {
     await Application.findByIdAndUpdate(interview.applicationId, {
       status: "Interview Completed",
     });
+
+    // Real-time socket broadcast
+    socketService.emitInterviewStatusUpdated(interview.candidateId, interview);
 
     return res.status(200).json({
       success: true,
@@ -910,6 +1348,37 @@ exports.submitInterviewScorecard = async (req, res, next) => {
         },
       });
     }
+
+    // Dispatch In-App Notification to Candidate
+    try {
+      const app = await Application.findById(interview.applicationId).select("opportunityTitle candidateId");
+      const oppTitle = app?.opportunityTitle || "Opportunity";
+      const isPassed = finalResult === "passed";
+
+      await notificationService.createNotification({
+        recipientId: interview.candidateId || app?.candidateId,
+        senderId: req.user._id,
+        title: isPassed ? "Round Cleared! 🏆" : "Interview Evaluation Completed 📝",
+        message: isPassed
+          ? `Congratulations! You have passed ${interview.roundName || `Round ${interview.roundNumber}`} for ${oppTitle}.`
+          : `Your evaluation for ${interview.roundName || `Round ${interview.roundNumber}`} for ${oppTitle} has been completed.`,
+        notificationType: "INTERVIEW_RESULT",
+        relatedInterviewId: interview._id,
+        relatedApplicationId: interview.applicationId,
+        actionUrl: "/student/dashboard?tab=interviews",
+        metadata: {
+          roundNumber: interview.roundNumber,
+          result: finalResult,
+          score: overallScore,
+          selected: shouldSelect,
+        },
+      });
+    } catch (notifErr) {
+      console.warn("Failed to dispatch scorecard notification:", notifErr.message);
+    }
+
+    // Real-time socket broadcast
+    socketService.emitInterviewStatusUpdated(interview.candidateId, interview);
 
     return res.status(200).json({
       success: true,

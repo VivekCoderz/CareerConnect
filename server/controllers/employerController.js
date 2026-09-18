@@ -10,6 +10,15 @@ const sanitizeEmployerUpdate = (body) => {
 // server/controllers/employerController.js
 const EmployerProfile = require("../models/EmployerProfile");
 const User = require("../models/User");
+const Company = require("../models/Company");
+const OrganizationRequest = require("../models/OrganizationRequest");
+const AuditLog = require("../models/AuditLog");
+const Job = require("../models/Job");
+const Internship = require("../models/Internship");
+const Application = require("../models/Application");
+const Interview = require("../models/Interview");
+const Employee = require("../models/Employee");
+const TeamMember = require("../models/TeamMember");
 
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
@@ -336,101 +345,153 @@ exports.getEmployerDashboard = async (req, res, next) => {
     }
 
     const completion = calculateEmployerCompletion(profile, req.user);
+    const profileId = profile._id;
 
-    // Mock/real metrics for dashboard overview
-    const stats = {
-      activeJobs: 4,
-      internships: 8,
-      totalOpportunities: 12,
-      applications: 148,
-      shortlisted: 26,
-      interviews: 8,
-      profileViews: 1240,
+    // Scope queries by employer identity: createdBy: userId OR employerId: profileId
+    const jobOwnerOr = [{ createdBy: userId }];
+    if (profileId) jobOwnerOr.push({ employerId: profileId });
+    const jobOwnerFilter = { $or: jobOwnerOr };
+
+    // 1. Active Jobs: count & top active listings
+    const activeJobQuery = {
+      ...jobOwnerFilter,
+      status: { $in: ["Published", "Active", "Open"] },
+    };
+    const activeJobsCount = await Job.countDocuments(activeJobQuery);
+
+    const rawActiveJobs = await Job.find(activeJobQuery)
+      .sort({ createdAt: -1 })
+      .limit(6)
+      .lean();
+
+    // Ensure applicant count is accurate from Application records
+    const activeJobs = await Promise.all(
+      rawActiveJobs.map(async (j) => {
+        const count = await Application.countDocuments({
+          $or: [{ jobId: j._id }, { internshipId: j._id }],
+        });
+        return {
+          ...j,
+          applicantsCount: Math.max(j.applicantsCount || 0, count),
+        };
+      })
+    );
+
+    // 2. Fetch all opportunity IDs owned by employer for application & interview associations
+    const allEmployerJobs = await Job.find(jobOwnerFilter, "_id");
+    const allEmployerInternships = await Internship.find(jobOwnerFilter, "_id");
+    const jobIds = allEmployerJobs.map((j) => j._id);
+    const internshipIds = allEmployerInternships.map((i) => i._id);
+
+    const appOrConditions = [];
+    if (profileId) appOrConditions.push({ employerId: profileId });
+    appOrConditions.push({ employerId: userId });
+    if (jobIds.length > 0) appOrConditions.push({ jobId: { $in: jobIds } });
+    if (internshipIds.length > 0) appOrConditions.push({ internshipId: { $in: internshipIds } });
+    const appFilter = appOrConditions.length > 0 ? { $or: appOrConditions } : { _id: null };
+
+    const applicationsCount = await Application.countDocuments(appFilter);
+
+    // 3. Upcoming Interviews
+    const interviewOrConditions = [];
+    if (profileId) interviewOrConditions.push({ employerId: profileId });
+    interviewOrConditions.push({ employerId: userId });
+    if (jobIds.length > 0) interviewOrConditions.push({ jobId: { $in: jobIds } });
+    if (internshipIds.length > 0) interviewOrConditions.push({ internshipId: { $in: internshipIds } });
+    const interviewOwnerFilter = interviewOrConditions.length > 0 ? { $or: interviewOrConditions } : { _id: null };
+
+    // Exclude cancelled, completed, no_show, and draft interviews
+    const upcomingStatusFilter = {
+      $nin: [
+        "cancelled",
+        "completed",
+        "no_show",
+        "draft",
+        "Cancelled",
+        "Completed",
+        "No Show",
+        "Draft",
+      ],
     };
 
-    const recentApplications = [
-      {
-        id: "app-1",
-        candidateName: "Aman Sharma",
-        roleApplied: "Frontend Engineer Intern",
-        type: "Internship",
-        status: "Reviewing",
-        appliedDate: "2026-08-27",
-        matchScore: 92,
-        cgpa: "8.9",
-        degree: "B.Tech CSE - Geeta University",
-      },
-      {
-        id: "app-2",
-        candidateName: "Pooja Verma",
-        roleApplied: "Associate Full Stack Developer",
-        type: "Full-time",
-        status: "Shortlisted",
-        appliedDate: "2026-08-26",
-        matchScore: 88,
-        cgpa: "8.5",
-        degree: "BCA - Geeta University",
-      },
-      {
-        id: "app-3",
-        candidateName: "Rohan Patel",
-        roleApplied: "Backend Node.js Developer",
-        type: "Full-time",
-        status: "Interview Scheduled",
-        appliedDate: "2026-08-25",
-        matchScore: 95,
-        cgpa: "9.1",
-        degree: "MCA - Geeta University",
-      },
-      {
-        id: "app-4",
-        candidateName: "Simran Kaur",
-        roleApplied: "UI/UX Design Intern",
-        type: "Internship",
-        status: "Under Review",
-        appliedDate: "2026-08-24",
-        matchScore: 84,
-        cgpa: "8.2",
-        degree: "B.Tech IT - Geeta University",
-      },
-    ];
+    const upcomingInterviewsCount = await Interview.countDocuments({
+      ...interviewOwnerFilter,
+      status: upcomingStatusFilter,
+    });
 
-    const activeListings = [
-      {
-        id: "job-1",
-        title: "Frontend React Developer",
-        type: "Full-time",
-        location: profile?.headquarters?.city || "Gurugram / Hybrid",
-        applicantsCount: 54,
-        postedDate: "2 days ago",
-        status: "Active",
-      },
-      {
-        id: "job-2",
-        title: "Node.js Backend Intern",
-        type: "Internship",
-        location: "Remote",
-        applicantsCount: 62,
-        postedDate: "4 days ago",
-        status: "Active",
-      },
-      {
-        id: "job-3",
-        title: "Full Stack Engineer",
-        type: "Full-time",
-        location: profile?.headquarters?.city || "Delhi NCR",
-        applicantsCount: 32,
-        postedDate: "1 week ago",
-        status: "Active",
-      },
-    ];
+    const rawUpcomingInterviews = await Interview.find({
+      ...interviewOwnerFilter,
+      status: upcomingStatusFilter,
+    })
+      .populate("candidateId", "fullName email phone profileImage")
+      .populate("jobId", "title location employmentType workMode")
+      .populate("internshipId", "title location type")
+      .sort({ scheduledDate: 1, startTime: 1, scheduledTime: 1 })
+      .limit(6)
+      .lean();
+
+    const upcomingInterviews = rawUpcomingInterviews.map((iv) => ({
+      _id: iv._id,
+      candidateName: iv.candidateId?.fullName || iv.candidateName || "Candidate",
+      candidateEmail: iv.candidateId?.email || "",
+      candidateImage: iv.candidateId?.profileImage || "",
+      roleTitle: iv.jobId?.title || iv.internshipId?.title || iv.title || "Position",
+      scheduledDate: iv.scheduledDate || "",
+      scheduledTime: iv.scheduledTime || iv.startTime || "",
+      status: iv.status || "Scheduled",
+      meetingLink: iv.meetingLink || "",
+      meetingMode: iv.meetingMode || "Online",
+      jobId: iv.jobId?._id || iv.jobId,
+    }));
+
+    // 4. Team Staff count from Employee and TeamMember collections
+    let teamStaffCount = await Employee.countDocuments({ employerId: profileId });
+    if (teamStaffCount === 0) {
+      const memberCount = await TeamMember.countDocuments({ employerId: profileId });
+      if (memberCount > 0) {
+        teamStaffCount = memberCount;
+      } else if (profile.companySize && /^\d+$/.test(profile.companySize.trim())) {
+        teamStaffCount = parseInt(profile.companySize.trim(), 10);
+      }
+    }
+
+    // 5. Recent Applications
+    const rawRecentApps = await Application.find(appFilter)
+      .populate("candidateId", "fullName email phone profileImage")
+      .populate("jobId", "title")
+      .populate("internshipId", "title")
+      .sort({ appliedAt: -1, createdAt: -1 })
+      .limit(6)
+      .lean();
+
+    const recentApplications = rawRecentApps.map((app) => ({
+      _id: app._id,
+      candidateName: app.studentName || app.candidateId?.fullName || "Applicant",
+      candidateEmail: app.studentEmail || app.candidateId?.email || "",
+      candidateImage: app.candidateId?.profileImage || "",
+      position: app.opportunityTitle || app.jobId?.title || app.internshipId?.title || "Role",
+      status: app.status || "Applied",
+      appliedDate: app.appliedAt || app.createdAt,
+      resumeUrl: app.resumeUrl || "",
+    }));
+
+    const stats = {
+      activeJobs: activeJobsCount,
+      applications: applicationsCount,
+      upcomingInterviews: upcomingInterviewsCount,
+      interviews: upcomingInterviewsCount,
+      teamStaff: teamStaffCount,
+      employees: teamStaffCount,
+    };
 
     return res.status(200).json({
       success: true,
       profile,
       stats,
+      activeJobs,
+      activeListings: activeJobs,
+      upcomingInterviews,
       recentApplications,
-      activeListings,
       profileCompletion: completion,
     });
   } catch (error) {
@@ -523,6 +584,305 @@ exports.deleteEmployerProfile = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Employer profile deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/employer/organization-status
+ * Fetch current organization verification / Super Admin approval status for this employer
+ */
+exports.getOrganizationStatus = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).populate("companyId");
+    let company = user?.companyId || null;
+
+    // 1. If user is already linked to a company in the database
+    if (company) {
+      return res.status(200).json({
+        success: true,
+        status: company.status === "active" ? "APPROVED" : (company.status?.toUpperCase() || "PENDING"),
+        hasCompany: true,
+        company: {
+          _id: company._id,
+          name: company.name,
+          status: company.status,
+          officialEmail: company.officialEmail || company.email,
+          website: company.website,
+          industry: company.industry,
+          location: company.location || company.address,
+          description: company.description,
+        },
+        organizationRequest: null,
+      });
+    }
+
+    // 2. Check if an OrganizationRequest exists for this user
+    const profile = await EmployerProfile.findOne({ userId: req.user._id });
+    const searchEmails = [req.user.email, profile?.officialEmail].filter(Boolean);
+    const searchName = profile?.companyName;
+
+    const queryConditions = [
+      { requestedBy: req.user._id },
+      { officialEmail: { $in: searchEmails } },
+      { officialEmployeeEmail: { $in: searchEmails } },
+    ];
+    if (searchName && searchName !== "My Company") {
+      queryConditions.push({ organizationName: { $regex: `^${searchName.trim()}$`, $options: "i" } });
+    }
+
+    const orgRequest = await OrganizationRequest.findOne({ $or: queryConditions }).sort({ createdAt: -1 });
+
+    const prefillData = {
+      companyName: profile?.companyName || user?.companyName || "",
+      officialCompanyEmail: profile?.officialEmail || "",
+      companyWebsite: profile?.website || "",
+      industry: profile?.industry || "Information Technology",
+      companySize: profile?.companySize || profile?.employeesCount || "11-50",
+      requestingEmployeeName: req.user.fullName || profile?.contactPerson || "",
+      employeeDesignation: req.user.designation || profile?.designation || "Talent Acquisition / HR",
+      officialEmployeeEmail: req.user.email || "",
+      verificationDocument: profile?.verificationDocument || "",
+    };
+
+    if (orgRequest) {
+      return res.status(200).json({
+        success: true,
+        status: orgRequest.status, // "PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED"
+        hasCompany: false,
+        company: null,
+        prefill: prefillData,
+        organizationRequest: {
+          _id: orgRequest._id,
+          companyName: orgRequest.organizationName,
+          organizationName: orgRequest.organizationName,
+          officialCompanyEmail: orgRequest.officialEmail,
+          officialEmail: orgRequest.officialEmail,
+          companyWebsite: orgRequest.website,
+          website: orgRequest.website,
+          industry: orgRequest.industry || "Information Technology",
+          companySize: orgRequest.companySize || "11-50",
+          verificationDocument: orgRequest.verificationDocument || "",
+          requestingEmployeeName: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
+          contactPerson: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
+          employeeDesignation: orgRequest.employeeDesignation || orgRequest.designation,
+          designation: orgRequest.employeeDesignation || orgRequest.designation,
+          officialEmployeeEmail: orgRequest.officialEmployeeEmail || req.user.email,
+          status: orgRequest.status,
+          rejectionReason: orgRequest.rejectionReason,
+          createdAt: orgRequest.createdAt,
+        },
+      });
+    }
+
+    // 3. Not requested yet
+    return res.status(200).json({
+      success: true,
+      status: "NOT_REQUESTED",
+      hasCompany: false,
+      company: null,
+      prefill: prefillData,
+      organizationRequest: null,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/employer/request-company-approval
+ * Submits minimal 9-field company connection request to Super Admin for verification & approval
+ */
+exports.requestCompanyApproval = async (req, res, next) => {
+  try {
+    const {
+      companyName,
+      organizationName,
+      officialCompanyEmail,
+      officialEmail,
+      companyWebsite,
+      website,
+      industry,
+      companySize,
+      verificationDocument,
+      requestingEmployeeName,
+      contactPerson,
+      employeeDesignation,
+      designation,
+      officialEmployeeEmail,
+    } = req.body;
+
+    const trimmedCompanyName = (companyName || organizationName || "").trim();
+    const cleanCompanyEmail = (officialCompanyEmail || officialEmail || "").trim().toLowerCase();
+    const cleanWebsite = (companyWebsite || website || "").trim();
+    const cleanIndustry = (industry || "Information Technology").trim();
+    const cleanCompanySize = (companySize || "11-50").trim();
+    const cleanVerificationDoc = (verificationDocument || "").trim();
+    const cleanEmployeeName = (requestingEmployeeName || contactPerson || req.user.fullName || "").trim();
+    const cleanDesignation = (employeeDesignation || designation || req.user.designation || "").trim();
+    const cleanEmployeeEmail = (officialEmployeeEmail || req.user.email || "").trim().toLowerCase();
+
+    // 1. Mandatory Field Validations
+    if (!trimmedCompanyName) {
+      return res.status(400).json({ success: false, message: "Company name is required." });
+    }
+    if (!cleanCompanyEmail) {
+      return res.status(400).json({ success: false, message: "Official company email is required." });
+    }
+    if (!cleanWebsite) {
+      return res.status(400).json({ success: false, message: "Company website is required." });
+    }
+    if (!cleanIndustry) {
+      return res.status(400).json({ success: false, message: "Industry is required." });
+    }
+    if (!cleanCompanySize) {
+      return res.status(400).json({ success: false, message: "Company size is required." });
+    }
+    if (!cleanVerificationDoc) {
+      return res.status(400).json({
+        success: false,
+        message: "Company registration or verification document is required.",
+      });
+    }
+    if (!cleanEmployeeName) {
+      return res.status(400).json({ success: false, message: "Requesting employee name is required." });
+    }
+    if (!cleanDesignation) {
+      return res.status(400).json({ success: false, message: "Employee designation is required." });
+    }
+    if (!cleanEmployeeEmail) {
+      return res.status(400).json({ success: false, message: "Official employee email is required." });
+    }
+
+    // Email format checks
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanCompanyEmail)) {
+      return res.status(400).json({ success: false, message: "Invalid official company email address." });
+    }
+    if (!emailRegex.test(cleanEmployeeEmail)) {
+      return res.status(400).json({ success: false, message: "Invalid official employee email address." });
+    }
+
+    // 2. Check if Company is already registered and active
+    const existingActiveCompany = await Company.findOne({
+      $or: [
+        { email: cleanCompanyEmail },
+        { name: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+      ],
+      status: "active",
+    });
+
+    if (existingActiveCompany) {
+      req.user.companyId = existingActiveCompany._id;
+      await req.user.save();
+      return res.status(200).json({
+        success: true,
+        status: "APPROVED",
+        message: `Your company "${existingActiveCompany.name}" is already verified on CareerConnect! Your account is connected.`,
+        company: existingActiveCompany,
+      });
+    }
+
+    // 3. Prevent duplicate connection requests (same company or email pending/under review)
+    const existingPending = await OrganizationRequest.findOne({
+      $or: [
+        { officialEmail: cleanCompanyEmail },
+        { organizationName: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+        { requestedBy: req.user._id },
+      ],
+      status: { $in: ["PENDING", "UNDER_REVIEW"] },
+    });
+
+    if (existingPending) {
+      return res.status(409).json({
+        success: false,
+        message: "A connection request for this company is already pending review by the Super Admin.",
+        organizationRequest: existingPending,
+      });
+    }
+
+    // 4. Create or update OrganizationRequest document
+    // If a rejected request existed for this user/company, re-submit back to PENDING
+    let connectionRequest = await OrganizationRequest.findOne({
+      $or: [
+        { officialEmail: cleanCompanyEmail },
+        { organizationName: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+        { requestedBy: req.user._id },
+      ],
+      status: "REJECTED",
+    });
+
+    if (connectionRequest) {
+      connectionRequest.organizationName = trimmedCompanyName;
+      connectionRequest.officialEmail = cleanCompanyEmail;
+      connectionRequest.website = cleanWebsite;
+      connectionRequest.industry = cleanIndustry;
+      connectionRequest.companySize = cleanCompanySize;
+      connectionRequest.verificationDocument = cleanVerificationDoc;
+      connectionRequest.requestingEmployeeName = cleanEmployeeName;
+      connectionRequest.contactPerson = cleanEmployeeName;
+      connectionRequest.employeeDesignation = cleanDesignation;
+      connectionRequest.designation = cleanDesignation;
+      connectionRequest.officialEmployeeEmail = cleanEmployeeEmail;
+      connectionRequest.requestedBy = req.user._id;
+      connectionRequest.status = "PENDING";
+      connectionRequest.rejectionReason = "";
+      await connectionRequest.save();
+    } else {
+      connectionRequest = await OrganizationRequest.create({
+        organizationName: trimmedCompanyName,
+        officialEmail: cleanCompanyEmail,
+        website: cleanWebsite,
+        industry: cleanIndustry,
+        companySize: cleanCompanySize,
+        verificationDocument: cleanVerificationDoc,
+        requestingEmployeeName: cleanEmployeeName,
+        contactPerson: cleanEmployeeName,
+        employeeDesignation: cleanDesignation,
+        designation: cleanDesignation,
+        officialEmployeeEmail: cleanEmployeeEmail,
+        requestedBy: req.user._id,
+        status: "PENDING",
+      });
+    }
+
+    // 5. Update EmployerProfile with latest company information
+    await EmployerProfile.findOneAndUpdate(
+      { userId: req.user._id },
+      {
+        companyName: trimmedCompanyName,
+        officialEmail: cleanCompanyEmail,
+        website: cleanWebsite,
+        industry: cleanIndustry,
+        companySize: cleanCompanySize,
+        contactPerson: cleanEmployeeName,
+        designation: cleanDesignation,
+      },
+      { upsert: true }
+    );
+
+    // 6. Audit Log
+    try {
+      await AuditLog.create({
+        actorId: req.user._id,
+        actorName: cleanEmployeeName,
+        action: "EMPLOYER_REQUESTED_COMPANY_CONNECTION",
+        module: "Settings",
+        target: trimmedCompanyName,
+        details: `Employee ${cleanEmployeeName} (${cleanEmployeeEmail}) submitted connection request for "${trimmedCompanyName}" (${cleanCompanyEmail}).`,
+        ipAddress: req.ip || req.headers["x-forwarded-for"] || "127.0.0.1",
+      });
+    } catch (auditErr) {
+      console.warn("AuditLog warning:", auditErr.message);
+    }
+
+    return res.status(201).json({
+      success: true,
+      status: "PENDING",
+      message: "Company connection request submitted successfully! Super Admin review is now Pending Approval.",
+      organizationRequest: connectionRequest,
     });
   } catch (error) {
     next(error);
