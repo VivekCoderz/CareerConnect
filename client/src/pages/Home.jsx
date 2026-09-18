@@ -8,6 +8,7 @@ import { logout } from "../redux/features/authSlice";
 import { logoutUser } from "../services/authService";
 import internshipService from "../services/internshipService";
 import jobService from "../services/jobService";
+import BrandLogo from "../components/common/BrandLogo";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -124,25 +125,7 @@ const Home = () => {
             {/* Left: Logo & Dropdowns */}
             <div className="flex items-center gap-3 sm:gap-4 shrink-0">
               <Link to="/" className="flex items-center gap-2">
-                <img
-                  src="/careerconnect-logo.png"
-                  alt="CareerConnect"
-                  className="h-11 w-auto object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                    e.currentTarget.nextSibling.style.display = "flex";
-                  }}
-                />
-                {/* Fallback Branding */}
-                <div className="hidden items-center gap-2">
-                  <div className="w-9 h-9 rounded-xl bg-[#1e40af] text-white flex items-center justify-center font-black text-sm shadow-xs">
-                    CC
-                  </div>
-                  <div className="leading-tight">
-                    <p className="text-sm font-black text-[#1e40af] tracking-tight">CAREER</p>
-                    <p className="text-[10px] font-bold text-[#0284c7] tracking-wider uppercase">CONNECT</p>
-                  </div>
-                </div>
+                <BrandLogo className="h-10 w-44" />
               </Link>
 
               {/* Navigation Dropdowns like Internshala */}
@@ -270,11 +253,7 @@ const Home = () => {
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center gap-2"
             >
-              <img
-                src="/careerconnect-logo.png"
-                alt="CareerConnect"
-                className="h-9 w-auto object-contain"
-              />
+              <BrandLogo className="h-9 w-44" />
             </Link>
             <button
               type="button"

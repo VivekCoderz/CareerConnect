@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import BrandLogo from "../../components/common/BrandLogo";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
 import api from "../../api/api";
 import { updateUserProfile, logout } from "../../redux/features/authSlice";
 import PhoneInput from "../../components/common/PhoneInput";
+import GoogleAccountAvatar from "../../components/common/GoogleAccountAvatar";
 
 const inputCls = (err) =>
   `w-full h-11 rounded-xl border bg-white px-4 text-sm outline-none transition focus:ring-4 ${
@@ -52,7 +54,7 @@ const GoogleEmployerOnboarding = () => {
     countryCode: "+91",
     phone: "",
     companyName: "",
-    contactPerson: user?.fullName || "",
+    contactPerson: null,
     designation: "",
     website: "",
     companyType: "Private",
@@ -76,12 +78,7 @@ const GoogleEmployerOnboarding = () => {
     }
   }, [user, navigate]);
 
-  // Keep contactPerson synced if user loads after initial render
-  useEffect(() => {
-    if (user?.fullName && !formData.contactPerson) {
-      setFormData((prev) => ({ ...prev, contactPerson: user.fullName }));
-    }
-  }, [user?.fullName]);
+  const contactPerson = formData.contactPerson ?? user?.fullName ?? "";
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -105,7 +102,7 @@ const GoogleEmployerOnboarding = () => {
       }
     }
     if (!formData.companyName.trim()) errors.companyName = "Company name is required";
-    if (!formData.contactPerson.trim()) errors.contactPerson = "Contact person is required";
+    if (!contactPerson.trim()) errors.contactPerson = "Contact person is required";
     if (!formData.designation.trim()) errors.designation = "Designation is required";
     if (!formData.industry.trim()) errors.industry = "Industry is required";
     if (!formData.location.trim()) errors.location = "Location is required";
@@ -141,7 +138,7 @@ const GoogleEmployerOnboarding = () => {
         countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         companyName: formData.companyName.trim(),
-        contactPerson: formData.contactPerson.trim(),
+        contactPerson: contactPerson.trim(),
         designation: formData.designation.trim(),
         website: formData.website.trim(),
         companyType: formData.companyType,
@@ -176,11 +173,9 @@ const GoogleEmployerOnboarding = () => {
 
         <div className="relative z-10">
           <Link to="/" className="inline-block">
-            <img
-              src="/careerconnect-logo.png"
-              alt="CareerConnect"
-              className="h-12 w-auto bg-white/95 rounded-2xl px-3 py-2 shadow-sm"
-            />
+            <span className="flex h-14 items-center rounded-2xl bg-white/95 px-3 shadow-sm">
+              <BrandLogo className="h-10 w-48" />
+            </span>
           </Link>
         </div>
 
@@ -216,28 +211,8 @@ const GoogleEmployerOnboarding = () => {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center mb-6">
             <Link to="/">
-              <img
-                src="/careerconnect-logo.png"
-                alt="CareerConnect"
-                className="h-11 w-auto"
-              />
+              <BrandLogo className="h-11 w-52" />
             </Link>
-          </div>
-
-          {/* Back to Home / Cancel Header */}
-          <div className="mb-6 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={handleCancelAndGoHome}
-              disabled={loading || cancelling}
-              className="group inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-800 transition py-1.5 px-3 rounded-lg hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
-            >
-              <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              {cancelling ? "Cancelling..." : "Back to Home"}
-            </button>
-            <span className="text-xs text-slate-400 font-medium">Employer Setup</span>
           </div>
 
           {/* Back to Home / Cancel Header */}
@@ -258,17 +233,7 @@ const GoogleEmployerOnboarding = () => {
 
           {/* Google account info */}
           <div className="mb-6 flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
-            {user?.profileImage ? (
-              <img
-                src={user.profileImage}
-                alt={user.fullName}
-                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-[#f59e0b] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                {user?.fullName?.[0]?.toUpperCase() || "E"}
-              </div>
-            )}
+            <GoogleAccountAvatar user={user} />
             <div>
               <p className="text-sm font-semibold text-slate-800">{user?.fullName}</p>
               <p className="text-xs text-slate-500">{user?.email}</p>
@@ -334,7 +299,7 @@ const GoogleEmployerOnboarding = () => {
                 </label>
                 <input
                   name="contactPerson"
-                  value={formData.contactPerson}
+                  value={contactPerson}
                   onChange={handleChange}
                   placeholder="Recruiter name"
                   className={inputCls(fieldErrors.contactPerson)}

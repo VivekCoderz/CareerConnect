@@ -246,6 +246,9 @@ exports.getJobs = async (req, res, next) => {
 // GET /api/jobs/:id
 exports.getJobById = async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Job not found" });
+    }
     const job = await Job.findById(req.params.id).populate(
       "employerId",
       "companyName logo headquarters industry description website"

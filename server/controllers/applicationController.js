@@ -346,6 +346,28 @@ exports.applyToJob = async (req, res, next) => {
 // MY APPLICATIONS (Candidate)
 // GET /api/applications/me
 // ==========================================
+exports.getMyAppliedIds = async (req, res, next) => {
+  try {
+    const applications = await Application.find({ candidateId: req.user._id })
+      .select("jobId internshipId opportunityType")
+      .lean();
+    const jobIds = new Set();
+    const internshipIds = new Set();
+
+    for (const application of applications) {
+      const target = application.opportunityType === "Internship" ? internshipIds : jobIds;
+      const id = application.opportunityType === "Internship"
+        ? application.internshipId || application.jobId
+        : application.jobId;
+      if (id) target.add(String(id));
+    }
+
+    return res.status(200).json({ success: true, jobIds: [...jobIds], internshipIds: [...internshipIds] });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.getMyApplications = async (req, res, next) => {
   try {
     const applications = await Application.find({ candidateId: req.user._id })
@@ -665,28 +687,28 @@ exports.getEmployerApplications = async (req, res, next) => {
 exports.updateApplicationStatus = async (req, res, next) => {
   try {
     const rawStatus = req.body.status || req.body.stage;
-    const allowed = [
-      "Applied",
-      "Shortlisted",
-      "Assessment",
-      "Interview",
-      "Interview Scheduled",
-      "Interview Completed",
-      "Selected",
-      "Offer",
-      "Offered",
-      "Hired",
-      "Rejected",
-      "Withdrawn",
-      "Under Review",
-      "Screening",
-      "Approved",
-    ];
+    const statusMap = {
+      Applied: "Applied",
+      Approved: "Approved",
+      Screening: "Under Review",
+      "Under Review": "Under Review",
+      Shortlisted: "Shortlisted",
+      Assessment: "Assessment",
+      Interview: "Interview",
+      "Interview Scheduled": "Interview Scheduled",
+      "Interview Completed": "Interview Completed",
+      Selected: "Selected",
+      Offer: "Offered",
+      Offered: "Offered",
+      Hired: "Hired",
+      Rejected: "Rejected",
+      Withdrawn: "Withdrawn",
+    };
 
-    if (!rawStatus || !allowed.includes(rawStatus)) {
+    if (typeof rawStatus !== "string" || !Object.hasOwn(statusMap, rawStatus)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid status. Allowed: ${allowed.join(", ")}`,
+        message: "Invalid application status",
       });
     }
 
@@ -704,7 +726,7 @@ exports.updateApplicationStatus = async (req, res, next) => {
       });
     }
 
-    application.status = rawStatus;
+    application.status = statusMap[rawStatus];
     application.stage = rawStatus;
     application.updatedAt = new Date();
 
@@ -739,7 +761,7 @@ exports.updateApplicationStatus = async (req, res, next) => {
 exports.updateApplicationStage = async (req, res, next) => {
   try {
     const rawStage = req.body.stage || req.body.status;
-    if (!rawStage || !rawStage.toString().trim()) {
+    if (typeof rawStage !== "string" || !rawStage.trim() || rawStage.length > 80) {
       return res.status(400).json({
         success: false,
         message: "Stage is required",
@@ -771,9 +793,12 @@ exports.updateApplicationStage = async (req, res, next) => {
       Assessment: "Assessment",
       INTERVIEW: "Interview",
       Interview: "Interview",
-      OFFER: "Offer",
-      Offer: "Offer",
-      Offered: "Offer",
+      OFFER: "Offered",
+      Offer: "Offered",
+      Offered: "Offered",
+      "Interview Scheduled": "Interview Scheduled",
+      "Interview Completed": "Interview Completed",
+      Selected: "Selected",
       HIRED: "Hired",
       Hired: "Hired",
       REJECTED: "Rejected",
@@ -781,8 +806,10 @@ exports.updateApplicationStage = async (req, res, next) => {
       WITHDRAWN: "Withdrawn",
       Withdrawn: "Withdrawn",
     };
+    const nextStatus = Object.hasOwn(stageToStatus, stage)
+      ? stageToStatus[stage]
+      : (stageToStatus[stage.toUpperCase()] || stage);
 
-    const nextStatus = stageToStatus[stage.toUpperCase()] || stage;
     application.stage = nextStatus;
     application.status = nextStatus;
     application.updatedAt = new Date();
@@ -790,12 +817,16 @@ exports.updateApplicationStage = async (req, res, next) => {
     if (!application.stageHistory) application.stageHistory = [];
     application.stageHistory.push({
       stage: nextStatus,
-      notes: req.body.notes || `Moved to ${nextStatus}`,
+      notes: req.body.notes ? (typeof req.body.notes === "string" ? req.body.notes.trim() : "") : `Moved to ${nextStatus}`,
       changedBy: req.user._id,
       changedAt: new Date(),
     });
 
-    if (req.body.notes && req.body.notes.trim()) {
+    if (req.body.notes) {
+      if (typeof req.body.notes !== "string" || req.body.notes.length > 2000) {
+        return res.status(400).json({ success: false, message: "Invalid stage notes" });
+      }
+      if (req.body.notes.trim()) {
       application.notes.push({
         text: req.body.notes.trim(),
         addedBy: req.user._id,
@@ -826,7 +857,7 @@ exports.updateApplicationStage = async (req, res, next) => {
 exports.addApplicationNote = async (req, res, next) => {
   try {
     const text = req.body.text || req.body.note;
-    if (!text || !text.toString().trim()) {
+    if (typeof text !== "string" || !text.trim() || text.length > 2000) {
       return res.status(400).json({
         success: false,
         message: "Note text is required",

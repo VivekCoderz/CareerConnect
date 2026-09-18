@@ -177,13 +177,24 @@ const StudentDashboard = () => {
 
   const handleApplicationSuccess = (application) => {
     setApplicationsData((prev) => {
-      if (!prev) return { stats: { applied: 1 }, recent: [application] };
+      const submittedApplication = application?.application || application;
+      const recentApplication = {
+        ...submittedApplication,
+        opportunityType: selectedOpportunityForTailoring?.opportunityType || submittedApplication?.opportunityType,
+        jobId: selectedOpportunityForTailoring?.opportunityType === "Job"
+          ? selectedOpportunityForTailoring._id
+          : submittedApplication?.jobId,
+        internshipId: selectedOpportunityForTailoring?.opportunityType === "Internship"
+          ? selectedOpportunityForTailoring._id
+          : submittedApplication?.internshipId,
+      };
+      if (!prev) return { stats: { applied: 1 }, recent: [recentApplication] };
       return {
         stats: {
           ...prev.stats,
           applied: (prev.stats?.applied || 0) + 1,
         },
-        recent: [application, ...(prev.recent || [])],
+        recent: [recentApplication, ...(prev.recent || [])],
       };
     });
     showToast(`Applied for "${selectedOpportunityForTailoring?.title || "opportunity"}"!`, "success");
@@ -212,6 +223,22 @@ const StudentDashboard = () => {
         j.skillsRequired?.some((s) => s.toLowerCase().includes(q))
     );
   }, [dashboardData, searchQuery]);
+
+  const appliedJobIds = useMemo(() => new Set(
+    (applicationsData?.recent || [])
+      .filter((application) => application.opportunityType !== "Internship")
+      .map((application) => application.jobId?._id || application.jobId)
+      .filter(Boolean)
+      .map(String)
+  ), [applicationsData]);
+
+  const appliedInternshipIds = useMemo(() => new Set(
+    (applicationsData?.recent || [])
+      .filter((application) => application.opportunityType === "Internship")
+      .map((application) => application.internshipId?._id || application.internshipId || application.jobId?._id || application.jobId)
+      .filter(Boolean)
+      .map(String)
+  ), [applicationsData]);
 
   const filteredCourses = useMemo(() => {
     if (!dashboardData?.recommendedCourses) return [];
@@ -311,6 +338,8 @@ const StudentDashboard = () => {
           {activeTab === "dashboard" && (
             <InternshalaDashboardRecommendations
               jobs={filteredJobs}
+              appliedJobIds={appliedJobIds}
+              appliedInternshipIds={appliedInternshipIds}
               internships={filteredInternships}
               courses={filteredCourses}
               savedIds={savedIds}
@@ -360,6 +389,7 @@ const StudentDashboard = () => {
               {internshipView === "list" && (
                 <Internships
                   embedded
+                  appliedInternshipIds={appliedInternshipIds}
                   studentProfile={profile}
                   onSelectInternship={(id) => {
                     setSelectedInternshipId(id);
@@ -371,6 +401,8 @@ const StudentDashboard = () => {
                 <InternshipDetail
                   embedded
                   id={selectedInternshipId}
+                  isApplied={appliedInternshipIds.has(String(selectedInternshipId))}
+                  onAppliedSuccess={handleApplicationSuccess}
                   onBack={() => {
                     setInternshipView("list");
                     setSelectedInternshipId(null);
@@ -384,6 +416,7 @@ const StudentDashboard = () => {
           {activeTab === "jobs" && (
             <JobRecommendationsCard
               jobs={filteredJobs}
+              appliedJobIds={appliedJobIds}
               onSave={handleSaveToggle}
               onApply={handleApply}
               savedIds={savedIds}

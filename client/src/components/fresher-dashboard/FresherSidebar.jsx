@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
+import BrandLogo from "../common/BrandLogo";
 
 const NAV_ITEMS = [
   {
@@ -105,9 +106,7 @@ const FresherSidebar = ({
               onClick={() => { onSelectTab("dashboard"); onCloseMobile(); }}
               className="flex items-center gap-2.5 overflow-hidden text-left"
             >
-              <div className="w-9 h-9 rounded-xl bg-[#1e3a8a] flex items-center justify-center font-bold text-white shadow-md shadow-blue-900/20 text-base shrink-0">
-                C
-              </div>
+              <BrandLogo markOnly className="w-9 h-9 shrink-0" />
               {!collapsed && (
                 <div className="transition-opacity duration-200 whitespace-nowrap">
                   <span className="font-bold text-slate-900 tracking-tight text-base block leading-none">

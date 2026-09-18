@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import BrandLogo from "../../components/common/BrandLogo";
 import { useDispatch, useSelector } from "react-redux";
-import {
-  EmailAuthProvider,
-  linkWithCredential,
-  signOut,
-} from "firebase/auth";
-import { auth } from "../../config/firebase";
+import { reauthenticateWithPopup, signOut } from "firebase/auth";
+import { auth, googleProvider } from "../../config/firebase";
+import GoogleAccountAvatar from "../../components/common/GoogleAccountAvatar";
 import api from "../../api/api";
 import {
   validatePassword,
@@ -40,18 +38,16 @@ const EyeIcon = ({ hidden = false }) => (
  *
  * Google users initially authenticate via Firebase Google provider only.
  * This page prompts them to set a password so that:
- *  1. Firebase links an email+password credential to the same account.
+ *  1. Backend verifies a fresh Google ID token and sets the Firebase password.
  *  2. Backend updates MongoDB: hasPassword = true, authProviders = ["google", "email"].
  *  3. User can later sign in with either "Continue with Google" OR "Email + Password".
  *
  * Flow:
  *  1. User enters password + confirm password
- *  2. linkWithCredential(firebaseUser, EmailAuthProvider.credential(email, password))
- *     links the email+password provider to the EXISTING Firebase user.
- *     Firebase UID does NOT change. MongoDB document does NOT change.
- *  3. POST /api/auth/complete-password-setup verifies Firebase has "password"
- *     provider linked, sets hasPassword=true in MongoDB.
- *  4. Redirect to /select-role or /onboarding/employer.
+ *  2. POST /api/auth/complete-password-setup with a Google ID token.
+ *     The backend sets the password on the SAME Firebase UID, then saves the
+ *     MongoDB password hash and hasPassword flag.
+ *  3. Redirect to profile onboarding or the dashboard.
  *
  * Access control:
  *  - Only accessible when user.hasPassword === false
@@ -121,47 +117,26 @@ const SetPassword = () => {
         }
       }
 
-      let newIdToken = "";
-
-      // Step 1: Link email+password credential to the existing Firebase user if session is active
-      if (firebaseUser) {
-        const credential = EmailAuthProvider.credential(
-          firebaseUser.email || user?.email,
-          password
-        );
-
-        try {
-          await linkWithCredential(firebaseUser, credential);
-        } catch (linkErr) {
-          if (linkErr.code === "auth/provider-already-linked") {
-            console.info("[SetPassword] Password provider already linked, confirming with backend.");
-          } else if (linkErr.code === "auth/email-already-in-use") {
-            setError(
-              "This email already has a separate password account. Please sign in with that account or contact support."
-            );
-            setLoading(false);
-            return;
-          } else if (linkErr.code === "auth/weak-password") {
-            setError("Password is too weak. Please choose a stronger password.");
-            setLoading(false);
-            return;
-          } else {
-            console.warn("[SetPassword] Client linkWithCredential warning:", linkErr.message);
-            // Backend Firebase Admin SDK will set password directly
-          }
-        }
-
-        try {
-          newIdToken = await firebaseUser.getIdToken(true);
-        } catch (idTokenErr) {
-          console.warn("[SetPassword] getIdToken warning:", idTokenErr.message);
-        }
+      if (!firebaseUser) {
+        throw new Error("Google sign-in expired. Please sign in with Google again.");
       }
 
-      // Step 2: Confirm with backend — verifies and saves password in MongoDB
-      // and Firebase Admin, sets hasPassword=true, issues full-duration JWT.
+      let tokenResult = await firebaseUser.getIdTokenResult(true);
+      if (tokenResult.signInProvider !== "google.com") {
+        // A previous attempt may have linked the password provider in Firebase
+        // before the backend could finish. Refresh the Google proof on retry.
+        const result = await reauthenticateWithPopup(firebaseUser, googleProvider);
+        firebaseUser = result.user;
+        tokenResult = await firebaseUser.getIdTokenResult(true);
+      }
+      if (tokenResult.signInProvider !== "google.com") {
+        throw new Error("Please sign in with Google again to set your password.");
+      }
+
+      // The backend updates Firebase and MongoDB together. No client-side
+      // provider link is needed before it checks the Google sign-in token.
       const response = await api.post("/auth/complete-password-setup", {
-        idToken: newIdToken || undefined,
+        idToken: tokenResult.token,
         password,
         keepSignedIn,
       });
@@ -201,31 +176,25 @@ const SetPassword = () => {
   const handleCancelAndGoHome = async () => {
     setCancelling(true);
     try {
-      // 1. Backend cleanup of uncompleted MongoDB record (only if hasPassword is false)
+      // Delete the Firebase identity only when the backend confirms it removed
+      // the unfinished account. If cleanup fails, sign out without orphaning it.
+      let deletedOnServer = false;
       try {
-        await cancelGoogleSignup();
+        const result = await cancelGoogleSignup();
+        deletedOnServer = result.deleted === true;
       } catch (err) {
         console.warn("[Cancel Google Signup] Backend cleanup:", err.message);
       }
 
-      // 2. Delete or sign out from Firebase
       const firebaseUser = auth.currentUser;
-      if (firebaseUser) {
+      if (firebaseUser && deletedOnServer) {
         try {
           await firebaseUser.delete();
         } catch {
-          try {
-            await signOut(auth);
-          } catch {
-            // ignore
-          }
+          await signOut(auth);
         }
       } else {
-        try {
-          await signOut(auth);
-        } catch {
-          // ignore
-        }
+        await signOut(auth);
       }
     } finally {
       // 3. Clear local state and localStorage
@@ -238,7 +207,7 @@ const SetPassword = () => {
     }
   };
 
-  if (!user || (user.hasPassword && !isSubmittingRef.current)) {
+  if (!user || user.hasPassword) {
     return null; // Redirect is happening
   }
 
@@ -251,11 +220,9 @@ const SetPassword = () => {
 
         <div className="relative z-10">
           <Link to="/" className="inline-block">
-            <img
-              src="/careerconnect-logo.png"
-              alt="CareerConnect"
-              className="h-12 w-auto bg-white/95 rounded-2xl px-3 py-2 shadow-sm"
-            />
+            <span className="flex h-14 items-center rounded-2xl bg-white/95 px-3 shadow-sm">
+              <BrandLogo className="h-10 w-48" />
+            </span>
           </Link>
         </div>
 
@@ -294,28 +261,8 @@ const SetPassword = () => {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center mb-8">
             <Link to="/">
-              <img
-                src="/careerconnect-logo.png"
-                alt="CareerConnect"
-                className="h-11 w-auto"
-              />
+              <BrandLogo className="h-11 w-52" />
             </Link>
-          </div>
-
-          {/* Back to Home / Cancel Header */}
-          <div className="mb-5 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={handleCancelAndGoHome}
-              disabled={loading || cancelling}
-              className="group inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-800 transition py-1.5 px-3 rounded-lg hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
-            >
-              <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              {cancelling ? "Cancelling..." : "Back to Home"}
-            </button>
-            <span className="text-xs text-slate-400 font-medium">Account Setup</span>
           </div>
 
           {/* Back to Home / Cancel Header */}
@@ -336,17 +283,7 @@ const SetPassword = () => {
 
           {/* Google account info */}
           <div className="mb-6 flex items-center gap-3 p-3 rounded-xl bg-blue-50 border border-blue-100">
-            {user?.profileImage ? (
-              <img
-                src={user.profileImage}
-                alt={user.fullName}
-                className="w-10 h-10 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-[#1e3a8a] flex items-center justify-center text-white font-bold text-sm">
-                {user?.fullName?.[0]?.toUpperCase() || "U"}
-              </div>
-            )}
+            <GoogleAccountAvatar user={user} />
             <div>
               <p className="text-sm font-semibold text-slate-800">{user?.fullName}</p>
               <p className="text-xs text-slate-500">{user?.email}</p>

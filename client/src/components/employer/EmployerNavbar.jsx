@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
+import BrandLogo from "../common/BrandLogo";
 
 const EmployerNavbar = ({ onOpenMobileSidebar, profile = {} }) => {
   const navigate = useNavigate();
@@ -29,11 +30,8 @@ const EmployerNavbar = ({ onOpenMobileSidebar, profile = {} }) => {
         </button>
 
         <Link to="/employer/dashboard" className="flex items-center gap-2">
-          <img
-            src="/careerconnect-logo.png"
-            alt="CareerConnect"
-            className="h-9 w-auto object-contain"
-          />
+          <BrandLogo markOnly className="h-9 w-11 sm:hidden" />
+          <BrandLogo className="hidden h-9 w-44 sm:block" />
           <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase bg-amber-100 text-amber-800 rounded-md">
             Employer Hub
           </span>

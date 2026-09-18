@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
+import BrandLogo from "../common/BrandLogo";
 
 const EmployerSidebar = ({ activeTab, onSelectTab, mobileOpen, onCloseMobile, stats = {} }) => {
   useEffect(() => {
@@ -75,9 +76,7 @@ const EmployerSidebar = ({ activeTab, onSelectTab, mobileOpen, onCloseMobile, st
         {/* Mobile Header with Close Button */}
         <div className="lg:hidden h-16 px-4 flex items-center justify-between border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#92400e] to-[#b45309] text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              CC
-            </div>
+            <BrandLogo markOnly className="w-8 h-8" />
             <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
               Employer Hub
             </span>
