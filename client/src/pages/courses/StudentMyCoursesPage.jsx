@@ -11,13 +11,10 @@ import {
   ShieldCheck,
   Clock3,
   Lock,
-<<<<<<< HEAD
   ArrowLeft,
-=======
   CreditCard,
   Receipt,
   Download,
->>>>>>> a199183776cf01392a84dcd335f05d512164538e
 } from "lucide-react";
 import api from "../../api/api";
 import { getMyOrders } from "../../services/paymentService";

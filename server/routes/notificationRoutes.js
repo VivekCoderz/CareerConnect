@@ -3,55 +3,23 @@ const router = express.Router();
 const notificationController = require("../controllers/notificationController");
 const protect = require("../middleware/authMiddleware");
 
-<<<<<<< HEAD
-// Optional auth helper for SSE stream where cookies or query token might be passed
-const authOrQuery = async (req, res, next) => {
-  try {
-    if (req.session?.user?.userId) {
-      const user = await User.findById(req.session.user.userId).select("-password");
-      if (user) {
-        req.user = user;
-        return next();
-      }
-    }
-
-    const token = req.cookies?.token || req.headers.authorization?.split(" ")[1] || req.query.token;
-    if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id || decoded.userId).select("-password");
-      if (user) {
-        req.user = user;
-      }
-    }
-  } catch (e) {
-    // allow fallback for public broadcast stream
-  }
-  next();
-};
+router.use(protect);
 
 // Real-time SSE stream endpoint
-router.get("/stream", authOrQuery, notificationController.streamNotifications);
-
-// Protected notification management routes
-=======
->>>>>>> a199183776cf01392a84dcd335f05d512164538e
-router.use(protect);
 router.get("/stream", notificationController.streamNotifications);
-router.get("/", notificationController.getNotifications);
-<<<<<<< HEAD
-router.get("/:id", notificationController.getNotificationById);
 
-// Support both PUT and PATCH for read operations
+// Notification retrieval
+router.get("/", notificationController.getNotifications);
+
+// Bulk mark as read (must be before :id to prevent matching 'read-all' as an id)
 router.put("/read-all", notificationController.markAllAsRead);
 router.patch("/read-all", notificationController.markAllAsRead);
 
-=======
-router.put("/read-all", notificationController.markAllAsRead);
+// Single notification routes
 router.get("/:id", notificationController.getNotificationById);
->>>>>>> a199183776cf01392a84dcd335f05d512164538e
 router.put("/:id/read", notificationController.markAsRead);
 router.patch("/:id/read", notificationController.markAsRead);
-
 router.delete("/:id", notificationController.deleteNotification);
 
 module.exports = router;
+

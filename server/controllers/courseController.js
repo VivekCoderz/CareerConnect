@@ -1345,9 +1345,5 @@ module.exports = {
   updateCourseApplicationStatus,
   getEmployerAllApplications,
   getStudentMyCourses,
-<<<<<<< HEAD
   getAllPublishedCourses,
 };
-=======
-};
->>>>>>> a199183776cf01392a84dcd335f05d512164538e

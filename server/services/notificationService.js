@@ -78,65 +78,45 @@ const registerSseClient = (userId, res) => {
  */
 const broadcastRealtimeNotification = (notification, targetUserId = null) => {
   try {
-    const payload = `event: notification\ndata: ${JSON.stringify(notification)}\n\n`;
+    if (notification._id) {
+      locallyDelivered.set(String(notification._id), Date.now());
 
-    // 1. Direct recipient stream
-    if (targetUserId) {
-      const userStreams = sseClients.get(String(targetUserId));
-      if (userStreams) {
-        userStreams.forEach((client) => {
-          try {
-            client.write(payload);
-          } catch (e) {
-            userStreams.delete(client);
-          }
-        });
+      if (locallyDelivered.size > 10000) {
+        const cutoff = Date.now() - 60000;
+
+        for (const [id, timestamp] of locallyDelivered) {
+          if (timestamp >= cutoff && locallyDelivered.size <= 10000) break;
+          locallyDelivered.delete(id);
+        }
       }
     }
 
-    // 2. Broadcast stream (if notification is public/global)
-    if (!targetUserId) {
-      const broadcastStreams = sseClients.get("broadcast");
-      if (broadcastStreams) {
-        broadcastStreams.forEach((client) => {
-          try {
-            client.write(payload);
-          } catch (e) {
-            broadcastStreams.delete(client);
+    const payload = JSON.stringify(notification);
+
+    const recipient = notification.recipient || targetUserId;
+
+    const destinations = recipient
+      ? [sseClients.get(String(recipient))].filter(Boolean)
+      : sseClients.values();
+
+    for (const clients of destinations) {
+      clients.forEach((client) => {
+        try {
+          if (client.writableLength > 128 * 1024) {
+            client.end();
+            return;
           }
-        });
-      }
+
+          client.write(
+            `event: notification\ndata: ${payload}\n\n`
+          );
+        } catch (err) {
+          console.warn("SSE delivery error:", err.message);
+        }
+      });
     }
   } catch (err) {
     console.error("SSE Broadcast error:", err.message);
-  if (notification._id) {
-    locallyDelivered.set(String(notification._id), Date.now());
-    if (locallyDelivered.size > 10000) {
-      const cutoff = Date.now() - 60000;
-      for (const [id, timestamp] of locallyDelivered) {
-        if (timestamp >= cutoff && locallyDelivered.size <= 10000) break;
-        locallyDelivered.delete(id);
-      }
-    }
-  }
-  const payload = JSON.stringify(notification);
-
-  const recipient = notification.recipient || targetUserId;
-  const destinations = recipient
-    ? [sseClients.get(String(recipient))].filter(Boolean)
-    : sseClients.values();
-  for (const clients of destinations) {
-    clients.forEach((client) => {
-      try {
-        if (client.writableLength > 128 * 1024) {
-          client.end();
-          return;
-        }
-        client.write(`event: notification\ndata: ${payload}\n\n`);
-      } catch (err) {
-        console.warn("SSE delivery error:", err.message);
-      }
-    });
   }
 };
 

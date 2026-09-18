@@ -919,14 +919,7 @@ const StudentCoursesPage = ({ onViewDetails }) => {
 
                   <input
                     type="email"
-<<<<<<< HEAD
-                    value={
-                      user?.email ||
-                      "student@geetauniversity.edu.in"
-                    }
-=======
-                    value={user?.email || "student@careerconnect.com"}
->>>>>>> a199183776cf01392a84dcd335f05d512164538e
+                    value={user?.email || "student@geetauniversity.edu.in"}
                     disabled
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 font-semibold cursor-not-allowed"
                   />
@@ -1020,8 +1013,6 @@ const StudentCoursesPage = ({ onViewDetails }) => {
         </div>
       )}
 
-<<<<<<< HEAD
-=======
       {/* Razorpay Payment Receipt / Confirmation Modal */}
       <PaymentReceiptModal
         isOpen={showReceiptModal}
@@ -1032,7 +1023,6 @@ const StudentCoursesPage = ({ onViewDetails }) => {
           setActiveTab("my-courses");
         }}
       />
->>>>>>> a199183776cf01392a84dcd335f05d512164538e
     </div>
    
   );

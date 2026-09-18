@@ -303,20 +303,13 @@ const Signup = () => {
     try {
       setVerifyingOtp(true);
       setOtpError("");
-<<<<<<< HEAD
-
-      await api.post("/auth/verify-otp", {
-        email: formData.email.trim().toLowerCase(),
-        otp: cleanOtp,
-      });
-
-=======
       const response = await api.post("/auth/verify-otp", {
         email: formData.email.trim().toLowerCase(),
         otp: cleanOtp,
       });
-      setVerificationToken(response.data.verificationToken);
->>>>>>> a199183776cf01392a84dcd335f05d512164538e
+      if (response.data?.verificationToken) {
+        setVerificationToken(response.data.verificationToken);
+      }
       setEmailVerified(true);
       setOtpSent(false);
       setOtp("");
@@ -333,60 +326,6 @@ const Signup = () => {
       );
     } finally {
       setVerifyingOtp(false);
-    }
-  };
-
-  // ─── Google Candidate Sign-Up ────────────────────────────────────────────────
-  const handleGoogleSignup = async () => {
-    setGoogleLoading(true);
-    setGoogleError("");
-    dispatch(clearMessages());
-
-    try {
-      // Firebase Google popup - triggered directly on user click
-      const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
-
-      // Send to backend with role=user (candidate)
-      const response = await api.post("/auth/google-auth", {
-        idToken,
-        keepSignedIn: false,
-        role: "user",
-      });
-
-      const { user, requiresPasswordSetup, token } = response.data;
-      dispatch(loginSuccess({ user, token }));
-
-      if (requiresPasswordSetup || user.hasPassword === false) {
-        navigate("/set-password", { replace: true });
-      } else if (!user.phone?.trim() || !user.isProfileComplete) {
-        navigate("/onboarding/profile", { replace: true });
-      } else {
-        navigate(getDashboardPath(user.userType, user), { replace: true });
-      }
-    } catch (err) {
-      if (
-        err.code === "auth/popup-closed-by-user" ||
-        err.code === "auth/cancelled-popup-request"
-      ) {
-        // User closed popup
-      } else if (err.code === "auth/popup-blocked") {
-        setGoogleError(
-          "Sign-in popup was blocked by your browser. Please allow popups for this site and try again."
-        );
-      } else if (err.code === "auth/account-exists-with-different-credential") {
-        setGoogleError(
-          "This email is already registered with a different sign-in method. Please use email + password."
-        );
-      } else {
-        setGoogleError(
-          err.response?.data?.message ||
-            err.message ||
-            "Google sign-up failed. Please try again."
-        );
-      }
-    } finally {
-      setGoogleLoading(false);
     }
   };
 

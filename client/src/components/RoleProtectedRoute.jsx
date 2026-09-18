@@ -38,13 +38,8 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
     user.role === "SUPER_ADMIN" ||
     user.role === "COMPANY_ADMIN";
 
-<<<<<<< HEAD
-  // 1c. Profile information not collected yet (phone empty) → redirect to onboarding (skip for admins)
-  if (!isAdminRole && !user.phone?.trim()) {
-=======
   // 1c. Incomplete profiles finish onboarding before entering a dashboard.
   if (!isAdminRole && (!user.phone?.trim() || (user.role !== "employer" && !user.isProfileComplete))) {
->>>>>>> a199183776cf01392a84dcd335f05d512164538e
     if (user.role === "employer") {
       return <Navigate to="/onboarding/employer" replace />;
     }
