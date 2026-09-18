@@ -10,10 +10,11 @@ async function testOpportunityModeration() {
 
   // 1. Authenticate as Super Admin
   let adminToken = null;
+  const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD || "";
   try {
     const loginRes = await axios.post(`${BASE_URL}/api/admin/login`, {
       email: "superadmin@careerconnect.com",
-      password: "Admin@CareerConnect2026",
+      password: adminPassword,
     });
     adminToken = loginRes.data.token;
     console.log("PASS 1: Super Admin login succeeded. Role:", loginRes.data.user?.role);
@@ -21,7 +22,7 @@ async function testOpportunityModeration() {
     try {
       const fallbackRes = await axios.post(`${BASE_URL}/api/auth/login`, {
         email: "admin@careerconnect.com",
-        password: "Admin@CareerConnect2026",
+        password: adminPassword,
       });
       adminToken = fallbackRes.data.token;
       console.log("PASS 1: Fallback admin login succeeded. Role:", fallbackRes.data.user?.role);

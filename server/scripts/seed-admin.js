@@ -10,7 +10,12 @@ async function seedAdmin() {
   await mongoose.connect(uri);
   console.log("Connected to MongoDB for Admin check/seed...");
 
-  const adminEmail = "admin@careerconnect.com";
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@careerconnect.com";
+  const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD;
+  if (!adminPassword) {
+    throw new Error("ADMIN_PASSWORD or SEED_ADMIN_PASSWORD must be configured in environment variables.");
+  }
+
   let admin = await User.findOne({ email: adminEmail });
 
   if (!admin) {
@@ -18,7 +23,7 @@ async function seedAdmin() {
       fullName: "CareerConnect Administrator",
       username: "admin_master",
       email: adminEmail,
-      password: "Admin@CareerConnect2026",
+      password: adminPassword,
       role: "admin",
       userType: "employer",
       phone: "9876543210",
@@ -29,7 +34,7 @@ async function seedAdmin() {
       hasPassword: true,
     });
     await admin.save();
-    console.log(`Created new Admin user: ${adminEmail} (password: Admin@CareerConnect2026)`);
+    console.log(`Created new Admin user: ${adminEmail}`);
   } else {
     admin.role = "admin";
     admin.isActive = true;
@@ -37,9 +42,9 @@ async function seedAdmin() {
     admin.isProfileComplete = true;
     admin.hasPassword = true;
     if (!admin.phone) admin.phone = "9876543210";
-    admin.password = "Admin@CareerConnect2026";
+    admin.password = adminPassword;
     await admin.save();
-    console.log(`Updated existing user ${adminEmail} to Admin (role: admin, password: Admin@CareerConnect2026)`);
+    console.log(`Updated existing user ${adminEmail} to Admin (role: admin)`);
   }
 
   console.log("Admin details:", {

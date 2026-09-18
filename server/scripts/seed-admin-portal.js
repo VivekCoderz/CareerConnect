@@ -15,6 +15,11 @@ async function seedAdminPortal() {
   await mongoose.connect(uri);
   console.log("Connected to MongoDB for Admin Portal Seeding...");
 
+  const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD;
+  if (!adminPassword) {
+    throw new Error("ADMIN_PASSWORD or SEED_ADMIN_PASSWORD must be configured in environment variables.");
+  }
+
   // 1. Companies (Tenants)
   let techCorp = await Company.findOne({ name: "TechCorp Global" });
   if (!techCorp) {
@@ -56,7 +61,7 @@ async function seedAdminPortal() {
       fullName: "Platform Super Admin",
       username: "superadmin",
       email: superAdminEmail,
-      password: "Admin@CareerConnect2026",
+      password: adminPassword,
       role: "SUPER_ADMIN",
       userType: "admin",
       companyId: null,
@@ -74,7 +79,7 @@ async function seedAdminPortal() {
     superAdmin.companyId = null;
     superAdmin.status = "active";
     superAdmin.isActive = true;
-    superAdmin.password = "Admin@CareerConnect2026";
+    superAdmin.password = adminPassword;
     await superAdmin.save();
     console.log(`--> Updated existing SUPER_ADMIN: ${superAdminEmail}`);
   }
@@ -86,7 +91,7 @@ async function seedAdminPortal() {
     legacyAdmin.companyId = null;
     legacyAdmin.status = "active";
     legacyAdmin.isActive = true;
-    legacyAdmin.password = "Admin@CareerConnect2026";
+    legacyAdmin.password = adminPassword;
     await legacyAdmin.save();
     console.log("--> Synced legacy admin@careerconnect.com to SUPER_ADMIN");
   }
@@ -99,7 +104,7 @@ async function seedAdminPortal() {
       fullName: "TechCorp Administrator",
       username: "techcorp_admin",
       email: techCorpAdminEmail,
-      password: "Admin@CareerConnect2026",
+      password: adminPassword,
       role: "COMPANY_ADMIN",
       userType: "admin",
       companyId: techCorp._id,
@@ -117,7 +122,7 @@ async function seedAdminPortal() {
     techCorpAdmin.companyId = techCorp._id;
     techCorpAdmin.status = "active";
     techCorpAdmin.isActive = true;
-    techCorpAdmin.password = "Admin@CareerConnect2026";
+    techCorpAdmin.password = adminPassword;
     await techCorpAdmin.save();
     console.log(`--> Updated COMPANY_ADMIN for TechCorp: ${techCorpAdminEmail}`);
   }
@@ -130,7 +135,7 @@ async function seedAdminPortal() {
       fullName: "InnovateLabs Administrator",
       username: "innovate_admin",
       email: innovateAdminEmail,
-      password: "Admin@CareerConnect2026",
+      password: adminPassword,
       role: "COMPANY_ADMIN",
       userType: "admin",
       companyId: innovateLabs._id,
@@ -148,7 +153,7 @@ async function seedAdminPortal() {
     innovateAdmin.companyId = innovateLabs._id;
     innovateAdmin.status = "active";
     innovateAdmin.isActive = true;
-    innovateAdmin.password = "Admin@CareerConnect2026";
+    innovateAdmin.password = adminPassword;
     await innovateAdmin.save();
     console.log(`--> Updated COMPANY_ADMIN for Innovate Labs: ${innovateAdminEmail}`);
   }
@@ -200,13 +205,13 @@ async function seedAdminPortal() {
   console.log("==================================================");
   console.log("SUPER_ADMIN Login:");
   console.log(`   Email:    superadmin@careerconnect.com (or admin@careerconnect.com)`);
-  console.log(`   Password: Admin@CareerConnect2026`);
+  console.log("   Password: [Configured in ADMIN_PASSWORD / SEED_ADMIN_PASSWORD]");
   console.log("\nCOMPANY_ADMIN Login (TechCorp Global):");
   console.log(`   Email:    techcorp.admin@careerconnect.com`);
-  console.log(`   Password: Admin@CareerConnect2026`);
+  console.log("   Password: [Configured in ADMIN_PASSWORD / SEED_ADMIN_PASSWORD]");
   console.log("\nCOMPANY_ADMIN Login (Innovate Labs):");
   console.log(`   Email:    innovate.admin@careerconnect.com`);
-  console.log(`   Password: Admin@CareerConnect2026`);
+  console.log("   Password: [Configured in ADMIN_PASSWORD / SEED_ADMIN_PASSWORD]");
   console.log("==================================================\n");
 
   await mongoose.disconnect();
