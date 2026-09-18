@@ -28,6 +28,7 @@ Use a dedicated test candidate and employer in staging. Record pass/fail and a s
 | Search a verified job and internship on a phone | Results and details are readable; draft/closed listings are absent |
 | Build or upload a resume, then tailor it to one job | Preview matches the candidate's real information; download works |
 | Apply once to each listing | Confirmation appears; repeat apply is blocked; buttons show Applied |
+| Return to the student dashboard, then reload or sign in again | The next unapplied job and internship are shown; if none remain, an honest empty state appears |
 | Candidate My Applications | Both applications and later employer status appear |
 | Employer application view | Own applicants and the submitted resume open; another employer cannot view them |
 | Account recovery and logout | Recovery succeeds; old session cannot access private pages after logout |
