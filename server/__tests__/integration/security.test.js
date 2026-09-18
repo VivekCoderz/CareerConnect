@@ -44,7 +44,7 @@ describe('🔒 Security & RBAC — Integration Tests', () => {
 
   // ─── Data Isolation ────────────────────────────────────────────────────
   describe('Data Isolation', () => {
-    it('✅ student A cannot see student B application data via /api/applications/my', async () => {
+    it('student A cannot see student B application data via /api/applications/me', async () => {
       const { user: student1 } = await createUserWithToken({ email: `s1${Date.now()}@test.com` });
       const { user: student2, token: token2 } = await createUserWithToken({ email: `s2${Date.now()}@test.com` });
       const { user: employer } = await createEmployerWithToken({ email: `emp${Date.now()}@test.com` });
@@ -61,17 +61,13 @@ describe('🔒 Security & RBAC — Integration Tests', () => {
         status: 'Applied',
       });
 
-      // Student2 requests MY applications — should see 0 (not student1's)
+      // Student2 requests their own applications — should see 0 (not student1's)
       const res = await request(app)
-        .get('/api/applications/my')
+        .get('/api/applications/me')
         .set('Cookie', `token=${token2}`);
 
-      if (res.statusCode === 200) {
-        const apps = res.body.applications || res.body.data || [];
-        apps.forEach(app => {
-          expect(app.candidateId.toString()).toBe(student2._id.toString());
-        });
-      }
+      expect(res.statusCode).toBe(200);
+      expect(res.body.applications).toEqual([]);
     });
   });
 

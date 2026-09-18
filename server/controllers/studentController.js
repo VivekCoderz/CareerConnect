@@ -161,6 +161,31 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     const readiness = calculateCareerReadiness(profile, completion);
     const skillGap = analyzeSkillGap(profile);
 
+    // Read application history before selecting listings so the database can
+    // return the next available matches even when the newest 20 were applied to.
+    const dbApplications = await Application.find({ candidateId: userId })
+      .populate({
+        path: "jobId",
+        select: "title department location employmentType workMode salaryRange deadline status",
+        populate: { path: "employerId", select: "companyName logo" },
+      })
+      .populate({
+        path: "internshipId",
+        select: "title department location workMode stipend duration deadline status companyName",
+        populate: { path: "employerId", select: "companyName logo" },
+      })
+      .populate("employerId", "companyName logo")
+      .sort({ createdAt: -1 })
+      .lean();
+    const appliedJobIds = dbApplications
+      .filter((application) => application.opportunityType !== "Internship")
+      .map((application) => application.jobId?._id || application.jobId)
+      .filter(Boolean);
+    const appliedInternshipIds = dbApplications
+      .filter((application) => application.opportunityType === "Internship")
+      .map((application) => application.internshipId?._id || application.internshipId || application.jobId?._id || application.jobId)
+      .filter(Boolean);
+
     // 1. Fetch Real Database Opportunities
     let dbInternships = [];
     let dbJobs = [];
@@ -168,7 +193,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
       try {
         const Internship = require("../models/Internship");
         const [internshipDocs, jobInternDocs, dbJobsDocs] = await Promise.all([
-          Internship.find({ status: "Published" })
+          Internship.find({ status: "Published", _id: { $nin: appliedInternshipIds } })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
@@ -176,6 +201,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           Job.find({
             status: "Published",
             employmentType: { $regex: /^internship$/i },
+            _id: { $nin: appliedInternshipIds },
           })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
@@ -184,13 +210,16 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           Job.find({
             status: "Published",
             employmentType: { $not: /^internship$/i },
+            _id: { $nin: appliedJobIds },
           })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
             .lean(),
         ]);
-        dbInternships = [...(internshipDocs || []), ...(jobInternDocs || [])];
+        dbInternships = [...(internshipDocs || []), ...(jobInternDocs || [])]
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .slice(0, 20);
         dbJobs = dbJobsDocs || [];
       } catch (dbErr) {
         console.warn("MongoDB find error in studentController:", dbErr.message);
@@ -267,12 +296,14 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             ? getAggregatedOpportunities({
                 opportunityType: "internship",
                 search: searchTarget,
+                source: "external",
               })
             : Promise.resolve({ data: [] }),
           finalRecommendedJobs.length < 10
             ? getAggregatedOpportunities({
-                opportunityType: "all",
+                opportunityType: "job",
                 search: searchTarget,
+                source: "external",
               })
             : Promise.resolve({ data: [] }),
         ]);
@@ -283,11 +314,13 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             const backupInt = await getAggregatedOpportunities({
               opportunityType: "internship",
               search: "",
+              source: "external",
             });
             intList = backupInt?.data || [];
           }
 
-          const mappedInt = intList.slice(0, 20).map((job, idx) => ({
+          const mappedInt = intList.filter((job) => /^https?:\/\//i.test(job.applyLink || ""))
+            .slice(0, 20).map((job, idx) => ({
             _id: `scraped-rec-int-${idx}`,
             id: `scraped-rec-int-${idx}`,
             jobId: `scraped-rec-int-${idx}`,
@@ -316,13 +349,15 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           let jobList = scrapedJobs?.data || [];
           if (jobList.length === 0) {
             const backupJobs = await getAggregatedOpportunities({
-              opportunityType: "all",
+              opportunityType: "job",
               search: "",
+              source: "external",
             });
             jobList = backupJobs?.data || [];
           }
 
-          const mappedJobs = jobList.slice(0, 20).map((job, idx) => ({
+          const mappedJobs = jobList.filter((job) => /^https?:\/\//i.test(job.applyLink || ""))
+            .slice(0, 20).map((job, idx) => ({
             _id: `scraped-rec-job-${idx}`,
             id: `scraped-rec-job-${idx}`,
             jobId: `scraped-rec-job-${idx}`,
@@ -363,22 +398,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
       isFree: !c.price || c.price === 0,
     }));
 
-    // 4. Fetch Real Applications for logged in student
-    const dbApplications = await Application.find({ candidateId: userId })
-      .populate({
-        path: "jobId",
-        select: "title department location employmentType workMode salaryRange deadline status",
-        populate: { path: "employerId", select: "companyName logo" },
-      })
-      .populate({
-        path: "internshipId",
-        select: "title department location workMode stipend duration deadline status companyName",
-        populate: { path: "employerId", select: "companyName logo" },
-      })
-      .populate("employerId", "companyName logo")
-      .sort({ createdAt: -1 })
-      .lean();
-
+    // 4. Application history was loaded above for recommendation filtering.
     const appStats = {
       applied: dbApplications.filter((a) => a.status === "Applied").length,
       approved: dbApplications.filter((a) => a.status === "Approved").length,
