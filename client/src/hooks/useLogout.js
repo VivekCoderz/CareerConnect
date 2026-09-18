@@ -33,10 +33,11 @@ const useLogout = () => {
 
     // 4. Clear Firebase & Backend sessions asynchronously
     try {
-      await Promise.allSettled([
-        signOut(auth),
-        api.post("/auth/logout"),
-      ]);
+      const promises = [api.post("/auth/logout")];
+      if (auth) {
+        promises.push(signOut(auth));
+      }
+      await Promise.allSettled(promises);
     } catch (err) {
       console.warn("[Logout] Cleanup error:", err);
     }

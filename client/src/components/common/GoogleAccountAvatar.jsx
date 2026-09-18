@@ -3,13 +3,17 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../../config/firebase";
 
 const GoogleAccountAvatar = ({ user }) => {
-  const [firebasePhoto, setFirebasePhoto] = useState(auth.currentUser?.photoURL || "");
+  const [firebasePhoto, setFirebasePhoto] = useState(auth?.currentUser?.photoURL || "");
   const [failedUrls, setFailedUrls] = useState([]);
   const src = [firebasePhoto, user?.profileImage].find((url) => url && !failedUrls.includes(url));
 
-  useEffect(() => onAuthStateChanged(auth, (currentUser) => {
-    setFirebasePhoto(currentUser?.photoURL || "");
-  }), []);
+  useEffect(() => {
+    if (!auth) return;
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setFirebasePhoto(currentUser?.photoURL || "");
+    });
+    return () => unsubscribe();
+  }, []);
 
   if (src) {
     return (

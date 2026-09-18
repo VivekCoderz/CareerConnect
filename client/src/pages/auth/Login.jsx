@@ -133,6 +133,15 @@ const Login = () => {
 
   // ─── Google Sign-In ──────────────────────────────────────────────────────────
   const handleGoogleLogin = async () => {
+    if (!auth || !googleProvider) {
+      dispatch(
+        loginFailure(
+          "Google Sign-In is unavailable because Firebase API keys are not configured in client/.env"
+        )
+      );
+      return;
+    }
+
     setGoogleLoading(true);
     dispatch(clearMessages());
 

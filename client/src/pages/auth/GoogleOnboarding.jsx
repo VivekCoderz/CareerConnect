@@ -97,10 +97,12 @@ const GoogleOnboarding = () => {
   const handleCancelAndGoHome = async () => {
     setCancelling(true);
     try {
-      try {
-        await signOut(auth);
-      } catch (err) {
-        console.warn("Sign out warning:", err.message);
+      if (auth) {
+        try {
+          await signOut(auth);
+        } catch (err) {
+          console.warn("Sign out warning:", err.message);
+        }
       }
     } finally {
       dispatch(logout());
