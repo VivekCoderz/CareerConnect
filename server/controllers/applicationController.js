@@ -827,11 +827,12 @@ exports.updateApplicationStage = async (req, res, next) => {
         return res.status(400).json({ success: false, message: "Invalid stage notes" });
       }
       if (req.body.notes.trim()) {
-      application.notes.push({
-        text: req.body.notes.trim(),
-        addedBy: req.user._id,
-        createdAt: new Date(),
-      });
+        application.notes.push({
+          text: req.body.notes.trim(),
+          addedBy: req.user._id,
+          createdAt: new Date(),
+        });
+      }
     }
 
     await application.save();
