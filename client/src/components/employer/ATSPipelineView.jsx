@@ -36,6 +36,7 @@ import {
   addApplicationNote,
 } from "../../services/recruitmentService";
 import { getApplicationById } from "../../services/applicationService";
+import { getResumeHref } from "../../utils/resumeAccess";
 
 // Canonical ATS Stages (Never include "Approved")
 export const ATS_STAGES = [
@@ -1214,7 +1215,7 @@ const ATSPipelineView = ({
                                     type="button"
                                     onClick={() =>
                                       setPreviewResumeData({
-                                        url: info.resumeUrl,
+                                        url: getResumeHref(info.resumeUrl),
                                         candidateName: info.name,
                                         jobTitle: info.jobTitle,
                                       })
@@ -1225,7 +1226,7 @@ const ATSPipelineView = ({
                                     <span>Preview</span>
                                   </button>
                                   <a
-                                    href={info.resumeUrl}
+                                    href={getResumeHref(info.resumeUrl)}
                                     download
                                     className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition"
                                     title="Download resume"

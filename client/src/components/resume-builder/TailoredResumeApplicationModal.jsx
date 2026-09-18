@@ -1,3 +1,4 @@
+import JourneyLoader from "../common/JourneyLoader";
 import { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import {
@@ -9,6 +10,7 @@ import {
 import { applyToInternship, applyToJob } from "../../services/applicationService";
 import ResumePreview from "./ResumePreview";
 import { RESUME_TEMPLATES } from "../../data/templates";
+import { getResumeHref } from "../../utils/resumeAccess";
 
 export default function TailoredResumeApplicationModal({
   isOpen,
@@ -505,7 +507,7 @@ export default function TailoredResumeApplicationModal({
               {/* Loading State */}
               {loadingAI || isReGenerating ? (
                 <div className="py-20 text-center space-y-4">
-                  <div className="w-12 h-12 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <JourneyLoader variant="resume" size="lg" className="mx-auto" />
                   <h3 className="text-base font-bold text-slate-800">
                     {isReGenerating ? "Updating Tailored Resume..." : "Tailoring Your Resume with AI..."}
                   </h3>
@@ -552,7 +554,7 @@ export default function TailoredResumeApplicationModal({
                       </button>
                       {tailoredResume.resumeUrl && (
                         <a
-                          href={tailoredResume.resumeUrl}
+                          href={getResumeHref(tailoredResume.resumeUrl)}
                           target="_blank"
                           rel="noreferrer"
                           className="px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-xl transition shadow-2xs"
@@ -776,7 +778,7 @@ export default function TailoredResumeApplicationModal({
 
                   {loadingSaved ? (
                     <div className="py-12 text-center">
-                      <div className="w-8 h-8 border-3 border-slate-800 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      <JourneyLoader variant="resume" size="sm" className="mx-auto mb-2" />
                       <p className="text-xs text-slate-500">Loading your saved resumes...</p>
                     </div>
                   ) : savedResumes.length === 0 && !user?.resumeUrl ? (
@@ -837,7 +839,7 @@ export default function TailoredResumeApplicationModal({
 
                           <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
                             <a
-                              href={user.resumeUrl}
+                              href={getResumeHref(user.resumeUrl)}
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}
@@ -904,7 +906,7 @@ export default function TailoredResumeApplicationModal({
                             <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
                               {resume.resumeUrl ? (
                                 <a
-                                  href={resume.resumeUrl}
+                                  href={getResumeHref(resume.resumeUrl)}
                                   target="_blank"
                                   rel="noreferrer"
                                   onClick={(e) => e.stopPropagation()}
@@ -945,7 +947,7 @@ export default function TailoredResumeApplicationModal({
                         <span>"{selectedOwnResume.title}" uploaded & selected!</span>
                       </div>
                       <a
-                        href={selectedOwnResume.resumeUrl}
+                        href={getResumeHref(selectedOwnResume.resumeUrl)}
                         target="_blank"
                         rel="noreferrer"
                         className="text-xs font-bold text-emerald-800 underline"
@@ -1023,7 +1025,7 @@ export default function TailoredResumeApplicationModal({
                   </div>
                   {selectedOwnResume.resumeUrl && (
                     <a
-                      href={selectedOwnResume.resumeUrl}
+                      href={getResumeHref(selectedOwnResume.resumeUrl)}
                       target="_blank"
                       rel="noreferrer"
                       className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl shadow-2xs transition"
@@ -1100,7 +1102,7 @@ export default function TailoredResumeApplicationModal({
               {submittedData?.resumeUrl && (
                 <div className="pt-2">
                   <a
-                    href={submittedData.resumeUrl}
+                    href={getResumeHref(submittedData.resumeUrl)}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"

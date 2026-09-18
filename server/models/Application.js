@@ -203,6 +203,8 @@ applicationSchema.index(
   }
 );
 
+applicationSchema.index({ employerId: 1, candidateId: 1 });
+
 applicationSchema.pre("validate", function () {
   if (this.opportunityType === "Internship" && !this.internshipId) {
     throw new Error("internshipId is required for Internship applications");

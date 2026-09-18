@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -574,7 +575,7 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
           {/* Loading / Error States */}
           {loading && (
             <div className="p-16 text-center bg-white border border-slate-200 rounded-3xl">
-              <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <JourneyLoader variant="learning" size="md" className="mx-auto mb-3" />
               <p className="text-xs font-bold text-slate-600">
                 Matching recommended courses for your profile...
               </p>

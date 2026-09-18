@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
@@ -166,8 +167,8 @@ export default function Internships({
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16">
-          <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-sm font-medium text-slate-500">Loading internships...</p>
+          <JourneyLoader size="md" className="mb-3" />
+          <p className="text-sm font-medium text-slate-500">Bringing open internships into view...</p>
         </div>
       ) : list.length === 0 ? (
         <div className="text-center py-14 rounded-2xl bg-white border border-slate-200">

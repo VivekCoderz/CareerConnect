@@ -292,6 +292,13 @@ const Signup = () => {
 
   // ─── Google Candidate Sign-Up ────────────────────────────────────────────────
   const handleGoogleSignup = async () => {
+    if (!auth || !googleProvider) {
+      setGoogleError(
+        "Google Sign-In is unavailable because Firebase API keys are not configured in client/.env"
+      );
+      return;
+    }
+
     setGoogleLoading(true);
     setGoogleError("");
     dispatch(clearMessages());
@@ -421,23 +428,6 @@ const Signup = () => {
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       return;
-    }
-
-    // Check duplicate phone number
-    try {
-      const checkRes = await api.post("/auth/check-phone", {
-        phone: formData.phone.trim(),
-        countryCode: formData.countryCode || "+91",
-      });
-      if (checkRes.data?.exists) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          phone: "This mobile number is already registered with another account",
-        }));
-        return;
-      }
-    } catch (err) {
-      console.warn("Phone check warning:", err.message);
     }
 
     setFieldErrors({});

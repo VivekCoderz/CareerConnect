@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
 import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
@@ -677,7 +678,7 @@ const AdminReports = () => {
                   <tr>
                     <td colSpan="7" className="py-16 text-center">
                       <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
-                        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+                        <JourneyLoader variant="admin" size="sm" />
                         <span className="text-xs font-medium">Loading reports from database...</span>
                       </div>
                     </td>
@@ -954,7 +955,7 @@ const AdminReports = () => {
               <div className="p-6 overflow-y-auto space-y-6 flex-1">
                 {modalLoading ? (
                   <div className="py-20 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
-                    <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+                    <JourneyLoader variant="admin" size="sm" />
                     <span className="text-xs font-semibold">Loading report details and history...</span>
                   </div>
                 ) : detailReport ? (
