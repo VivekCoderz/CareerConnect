@@ -146,10 +146,10 @@ const ResumeSection = ({
             {uploadingPdf ? "Parsing Resume..." : "Upload & Auto-Fill Profile"}
           </button>
           <Link
-            to="/resume-builder?mode=choose"
+            to="/resume-builder?mode=ats"
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition inline-flex items-center gap-1.5"
           >
-            <span>+</span> Build a New Resume
+            <span>🎯</span> Build ATS-Tailored Resume
           </Link>
         </div>
       </div>
@@ -178,10 +178,10 @@ const ResumeSection = ({
               View Live Resume ↗
             </a>
             <Link
-              to="/resume-builder?mode=choose"
-              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-xl transition self-start sm:self-center"
+              to="/resume-builder?mode=ats"
+              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-xl transition self-start sm:self-center inline-flex items-center gap-1"
             >
-              + Build New
+              <span>🎯</span> Tailor for Job
             </Link>
           </div>
         </div>
