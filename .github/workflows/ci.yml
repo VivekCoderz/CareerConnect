@@ -89,7 +89,7 @@ jobs:
             ${{ runner.os }}-mongodb-memory-
 
       - name: Install server dependencies
-        run: npm ci
+        run: npm ci --include=optional
         working-directory: server
 
       - name: Audit production dependencies
