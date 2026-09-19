@@ -155,3 +155,16 @@ export const fetchTailoredResumeAPI = async (opportunityType, id) => {
   return res.data;
 };
 
+/**
+ * Generate ATS-optimized resume for a specific job description
+ * NEVER invents data — only uses the student's actual rawData
+ */
+export const generateATSResumeAPI = async ({ rawData, jobDescription, companyName, template }) => {
+  const res = await api.post("/resume/ats-generate", {
+    rawData,
+    jobDescription,
+    companyName,
+    template,
+  });
+  return res.data;
+};

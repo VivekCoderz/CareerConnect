@@ -20,6 +20,7 @@ const {
   confirmParsedProfileHandler,
   tailorResumeHandler,
   getTailoredResumeHandler,
+  generateATSResumeHandler,
 } = require("../controllers/resumeController.js");
 
 const router = express.Router();
@@ -63,6 +64,7 @@ router.post("/confirm-parsed", confirmParsedProfileHandler);
 router.post("/tailor", tailorResumeHandler);
 router.get("/tailored/:opportunityType/:id", getTailoredResumeHandler);
 router.post("/generate", generateResumeHandler);
+router.post("/ats-generate", generateATSResumeHandler);
 router.post("/update", updateResumeHandler);
 router.get("/me", getMyResume);
 router.put("/manual", saveManualEdit);
@@ -72,3 +74,4 @@ router.patch("/:id/primary", setPrimaryResume);
 router.delete("/:id", deleteResume);
 
 module.exports = router;
+

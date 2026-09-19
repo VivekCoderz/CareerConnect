@@ -22,14 +22,14 @@ const TwoColumnTemplate = ({ data }) => {
   return (
     <div className="bg-white text-gray-900 p-8 max-w-[800px] mx-auto text-[12.5px] leading-relaxed font-serif">
       {/* Header – centered formal */}
-      <header className="text-center border-b border-gray-400 pb-3 mb-4">
-        <h1 className="text-2xl font-bold tracking-wide">{personal?.fullName}</h1>
-        <p className="text-[11px] text-gray-600 mt-1">
+      <div className="resume-header text-center border-b border-gray-400 pb-3 mb-4">
+        <h1 className="text-2xl font-bold tracking-wide text-gray-900">{personal?.fullName}</h1>
+        <p className="text-[11px] text-gray-700 mt-1 font-medium">
           {[personal?.location, personal?.email, personal?.phone]
             .filter(Boolean)
             .join("  ·  ")}
         </p>
-        <p className="text-[11px] text-gray-500 mt-0.5">
+        <p className="text-[11px] text-blue-800 mt-0.5 font-medium">
           {[
             personal?.linkedin && "LinkedIn",
             personal?.github && "GitHub",
@@ -38,7 +38,7 @@ const TwoColumnTemplate = ({ data }) => {
             .filter(Boolean)
             .join("  |  ")}
         </p>
-      </header>
+      </div>
 
       {summary && (
         <section className="mb-4">
