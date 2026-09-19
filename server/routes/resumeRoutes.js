@@ -18,6 +18,7 @@ const {
   getProfileForResume,
   parseResumeHandler,
   confirmParsedProfileHandler,
+  analyzeATSResumeHandler,
   tailorResumeHandler,
   getTailoredResumeHandler,
 } = require("../controllers/resumeController.js");
@@ -60,6 +61,7 @@ router.post("/upload", upload.single("resume"), validateResumeUpload, uploadResu
 router.post("/upload-and-parse", upload.single("resume"), validateResumeUpload, uploadAndParseResumeHandler);
 router.post("/parse", upload.single("resume"), validateResumeUpload, parseResumeHandler);
 router.post("/confirm-parsed", confirmParsedProfileHandler);
+router.post("/ats-score", analyzeATSResumeHandler);
 router.post("/tailor", tailorResumeHandler);
 router.get("/tailored/:opportunityType/:id", getTailoredResumeHandler);
 router.post("/generate", generateResumeHandler);

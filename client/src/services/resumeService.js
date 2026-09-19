@@ -155,3 +155,10 @@ export const fetchTailoredResumeAPI = async (opportunityType, id) => {
   return res.data;
 };
 
+/**
+ * Score a structured saved or freshly parsed resume against a target role.
+ */
+export const analyzeATSResumeAPI = async (payload) => {
+  const res = await api.post("/resume/ats-score", payload);
+  return res.data;
+};

@@ -17,6 +17,8 @@ const { uploadResumeToCloudinary } = require("../config/cloudinary.js");
 const { generateResumePdfBuffer } = require("../utils/generateResumePdf.js");
 const { PDFParse } = require("pdf-parse");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { analyzeATSMatch } = require("../services/atsScoringService.js");
+const mongoose = require("mongoose");
 
 /**
  * POST /api/resume/generate
@@ -2106,13 +2108,88 @@ const confirmParsedProfileHandler = async (req, res) => {
  * on verified user profile/resume data (never invents skills or facts).
  * Renders PDF and uploads to Cloudinary. Saves tailored resume without modifying primary profile.
  */
+const analyzeATSResumeHandler = async (req, res) => {
+  try {
+    const {
+      resumeId,
+      resumeData: submittedResumeData,
+      opportunityType,
+      opportunityId,
+      jobTitle,
+      jobDescription,
+      requiredSkills = [],
+      preferredSkills = [],
+    } = req.body;
+
+    let resumeData = submittedResumeData;
+    if (resumeId) {
+      if (!mongoose.Types.ObjectId.isValid(resumeId)) {
+        return res.status(400).json({ success: false, message: "Invalid resume reference" });
+      }
+      const resume = await Resume.findOne({ _id: resumeId, user: req.user._id }).lean();
+      if (!resume) return res.status(404).json({ success: false, message: "Resume not found" });
+      resumeData = resume.generatedData || resume.rawData;
+    }
+
+    if (!resumeData || typeof resumeData !== "object" || Array.isArray(resumeData)) {
+      return res.status(400).json({ success: false, message: "Select or upload a valid resume" });
+    }
+    if (JSON.stringify(resumeData).length > 500000) {
+      return res.status(413).json({ success: false, message: "Resume data is too large" });
+    }
+
+    let opportunity = {
+      title: typeof jobTitle === "string" ? jobTitle.trim() : "",
+      description: typeof jobDescription === "string" ? jobDescription.trim() : "",
+      requiredSkills: Array.isArray(requiredSkills) ? requiredSkills.slice(0, 50) : [],
+      preferredSkills: Array.isArray(preferredSkills) ? preferredSkills.slice(0, 50) : [],
+      responsibilities: [],
+    };
+
+    if (opportunityId) {
+      if (!mongoose.Types.ObjectId.isValid(opportunityId)) {
+        return res.status(400).json({ success: false, message: "Invalid opportunity reference" });
+      }
+      const isInternship = String(opportunityType || "").toLowerCase() === "internship";
+      const Model = isInternship ? Internship : Job;
+      const record = await Model.findOne({ _id: opportunityId, status: "Published" }).lean();
+      if (!record) return res.status(404).json({ success: false, message: "Published opportunity not found" });
+      opportunity = {
+        title: record.title,
+        description: record.description,
+        requiredSkills: record.requiredSkills || [],
+        preferredSkills: record.preferredSkills || [],
+        responsibilities: record.responsibilities || [],
+        education: record.education || "",
+        experience: record.experience || "",
+      };
+    }
+
+    if (!opportunity.title || opportunity.title.length > 150) {
+      return res.status(400).json({ success: false, message: "A valid target job title is required" });
+    }
+    if (!opportunity.description || opportunity.description.length < 30 || opportunity.description.length > 15000) {
+      return res.status(400).json({ success: false, message: "Job description must be between 30 and 15,000 characters" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      opportunity: { title: opportunity.title },
+      analysis: analyzeATSMatch(resumeData, opportunity),
+    });
+  } catch (error) {
+    console.error("analyzeATSResumeHandler error:", error);
+    return res.status(500).json({ success: false, message: "Failed to analyze resume", error: publicError(error) });
+  }
+};
+
 const tailorResumeHandler = async (req, res) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const { opportunityType, opportunityId, opportunityData, template } = req.body;
+    const { opportunityType, opportunityId, opportunityData, template, sourceResumeData } = req.body;
 
     let targetOpportunity = { ...(opportunityData || {}) };
 
@@ -2201,7 +2278,13 @@ const tailorResumeHandler = async (req, res) => {
           .lean()
       : null;
 
-    let userData = primaryResume?.rawData || latestResume?.rawData;
+    let userData = sourceResumeData && typeof sourceResumeData === "object" && !Array.isArray(sourceResumeData)
+      ? sourceResumeData
+      : (primaryResume?.rawData || latestResume?.rawData);
+
+    if (userData && JSON.stringify(userData).length > 500000) {
+      return res.status(413).json({ success: false, message: "Resume data is too large" });
+    }
 
     if (!userData) {
       // Load from profile using getProfileForResume mapping logic
@@ -2410,6 +2493,7 @@ module.exports = {
   getProfileForResume,
   parseResumeHandler,
   confirmParsedProfileHandler,
+  analyzeATSResumeHandler,
   tailorResumeHandler,
   getTailoredResumeHandler,
 };

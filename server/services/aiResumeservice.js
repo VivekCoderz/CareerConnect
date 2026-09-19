@@ -848,9 +848,16 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
   const targetLabel = oppCompany ? `${oppTitle} at ${oppCompany}` : oppTitle;
 
   const skillHighlights = uniqueMatchedSkills.slice(0, 5).join(", ");
-  const skillClause = skillHighlights ? ` with hands-on proficiency in ${skillHighlights}` : "";
 
-  const tailoredSummary = `Results-oriented candidate tailored for the ${targetLabel} position${skillClause}. Demonstrates a proven track record in software engineering, modern development methodologies, and building dependable solutions. Committed to immediate high-impact contributions and continuous learning.`;
+  const originalSummary = String(user.summary || "").trim();
+  const verifiedSkillSentence = skillHighlights
+    ? `Relevant verified skills include ${skillHighlights}.`
+    : "The resume has been reorganized to surface the most relevant existing experience and projects.";
+  const tailoredSummary = [
+    originalSummary,
+    `Targeting the ${targetLabel} position.`,
+    verifiedSkillSentence,
+  ].filter(Boolean).join(" ");
 
   return {
     personal: { ...user.personal },
