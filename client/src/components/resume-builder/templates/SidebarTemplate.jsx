@@ -13,8 +13,8 @@ const SidebarTemplate = ({ data }) => {
   return (
     <div className="bg-white text-gray-900 max-w-[800px] mx-auto text-[12.5px] leading-relaxed flex">
       {/* Left sidebar */}
-      <aside className="w-[32%] bg-slate-800 text-white p-5 min-h-[900px]">
-        <h1 className="text-lg font-bold leading-tight mb-3">{personal?.fullName}</h1>
+      <div className="resume-sidebar w-[32%] bg-slate-800 text-white p-5 min-h-[900px]">
+        <h1 className="text-lg font-bold leading-tight mb-3 text-white">{personal?.fullName}</h1>
         <div className="space-y-1 text-[11px] text-slate-200 mb-5">
           {personal?.email && <div>{personal.email}</div>}
           {personal?.phone && <div>{personal.phone}</div>}
@@ -96,7 +96,7 @@ const SidebarTemplate = ({ data }) => {
             ))}
           </div>
         )}
-      </aside>
+      </div>
 
       {/* Main */}
       <main className="w-[68%] p-6">

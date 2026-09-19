@@ -15,40 +15,31 @@ const BoldTemplate = ({ data }) => {
   const skillsList = extractSkillsList(skills);
 
   return (
-    <div className="bg-white text-gray-900 p-8 max-w-[800px] mx-auto text-[13px] leading-relaxed font-sans">
-      {/* Bold header */}
-      <header className="border-b-4 border-blue-600 pb-3 mb-5">
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+    <div className="bg-white text-gray-900 px-6 py-4 print:p-0 max-w-[800px] mx-auto text-[11px] leading-[1.35] font-sans print:text-[10.5px] print:leading-[1.3]">
+      {/* Header */}
+      <div className="resume-header border-b-2 border-blue-600 pb-2 mb-2.5">
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">
           {personal?.fullName}
         </h1>
-        <p className="text-sm text-gray-600 mt-1">
+        <p className="text-[11px] text-slate-600 mt-0.5 font-medium">
           {[personal?.email, personal?.phone, personal?.location]
-            .filter(Boolean)
-            .join("  |  ")}
-        </p>
-        <p className="text-xs text-blue-700 mt-1">
-          {[
-            personal?.linkedin && "LinkedIn",
-            personal?.github && "GitHub",
-            personal?.portfolio && "Portfolio",
-          ]
             .filter(Boolean)
             .join("  ·  ")}
         </p>
-      </header>
+      </div>
 
       {summary && (
-        <section className="mb-5">
-          <h2 className="text-xs font-bold uppercase text-blue-700 tracking-wider mb-1">
+        <section className="mb-2.5 print:mb-2 break-inside-avoid">
+          <h2 className="text-[10.5px] font-bold uppercase text-blue-700 tracking-wider mb-0.5">
             Summary
           </h2>
-          <p className="text-gray-700">{summary}</p>
+          <p className="text-gray-700 text-[11px] leading-snug">{summary}</p>
         </section>
       )}
 
       {experience?.length > 0 && (
-        <section className="mb-5">
-          <h2 className="text-xs font-bold uppercase text-blue-700 tracking-wider border-b border-blue-200 pb-1 mb-2">
+        <section className="mb-2.5 print:mb-2 break-inside-avoid">
+          <h2 className="text-[10.5px] font-bold uppercase text-blue-700 tracking-wider border-b border-blue-200 pb-0.5 mb-1">
             Experience
           </h2>
           {experience.map((e, i) => (
