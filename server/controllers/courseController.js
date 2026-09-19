@@ -1,8 +1,9 @@
 const { publicError } = require("../utils/publicError");
 const Course = require("../models/Course");
 const StudentProfile = require("../models/StudentProfile");
-const CourseApplication=require("../models/CourseApplication");
+const CourseApplication = require("../models/CourseApplication");
 const CourseProgress = require("../models/CourseProgress");
+const CourseContent = require("../models/CourseContent");
 
 // ==========================================
 // CREATE COURSE
@@ -253,6 +254,9 @@ const deleteCourse = async (req, res) => {
     }
 
     await Course.findByIdAndDelete(req.params.id);
+    await CourseContent.deleteMany({ course: req.params.id });
+    await CourseApplication.deleteMany({ course: req.params.id });
+    await CourseProgress.deleteMany({ course: req.params.id });
 
     return res.status(200).json({
       success: true,
@@ -623,10 +627,8 @@ const courseSkillContains = (skills, searchText) => {
 
 const getCourseDetails = async (req, res) => {
   try {
-    const course = await Course.findOne({
-      _id: req.params.id,
-      status: "Published",
-    }).populate(
+    const user = req.user;
+    const course = await Course.findById(req.params.id).populate(
       "createdBy",
       "fullName username email profileImage"
     );
@@ -635,6 +637,20 @@ const getCourseDetails = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Course not found",
+      });
+    }
+
+    // If course is Draft or Archived, only the creator or an admin can access it
+    if (
+      course.status !== "Published" &&
+      (!user ||
+        (course.createdBy?._id?.toString() !== user._id.toString() &&
+          user.role !== "admin" &&
+          user.role !== "SUPER_ADMIN"))
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found or is not published",
       });
     }
 

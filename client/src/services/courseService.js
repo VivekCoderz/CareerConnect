@@ -243,6 +243,11 @@ export const updateCourseApplicationStatus = async (
     `/courses/${courseId}/applications/${applicationId}/status`,
     { status }
   );
+/**
+ * Get all applications across all courses for the logged-in employer.
+ */
+export const getEmployerAllApplications = async () => {
+  const res = await api.get("/courses/my-applications");
   return res.data;
 };
 
@@ -269,4 +274,5 @@ export default {
   deleteCourseContent,
   getCourseApplications,
   updateCourseApplicationStatus,
+  getEmployerAllApplications,
 };

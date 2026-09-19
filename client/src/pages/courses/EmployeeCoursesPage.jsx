@@ -5,6 +5,37 @@ import React, {
   useCallback,
 } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  GraduationCap,
+  BookOpen,
+  FileText,
+  FileEdit,
+  Users,
+  Search,
+  Filter,
+  Plus,
+  ChevronRight,
+  ChevronDown,
+  ArrowRight,
+  Code2,
+  BarChart3,
+  Globe,
+  Palette,
+  Cloud,
+  Eye,
+  Edit2,
+  Trash2,
+  PlayCircle,
+  Video,
+  CheckCircle2,
+  Clock,
+  Sparkles,
+  Layers,
+  ArrowLeft,
+  Check,
+  AlertCircle,
+  TrendingUp,
+} from "lucide-react";
 
 import {
   getEmployerCourses,
@@ -22,35 +53,51 @@ import "./EmployeeCoursesPage.css";
 const STATUS_CONFIG = {
   Applied: {
     label: "Applied",
-    className: "bg-blue-100 text-blue-700",
+    className: "bg-blue-50 text-blue-700 border border-blue-200/60",
+  },
+  New: {
+    label: "New",
+    className: "bg-emerald-50 text-emerald-700 border border-emerald-200/60",
+  },
+  "Under Review": {
+    label: "Under Review",
+    className: "bg-blue-50 text-blue-700 border border-blue-200/60",
+  },
+  Shortlisted: {
+    label: "Shortlisted",
+    className: "bg-purple-50 text-purple-700 border border-purple-200/60",
+  },
+  Reviewed: {
+    label: "Reviewed",
+    className: "bg-slate-100 text-slate-700 border border-slate-200/60",
   },
   Enrolled: {
     label: "Enrolled",
-    className: "bg-green-100 text-green-700",
+    className: "bg-emerald-50 text-emerald-700 border border-emerald-200/60",
   },
   Completed: {
     label: "Completed",
-    className: "bg-purple-100 text-purple-700",
+    className: "bg-purple-50 text-purple-700 border border-purple-200/60",
   },
   Rejected: {
     label: "Rejected",
-    className: "bg-red-100 text-red-700",
+    className: "bg-rose-50 text-rose-700 border border-rose-200/60",
   },
 };
 
 /* =========================================================
-   STATUS BADGE
+   STATUS BADGE COMPONENT
 ========================================================= */
 
 const StatusBadge = ({ status }) => {
   const config = STATUS_CONFIG[status] || {
     label: status || "Unknown",
-    className: "bg-gray-100 text-gray-700",
+    className: "bg-slate-100 text-slate-700 border border-slate-200/60",
   };
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${config.className}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${config.className}`}
     >
       {config.label}
     </span>
@@ -58,22 +105,72 @@ const StatusBadge = ({ status }) => {
 };
 
 /* =========================================================
-   APPLICATIONS PANEL
+   HELPERS: Relative Time Formatter
 ========================================================= */
 
-const ApplicationsPanel = () => {
+const getRelativeTimeString = (dateInput) => {
+  if (!dateInput) return "Recently";
+  const date = new Date(dateInput);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - date) / 1000);
+
+  if (diffInSeconds < 60) return "Just now";
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 30) return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`;
+  return date.toLocaleDateString();
+};
+
+/* Domain to Icon / Color Mapper */
+const getDomainMeta = (domain = "", title = "") => {
+  const text = `${domain} ${title}`.toLowerCase();
+  if (text.includes("stack") || text.includes("web") || text.includes("code") || text.includes("software") || text.includes("developer")) {
+    return {
+      icon: Code2,
+      bg: "bg-purple-50 text-purple-600 border-purple-100",
+    };
+  }
+  if (text.includes("data") || text.includes("python") || text.includes("ai") || text.includes("machine") || text.includes("analytics")) {
+    return {
+      icon: BarChart3,
+      bg: "bg-amber-50 text-amber-600 border-amber-100",
+    };
+  }
+  if (text.includes("design") || text.includes("ui") || text.includes("ux") || text.includes("graphic")) {
+    return {
+      icon: Palette,
+      bg: "bg-pink-50 text-pink-600 border-pink-100",
+    };
+  }
+  if (text.includes("cloud") || text.includes("devops") || text.includes("aws") || text.includes("azure")) {
+    return {
+      icon: Cloud,
+      bg: "bg-blue-50 text-blue-600 border-blue-100",
+    };
+  }
+  return {
+    icon: Globe,
+    bg: "bg-indigo-50 text-indigo-600 border-indigo-100",
+  };
+};
+
+/* =========================================================
+   APPLICATIONS PANEL COMPONENT
+========================================================= */
+
+const ApplicationsPanel = ({ onRefreshStats, courses = [] }) => {
   const [courseGroups, setCourseGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
 
   const [expandedCourses, setExpandedCourses] = useState({});
+  const [filterCourse, setFilterCourse] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-
-  /* ---------------------------------------------------------
-     FETCH APPLICATIONS
-  --------------------------------------------------------- */
 
   const fetchApplications = useCallback(async () => {
     try {
@@ -81,67 +178,48 @@ const ApplicationsPanel = () => {
       setError("");
 
       const response = await api.get("/courses/my-applications");
-
       const data =
+        response?.data?.courseGroups ||
         response?.data?.applications ||
         response?.data?.data ||
         response?.data ||
         [];
 
       setCourseGroups(Array.isArray(data) ? data : []);
+      if (onRefreshStats) onRefreshStats();
     } catch (err) {
       console.error("Failed to fetch course applications:", err);
-
       setError(
-        err?.response?.data?.message ||
-          "Failed to load course applications."
+        err?.response?.data?.message || "Failed to load course applications."
       );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onRefreshStats]);
 
   useEffect(() => {
     fetchApplications();
   }, [fetchApplications]);
 
-  /* ---------------------------------------------------------
-     UPDATE APPLICATION STATUS
-  --------------------------------------------------------- */
-
-  const handleUpdateStatus = async (
-    courseId,
-    applicationId,
-    newStatus
-  ) => {
+  const handleUpdateStatus = async (courseId, applicationId, newStatus) => {
     try {
       setUpdatingId(applicationId);
-
       await api.patch(
         `/courses/${courseId}/applications/${applicationId}/status`,
-        {
-          status: newStatus,
-        }
+        { status: newStatus }
       );
-
       await fetchApplications();
     } catch (err) {
       console.error("Failed to update application:", err);
-
       alert(
-        err?.response?.data?.message ||
-          "Failed to update application status."
+        err?.response?.data?.message || "Failed to update application status."
       );
     } finally {
       setUpdatingId(null);
     }
   };
 
-  /* ---------------------------------------------------------
-     STATS
-  --------------------------------------------------------- */
-
-  const stats = useMemo(() => {
+  const appStats = useMemo(() => {
     const allApplications = courseGroups.flatMap(
       (group) => group.applications || []
     );
@@ -149,54 +227,51 @@ const ApplicationsPanel = () => {
     return {
       total: allApplications.length,
       applied: allApplications.filter(
-        (application) => application.status === "Applied"
+        (a) => a.status === "Applied" || a.status === "New"
       ).length,
-      enrolled: allApplications.filter(
-        (application) => application.status === "Enrolled"
-      ).length,
-      completed: allApplications.filter(
-        (application) => application.status === "Completed"
-      ).length,
-      rejected: allApplications.filter(
-        (application) => application.status === "Rejected"
-      ).length,
+      enrolled: allApplications.filter((a) => a.status === "Enrolled").length,
+      completed: allApplications.filter((a) => a.status === "Completed").length,
+      rejected: allApplications.filter((a) => a.status === "Rejected").length,
     };
   }, [courseGroups]);
 
-  /* ---------------------------------------------------------
-     FILTER APPLICATIONS
-  --------------------------------------------------------- */
-
   const filteredGroups = useMemo(() => {
     return courseGroups
+      .filter((group) => {
+        const course = group.course || group;
+        const courseId = (course?._id || group._id)?.toString();
+        return filterCourse === "All" || courseId === filterCourse;
+      })
       .map((group) => {
-        const applications = (group.applications || []).filter(
-          (application) => {
-            const matchesStatus =
-              filterStatus === "All" ||
-              application.status === filterStatus;
+        const courseTitle =
+          group.course?.title || group.title || "Course";
 
-            const studentName =
-              application.student?.name ||
-              application.user?.name ||
-              application.studentName ||
-              "";
+        const applications = (group.applications || []).filter((application) => {
+          const matchesStatus =
+            filterStatus === "All" || application.status === filterStatus;
 
-            const studentEmail =
-              application.student?.email ||
-              application.user?.email ||
-              application.studentEmail ||
-              "";
+          const studentName =
+            application.student?.fullName ||
+            application.student?.name ||
+            application.user?.name ||
+            application.studentName ||
+            "";
 
-            const matchesSearch =
-              !searchQuery.trim() ||
-              `${studentName} ${studentEmail}`
-                .toLowerCase()
-                .includes(searchQuery.toLowerCase());
+          const studentEmail =
+            application.student?.email ||
+            application.user?.email ||
+            application.studentEmail ||
+            "";
 
-            return matchesStatus && matchesSearch;
-          }
-        );
+          const query = searchQuery.trim().toLowerCase();
+          const matchesSearch =
+            !query ||
+            studentName.toLowerCase().includes(query) ||
+            studentEmail.toLowerCase().includes(query) ||
+            courseTitle.toLowerCase().includes(query);
+
+          return matchesStatus && matchesSearch;
+        });
 
         return {
           ...group,
@@ -204,11 +279,7 @@ const ApplicationsPanel = () => {
         };
       })
       .filter((group) => group.applications.length > 0);
-  }, [courseGroups, filterStatus, searchQuery]);
-
-  /* ---------------------------------------------------------
-     TOGGLE COURSE
-  --------------------------------------------------------- */
+  }, [courseGroups, filterCourse, filterStatus, searchQuery]);
 
   const toggleCourse = (courseId) => {
     setExpandedCourses((prev) => ({
@@ -217,35 +288,24 @@ const ApplicationsPanel = () => {
     }));
   };
 
-  /* ---------------------------------------------------------
-     LOADING
-  --------------------------------------------------------- */
-
-  if (loading) {
+    if (loading) {
     return (
-      <div className="flex min-h-[300px] items-center justify-center">
+      <div className="flex min-h-[260px] items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-          <p className="text-sm text-gray-500">
-            Loading applications...
-          </p>
+          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-3 border-indigo-200 border-t-indigo-600" />
+          <p className="text-xs text-slate-500 font-medium">Loading applications...</p>
         </div>
       </div>
     );
   }
 
-  /* ---------------------------------------------------------
-     ERROR
-  --------------------------------------------------------- */
-
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-        <p className="font-semibold text-red-700">{error}</p>
-
+      <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-6 text-center">
+        <p className="text-xs font-semibold text-rose-700">{error}</p>
         <button
           onClick={fetchApplications}
-          className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+          className="mt-3 rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition"
         >
           Retry
         </button>
@@ -254,185 +314,172 @@ const ApplicationsPanel = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* =====================================================
-          APPLICATION STATS
-      ===================================================== */}
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Total</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">
-            {stats.total}
-          </p>
+    <div className="space-y-5">
+      {/* Application Sub-stats */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+          <p className="text-[11px] font-semibold text-slate-500">Total Applicants</p>
+          <p className="mt-0.5 text-lg font-bold text-slate-900">{appStats.total}</p>
         </div>
-
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Applied</p>
-          <p className="mt-1 text-2xl font-bold text-blue-600">
-            {stats.applied}
-          </p>
+        <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+          <p className="text-[11px] font-semibold text-blue-600">Pending Review</p>
+          <p className="mt-0.5 text-lg font-bold text-blue-700">{appStats.applied}</p>
         </div>
-
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Enrolled</p>
-          <p className="mt-1 text-2xl font-bold text-green-600">
-            {stats.enrolled}
-          </p>
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+          <p className="text-[11px] font-semibold text-emerald-600">Enrolled</p>
+          <p className="mt-0.5 text-lg font-bold text-emerald-700">{appStats.enrolled}</p>
         </div>
-
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Completed</p>
-          <p className="mt-1 text-2xl font-bold text-purple-600">
-            {stats.completed}
-          </p>
+        <div className="rounded-xl border border-purple-100 bg-purple-50/50 p-3">
+          <p className="text-[11px] font-semibold text-purple-600">Completed</p>
+          <p className="mt-0.5 text-lg font-bold text-purple-700">{appStats.completed}</p>
         </div>
-
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Rejected</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">
-            {stats.rejected}
-          </p>
+        <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-3">
+          <p className="text-[11px] font-semibold text-rose-600">Rejected</p>
+          <p className="mt-0.5 text-lg font-bold text-rose-700">{appStats.rejected}</p>
         </div>
       </div>
 
-      {/* =====================================================
-          SEARCH + FILTER
-      ===================================================== */}
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by student name, email, or course..."
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-2 pl-9 pr-3.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          />
+        </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border bg-white p-4 shadow-sm md:flex-row">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search student by name or email..."
-          className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-        />
+        {/* Course Filter */}
+        <div className="relative">
+          <select
+            value={filterCourse}
+            onChange={(e) => setFilterCourse(e.target.value)}
+            className="w-full sm:w-auto appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-3.5 pr-8 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none cursor-pointer"
+          >
+            <option value="All">All Courses</option>
+            {courses.map((c) => (
+              <option key={c._id} value={c._id}>
+                {c.title}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+        </div>
 
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-indigo-500"
-        >
-          <option value="All">All Status</option>
-          <option value="Applied">Applied</option>
-          <option value="Enrolled">Enrolled</option>
-          <option value="Completed">Completed</option>
-          <option value="Rejected">Rejected</option>
-        </select>
+        {/* Status Filter */}
+        <div className="relative">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="w-full sm:w-auto appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-3.5 pr-8 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none cursor-pointer"
+          >
+            <option value="All">All Status</option>
+            <option value="Applied">Applied</option>
+            <option value="Enrolled">Enrolled</option>
+            <option value="Completed">Completed</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+        </div>
       </div>
 
-      {/* =====================================================
-          APPLICATION LIST
-      ===================================================== */}
-
+      {/* Application List */}
       {filteredGroups.length === 0 ? (
-        <div className="rounded-xl border bg-white p-10 text-center shadow-sm">
-          <p className="text-lg font-semibold text-gray-800">
-            No applications found
-          </p>
-
-          <p className="mt-1 text-sm text-gray-500">
-            There are no applications matching your current filters.
+        <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-8 text-center">
+          <Users className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+          <p className="text-xs font-bold text-slate-800">No applications found</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            {courseGroups.length === 0
+              ? "Students who apply to your courses will appear here."
+              : "No applications match your active filter."}
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3.5">
           {filteredGroups.map((group) => {
             const course = group.course || group;
-
             const courseId = course?._id;
-
-            const isExpanded =
-              expandedCourses[courseId] ?? true;
+            const isExpanded = expandedCourses[courseId] ?? true;
 
             return (
               <div
                 key={courseId}
-                className="overflow-hidden rounded-xl border bg-white shadow-sm"
+                className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-xs"
               >
-                {/* Course Header */}
-
+                {/* Course Header Toggle */}
                 <button
                   type="button"
                   onClick={() => toggleCourse(courseId)}
-                  className="flex w-full items-center justify-between gap-4 p-5 text-left hover:bg-gray-50"
+                  className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-slate-50/80 transition"
                 >
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      {course?.title || "Untitled Course"}
-                    </h3>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                      {group.applications.length} application
-                      {group.applications.length !== 1
-                        ? "s"
-                        : ""}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                      <GraduationCap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900">
+                        {course?.title || "Untitled Course"}
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        {group.applications.length} application
+                        {group.applications.length !== 1 ? "s" : ""}
+                      </p>
+                    </div>
                   </div>
 
-                  <span className="text-xl text-gray-500">
+                  <span className="text-sm font-bold text-slate-400">
                     {isExpanded ? "−" : "+"}
                   </span>
                 </button>
 
-                {/* Applications */}
-
+                {/* Applications list */}
                 {isExpanded && (
-                  <div className="border-t">
+                  <div className="border-t border-slate-100 divide-y divide-slate-100">
                     {group.applications.map((application) => {
                       const student =
-                        application.student ||
-                        application.user ||
-                        {};
-
+                        application.student || application.user || {};
                       const studentName =
+                        student.fullName ||
                         student.name ||
                         application.studentName ||
                         "Student";
-
                       const studentEmail =
                         student.email ||
                         application.studentEmail ||
-                        "No email";
+                        "No email provided";
 
                       return (
                         <div
                           key={application._id}
-                          className="flex flex-col gap-4 border-b p-5 last:border-b-0 lg:flex-row lg:items-center lg:justify-between"
+                          className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between hover:bg-slate-50/40 transition"
                         >
                           <div className="min-w-0">
-                            <h4 className="font-semibold text-gray-900">
-                              {studentName}
-                            </h4>
-
-                            <p className="text-sm text-gray-500">
+                            <div className="flex items-center gap-2">
+                              <h5 className="text-xs font-bold text-slate-900">
+                                {studentName}
+                              </h5>
+                              <StatusBadge status={application.status} />
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
                               {studentEmail}
                             </p>
-
-                            {application.appliedAt && (
-                              <p className="mt-1 text-xs text-gray-400">
-                                Applied:{" "}
-                                {new Date(
-                                  application.appliedAt
-                                ).toLocaleDateString()}
+                            {application.createdAt && (
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                Applied: {getRelativeTimeString(application.createdAt)}
                               </p>
                             )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-3">
-                            <StatusBadge
-                              status={application.status}
-                            />
-
-                            {application.status ===
-                              "Applied" && (
+                          <div className="flex items-center gap-2">
+                            {(application.status === "Applied" ||
+                              application.status === "New" ||
+                              application.status === "Under Review") && (
                               <>
                                 <button
-                                  disabled={
-                                    updatingId ===
-                                    application._id
-                                  }
+                                  disabled={updatingId === application._id}
                                   onClick={() =>
                                     handleUpdateStatus(
                                       courseId,
@@ -440,19 +487,12 @@ const ApplicationsPanel = () => {
                                       "Enrolled"
                                     )
                                   }
-                                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
                                 >
-                                  {updatingId ===
-                                  application._id
-                                    ? "Updating..."
-                                    : "Accept"}
+                                  {updatingId === application._id ? "Accepting..." : "Accept"}
                                 </button>
-
                                 <button
-                                  disabled={
-                                    updatingId ===
-                                    application._id
-                                  }
+                                  disabled={updatingId === application._id}
                                   onClick={() =>
                                     handleUpdateStatus(
                                       courseId,
@@ -460,7 +500,7 @@ const ApplicationsPanel = () => {
                                       "Rejected"
                                     )
                                   }
-                                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-100 transition disabled:opacity-50"
                                 >
                                   Reject
                                 </button>
@@ -494,9 +534,9 @@ const EmployeeCoursesPage = ({
 }) => {
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState("courses");
-
+  const [activeTab, setActiveTab] = useState("courses"); // "courses" or "applications"
   const [courses, setCourses] = useState([]);
+  const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -504,42 +544,76 @@ const EmployeeCoursesPage = ({
   const [filter, setFilter] = useState("All");
 
   const [deletingId, setDeletingId] = useState(null);
-  const [statusLoading, setStatusLoading] =
-    useState(null);
+  const [statusLoading, setStatusLoading] = useState(null);
 
   /* =======================================================
-     LOAD COURSES
+     LOAD COURSES & APPLICATIONS
   ======================================================= */
 
-  const loadCourses = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
-      const response = await getEmployerCourses();
+      const [coursesRes, appsRes] = await Promise.allSettled([
+        getEmployerCourses(),
+        api.get("/courses/my-applications"),
+      ]);
 
-      const data =
-        response?.data?.courses ||
-        response?.data?.data ||
-        response?.data ||
-        [];
+      if (coursesRes.status === "fulfilled") {
+        const cData =
+          coursesRes.value?.courses ||
+          coursesRes.value?.data?.courses ||
+          coursesRes.value?.data ||
+          [];
+        setCourses(Array.isArray(cData) ? cData : []);
+      } else {
+        console.error("Failed to load courses:", coursesRes.reason);
+      }
 
-      setCourses(Array.isArray(data) ? data : []);
+      if (appsRes.status === "fulfilled") {
+        const aData =
+          appsRes.value?.data?.courseGroups ||
+          appsRes.value?.data?.applications ||
+          appsRes.value?.data?.data ||
+          [];
+        const flatApps = [];
+        if (Array.isArray(aData)) {
+          aData.forEach((group) => {
+            if (group.applications && Array.isArray(group.applications)) {
+              group.applications.forEach((app) => {
+                flatApps.push({
+                  ...app,
+                  courseTitle: group.course?.title || group.title || "Course",
+                  courseDomain: group.course?.domain || group.domain || "General",
+                });
+              });
+            } else if (group._id && (group.student || group.user)) {
+              flatApps.push({
+                ...group,
+                courseTitle: group.course?.title || group.title || "Course",
+                courseDomain: group.course?.domain || group.domain || "General",
+              });
+            }
+          });
+        }
+        // Sort newest applications first
+        flatApps.sort(
+          (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+        );
+        setApplications(flatApps);
+      }
     } catch (err) {
-      console.error("Failed to load courses:", err);
-
-      setError(
-        err?.response?.data?.message ||
-          "Failed to load courses."
-      );
+      console.error("Failed to load course workspace data:", err);
+      setError(err?.response?.data?.message || "Failed to load course data.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadCourses();
-  }, [loadCourses]);
+    loadData();
+  }, [loadData]);
 
   /* =======================================================
      FILTERED COURSES
@@ -549,17 +623,10 @@ const EmployeeCoursesPage = ({
     const query = search.trim().toLowerCase();
 
     return courses.filter((course) => {
-      const title =
-        course?.title?.toLowerCase() || "";
-
-      const description =
-        course?.description?.toLowerCase() || "";
-
-      const domain =
-        course?.domain?.toLowerCase() || "";
-
-      const category =
-        course?.category?.toLowerCase() || "";
+      const title = course?.title?.toLowerCase() || "";
+      const description = course?.description?.toLowerCase() || "";
+      const domain = course?.domain?.toLowerCase() || "";
+      const category = course?.category?.toLowerCase() || "";
 
       const matchesSearch =
         !query ||
@@ -568,13 +635,8 @@ const EmployeeCoursesPage = ({
         domain.includes(query) ||
         category.includes(query);
 
-      const status =
-        course?.status ||
-        course?.courseStatus ||
-        "Draft";
-
-      const matchesFilter =
-        filter === "All" || status === filter;
+      const status = course?.status || course?.courseStatus || "Draft";
+      const matchesFilter = filter === "All" || status === filter;
 
       return matchesSearch && matchesFilter;
     });
@@ -585,26 +647,16 @@ const EmployeeCoursesPage = ({
   ======================================================= */
 
   const stats = useMemo(() => {
-    const published = courses.filter(
-      (course) =>
-        course?.status === "Published"
-    ).length;
-
-    const draft = courses.filter(
-      (course) =>
-        course?.status === "Draft"
-    ).length;
-
-    const totalStudents = courses.reduce(
-      (total, course) =>
-        total +
-        Number(
-          course?.enrolledStudents ||
-            course?.studentsCount ||
-            0
-        ),
+    const published = courses.filter((c) => c?.status === "Published").length;
+    const draft = courses.filter((c) => c?.status === "Draft" || !c?.status).length;
+    
+    // Total enrolled students from both course counts and application enrolments
+    const enrolledApps = applications.filter((a) => a.status === "Enrolled").length;
+    const coursesSum = courses.reduce(
+      (total, c) => total + Number(c?.enrolledStudents || c?.studentsCount || 0),
       0
     );
+    const totalStudents = Math.max(coursesSum, enrolledApps);
 
     return {
       total: courses.length,
@@ -612,90 +664,69 @@ const EmployeeCoursesPage = ({
       draft,
       totalStudents,
     };
-  }, [courses]);
+  }, [courses, applications]);
 
   /* =======================================================
-     DELETE COURSE
+     RECENT APPLICATIONS LIST (DYNAMIC - NO DUMMY DATA)
+  ======================================================= */
+
+  const recentApplicationsList = useMemo(() => {
+    return applications.slice(0, 6).map((app) => ({
+      id: app._id,
+      courseTitle: app.courseTitle || app.course?.title || "Course",
+      studentName:
+        app.student?.fullName ||
+        app.student?.username ||
+        app.student?.name ||
+        app.studentName ||
+        "Student Applicant",
+      timeAgo: getRelativeTimeString(app.createdAt),
+      status: app.status || "Applied",
+      domain: app.courseDomain || app.course?.domain || "",
+    }));
+  }, [applications]);
+
+  /* =======================================================
+     HANDLERS
   ======================================================= */
 
   const handleDelete = async (courseId) => {
     const confirmed = window.confirm(
       "Are you sure you want to delete this course?"
     );
-
     if (!confirmed) return;
 
     try {
       setDeletingId(courseId);
-
       await deleteCourse(courseId);
-
-      setCourses((prev) =>
-        prev.filter(
-          (course) => course._id !== courseId
-        )
-      );
+      setCourses((prev) => prev.filter((course) => course._id !== courseId));
     } catch (err) {
       console.error("Failed to delete course:", err);
-
-      alert(
-        err?.response?.data?.message ||
-          "Failed to delete course."
-      );
+      alert(err?.response?.data?.message || "Failed to delete course.");
     } finally {
       setDeletingId(null);
     }
   };
 
-  /* =======================================================
-     TOGGLE PUBLISH STATUS
-  ======================================================= */
-
   const handleToggleStatus = async (course) => {
-    const currentStatus =
-      course?.status || "Draft";
-
-    const newStatus =
-      currentStatus === "Published"
-        ? "Draft"
-        : "Published";
+    const currentStatus = course?.status || "Draft";
+    const newStatus = currentStatus === "Published" ? "Draft" : "Published";
 
     try {
       setStatusLoading(course._id);
-
-      await updateCourseStatus(
-        course._id,
-        newStatus
-      );
-
+      await updateCourseStatus(course._id, newStatus);
       setCourses((prev) =>
         prev.map((item) =>
-          item._id === course._id
-            ? {
-                ...item,
-                status: newStatus,
-              }
-            : item
+          item._id === course._id ? { ...item, status: newStatus } : item
         )
       );
     } catch (err) {
-      console.error(
-        "Failed to update course status:",
-        err
-      );
-
-      alert(
-        err?.response?.data?.message ||
-          "Failed to update course status."
-      );
+      console.error("Failed to update course status:", err);
+      alert(err?.response?.data?.message || "Failed to update course status.");
     } finally {
       setStatusLoading(null);
     }
   };
-
-  /* =======================================================
-     CREATE
-  ======================================================= */
 
   const handleCreateClick = () => {
     if (onCreateCourse) {
@@ -705,10 +736,6 @@ const EmployeeCoursesPage = ({
     }
   };
 
-  /* =======================================================
-     EDIT
-  ======================================================= */
-
   const handleEditClick = (courseId) => {
     if (onEditCourse) {
       onEditCourse(courseId);
@@ -717,35 +744,21 @@ const EmployeeCoursesPage = ({
     }
   };
 
-  /* =======================================================
-     MANAGE CONTENT
-  ======================================================= */
-
   const handleManageContentClick = (courseId) => {
     if (onManageContent) {
       onManageContent(courseId);
     } else {
-      navigate(
-        `/employer/courses/${courseId}/content`
-      );
+      navigate(`/employer/courses/${courseId}/content`);
     }
   };
-
-  /* =======================================================
-     VIEW DETAILS
-  ======================================================= */
 
   const handleViewDetailsClick = (courseId) => {
     if (onViewDetails) {
       onViewDetails(courseId);
     } else {
-      navigate(`/courses/${courseId}`);
+      navigate(`/employer/courses/${courseId}`);
     }
   };
-
-  /* =======================================================
-     BACK TO DASHBOARD
-  ======================================================= */
 
   const handleBackToDashboard = () => {
     navigate("/employer/dashboard");
@@ -756,466 +769,564 @@ const EmployeeCoursesPage = ({
   ======================================================= */
 
   return (
-    <div
-      className={
-        embedded
-          ? "space-y-6 animate-fade-in"
-          : "employee-courses-page"
-      }
-    >
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
-      <div className="mb-6">
-        {!embedded && (
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-500">
-            CareerConnect{" "}
-            <span className="mx-1 text-gray-300">
-              ·
-            </span>{" "}
-            Course Management
-          </div>
-        )}
-
-        {!embedded && (
+    <div className={embedded ? "space-y-6" : "min-h-screen bg-[#f8faff] p-4 sm:p-6 lg:p-8"}>
+      {/* Optional Back link for standalone view */}
+      {!embedded && (
+        <div className="mb-4 flex items-center justify-between">
           <button
             onClick={handleBackToDashboard}
-            className="mb-4 text-sm font-medium text-indigo-600 hover:text-indigo-700"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 transition"
           >
-            ← Back to Dashboard
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Dashboard</span>
           </button>
-        )}
+        </div>
+      )}
 
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Course Management Workspace
-            </h1>
-
-            <p className="mt-1 text-sm text-gray-500">
-              Create, manage curriculum, publish
-              video/PDF lessons, and track learner
-              enrollments.
-            </p>
+      {/* =====================================================
+          1. HERO / BANNER SECTION
+      ===================================================== */}
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-indigo-100/70 bg-gradient-to-r from-[#eef4ff] via-[#f3f1ff] to-[#f8f6ff] p-6 sm:p-7 shadow-xs">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          {/* Left Content */}
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-indigo-600 shadow-sm border border-indigo-50">
+              <GraduationCap className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+                Course Management
+              </h1>
+              <p className="mt-1 text-xs sm:text-sm text-slate-500">
+                Create, manage and track your published courses. Help students learn and grow.
+              </p>
+            </div>
           </div>
 
-          {activeTab === "courses" && (
-            <button
-              onClick={handleCreateClick}
-              className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
-            >
-              + Create Course
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* =====================================================
-          STATS
-      ===================================================== */}
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div className="rounded-xl border bg-white p-5 shadow-sm">
-          <p className="text-sm text-gray-500">
-            Total Courses
-          </p>
-
-          <p className="mt-1 text-2xl font-bold text-gray-900">
-            {stats.total}
-          </p>
-        </div>
-
-        <div className="rounded-xl border bg-white p-5 shadow-sm">
-          <p className="text-sm text-gray-500">
-            Published
-          </p>
-
-          <p className="mt-1 text-2xl font-bold text-green-600">
-            {stats.published}
-          </p>
-        </div>
-
-        <div className="rounded-xl border bg-white p-5 shadow-sm">
-          <p className="text-sm text-gray-500">
-            Drafts
-          </p>
-
-          <p className="mt-1 text-2xl font-bold text-orange-600">
-            {stats.draft}
-          </p>
-        </div>
-
-        <div className="rounded-xl border bg-white p-5 shadow-sm">
-          <p className="text-sm text-gray-500">
-            Enrolled Learners
-          </p>
-
-          <p className="mt-1 text-2xl font-bold text-indigo-600">
-            {stats.totalStudents}
-          </p>
-        </div>
-      </div>
-
-      {/* =====================================================
-          TABS
-      ===================================================== */}
-
-      <div className="border-b border-gray-200">
-        <div className="flex gap-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab("courses")}
-            className={`border-b-2 px-2 py-3 text-sm font-semibold transition ${
-              activeTab === "courses"
-                ? "border-indigo-600 text-indigo-600"
-                : "border-transparent text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            My Courses
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setActiveTab("applications")
-            }
-            className={`border-b-2 px-2 py-3 text-sm font-semibold transition ${
-              activeTab === "applications"
-                ? "border-indigo-600 text-indigo-600"
-                : "border-transparent text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            Course Applications
-          </button>
-        </div>
-      </div>
-
-      {/* =====================================================
-          COURSES TAB
-      ===================================================== */}
-
-      {activeTab === "courses" && (
-        <div className="space-y-6">
-          {/* SEARCH + FILTER */}
-
-          <div className="flex flex-col gap-3 rounded-xl border bg-white p-4 shadow-sm md:flex-row">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
-              placeholder="Search courses..."
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-            />
-
-            <select
-              value={filter}
-              onChange={(e) =>
-                setFilter(e.target.value)
-              }
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-indigo-500"
-            >
-              <option value="All">
-                All Courses
-              </option>
-
-              <option value="Published">
-                Published
-              </option>
-
-              <option value="Draft">
-                Draft
-              </option>
-            </select>
-          </div>
-
-          {/* LOADING */}
-
-          {loading && (
-            <div className="flex min-h-[250px] items-center justify-center rounded-xl border bg-white">
-              <div className="text-center">
-                <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-
-                <p className="text-sm text-gray-500">
-                  Loading courses...
-                </p>
+          {/* Right Visual Illustration */}
+          <div className="hidden sm:flex items-center gap-4 shrink-0 select-none">
+            {/* Playful script annotation */}
+            <div className="text-right">
+              <span className="block text-xs font-medium text-indigo-600 tracking-tight" style={{ fontFamily: "cursive, sans-serif" }}>
+                Empower learners
+              </span>
+              <span className="block text-xs font-medium text-indigo-500 tracking-tight" style={{ fontFamily: "cursive, sans-serif" }}>
+                Build the future
+              </span>
+              {/* Curved arrow icon */}
+              <div className="flex justify-end mt-0.5">
+                <svg className="w-8 h-4 text-indigo-400" viewBox="0 0 32 16" fill="none" stroke="currentColor">
+                  <path d="M2 14C10 14 24 12 28 4M28 4L22 4M28 4L28 10" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </div>
             </div>
-          )}
 
-          {/* ERROR */}
+            {/* Books & Graduation Cap Graphic */}
+            <div className="relative flex items-center justify-center w-20 h-16">
+              <svg className="w-16 h-16" viewBox="0 0 100 100" fill="none">
+                {/* Book Stack */}
+                <rect x="22" y="58" width="56" height="12" rx="3" fill="#cbdcf8" />
+                <rect x="22" y="60" width="56" height="2" fill="#ffffff" />
+                <rect x="18" y="72" width="64" height="14" rx="3" fill="#3b82f6" />
+                <rect x="18" y="74" width="64" height="2" fill="#93c5fd" />
+                {/* Graduation Cap */}
+                <path d="M50 20L84 34L50 48L16 34L50 20Z" fill="#1e3a8a" />
+                <path d="M50 20L84 34L50 38L16 34L50 20Z" fill="#2563eb" />
+                <path d="M28 40V56C28 62 50 66 50 66C50 66 72 62 72 56V40" stroke="#1e3a8a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                {/* Tassel */}
+                <path d="M78 36V52" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+                <circle cx="78" cy="54" r="2.5" fill="#f59e0b" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          {!loading && error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-              <p className="font-semibold text-red-700">
-                {error}
+      {/* =====================================================
+          2. 4 STATISTICS CARDS
+      ===================================================== */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Card 1: Total Courses */}
+        <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-slate-300 hover:shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+              <BookOpen className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500">Total Courses</p>
+              <p className="text-2xl font-bold tracking-tight text-slate-900">
+                {stats.total}
               </p>
+              <p className="text-[11px] text-slate-400">
+                {stats.total === 0 ? "No courses yet" : `${stats.total} total courses`}
+              </p>
+            </div>
+          </div>
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-50/80 text-blue-500">
+            <ChevronRight className="h-4 w-4" />
+          </div>
+        </div>
+
+        {/* Card 2: Published */}
+        <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-slate-300 hover:shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500">Published</p>
+              <p className="text-2xl font-bold tracking-tight text-slate-900">
+                {stats.published}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                {stats.published === 0 ? "No courses published" : `${stats.published} active courses`}
+              </p>
+            </div>
+          </div>
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50/80 text-emerald-500">
+            <ChevronRight className="h-4 w-4" />
+          </div>
+        </div>
+
+        {/* Card 3: Drafts */}
+        <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-slate-300 hover:shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+              <FileEdit className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500">Drafts</p>
+              <p className="text-2xl font-bold tracking-tight text-slate-900">
+                {stats.draft}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                {stats.draft === 0 ? "No drafts available" : `${stats.draft} in draft`}
+              </p>
+            </div>
+          </div>
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-50/80 text-amber-500">
+            <ChevronRight className="h-4 w-4" />
+          </div>
+        </div>
+
+        {/* Card 4: Enrolled Learners */}
+        <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition hover:border-slate-300 hover:shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500">Enrolled Learners</p>
+              <p className="text-2xl font-bold tracking-tight text-slate-900">
+                {stats.totalStudents}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                {stats.totalStudents === 0 ? "No enrollments yet" : `${stats.totalStudents} learners`}
+              </p>
+            </div>
+          </div>
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-50/80 text-purple-500">
+            <ChevronRight className="h-4 w-4" />
+          </div>
+        </div>
+      </div>
+
+      {/* =====================================================
+          3. TWO COLUMN MAIN AREA: COURSE MGMT + RECENT APPS
+      ===================================================== */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* ===================================================
+            LEFT COLUMN: COURSE MANAGEMENT CARD (Col 8)
+        =================================================== */}
+        <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 sm:p-6 space-y-5">
+          {/* Top Bar: Tabs & Create Course CTA */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-6">
+              <button
+                type="button"
+                onClick={() => setActiveTab("courses")}
+                className={`relative py-2 text-xs sm:text-sm font-bold transition ${
+                  activeTab === "courses"
+                    ? "text-indigo-600"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                My Courses
+                {activeTab === "courses" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full" />
+                )}
+              </button>
 
               <button
-                onClick={loadCourses}
-                className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                type="button"
+                onClick={() => setActiveTab("applications")}
+                className={`relative py-2 text-xs sm:text-sm font-bold transition flex items-center gap-1.5 ${
+                  activeTab === "applications"
+                    ? "text-indigo-600"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
               >
-                Retry
+                Course Applications
+                {applications.length > 0 && (
+                  <span className="rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600">
+                    {applications.length}
+                  </span>
+                )}
+                {activeTab === "applications" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full" />
+                )}
               </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCreateClick}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-indigo-700 active:scale-[0.98]"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Course</span>
+            </button>
+          </div>
+
+          {/* =================================================
+              TAB 1: MY COURSES
+          ================================================= */}
+          {activeTab === "courses" && (
+            <div className="space-y-4">
+              {/* Search & Filter Toolbar */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search courses by title, domain, category..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 pl-9 pr-3.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 transition"
+                  />
+                </div>
+
+                <div className="relative">
+                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <Filter className="h-3.5 w-3.5" />
+                  </div>
+                  <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className="w-full sm:w-auto appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-8 pr-8 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="All">All Courses</option>
+                    <option value="Published">Published</option>
+                    <option value="Draft">Draft</option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+
+              {/* Loading State */}
+              {loading && (
+                <div className="flex min-h-[260px] items-center justify-center">
+                  <div className="text-center">
+                    <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-3 border-indigo-200 border-t-indigo-600" />
+                    <p className="text-xs font-medium text-slate-500">Loading courses...</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Error State */}
+              {!loading && error && (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-6 text-center">
+                  <p className="text-xs font-semibold text-rose-700">{error}</p>
+                  <button
+                    onClick={loadData}
+                    className="mt-3 rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!loading && !error && filteredCourses.length === 0 && (
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/30 py-12 px-6 text-center">
+                  {/* Empty Icon Illustration */}
+                  <div className="relative mx-auto mb-4 flex h-20 w-20 items-center justify-center">
+                    <div className="h-16 w-14 rounded-xl border border-indigo-100 bg-white shadow-xs flex flex-col items-center justify-center">
+                      <GraduationCap className="h-7 w-7 text-indigo-500" />
+                      <div className="mt-1 h-1 w-6 rounded-full bg-slate-200" />
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xs">
+                      <Plus className="h-3.5 w-3.5" />
+                    </div>
+                  </div>
+
+                  <h3 className="text-sm font-bold text-slate-900">
+                    No courses found
+                  </h3>
+                  <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+                    {courses.length === 0
+                      ? "Create your first course to get started and start making an impact."
+                      : "No courses match your active search or filter."}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleCreateClick}
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-indigo-700 active:scale-[0.98]"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Create Course</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Course Table View */}
+              {!loading && !error && filteredCourses.length > 0 && (
+                <div className="overflow-x-auto rounded-xl border border-slate-200/80">
+                  <table className="min-w-full divide-y divide-slate-200/80 text-left text-xs">
+                    <thead className="bg-slate-50/70 font-semibold text-slate-500">
+                      <tr>
+                        <th scope="col" className="px-4 py-3.5">Course Title</th>
+                        <th scope="col" className="px-3.5 py-3.5">Domain</th>
+                        <th scope="col" className="px-3.5 py-3.5">Category</th>
+                        <th scope="col" className="px-3 py-3.5">Level</th>
+                        <th scope="col" className="px-3 py-3.5">Duration</th>
+                        <th scope="col" className="px-3 py-3.5">Price</th>
+                        <th scope="col" className="px-3 py-3.5">Status</th>
+                        <th scope="col" className="px-4 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {filteredCourses.map((course) => {
+                        const status = course?.status || "Draft";
+                        const isPublished = status === "Published";
+
+                        return (
+                          <tr
+                            key={course._id}
+                            className="hover:bg-slate-50/70 transition-colors"
+                          >
+                            {/* Title & Thumbnail */}
+                            <td className="px-4 py-3 font-medium text-slate-900">
+                              <div className="flex items-center gap-3">
+                                {course?.thumbnail ? (
+                                  <img
+                                    src={course.thumbnail}
+                                    alt={course.title}
+                                    className="h-9 w-9 rounded-lg object-cover border border-slate-200 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 font-bold text-xs border border-indigo-100">
+                                    <BookOpen className="h-4 w-4" />
+                                  </div>
+                                )}
+                                <div className="min-w-0 max-w-[200px]">
+                                  <p className="truncate font-semibold text-slate-900" title={course.title}>
+                                    {course.title || "Untitled Course"}
+                                  </p>
+                                  {course.skills && course.skills.length > 0 && (
+                                    <p className="truncate text-[10px] text-slate-400">
+                                      {course.skills.slice(0, 2).join(", ")}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Domain */}
+                            <td className="px-3.5 py-3 text-slate-600">
+                              <span className="inline-block max-w-[110px] truncate rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                                {course.domain || "General"}
+                              </span>
+                            </td>
+
+                            {/* Category */}
+                            <td className="px-3.5 py-3 text-slate-600">
+                              <span className="inline-block max-w-[110px] truncate rounded-md bg-indigo-50/60 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                                {course.category || "General"}
+                              </span>
+                            </td>
+
+                            {/* Level */}
+                            <td className="px-3 py-3 capitalize text-slate-600">
+                              <span
+                                className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${
+                                  course.level === "advanced"
+                                    ? "bg-purple-50 text-purple-700"
+                                    : course.level === "intermediate"
+                                    ? "bg-blue-50 text-blue-700"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {course.level || "Beginner"}
+                              </span>
+                            </td>
+
+                            {/* Duration */}
+                            <td className="px-3 py-3 text-slate-600 whitespace-nowrap">
+                              {course.duration || "1"} {course.durationUnit || "hours"}
+                            </td>
+
+                            {/* Price */}
+                            <td className="px-3 py-3 font-semibold whitespace-nowrap">
+                              {course.price && course.price > 0 ? (
+                                <span className="text-slate-800">₹{course.price}</span>
+                              ) : (
+                                <span className="text-emerald-600">Free</span>
+                              )}
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-3 py-3 whitespace-nowrap">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                                  isPublished
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                                    : "bg-amber-50 text-amber-700 border border-amber-200/60"
+                                }`}
+                              >
+                                {status}
+                              </span>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleManageContentClick(course._id)}
+                                  title="Manage Curriculum / Video Content"
+                                  className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50 transition"
+                                >
+                                  <Video className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewDetailsClick(course._id)}
+                                  title="View Public Course Page"
+                                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 transition"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditClick(course._id)}
+                                  title="Edit Course Details"
+                                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 transition"
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleStatus(course)}
+                                  disabled={statusLoading === course._id}
+                                  title={isPublished ? "Set to Draft" : "Publish Course"}
+                                  className={`rounded-lg p-1.5 transition ${
+                                    isPublished
+                                      ? "text-emerald-600 hover:bg-emerald-50"
+                                      : "text-amber-600 hover:bg-amber-50"
+                                  }`}
+                                >
+                                  {statusLoading === course._id ? (
+                                    <Clock className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="h-4 w-4" />
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(course._id)}
+                                  disabled={deletingId === course._id}
+                                  title="Delete Course"
+                                  className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 transition disabled:opacity-50"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
-          {/* EMPTY */}
-
-          {!loading &&
-            !error &&
-            filteredCourses.length === 0 && (
-              <div className="rounded-xl border bg-white p-10 text-center shadow-sm">
-                <h3 className="text-lg font-bold text-gray-800">
-                  No courses found
-                </h3>
-
-                <p className="mt-1 text-sm text-gray-500">
-                  {courses.length === 0
-                    ? "Create your first course to get started."
-                    : "Try changing your search or filter."}
-                </p>
-
-                {courses.length === 0 && (
-                  <button
-                    onClick={handleCreateClick}
-                    className="mt-5 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-                  >
-                    Create Course
-                  </button>
-                )}
-              </div>
-            )}
-
           {/* =================================================
-              COURSE GRID
+              TAB 2: COURSE APPLICATIONS
           ================================================= */}
-
-          {!loading &&
-            !error &&
-            filteredCourses.length > 0 && (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {filteredCourses.map((course) => {
-                  const courseStatus =
-                    course?.status || "Draft";
-
-                  const isPublished =
-                    courseStatus === "Published";
-
-                  return (
-                    <div
-                      key={course._id}
-                      className="group overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-                    >
-                      {/* THUMBNAIL */}
-
-                      <div className="relative h-44 overflow-hidden bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
-                        {course?.thumbnail ? (
-                          <img
-                            src={course.thumbnail}
-                            alt={course.title}
-                            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <span className="text-5xl">
-                              📚
-                            </span>
-                          </div>
-                        )}
-
-                        {/* STATUS */}
-
-                        <div className="absolute left-3 top-3">
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-bold ${
-                              isPublished
-                                ? "bg-green-100 text-green-700"
-                                : "bg-orange-100 text-orange-700"
-                            }`}
-                          >
-                            {courseStatus}
-                          </span>
-                        </div>
-
-                        {/* DURATION */}
-
-                        {course?.duration && (
-                          <div className="absolute bottom-3 right-3 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
-                            {course.duration}{" "}
-                            {course.durationUnit ||
-                              "hours"}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* CONTENT */}
-
-                      <div className="p-5">
-                        {/* CATEGORY */}
-
-                        <div className="mb-2 flex flex-wrap gap-2">
-                          {course?.category && (
-                            <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-600">
-                              {course.category}
-                            </span>
-                          )}
-
-                          {course?.domain && (
-                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-600">
-                              {course.domain}
-                            </span>
-                          )}
-
-                          {course?.level && (
-                            <span className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-semibold text-purple-600">
-                              {course.level}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* TITLE */}
-
-                        <h3 className="line-clamp-2 text-lg font-bold text-gray-900">
-                          {course?.title ||
-                            "Untitled Course"}
-                        </h3>
-
-                        {/* DESCRIPTION */}
-
-                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-500">
-                          {course?.description ||
-                            "No course description available."}
-                        </p>
-
-                        {/* SKILLS */}
-
-                        {Array.isArray(
-                          course?.skills
-                        ) &&
-                          course.skills.length > 0 && (
-                            <div className="mt-4 flex flex-wrap gap-1.5">
-                              {course.skills
-                                .slice(0, 4)
-                                .map(
-                                  (skill, index) => (
-                                    <span
-                                      key={`${skill}-${index}`}
-                                      className="rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600"
-                                    >
-                                      {skill}
-                                    </span>
-                                  )
-                                )}
-
-                              {course.skills.length >
-                                4 && (
-                                <span className="px-1 py-1 text-[11px] text-gray-400">
-                                  +
-                                  {course.skills.length -
-                                    4}{" "}
-                                  more
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                        {/* ACTIONS */}
-
-                        <div className="mt-5 grid grid-cols-2 gap-2">
-                          <button
-                            onClick={() =>
-                              handleManageContentClick(
-                                course._id
-                              )
-                            }
-                            className="rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700"
-                          >
-                            🎥 Manage Content
-                          </button>
-
-                          <button
-                            onClick={() =>
-                              handleViewDetailsClick(
-                                course._id
-                              )
-                            }
-                            className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                          >
-                            View Details
-                          </button>
-
-                          <button
-                            onClick={() =>
-                              handleToggleStatus(
-                                course
-                              )
-                            }
-                            disabled={
-                              statusLoading ===
-                              course._id
-                            }
-                            className={`rounded-lg px-3 py-2.5 text-xs font-semibold ${
-                              isPublished
-                                ? "bg-orange-50 text-orange-700 hover:bg-orange-100"
-                                : "bg-green-50 text-green-700 hover:bg-green-100"
-                            } disabled:cursor-not-allowed disabled:opacity-50`}
-                          >
-                            {statusLoading ===
-                            course._id
-                              ? "Updating..."
-                              : isPublished
-                              ? "Unpublish"
-                              : "Publish"}
-                          </button>
-
-                          <button
-                            onClick={() =>
-                              handleEditClick(
-                                course._id
-                              )
-                            }
-                            className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                          >
-                            ✏️ Edit
-                          </button>
-
-                          <button
-                            onClick={() =>
-                              handleDelete(
-                                course._id
-                              )
-                            }
-                            disabled={
-                              deletingId ===
-                              course._id
-                            }
-                            className="col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {deletingId ===
-                            course._id
-                              ? "Deleting..."
-                              : "🗑️ Delete Course"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          {activeTab === "applications" && (
+            <ApplicationsPanel onRefreshStats={loadData} />
+          )}
         </div>
-      )}
 
-      {/* =====================================================
-          APPLICATIONS TAB
-      ===================================================== */}
+        {/* ===================================================
+            RIGHT COLUMN: RECENT APPLICATIONS CARD (Col 4)
+        =================================================== */}
+        <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-600" />
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                Recent Applications
+              </h3>
+            </div>
 
-      {activeTab === "applications" && (
-        <ApplicationsPanel />
-      )}
+            <button
+              type="button"
+              onClick={() => setActiveTab("applications")}
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition flex items-center gap-1"
+            >
+              <span>View All</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          {/* Applications list */}
+          <div className="space-y-2.5">
+            {recentApplicationsList.map((app) => {
+              const meta = getDomainMeta(app.domain, app.courseTitle);
+              const DomainIcon = meta.icon;
+
+              return (
+                <div
+                  key={app.id}
+                  onClick={() => setActiveTab("applications")}
+                  className="group flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-indigo-200/80 hover:bg-indigo-50/30 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${meta.bg}`}
+                    >
+                      <DomainIcon className="h-4 w-4" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <h4 className="truncate text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition">
+                        {app.courseTitle}
+                      </h4>
+                      <p className="truncate text-[11px] text-slate-600">
+                        {app.studentName}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Applied • {app.timeAgo}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <StatusBadge status={app.status} />
+                    <ChevronRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
