@@ -1,5 +1,7 @@
 # CareerConnect 🚀
 
+[![CareerConnect CI](https://github.com/VivekCoderz/CareerConnect/actions/workflows/ci.yml/badge.svg)](https://github.com/VivekCoderz/CareerConnect/actions/workflows/ci.yml)
+
 **CareerConnect** is a personalized career development platform designed to help students discover **jobs, internships, courses, skills, resume tools, and career opportunities** based on their **interests, goals, skills, and career aspirations**.
 
 The platform creates a bridge between **learning and employment** by identifying the skills required for a student's target job and recommending relevant courses to help them become job-ready.
@@ -645,5 +647,3 @@ CAREER
 ### CareerConnect
 
 **Discover → Learn → Build → Apply → Grow 🚀**
-"# CareerConnect" 
-"# CareerConnect" 

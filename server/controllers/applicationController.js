@@ -702,7 +702,6 @@ exports.updateApplicationStatus = async (req, res, next) => {
       Offered: "Offered",
       Hired: "Hired",
       Rejected: "Rejected",
-      Withdrawn: "Withdrawn",
     };
 
     if (typeof rawStatus !== "string" || !Object.hasOwn(statusMap, rawStatus)) {
@@ -806,18 +805,22 @@ exports.updateApplicationStage = async (req, res, next) => {
       WITHDRAWN: "Withdrawn",
       Withdrawn: "Withdrawn",
     };
-    const nextStatus = Object.hasOwn(stageToStatus, stage)
+    const canonicalStage = Object.hasOwn(stageToStatus, stage)
       ? stageToStatus[stage]
       : (stageToStatus[stage.toUpperCase()] || stage);
+    const allowedStatuses = Application.schema.path("status").enumValues;
+    const nextStatus = allowedStatuses.includes(canonicalStage)
+      ? canonicalStage
+      : (allowedStatuses.includes(application.status) ? application.status : "Under Review");
 
-    application.stage = nextStatus;
+    application.stage = canonicalStage;
     application.status = nextStatus;
     application.updatedAt = new Date();
 
     if (!application.stageHistory) application.stageHistory = [];
     application.stageHistory.push({
-      stage: nextStatus,
-      notes: req.body.notes ? (typeof req.body.notes === "string" ? req.body.notes.trim() : "") : `Moved to ${nextStatus}`,
+      stage: canonicalStage,
+      notes: req.body.notes ? (typeof req.body.notes === "string" ? req.body.notes.trim() : "") : `Moved to ${canonicalStage}`,
       changedBy: req.user._id,
       changedAt: new Date(),
     });
@@ -842,7 +845,7 @@ exports.updateApplicationStage = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: `Application moved to ${nextStatus}`,
+      message: `Application moved to ${canonicalStage}`,
       application,
     });
   } catch (error) {

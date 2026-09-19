@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../../app');
-const { createTestUser, createTestEmployer, createUserWithToken, createEmployerWithToken, generateToken } = require('../helpers/createTestUser');
+const { createTestUser, createUserWithToken } = require('../helpers/createTestUser');
 
 describe('🔐 Auth API — Integration Tests', () => {
 
@@ -44,58 +44,31 @@ describe('🔐 Auth API — Integration Tests', () => {
     });
   });
 
-  // ─── POST /api/auth/check-email ────────────────────────────────────────
-  describe('POST /api/auth/check-email', () => {
-    it('✅ should return exists:false for new (unused) email', async () => {
-      const res = await request(app)
-        .post('/api/auth/check-email')
-        .send({ email: `newemail${Date.now()}@gmail.com` });
-
-      expect(res.statusCode).toBe(200);
-      expect(res.body.exists).toBe(false); // API returns 'exists' field
-    });
-
-    it('❌ should return exists:true for already-registered email', async () => {
+  // These account-enumeration endpoints were deliberately removed. Keep both
+  // existing and unknown identities indistinguishable by requiring 404.
+  describe('removed account-enumeration endpoints', () => {
+    it('keeps /check-email unavailable for every account state', async () => {
       await createTestUser({ email: 'existing123@gmail.com' });
 
-      const res = await request(app)
-        .post('/api/auth/check-email')
-        .send({ email: 'existing123@gmail.com' });
+      const [existing, unknown] = await Promise.all([
+        request(app).post('/api/auth/check-email').send({ email: 'existing123@gmail.com' }),
+        request(app).post('/api/auth/check-email').send({ email: 'unknown123@gmail.com' }),
+      ]);
 
-      expect(res.statusCode).toBe(200);
-      expect(res.body.exists).toBe(true); // Email is taken
+      expect(existing.statusCode).toBe(404);
+      expect(unknown.statusCode).toBe(404);
     });
 
-    it('❌ should reject missing email field', async () => {
-      const res = await request(app)
-        .post('/api/auth/check-email')
-        .send({});
+    it('keeps /check-phone unavailable for every account state', async () => {
+      await createTestUser({ phone: '+919876543210' });
 
-      expect([400, 422]).toContain(res.statusCode);
-    });
-  });
+      const [existing, unknown] = await Promise.all([
+        request(app).post('/api/auth/check-phone').send({ phone: '9876543210', countryCode: '+91' }),
+        request(app).post('/api/auth/check-phone').send({ phone: '9123456780', countryCode: '+91' }),
+      ]);
 
-  // ─── POST /api/auth/check-phone ────────────────────────────────────────
-  describe('POST /api/auth/check-phone', () => {
-    it('✅ should return exists:false for new phone', async () => {
-      const res = await request(app)
-        .post('/api/auth/check-phone')
-        .send({ phone: '9876543210', countryCode: '+91' });
-
-      expect(res.statusCode).toBe(200);
-      expect(res.body.exists).toBe(false); // API returns 'exists' field
-    });
-
-    it('❌ should return exists:true for already-registered phone', async () => {
-      const uniquePhone = `98765${Date.now().toString().slice(-5)}`;
-      await createTestUser({ phone: uniquePhone });
-
-      const res = await request(app)
-        .post('/api/auth/check-phone')
-        .send({ phone: uniquePhone, countryCode: '+91' });
-
-      expect(res.statusCode).toBe(200);
-      expect(res.body.exists).toBe(true); // Phone is taken
+      expect(existing.statusCode).toBe(404);
+      expect(unknown.statusCode).toBe(404);
     });
   });
 

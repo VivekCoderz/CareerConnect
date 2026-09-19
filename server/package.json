@@ -9,6 +9,7 @@
     "check:cloudinary": "node scripts/check-cloudinary-assets.js",
     "test:email": "node scripts/test-email-protection.js",
     "qa:launch": "node ../scripts/qa-launch.js",
+    "test:prepare-db": "node scripts/prepare-test-mongodb.js",
     "test": "jest --forceExit --runInBand",
     "test:unit": "jest __tests__/unit --forceExit",
     "test:integration": "jest __tests__/integration --forceExit --runInBand",
