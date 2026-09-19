@@ -11,7 +11,7 @@ const Application = require("../models/Application");
 const Report = require("../models/Report");
 
 async function seedAdminPortal() {
-  const uri = process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://127.0.0.1:27017/careerconnect";
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
   await mongoose.connect(uri);
   console.log("Connected to MongoDB for Admin Portal Seeding...");
 
@@ -59,7 +59,7 @@ async function seedAdminPortal() {
   if (!superAdmin) {
     superAdmin = await User.create({
       fullName: "Platform Super Admin",
-      username: "superadmin",
+      username: "",
       email: superAdminEmail,
       password: adminPassword,
       role: "SUPER_ADMIN",
@@ -102,7 +102,7 @@ async function seedAdminPortal() {
   if (!techCorpAdmin) {
     techCorpAdmin = await User.create({
       fullName: "TechCorp Administrator",
-      username: "techcorp_admin",
+      username: "",
       email: techCorpAdminEmail,
       password: adminPassword,
       role: "COMPANY_ADMIN",
@@ -133,7 +133,7 @@ async function seedAdminPortal() {
   if (!innovateAdmin) {
     innovateAdmin = await User.create({
       fullName: "InnovateLabs Administrator",
-      username: "innovate_admin",
+      username: "",
       email: innovateAdminEmail,
       password: adminPassword,
       role: "COMPANY_ADMIN",
