@@ -7,7 +7,7 @@ const axios = require("axios");
 const User = require("../models/User");
 const Company = require("../models/Company");
 
-const BASE_URL = "http://localhost:5000/api";
+const BASE_URL = `http://localhost:${process.env.PORT || 5001}/api`;
 
 async function runAcceptanceTests() {
   console.log("\n========================================================");
@@ -22,7 +22,7 @@ async function runAcceptanceTests() {
   const innovate = await Company.findOne({ name: "Innovate Labs" });
 
   if (!techCorp || !innovate) {
-    throw new Error("Companies not found in database. Run seed-admin-portal.js first!");
+    throw new Error("Companies not found in database. Ensure tenant companies exist before running this test.");
   }
 
   const techCorpId = techCorp._id.toString();
@@ -32,7 +32,7 @@ async function runAcceptanceTests() {
   let total = 15;
 
   // Helper for login
-  const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD || "";
+  const adminPassword = process.env.ADMIN_PASSWORD || "";
 
   const login = async (email, password = adminPassword) => {
     return await axios.post(`${BASE_URL}/admin/login`, {
