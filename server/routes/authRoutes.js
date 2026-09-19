@@ -32,8 +32,7 @@ router.post(
   authControllers.cancelGoogleSignup
 );
 
-// Called after linkWithCredential(firebaseUser, EmailAuthProvider.credential(...))
-// to confirm Firebase has the password provider and update MongoDB.
+// Requires a Google ID token; the backend sets the password on the same Firebase UID.
 router.post(
   "/complete-password-setup",
   authMiddleware,
@@ -83,10 +82,8 @@ router.patch(
 );
 
 // ==========================================
-// PUBLIC — Email & Phone checks & OTP
+// PUBLIC — OTP. Account-existence lookup endpoints are intentionally not exposed.
 // ==========================================
-router.post("/check-email", sanitizeInputs, authControllers.checkEmail);
-router.post("/check-phone", sanitizeInputs, authControllers.checkPhone);
 router.post("/send-otp", sanitizeInputs, limitOtpAction("send"), authControllers.sendOTP);
 router.post("/verify-otp", sanitizeInputs, limitOtpAction("verify"), authControllers.verifyOTP);
 

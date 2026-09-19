@@ -4,7 +4,9 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { useSelector } from "react-redux";
+import JourneyLoader from "../../components/common/JourneyLoader";
 import {
   GraduationCap,
   BookOpen,

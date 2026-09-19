@@ -3,6 +3,9 @@ const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
 const Job = require("../models/Job");
+const EmployerProfile = require("../models/EmployerProfile");
+const { escapeRegex } = require("../utils/listingSecurity");
+const mongoose = require("mongoose");
 
 /**
  * Modular match score calculation algorithm
@@ -65,9 +68,19 @@ exports.searchCandidates = async (req, res, next) => {
       search,
     } = req.query;
 
+    if ((jobId && !mongoose.Types.ObjectId.isValid(jobId)) ||
+        (userType && userType !== "All" && !["student", "fresher", "professional"].includes(userType)) ||
+        (skills && typeof skills !== "string")) {
+      return res.status(400).json({ success: false, message: "Invalid candidate search filter" });
+    }
+
     let targetJob = null;
     if (jobId) {
-      targetJob = await Job.findById(jobId);
+      const employer = await EmployerProfile.findOne({ userId: req.user._id }).select("_id").lean();
+      targetJob = await Job.findOne({ _id: jobId, $or: [
+        { createdBy: req.user._id }, ...(employer ? [{ employerId: employer._id }] : []),
+      ] });
+      if (!targetJob) return res.status(404).json({ success: false, message: "Job not found" });
     }
 
     const query = { role: "user" };
@@ -75,10 +88,11 @@ exports.searchCandidates = async (req, res, next) => {
       query.userType = userType;
     }
 
-    if (search) {
+    if (typeof search === "string" && search.trim()) {
+      const term = escapeRegex(search.trim());
       query.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
+        { fullName: { $regex: term, $options: "i" } },
+        { email: { $regex: term, $options: "i" } },
       ];
     }
 
@@ -106,10 +120,10 @@ exports.searchCandidates = async (req, res, next) => {
       const pProf = professionalMap.get(uId);
 
       const candidateSkills = [
-        ...(sProf?.skills?.map((s) => (typeof s === "string" ? s : s.name)) || []),
-        ...(fProf?.skills || []),
-        ...(pProf?.skills || []),
-      ];
+        ...(Array.isArray(sProf?.skills) ? sProf.skills.map((s) => (typeof s === "string" ? s : s?.name || "")) : []),
+        ...(Array.isArray(fProf?.skills) ? fProf.skills : []),
+        ...(Array.isArray(pProf?.skills) ? pProf.skills : []),
+      ].filter(Boolean);
 
       // Match scoring
       let matchInfo = { matchPercentage: 80, strongSkills: candidateSkills.slice(0, 4), missingSkills: [] };
@@ -168,7 +182,8 @@ exports.searchCandidates = async (req, res, next) => {
 // GET /api/candidates/:id
 exports.getCandidateById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select("-password").lean();
+    const user = await User.findOne({ _id: req.params.id, role: "user" })
+      .select("fullName email phone profileImage userType socialLinks profileCompletion").lean();
     if (!user) {
       return res.status(404).json({ success: false, message: "Candidate not found" });
     }

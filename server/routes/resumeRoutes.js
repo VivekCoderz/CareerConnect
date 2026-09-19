@@ -2,6 +2,7 @@ const express = require("express");
 const protect = require("../middleware/authMiddleware");
 const multer = require("multer");
 const { isResumeFile } = require("../utils/fileSignatures");
+const { getResumeDownload } = require("../controllers/resumeAccessController");
 const {
   generateResumeHandler,
   updateResumeHandler,
@@ -19,6 +20,7 @@ const {
   confirmParsedProfileHandler,
   tailorResumeHandler,
   getTailoredResumeHandler,
+  generateATSResumeHandler,
 } = require("../controllers/resumeController.js");
 
 const router = express.Router();
@@ -52,6 +54,7 @@ const validateResumeUpload = (req, res, next) => {
 // All resume routes require authentication
 router.use(protect);
 
+router.get("/download", getResumeDownload);
 router.get("/", getAllResumes);
 router.post("/save", saveFinalResume);
 router.post("/upload", upload.single("resume"), validateResumeUpload, uploadResumeHandler);
@@ -61,6 +64,7 @@ router.post("/confirm-parsed", confirmParsedProfileHandler);
 router.post("/tailor", tailorResumeHandler);
 router.get("/tailored/:opportunityType/:id", getTailoredResumeHandler);
 router.post("/generate", generateResumeHandler);
+router.post("/ats-generate", generateATSResumeHandler);
 router.post("/update", updateResumeHandler);
 router.get("/me", getMyResume);
 router.put("/manual", saveManualEdit);
@@ -70,3 +74,4 @@ router.patch("/:id/primary", setPrimaryResume);
 router.delete("/:id", deleteResume);
 
 module.exports = router;
+

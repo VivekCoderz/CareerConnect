@@ -1,0 +1,110 @@
+name: CareerConnect CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - ram-mohan-code
+  push:
+    branches:
+      - main
+      - develop
+      - ram-mohan-code
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  client:
+    name: Client build and audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: client
+
+      - name: Build production client
+        run: npm run build
+        working-directory: client
+
+      - name: Upload client build
+        uses: actions/upload-artifact@v4
+        with:
+          name: careerconnect-client-${{ github.sha }}
+          path: client/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  server:
+    name: Server tests and audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: true
+      NODE_ENV: test
+      JWT_SECRET: ci-only-jwt-secret-that-is-never-used-in-production
+      SESSION_SECRET: ci-only-session-secret-that-is-never-used-in-production
+      CLIENT_URL: http://localhost:5173
+      MONGOMS_DOWNLOAD_DIR: /home/runner/.cache/mongodb-binaries
+      MONGOMS_VERSION: 8.2.6
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Use lockfile npm version
+        run: npm install --global npm@10.9.4
+
+      - name: Cache MongoDB test binary
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/mongodb-binaries
+          key: ${{ runner.os }}-mongodb-memory-${{ hashFiles('server/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-mongodb-memory-
+
+      - name: Install server dependencies
+        run: npm ci --include=optional
+        working-directory: server
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: server
+
+      - name: Prepare isolated test database
+        run: npm run test:prepare-db
+        working-directory: server
+        timeout-minutes: 5
+
+      - name: Run complete server test suite
+        run: npm test -- --ci
+        working-directory: server

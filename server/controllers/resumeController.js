@@ -4,6 +4,7 @@ const {
   updateResume,
   parseResumeText,
   tailorResumeForOpportunity,
+  generateATSResume,
 } = require("../services/aiResumeservice.js");
 const Resume = require("../models/Resume.js");
 const User = require("../models/User.js");
@@ -2395,6 +2396,55 @@ const getTailoredResumeHandler = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/resume/ats-generate
+ * Body: { rawData, jobDescription, companyName, template }
+ * Generates an ATS-optimized resume tailored to a specific job description.
+ * NEVER invents data – only uses student's actual rawData.
+ */
+const generateATSResumeHandler = async (req, res) => {
+  try {
+    const { rawData, jobDescription, companyName, template } = req.body;
+
+    if (!rawData || !rawData.personal) {
+      return res.status(400).json({
+        success: false,
+        message: "rawData with personal info is required",
+      });
+    }
+
+    if (!rawData.personal.fullName?.trim() || !rawData.personal.email?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name and email are required",
+      });
+    }
+
+    if (!jobDescription || !jobDescription.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Job description is required for ATS optimization",
+      });
+    }
+
+    const generated = await generateATSResume(
+      rawData,
+      jobDescription.trim(),
+      (companyName || "").trim(),
+      template || "classic"
+    );
+
+    return res.status(200).json(generated);
+  } catch (error) {
+    console.error("generateATSResume error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate ATS-optimized resume",
+      error: publicError(error),
+    });
+  }
+};
+
 module.exports = {
   generateResumeHandler,
   updateResumeHandler,
@@ -2412,4 +2462,5 @@ module.exports = {
   confirmParsedProfileHandler,
   tailorResumeHandler,
   getTailoredResumeHandler,
+  generateATSResumeHandler,
 };

@@ -1,3 +1,4 @@
+import JourneyLoader from "../components/common/JourneyLoader";
 import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -532,7 +533,7 @@ export default function OpportunitiesPage() {
         {/* Results Section */}
         {loading ? (
           <div className="p-16 text-center bg-white rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
-            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+            <JourneyLoader size="md" className="mx-auto" />
             <p className="text-sm font-bold text-slate-800">
               Scraping and Aggregating Live Multi-Source Feed...
             </p>

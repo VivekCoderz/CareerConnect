@@ -1,7 +1,9 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { updateUserProfile } from "../../redux/features/authSlice";
+import BrandLogo from "../../components/common/BrandLogo";
 import {
   getFresherProfile,
   updateFresherProfile,
@@ -550,7 +552,7 @@ const FresherProfile = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-4" />
+        <JourneyLoader variant="profile" size="hero" className="mb-4" />
         <h2 className="text-base font-bold text-slate-800">Setting up Fresher Workspace...</h2>
         <p className="text-xs text-slate-500 mt-1">Loading your profile preferences</p>
       </div>
@@ -563,11 +565,7 @@ const FresherProfile = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link to="/fresher/dashboard" className="flex items-center gap-2">
-            <img
-              src="/careerconnect-logo.png"
-              alt="CareerConnect"
-              className="h-9 w-auto object-contain"
-            />
+            <BrandLogo className="h-9 w-44" />
             <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase bg-blue-100 text-blue-800 rounded-md">
               Fresher Profile
             </span>

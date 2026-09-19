@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -6,12 +7,14 @@ import { applyOpportunity, saveOpportunity } from "../../services/studentDashboa
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { getMyAppliedIds } from "../../services/applicationService";
 
 const InternshipDiscoveryPage = () => {
   const { city: cityParam, category: categoryParam } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
+  const userId = user?._id;
 
   const [selectedOpportunityForApply, setSelectedOpportunityForApply] = useState(null);
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
@@ -31,6 +34,8 @@ const InternshipDiscoveryPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [savedIds, setSavedIds] = useState([]);
+  const [appliedStatus, setAppliedStatus] = useState({ userId: null, internshipIds: new Set() });
+  const appliedInternshipIds = appliedStatus.userId === userId ? appliedStatus.internshipIds : new Set();
   const [toast, setToast] = useState(null);
 
   // Filters State
@@ -47,6 +52,25 @@ const InternshipDiscoveryPage = () => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+    let active = true;
+    getMyAppliedIds()
+      .then((response) => {
+        if (active) setAppliedStatus((previous) => ({
+          userId,
+          internshipIds: new Set([
+            ...(response.internshipIds || []),
+            ...(previous.userId === userId ? previous.internshipIds : []),
+          ]),
+        }));
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [userId]);
 
   // Sync state when URL params change
   useEffect(() => {
@@ -407,8 +431,8 @@ const InternshipDiscoveryPage = () => {
         {/* Results Content */}
         {loading ? (
           <div className="p-16 text-center bg-white rounded-3xl border border-slate-200/80 shadow-2xs">
-            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-xs font-semibold text-slate-500">Loading categorized internships from database...</p>
+            <JourneyLoader size="md" className="mx-auto mb-3" />
+            <p className="text-xs font-semibold text-slate-500">Finding internships worth exploring...</p>
           </div>
         ) : internships.length > 0 ? (
           <div className="space-y-4">
@@ -483,7 +507,11 @@ const InternshipDiscoveryPage = () => {
                       {isSaved ? "★ Saved" : "☆ Save"}
                     </button>
 
-                    {intItem.applyLink ? (
+                    {appliedInternshipIds.has(String(intItem._id || intItem.id)) ? (
+                      <button type="button" disabled className="px-5 py-2.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
+                        ✓ Applied
+                      </button>
+                    ) : intItem.applyLink ? (
                       <a
                         href={intItem.applyLink}
                         target="_blank"
@@ -598,6 +626,11 @@ const InternshipDiscoveryPage = () => {
         opportunity={selectedOpportunityForApply}
         opportunityType="Internship"
         onApplicationSubmitted={() => {
+          const appliedId = selectedOpportunityForApply?._id || selectedOpportunityForApply?.id;
+          if (appliedId) setAppliedStatus((previous) => ({
+            userId,
+            internshipIds: new Set(previous.userId === userId ? previous.internshipIds : []).add(String(appliedId)),
+          }));
           showToast(`Application submitted for "${selectedOpportunityForApply?.title || "internship"}"!`, "success");
         }}
       />

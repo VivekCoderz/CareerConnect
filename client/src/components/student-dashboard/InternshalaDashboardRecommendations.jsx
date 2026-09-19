@@ -1,31 +1,22 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-// Realistic fallbacks in case user profile has no matches yet
-const FALLBACK_JOB = {
-  id: "job-fb-1",
-  title: "Associate Software Engineer",
-  company: "Amazon Development Centre",
-  location: "Bangalore / Remote",
-  salary: "₹8,50,000 - ₹12,00,000 / year",
-  type: "Full Time",
-  workMode: "Hybrid",
-  postedAt: "Actively hiring",
-  skillsRequired: ["React", "Node.js", "JavaScript", "SQL"],
-  applyLink: "/jobs",
-};
-
-const FALLBACK_INTERNSHIP = {
-  id: "int-fb-1",
-  title: "Full Stack Web Development Intern",
-  company: "Zomato Technologies",
-  location: "Gurugram / Remote",
-  stipend: "₹25,000 - ₹35,000 / month",
-  duration: "6 Months",
-  workMode: "Work from home",
-  skillsRequired: ["React", "Node.js", "MongoDB", "Tailwind CSS"],
-  applyLink: "/internships",
-};
+const EmptyOpportunityCard = ({ type, href }) => (
+  <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between min-h-[290px]">
+    <div>
+      <span className="inline-flex px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-slate-100 text-slate-600">
+        {type === "job" ? "💼 JOBS" : "🎓 INTERNSHIPS"}
+      </span>
+      <h3 className="text-lg font-bold text-slate-900 mt-5">You’re all caught up</h3>
+      <p className="text-sm text-slate-600 mt-2">
+        New {type === "job" ? "jobs" : "internships"} will appear here as they become available.
+      </p>
+    </div>
+    <Link to={href} className="mt-6 inline-flex justify-center rounded-xl bg-[#1e3a8a] px-4 py-3 text-xs font-bold text-white hover:bg-[#1e40af]">
+      Explore all {type === "job" ? "jobs" : "internships"} →
+    </Link>
+  </div>
+);
 
 const FALLBACK_COURSE = {
   id: "crs-fb-1",
@@ -43,43 +34,47 @@ const InternshalaDashboardRecommendations = ({
   internships = [],
   courses = [],
   savedIds = [],
+  appliedJobIds = new Set(),
+  appliedInternshipIds = new Set(),
   onSave,
   onApply,
   onNavigateTab,
 }) => {
   const [activeCategory, setActiveCategory] = useState("all");
 
-  const topJob = jobs && jobs.length > 0 ? jobs[0] : FALLBACK_JOB;
-  const topInternship = internships && internships.length > 0 ? internships[0] : FALLBACK_INTERNSHIP;
+  const topJob = jobs.find((job) => !appliedJobIds.has(String(job.id || job._id || job.jobId))) || null;
+  const topInternship = internships.find((internship) => !appliedInternshipIds.has(String(internship.id || internship._id || internship.jobId))) || null;
   const topCourse = courses && courses.length > 0 ? courses[0] : FALLBACK_COURSE;
 
-  const isJobSaved = savedIds.includes(topJob.id || topJob._id);
-  const isInternshipSaved = savedIds.includes(topInternship.id || topInternship._id);
+  const isJobSaved = topJob && savedIds.includes(topJob.id || topJob._id);
+  const isJobApplied = topJob && appliedJobIds.has(String(topJob.id || topJob._id));
+  const isInternshipSaved = topInternship && savedIds.includes(topInternship.id || topInternship._id);
+  const isInternshipApplied = topInternship && appliedInternshipIds.has(String(topInternship.id || topInternship._id));
 
   // Normalize skills arrays safely
-  const jobSkills = topJob.skillsRequired || topJob.skills || ["React", "Node.js", "SQL"];
-  const internshipSkills = topInternship.skillsRequired || topInternship.skills || ["React", "JavaScript", "CSS"];
+  const jobSkills = topJob?.skillsRequired || topJob?.skills || [];
+  const internshipSkills = topInternship?.skillsRequired || topInternship?.skills || [];
   const courseSkills = topCourse.skillsCovered || topCourse.skills || ["Full Stack", "Live Projects"];
 
   // Normalize salary / stipend strings
   const jobSalary =
-    topJob.salary ||
-    (topJob.salaryRange?.min
+    topJob?.salary ||
+    (topJob?.salaryRange?.min
       ? `₹${topJob.salaryRange.min.toLocaleString()} - ₹${(topJob.salaryRange.max || topJob.salaryRange.min).toLocaleString()}`
       : "Competitive CTC");
 
   const internshipStipend =
-    topInternship.stipend ||
-    (topInternship.stipendAmount?.min
+    topInternship?.stipend ||
+    (topInternship?.stipendAmount?.min
       ? `₹${topInternship.stipendAmount.min.toLocaleString()} / month`
       : "Competitive Stipend");
 
   // Format apply link for job
-  const jobApplyHref = topJob.applyLink || topJob.applyUrl;
+  const jobApplyHref = topJob?.applyLink || topJob?.applyUrl;
   const isJobExternal = jobApplyHref && (jobApplyHref.startsWith("http://") || jobApplyHref.startsWith("https://"));
 
   // Format apply link for internship
-  const intApplyHref = topInternship.applyLink || topInternship.applyUrl;
+  const intApplyHref = topInternship?.applyLink || topInternship?.applyUrl;
   const isIntExternal = intApplyHref && (intApplyHref.startsWith("http://") || intApplyHref.startsWith("https://"));
 
   return (
@@ -156,7 +151,7 @@ const InternshalaDashboardRecommendations = ({
               <h3 className="text-base font-bold mt-2.5 group-hover:text-purple-200 transition leading-snug line-clamp-1">
                 Certified Career Tracks
               </h3>
-              <p className="text-xs text-purple-100/80 mt-1">Free CareerConnect Specialization</p>
+              <p className="text-xs text-purple-100/80 mt-1">Explore practical courses for your goals</p>
             </div>
             <span className="text-xs font-bold text-purple-200 mt-3 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
               <span>Explore Courses</span>
@@ -176,7 +171,7 @@ const InternshalaDashboardRecommendations = ({
                 Recommended For You
               </h2>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                Top #1 Pick Each
+                {topJob || topInternship ? "Fresh picks for you" : "Check back for new picks"}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -194,7 +189,7 @@ const InternshalaDashboardRecommendations = ({
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              All (3)
+              All
             </button>
             <button
               onClick={() => setActiveCategory("job")}
@@ -238,7 +233,7 @@ const InternshalaDashboardRecommendations = ({
           }
         >
           {/* ================= CARD 1: RECOMMENDED JOB ================= */}
-          {(activeCategory === "all" || activeCategory === "job") && (
+          {(activeCategory === "all" || activeCategory === "job") && (topJob ? (
             <div className="bg-white rounded-2xl border border-slate-200/90 hover:border-emerald-500 hover:shadow-xl transition-all duration-300 p-5 sm:p-6 flex flex-col justify-between gap-4 group">
               <div>
                 {/* Header Badge Row */}
@@ -338,7 +333,11 @@ const InternshalaDashboardRecommendations = ({
                     {isJobSaved ? "★" : "☆"}
                   </button>
 
-                  {isJobExternal ? (
+                  {isJobApplied ? (
+                    <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
+                      ✓ Applied
+                    </button>
+                  ) : isJobExternal ? (
                     <a
                       href={jobApplyHref}
                       target="_blank"
@@ -374,10 +373,10 @@ const InternshalaDashboardRecommendations = ({
                 </div>
               </div>
             </div>
-          )}
+          ) : <EmptyOpportunityCard type="job" href="/jobs" />)}
 
           {/* ================= CARD 2: RECOMMENDED INTERNSHIP ================= */}
-          {(activeCategory === "all" || activeCategory === "internship") && (
+          {(activeCategory === "all" || activeCategory === "internship") && (topInternship ? (
             <div className="bg-white rounded-2xl border border-slate-200/90 hover:border-blue-500 hover:shadow-xl transition-all duration-300 p-5 sm:p-6 flex flex-col justify-between gap-4 group">
               <div>
                 {/* Header Badge Row */}
@@ -477,7 +476,11 @@ const InternshalaDashboardRecommendations = ({
                     {isInternshipSaved ? "★" : "☆"}
                   </button>
 
-                  {isIntExternal ? (
+                  {isInternshipApplied ? (
+                    <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
+                      ✓ Applied
+                    </button>
+                  ) : isIntExternal ? (
                     <a
                       href={intApplyHref}
                       target="_blank"
@@ -514,7 +517,7 @@ const InternshalaDashboardRecommendations = ({
                 </div>
               </div>
             </div>
-          )}
+          ) : <EmptyOpportunityCard type="internship" href="/internships" />)}
 
           {/* ================= CARD 3: RECOMMENDED COURSE ================= */}
           {(activeCategory === "all" || activeCategory === "course") && (

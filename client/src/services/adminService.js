@@ -259,6 +259,57 @@ export const updateAdminSettings = async (data) => {
   return response.data;
 };
 
+// ==========================================
+// ORGANIZATION REQUESTS & ONBOARDING
+// ==========================================
+export const requestOrganizationAccess = async (formData) => {
+  const response = await api.post("/organizations/request-access", formData);
+  return response.data;
+};
+
+export const getOrganizationRequests = async (params = {}) => {
+  const response = await api.get("/admin/organization-requests", { params });
+  return response.data;
+};
+
+export const getOrganizationRequestById = async (id) => {
+  const response = await api.get(`/admin/organization-requests/${id}`);
+  return response.data;
+};
+
+export const reviewOrganizationRequest = async (id) => {
+  const response = await api.patch(`/admin/organization-requests/${id}/review`);
+  return response.data;
+};
+
+export const approveOrganizationRequest = async (id) => {
+  const response = await api.patch(`/admin/organization-requests/${id}/approve`);
+  return response.data;
+};
+
+export const rejectOrganizationRequest = async (id, rejectionReason) => {
+  const response = await api.patch(`/admin/organization-requests/${id}/reject`, { rejectionReason });
+  return response.data;
+};
+
+// ==========================================
+// COMPANY ADMIN INVITATION & ACTIVATION
+// ==========================================
+export const inviteCompanyAdmin = async (data) => {
+  const response = await api.post("/admin/company-admins/invite", data);
+  return response.data;
+};
+
+export const verifyAdminInvitation = async (token) => {
+  const response = await api.get(`/admin/activate/verify?token=${encodeURIComponent(token)}`);
+  return response.data;
+};
+
+export const activateAdmin = async ({ token, password, confirmPassword }) => {
+  const response = await api.post("/admin/activate", { token, password, confirmPassword });
+  return response.data;
+};
+
 export default {
   adminLogin,
   adminLogout,
@@ -274,8 +325,17 @@ export default {
   deleteAdminCompany,
   getCompanyAdmins,
   createCompanyAdmin,
+  inviteCompanyAdmin,
+  verifyAdminInvitation,
+  activateAdmin,
   updateCompanyAdmin,
   updateCompanyAdminStatus,
+  getOrganizationRequests,
+  getOrganizationRequestById,
+  reviewOrganizationRequest,
+  approveOrganizationRequest,
+  rejectOrganizationRequest,
+  requestOrganizationAccess,
   getOwnCompany,
   updateOwnCompany,
   getAdminUsers,

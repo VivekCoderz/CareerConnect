@@ -1,6 +1,7 @@
 require("dotenv").config();
 const crypto = require("crypto");
 const cloudinary = require("cloudinary").v2;
+const ResumeAsset = require("../models/ResumeAsset");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || process.env.Cloudinary_Cloud_Name,
@@ -25,14 +26,25 @@ const uploadResumeToCloudinary = (fileBuffer, originalName = "resume.pdf", userI
       {
         folder: "careerconnect/resumes",
         resource_type: "raw",
+        type: "authenticated",
         public_id: publicId,
       },
-      (error, result) => {
+      async (error, result) => {
         if (error) {
           console.error("Cloudinary upload error:", error);
           return reject(error);
         }
-        resolve(result);
+        try {
+          await ResumeAsset.create({ user: userId, publicId: result.public_id, url: result.secure_url });
+          resolve(result);
+        } catch (saveError) {
+          try {
+            await cloudinary.uploader.destroy(result.public_id, { resource_type: "raw", type: "authenticated" });
+          } catch (cleanupError) {
+            console.error("Orphaned resume asset cleanup failed:", cleanupError);
+          }
+          reject(saveError);
+        }
       }
     );
 

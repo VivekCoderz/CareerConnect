@@ -246,6 +246,9 @@ exports.getJobs = async (req, res, next) => {
 // GET /api/jobs/:id
 exports.getJobById = async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Job not found" });
+    }
     const job = await Job.findById(req.params.id).populate(
       "employerId",
       "companyName logo headquarters industry description website"
@@ -304,9 +307,22 @@ exports.createJob = async (req, res, next) => {
       });
     }
 
+    const companyId = req.user.companyId || null;
+    let companyName = "";
+    if (companyId) {
+      const comp = await Company.findById(companyId);
+      if (comp) companyName = comp.name;
+    }
+
+    // Determine initial moderation status
+    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
+    const initialStatus = status || (isSuperAdmin ? "Published" : "Pending Approval");
+
     const job = await Job.create({
       employerId,
       createdBy: req.user._id,
+      companyId,
+      companyName: companyName || "",
       title: title.trim(),
       department: department?.trim() || "General",
       employmentType: employmentType || "Full-time",
@@ -322,7 +338,7 @@ exports.createJob = async (req, res, next) => {
       bonusSkills: Array.isArray(bonusSkills) ? bonusSkills : [],
       openings: openings ? Number(openings) : 1,
       deadline: deadline ? new Date(deadline) : null,
-      status: status || "Published",
+      status: initialStatus,
     });
 
     clearSearchCache();

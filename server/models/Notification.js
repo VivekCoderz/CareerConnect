@@ -113,7 +113,7 @@ const notificationSchema = new mongoose.Schema(
 );
 
 // Fallback population / synchronization before save
-notificationSchema.pre("save", function (next) {
+notificationSchema.pre("save", function () {
   if (this.recipient && !this.recipientId) {
     this.recipientId = this.recipient;
   } else if (this.recipientId && !this.recipient) {
@@ -129,8 +129,6 @@ notificationSchema.pre("save", function (next) {
   if (!this.content && (this.message || this.preview)) {
     this.content = this.message || this.preview;
   }
-
-  next();
 });
 
 notificationSchema.index({ recipient: 1, createdAt: -1 });

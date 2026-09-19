@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -121,7 +122,7 @@ const FresherDashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-4" />
+        <JourneyLoader variant="profile" size="hero" className="mb-4" />
         <h2 className="text-base font-bold text-slate-800">
           Loading Fresher Workspace...
         </h2>
@@ -153,6 +154,20 @@ const FresherDashboard = () => {
   const resumeData = profile?.resume || {};
   const experienceSummary = dashboardData?.experienceSummary || {};
   const applications = dashboardData?.applications || { stats: {}, recent: [] };
+  const appliedJobIds = new Set(
+    applications.recent
+      .filter((application) => application.opportunityType !== "Internship")
+      .map((application) => application.jobId?._id || application.jobId)
+      .filter(Boolean)
+      .map(String)
+  );
+  const appliedInternshipIds = new Set(
+    applications.recent
+      .filter((application) => application.opportunityType === "Internship")
+      .map((application) => application.internshipId?._id || application.internshipId || application.jobId?._id || application.jobId)
+      .filter(Boolean)
+      .map(String)
+  );
   const careerRecommendations = dashboardData?.careerRecommendations || [];
   const recentActivity = dashboardData?.recentActivity || [];
   const projects = profile?.projects || [];
@@ -206,6 +221,7 @@ const FresherDashboard = () => {
               {/* Recommended Jobs */}
               <FresherRecommendedJobs
                 jobs={recommendedJobs}
+                appliedJobIds={appliedJobIds}
                 targetRole={careerTarget.targetRole}
                 onApplyJob={handleApply}
               />
@@ -266,6 +282,7 @@ const FresherDashboard = () => {
               {internshipView === "list" && (
                 <Internships
                   embedded
+                  appliedInternshipIds={appliedInternshipIds}
                   studentProfile={profile}
                   onSelectInternship={(id) => {
                     setSelectedInternshipId(id);
@@ -277,6 +294,8 @@ const FresherDashboard = () => {
                 <InternshipDetail
                   embedded
                   id={selectedInternshipId}
+                  isApplied={appliedInternshipIds.has(String(selectedInternshipId))}
+                  onAppliedSuccess={fetchDashboard}
                   onBack={() => {
                     setInternshipView("list");
                     setSelectedInternshipId(null);

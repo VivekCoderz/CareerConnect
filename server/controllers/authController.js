@@ -140,7 +140,6 @@ const userPayload = (user, extra = {}) => ({
 module.exports.sendOTP = async (req, res, next) => {
   try {
     const { email, fullName } = req.body;
-    console.log("1. [sendOTP Triggered] Body:", req.body);
 
     if (!email?.trim()) {
       return res.status(400).json({
@@ -786,7 +785,11 @@ module.exports.firebaseLogin = async (req, res, next) => {
       ).select("+password");
       if (!user) return res.status(409).json({ success: false, message: "This account was linked to another sign-in identity." });
     }
-    const provider = decoded.firebase?.sign_in_provider === "google.com" ? "google" : "email";
+    const isGoogle =
+      decoded.firebase?.sign_in_provider === "google.com" ||
+      Boolean(decoded.firebase?.identities?.["google.com"]) ||
+      decoded.firebase?.sign_in_provider === "google";
+    const provider = isGoogle ? "google" : "email";
     if (!user.authProviders.includes(provider)) {
       user.authProviders.push(provider);
     }
@@ -849,11 +852,31 @@ module.exports.googleAuth = async (req, res, next) => {
     const { uid, email, name, picture } = decoded;
     const normalizedEmail = email?.toLowerCase();
 
-    if (!uid || !normalizedEmail || decoded.email_verified !== true ||
-        decoded.firebase?.sign_in_provider !== "google.com") {
+    const isGoogleProvider =
+      decoded.firebase?.sign_in_provider === "google.com" ||
+      Boolean(decoded.firebase?.identities?.["google.com"]) ||
+      decoded.firebase?.sign_in_provider === "google";
+
+    const isEmailVerified =
+      decoded.email_verified === true ||
+      decoded.email_verified === "true" ||
+      (isGoogleProvider && (normalizedEmail?.endsWith("@gmail.com") || normalizedEmail?.endsWith("@googlemail.com")));
+
+    if (!uid || !normalizedEmail || !isGoogleProvider || !isEmailVerified) {
+      console.warn("[GoogleAuth] Rejected Google sign-in claims:", {
+        uid: Boolean(uid),
+        email: normalizedEmail,
+        email_verified: decoded.email_verified,
+        sign_in_provider: decoded.firebase?.sign_in_provider,
+        identities: decoded.firebase?.identities,
+        isGoogleProvider,
+        isEmailVerified,
+      });
       return res.status(403).json({
         success: false,
-        message: "A verified Google sign-in is required",
+        message: !isEmailVerified
+          ? "Your Google account email is not verified. Please verify your email with Google or sign in with a verified Gmail account."
+          : "A verified Google sign-in is required",
       });
     }
 
@@ -873,7 +896,37 @@ module.exports.googleAuth = async (req, res, next) => {
       }
 
       if (user.firebaseUid && user.firebaseUid !== uid) {
-        return res.status(409).json({ success: false, message: "This account is linked to another sign-in identity." });
+        const oldUid = user.firebaseUid;
+        const unfinishedGoogleSignup = !user.password && !user.hasPassword &&
+          !user.phone && !user.isProfileComplete &&
+          user.authProviders.includes("google") && !user.authProviders.includes("email");
+        if (!unfinishedGoogleSignup) {
+          return res.status(409).json({ success: false, code: "ACCOUNT_IDENTITY_CONFLICT",
+            message: "This email is linked to another sign-in identity. Use your original sign-in method or contact support." });
+        }
+
+        // A failed cancel request could leave this unfinished MongoDB record
+        // behind after the browser deleted its Firebase user. Confirm that the
+        // old identity is gone before allowing the same verified Google email
+        // to recover the record. An existing or unverifiable UID stays locked.
+        try {
+          await admin.auth().getUser(oldUid);
+          return res.status(409).json({ success: false, code: "PREVIOUS_IDENTITY_ACTIVE",
+            message: "The previous sign-in identity is still active. Use your original sign-in method or contact support." });
+        } catch (oldIdentityError) {
+          if (oldIdentityError.code !== "auth/user-not-found") {
+            return res.status(503).json({ success: false, code: "IDENTITY_CHECK_UNAVAILABLE",
+              message: "We could not verify the previous sign-in identity. Please try again later." });
+          }
+        }
+        user = await User.findOneAndUpdate(
+          { _id: user._id, firebaseUid: oldUid, password: null, hasPassword: false,
+            phone: "", isProfileComplete: false, authProviders: { $nin: ["email"] } },
+          { $set: { firebaseUid: uid } },
+          { returnDocument: "after" }
+        ).select("+password");
+        if (!user) return res.status(409).json({ success: false, code: "ACCOUNT_CHANGED_DURING_SIGN_IN",
+          message: "The account changed during sign-in. Please try again." });
       }
 
       // Claim an unlinked account atomically to prevent concurrent UID replacement.
@@ -962,10 +1015,17 @@ module.exports.googleAuth = async (req, res, next) => {
 module.exports.cancelGoogleSignup = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select("+password");
+    let deleted = false;
     // A legacy account can have a password hash but no hasPassword flag.
     // Only discard a genuinely unfinished Google-only signup.
-    if (user && !user.password && user.hasPassword === false) {
-      await User.findByIdAndDelete(user._id);
+    if (user && !user.password && user.hasPassword === false &&
+        !user.phone && !user.isProfileComplete &&
+        user.authProviders.includes("google") && !user.authProviders.includes("email")) {
+      deleted = Boolean(await User.findOneAndDelete({
+        _id: user._id, firebaseUid: user.firebaseUid, password: null,
+        hasPassword: false, phone: "", isProfileComplete: false,
+        authProviders: { $nin: ["email"] },
+      }));
     }
 
     res.clearCookie("token", {
@@ -987,7 +1047,8 @@ module.exports.cancelGoogleSignup = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: "Google signup cancelled successfully",
+      deleted,
+      message: deleted ? "Google signup cancelled successfully" : "Signed out without deleting the account",
     });
   } catch (error) {
     next(error);
@@ -1034,11 +1095,22 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       });
     }
 
+    const isGoogleProvider =
+      decoded.firebase?.sign_in_provider === "google.com" ||
+      Boolean(decoded.firebase?.identities?.["google.com"]) ||
+      decoded.firebase?.sign_in_provider === "google";
+
+    const normalizedTokenEmail = decoded.email?.toLowerCase();
+    const isEmailVerified =
+      decoded.email_verified === true ||
+      decoded.email_verified === "true" ||
+      (isGoogleProvider && (normalizedTokenEmail?.endsWith("@gmail.com") || normalizedTokenEmail?.endsWith("@googlemail.com")));
+
     if (user.password || user.hasPassword || !user.firebaseUid ||
         user.firebaseUid !== decoded.uid ||
-        user.email !== decoded.email?.toLowerCase() ||
-        decoded.email_verified !== true ||
-        decoded.firebase?.sign_in_provider !== "google.com") {
+        user.email !== normalizedTokenEmail ||
+        !isEmailVerified ||
+        !isGoogleProvider) {
       return res.status(403).json({ success: false, message: "Password setup is not available for this account." });
     }
 
@@ -1157,55 +1229,6 @@ module.exports.updateExperienceLevel = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
-  }
-};
-
-// ==========================================
-// CHECK EMAIL
-// ==========================================
-module.exports.checkEmail = async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ exists: false });
-    }
-
-    const user = await User.findOne({
-      email: email.trim().toLowerCase(),
-    });
-
-    return res.status(200).json({
-      exists: !!user,
-    });
-  } catch (error) {
-    return res.status(200).json({ exists: false });
-  }
-};
-
-// ==========================================
-// CHECK PHONE
-// ==========================================
-module.exports.checkPhone = async (req, res) => {
-  try {
-    const { phone, countryCode = "+91" } = req.body;
-    if (!phone) {
-      return res.status(200).json({ exists: false });
-    }
-
-    const cleanPhone = String(phone).replace(/\D/g, "");
-    const cleanCountryCode = countryCode.trim() || "+91";
-
-    const exists = await isPhoneAlreadyTaken(
-      cleanPhone,
-      cleanCountryCode,
-      req.user?._id || req.user?.id || null
-    );
-
-    return res.status(200).json({
-      exists,
-    });
-  } catch (error) {
-    return res.status(200).json({ exists: false });
   }
 };
 

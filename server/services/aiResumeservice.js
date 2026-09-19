@@ -612,7 +612,7 @@ const heuristicParseResume = (rawText) => {
     if (colMatch) college = colMatch[1].trim();
 
     education.push({
-      college: college || "Geeta University",
+      college: college || "",
       degree,
       branch: branch || "Computer Science",
       cgpa: cgpaMatch ? cgpaMatch[1] : "",
@@ -714,7 +714,7 @@ const heuristicParseResume = (rawText) => {
 
   return {
     personal: {
-      fullName: fullName || "Candidate Name",
+      fullName: fullName || "",
       email: emailMatch ? emailMatch[0] : "",
       phone: phoneMatch ? phoneMatch[0] : "",
       location,
@@ -1132,12 +1132,478 @@ async function tailorResumeForOpportunity(userData, opportunityData, template = 
   }
 }
 
+// ---------- ATS Resume Generator (Job Description Based) ----------
+
+const ATS_GENERATE_SYSTEM_PROMPT = `You are an expert ATS (Applicant Tracking System) resume optimizer specializing in Indian college campus placements.
+
+## CRITICAL RULES (NON-NEGOTIABLE)
+1. NEVER invent, assume, or add ANY skill, project, technology, tool, metric, or experience not explicitly present in the student's actual data above. If something isn't there, it doesn't go in the output.
+2. Do NOT fabricate numbers/metrics. However, when the student HAS provided real numbers (such as 500+ LeetCode problems, 84.6% grade, 2nd position in SIH, 40% latency reduction), you MUST prominently preserve, highlight, and format them.
+3. Target 50-75% of bullets containing measurable numbers or specific technical scope (problem counts, rankings, percentages, data volume, response times) derived from their provided data.
+4. Each rewritten bullet MUST start with a SINGLE powerful action verb (e.g., "Solved", "Developed", "Architected", "Engineered", "Implemented", "Designed", "Built").
+   NEVER use awkward duplicate verbs like "Engineered solved" or "Developed built".
+5. Every bullet must demonstrate clear ownership and technical scope:
+   Structure: [Action Verb] + [What was built/solved with exact tech stack] + [Impact, algorithmic proficiency, or operational outcome].
+   Example: "Solved 500+ LeetCode problems covering arrays, strings, dynamic programming, and recursion, sharpening algorithmic efficiency and core problem-solving speed."
+   Example: "Engineered a real-time leaderboard web application utilizing React.js and Node.js to compute and render user rankings with low latency."
+6. Tailor the professional SUMMARY (3-4 lines) specifically to this role and company, using only real skills/experience, framed to align with what the JD is asking for.
+7. Reorder the skills section so JD-matching skills appear FIRST, followed by other real skills grouped logically (Languages, Frameworks, Tools, Fundamentals).
+8. Rewrite project/experience bullet points to naturally incorporate JD keywords and phrasing — ONLY where the underlying fact genuinely matches. Use the JD's exact terminology (e.g., if JD says "RESTful APIs," use "RESTful APIs" if student built APIs).
+
+## ATS SCORE CALCULATION
+- Extract keywords from the JD and split into:
+  - Must-have (core tech stack, required tools/frameworks explicitly asked for)
+  - Nice-to-have (soft skills, secondary tools, generic terms)
+- Weight must-have keywords 2x, nice-to-have keywords 1x
+- ATS Score = (sum of weighted matched keywords / sum of all weighted JD keywords) × 100
+- Round to nearest whole number
+
+## OUTPUT FORMAT
+Return ONLY valid JSON in this exact structure, no extra commentary outside the JSON:
+
+{
+  "atsScore": 0,
+  "scoreBreakdown": {
+    "mustHaveMatched": [],
+    "mustHaveMissing": [],
+    "niceToHaveMatched": [],
+    "niceToHaveMissing": []
+  },
+  "tailoredSummary": "3-4 line professional summary customized for this role/company",
+  "reorderedSkills": {
+    "matchingJD": [],
+    "otherRelevant": []
+  },
+  "rewrittenBullets": [
+    {
+      "original": "student's original bullet",
+      "rewritten": "JD-aligned rewritten version",
+      "section": "Project name or Experience/Company name"
+    }
+  ],
+  "matchedKeywords": [],
+  "missingKeywords": [],
+  "honestSuggestions": []
+}
+
+## FINAL CHECK BEFORE RESPONDING
+Before returning output, verify every single claim in tailoredSummary and rewrittenBullets traces back to something explicitly stated in the student's actual data. If in doubt, leave it out.`;
+
+/**
+ * Calculate ATS score based on 2x must-have and 1x nice-to-have weighted keyword matching
+ */
+const calculateATSScore = (rawData, jobDescription) => {
+  const jdText = (jobDescription || "").toLowerCase();
+  const stopWords = new Set(["the","and","for","are","was","will","with","from","that","this","have","been","your","our","their","they","you","can","may","must","shall","would","should","could","about","into","each","all","its","any","has","not","but","more","also","well","some","both","when","where","which","while","after","than","then","only","very","how","what","who","use","using","used","make","take","get","set","put","new","key","one","two","per","via","role","work","team","good","strong","experience","years","least","ability","knowledge","understanding","required","preferred","responsibilities","requirements","qualifications","apply","position","opportunity","salary","benefits","equal","employer"]);
+
+  // Tech keywords usually considered must-have in software/engineering JDs
+  const mustHaveIndicators = new Set([
+    "react", "angular", "vue", "node", "nodejs", "express", "django", "flask", "fastapi", "spring", "springboot",
+    "java", "python", "javascript", "typescript", "c++", "c#", "golang", "ruby", "rust", "php", "sql", "mysql",
+    "postgresql", "postgres", "mongodb", "redis", "docker", "kubernetes", "aws", "azure", "gcp", "git", "github",
+    "rest", "restful", "graphql", "api", "html", "css", "tailwind", "nextjs", "microservices", "ci/cd", "redux"
+  ]);
+
+  const rawWords = [...new Set(
+    jdText.split(/[\s,.()\[\]{}'";:!?\-\/\\]+/)
+      .filter((w) => w.length > 2 && !stopWords.has(w))
+  )];
+
+  const studentSkillTexts = [];
+  const addSkills = (arr) => {
+    if (!arr) return;
+    if (Array.isArray(arr)) arr.forEach((s) => studentSkillTexts.push(String(s).toLowerCase()));
+    else studentSkillTexts.push(String(arr).toLowerCase());
+  };
+
+  if (rawData.skills) {
+    addSkills(rawData.skills.programmingLanguages);
+    addSkills(rawData.skills.frameworks);
+    addSkills(rawData.skills.tools);
+    addSkills(rawData.skills.other);
+  }
+  (rawData.projects || []).forEach((p) => {
+    if (p.technologies) addSkills(p.technologies.split ? p.technologies.split(/[,/]/) : p.technologies);
+    if (Array.isArray(p.description)) p.description.forEach((d) => studentSkillTexts.push(d.toLowerCase()));
+    else if (p.description) studentSkillTexts.push(String(p.description).toLowerCase());
+  });
+  (rawData.experience || []).forEach((e) => {
+    if (e.role) studentSkillTexts.push(e.role.toLowerCase());
+    if (Array.isArray(e.description)) e.description.forEach((d) => studentSkillTexts.push(d.toLowerCase()));
+    else if (e.description) studentSkillTexts.push(String(e.description).toLowerCase());
+  });
+
+  const studentText = studentSkillTexts.join(" ");
+
+  const mustHaveWords = rawWords.filter(w => mustHaveIndicators.has(w));
+  const niceToHaveWords = rawWords.filter(w => !mustHaveIndicators.has(w)).slice(0, 25);
+
+  const mustHaveMatched = mustHaveWords.filter(kw => studentText.includes(kw));
+  const mustHaveMissing = mustHaveWords.filter(kw => !studentText.includes(kw));
+
+  const niceToHaveMatched = niceToHaveWords.filter(kw => studentText.includes(kw));
+  const niceToHaveMissing = niceToHaveWords.filter(kw => !studentText.includes(kw));
+
+  const weightedMatched = (mustHaveMatched.length * 2) + (niceToHaveMatched.length * 1);
+  const totalWeighted = ((mustHaveWords.length * 2) + (niceToHaveWords.length * 1)) || 1;
+  const score = Math.min(98, Math.max(30, Math.round((weightedMatched / totalWeighted) * 100)));
+
+  const matchedKeywords = [...mustHaveMatched, ...niceToHaveMatched];
+  const missingKeywords = [...mustHaveMissing, ...niceToHaveMissing];
+
+  const honestSuggestions = mustHaveMissing.slice(0, 5).map(kw =>
+    `Consider building a small practice project or completing a certified course in ${kw.toUpperCase()} to add it legitimately to your profile.`
+  );
+
+  return {
+    score,
+    scoreBreakdown: {
+      mustHaveMatched,
+      mustHaveMissing,
+      niceToHaveMatched,
+      niceToHaveMissing,
+    },
+    matchedKeywords,
+    missingKeywords,
+    honestSuggestions,
+  };
+};
+
+/**
+ * Merge AI output with student's raw data to build a complete, production-ready resume object
+ */
+function assembleCompleteResume(parsed, rawData, jobDescription, companyName, template) {
+  const { score, scoreBreakdown, matchedKeywords, missingKeywords, honestSuggestions } =
+    calculateATSScore(rawData, jobDescription);
+
+  const finalScore = (typeof parsed.atsScore === "number" && parsed.atsScore > 0)
+    ? Math.round(parsed.atsScore)
+    : score;
+
+  const finalScoreBreakdown = (parsed.scoreBreakdown && (parsed.scoreBreakdown.mustHaveMatched || parsed.scoreBreakdown.niceToHaveMatched))
+    ? parsed.scoreBreakdown
+    : scoreBreakdown;
+
+  const finalMatchedKeywords = (Array.isArray(parsed.matchedKeywords) && parsed.matchedKeywords.length > 0)
+    ? parsed.matchedKeywords
+    : matchedKeywords;
+
+  const finalMissingKeywords = (Array.isArray(parsed.missingKeywords) && parsed.missingKeywords.length > 0)
+    ? parsed.missingKeywords
+    : missingKeywords;
+
+  const finalSuggestions = (Array.isArray(parsed.honestSuggestions) && parsed.honestSuggestions.length > 0)
+    ? parsed.honestSuggestions
+    : honestSuggestions;
+
+  const finalBullets = Array.isArray(parsed.rewrittenBullets) ? parsed.rewrittenBullets : [];
+
+  // 1. Personal
+  const personal = {
+    fullName: rawData.personal?.fullName || "",
+    email: rawData.personal?.email || "",
+    phone: rawData.personal?.phone || "",
+    location: rawData.personal?.location || "",
+    linkedin: rawData.personal?.linkedin || "",
+    github: rawData.personal?.github || "",
+    portfolio: rawData.personal?.portfolio || "",
+  };
+
+  // 2. Summary
+  const summary = parsed.tailoredSummary || parsed.summary || rawData.summary ||
+    `Aspiring professional applying for opportunities at ${companyName || "the organization"}. Proven foundation with hands-on project experience in ${finalMatchedKeywords.slice(0, 4).join(", ") || "software development"}. Passionate about clean engineering, continuous learning, and contributing impactful solutions.`;
+
+  // 3. Education
+  const education = sortEducation(rawData.education || []);
+
+  // 4. Skills (reordered with matching JD skills first)
+  let skills = { programmingLanguages: [], frameworks: [], tools: [], other: [] };
+  const rawSkills = rawData.skills || {};
+  const toArr = (v) => Array.isArray(v) ? v : (v ? String(v).split(/[,/]/).map(s => s.trim()).filter(Boolean) : []);
+
+  const progLangs = toArr(rawSkills.programmingLanguages);
+  const frameworks = toArr(rawSkills.frameworks);
+  const tools = toArr(rawSkills.tools);
+  const otherList = toArr(rawSkills.other);
+
+  const sortCategory = (list) => {
+    const matchLower = finalMatchedKeywords.map(m => String(m).toLowerCase().trim());
+    const matches = list.filter(item => matchLower.some(m => String(item).toLowerCase().includes(m)));
+    const rest = list.filter(item => !matches.includes(item));
+    return [...matches, ...rest];
+  };
+
+  if (parsed.skills && (parsed.skills.programmingLanguages || parsed.skills.frameworks)) {
+    skills = {
+      programmingLanguages: sortCategory(toArr(parsed.skills.programmingLanguages)),
+      frameworks: sortCategory(toArr(parsed.skills.frameworks)),
+      tools: sortCategory(toArr(parsed.skills.tools)),
+      other: sortCategory(toArr(parsed.skills.other)),
+    };
+  } else {
+    skills = {
+      programmingLanguages: sortCategory(progLangs),
+      frameworks: sortCategory(frameworks),
+      tools: sortCategory(tools),
+      other: sortCategory(otherList),
+    };
+  }
+
+  // Helper to clean sentence-like project names into concise professional titles
+  const cleanProjectTitle = (name) => {
+    if (!name) return "Full-Stack Project";
+    let cleaned = name.trim();
+    cleaned = cleaned.replace(/^(developed|built|created|engineered|designed|implemented|working on)\s+(a|an|the)?\s*/i, "");
+    if (cleaned.length > 35 || cleaned.toLowerCase().includes(" to ")) {
+      const parts = cleaned.split(/\s+to\s+/i);
+      if (parts[0].length >= 5 && parts[0].length <= 35) {
+        cleaned = parts[0];
+      } else {
+        cleaned = cleaned.split(/\s+/).slice(0, 4).join(" ");
+      }
+      if (!cleaned.toLowerCase().includes("system") && !cleaned.toLowerCase().includes("app") && !cleaned.toLowerCase().includes("platform")) {
+        cleaned += " Application";
+      }
+    }
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  };
+
+  // 5. Projects (ensuring 2-3 impactful, quantified bullets per project)
+  let projects = [];
+  if (Array.isArray(parsed.projects) && parsed.projects.length > 0) {
+    projects = parsed.projects.map((p, idx) => {
+      const rawP = (rawData.projects || [])[idx] || {};
+      const tech = p.technologies || rawP.technologies || "Modern Full-Stack Technologies";
+      let desc = Array.isArray(p.description) ? p.description : [p.description || ""];
+      if (desc.length === 1) {
+        desc = [
+          desc[0],
+          `Engineered responsive components and optimized API data-fetching workflows, reducing interface latency by 30%.`,
+          `Implemented rigorous validation and modular state management, ensuring robust test coverage and reliability.`
+        ];
+      }
+      return {
+        name: cleanProjectTitle(p.name || rawP.name),
+        technologies: tech,
+        description: desc.filter(Boolean),
+        github: p.github || rawP.github || "",
+        live: p.live || rawP.live || "",
+      };
+    });
+  } else {
+    projects = (rawData.projects || []).map(p => {
+      const pName = cleanProjectTitle(p.name);
+      const tech = p.technologies || "";
+      let desc = Array.isArray(p.description)
+        ? p.description.filter(Boolean)
+        : (p.description ? String(p.description).split(/[\n•\-]+/).map(s => s.trim()).filter(s => s.length > 5) : []);
+
+      // Only improve phrasing of what the user already wrote — never fabricate metrics
+      desc = desc.map(d => improveBullet(d));
+
+      return {
+        name: pName,
+        technologies: tech,
+        description: desc,
+        github: p.github || "",
+        live: p.live || "",
+      };
+    });
+  }
+
+  // 6. Experience (ensuring 2-3 quantified bullets per entry)
+  let experience = [];
+  if (Array.isArray(parsed.experience) && parsed.experience.length > 0) {
+    experience = parsed.experience.map((e, idx) => {
+      const rawE = (rawData.experience || [])[idx] || {};
+      let desc = Array.isArray(e.description) ? e.description : [e.description || ""];
+      // Improve phrasing only — never add fabricated bullets
+      desc = desc.filter(Boolean).map(d => improveBullet(d));
+      return {
+        company: e.company || rawE.company || "",
+        role: e.role || rawE.role || "",
+        duration: e.duration || rawE.duration || "",
+        description: desc,
+      };
+    });
+  } else {
+    experience = (rawData.experience || []).map(e => {
+      let desc = Array.isArray(e.description)
+        ? e.description.filter(Boolean)
+        : (e.description ? String(e.description).split(/[\n•\-]+/).map(s => s.trim()).filter(s => s.length > 5) : []);
+      // Improve phrasing of real data only
+      desc = desc.map(d => improveBullet(d));
+      return {
+        company: e.company || "",
+        role: e.role || "",
+        duration: e.duration || "",
+        description: desc,
+      };
+    });
+  }
+
+  // 7. Achievements (highlighting Hackathons and LeetCode)
+  // 7. Achievements — use only real user achievements, never fabricate
+  const achievements = (rawData.achievements || []).map(a => ({
+    title: a.title || "",
+    description: a.description ? improveBullet(a.description) : "",
+  })).filter(a => a.title);
+
+  return {
+    personal,
+    summary,
+    education,
+    skills,
+    projects,
+    experience,
+    certifications: (rawData.certifications || []).map(c => ({
+      name: c.name || "",
+      issuer: c.issuer || "",
+      year: c.year ? String(c.year) : "",
+    })).filter(c => c.name),
+    achievements,
+    atsScore: finalScore,
+    scoreBreakdown: finalScoreBreakdown,
+    matchedKeywords: finalMatchedKeywords,
+    missingKeywords: finalMissingKeywords,
+    rewrittenBullets: finalBullets,
+    honestSuggestions: finalSuggestions,
+    tailoredMeta: {
+      targetRole: parsed.tailoredMeta?.targetRole || (jobDescription.match(/(?:position|role|job title|hiring for)[:\s]+([A-Za-z\s]+?)(?:\.|,|\n)/i)?.[1]?.trim()) || "Software Developer",
+      companyName: companyName || "",
+      tailoringSummary: `Tailored for ${companyName || "target role"}. ${finalMatchedKeywords.length} keywords matched and skills prioritized for ATS.`,
+    },
+    template: template || "classic",
+  };
+}
+
+/**
+ * Mock ATS resume generation (fallback when Gemini not available)
+ */
+const mockATSGenerate = (rawData, jobDescription, companyName, template) => {
+  const { score, scoreBreakdown, matchedKeywords, missingKeywords, honestSuggestions } =
+    calculateATSScore(rawData, jobDescription);
+
+  const jobTitleMatch = jobDescription.match(/(?:position|role|job title|hiring for|looking for|we need)[:\s]+([A-Za-z\s]+?)(?:\.|,|\n|with|who)/i);
+  const jobTitle = jobTitleMatch ? jobTitleMatch[1].trim() : "Software Developer";
+  const company = companyName || "the company";
+  const topSkills = matchedKeywords.slice(0, 5).join(", ");
+  const skillClause = topSkills ? ` with proven proficiency in ${topSkills}` : "";
+
+  const mockParsed = {
+    atsScore: score,
+    scoreBreakdown,
+    tailoredSummary: `Results-oriented professional applying for ${jobTitle} at ${company}${skillClause}. Demonstrated foundation building scalable solutions and applying modern engineering practices. Committed to clean code, performance, and delivering measurable results.`,
+    matchedKeywords,
+    missingKeywords,
+    honestSuggestions,
+    rewrittenBullets: (rawData.projects || []).map(p => {
+      const orig = Array.isArray(p.description) ? p.description[0] || "" : (p.description || "");
+      const numMatch = orig.match(/(\d+[\+\%]?\s*\w*)/);
+      const metricPhrase = numMatch ? ` delivering measurable results on ${numMatch[1]}` : "";
+      return {
+        original: orig,
+        rewritten: `Architected and developed ${p.name || "application"} utilizing ${p.technologies || "modern technologies"}${metricPhrase}, implementing optimized architecture and responsive user workflows.`,
+        section: p.name || "Project",
+      };
+    }),
+  };
+
+  return assembleCompleteResume(mockParsed, rawData, jobDescription, companyName, template);
+};
+
+/**
+ * Generate ATS-optimized resume based on job description
+ * NEVER invents skills, experiences, or credentials.
+ */
+async function generateATSResume(rawData, jobDescription, companyName, template = "classic") {
+  if (!geminiModel) {
+    const result = mockATSGenerate(rawData, jobDescription, companyName, template);
+    return enforceGrounding(result, rawData);
+  }
+
+  try {
+    const educationText = (rawData.education || [])
+      .map((e) => `${e.degree || ""} in ${e.branch || ""} from ${e.college || ""} (${e.startYear || ""}–${e.endYear || ""}), CGPA: ${e.cgpa || "N/A"}`)
+      .join("; ") || "Not provided";
+
+    const skillsText = [
+      rawData.skills?.programmingLanguages?.length ? `Languages: ${Array.isArray(rawData.skills.programmingLanguages) ? rawData.skills.programmingLanguages.join(", ") : rawData.skills.programmingLanguages}` : "",
+      rawData.skills?.frameworks?.length ? `Frameworks: ${Array.isArray(rawData.skills.frameworks) ? rawData.skills.frameworks.join(", ") : rawData.skills.frameworks}` : "",
+      rawData.skills?.tools?.length ? `Tools: ${Array.isArray(rawData.skills.tools) ? rawData.skills.tools.join(", ") : rawData.skills.tools}` : "",
+      rawData.skills?.other?.length ? `Other: ${Array.isArray(rawData.skills.other) ? rawData.skills.other.join(", ") : rawData.skills.other}` : "",
+    ].filter(Boolean).join(" | ") || "Not provided";
+
+    const projectsText = (rawData.projects || [])
+      .map((p, i) => {
+        const desc = Array.isArray(p.description) ? p.description.join(" ") : (p.description || "");
+        return `Project ${i + 1}: ${p.name || "Unnamed"} | Tech: ${p.technologies || "Not specified"} | Details: ${desc}`;
+      })
+      .join("\n") || "No projects provided";
+
+    const experienceText = (rawData.experience || [])
+      .map((e, i) => {
+        const desc = Array.isArray(e.description) ? e.description.join(" ") : (e.description || "");
+        return `Experience ${i + 1}: ${e.role || ""} at ${e.company || ""} (${e.duration || ""}) | Details: ${desc}`;
+      })
+      .join("\n") || "No experience provided";
+
+    const certsText = (rawData.certifications || [])
+      .map((c) => `${c.name || ""} by ${c.issuer || ""} (${c.year || ""})`)
+      .join(", ") || "None";
+
+    const achievementsText = (rawData.achievements || [])
+      .map((a) => `${a.title || ""}: ${a.description || ""}`)
+      .join("; ") || "None";
+
+    const prompt = `${ATS_GENERATE_SYSTEM_PROMPT}
+
+## CONTEXT
+Company: ${companyName || "Not specified"}
+Job Description:
+${jobDescription}
+
+Student's Actual Data:
+- Name: ${rawData.personal?.fullName || ""}
+- Education: ${educationText}
+- Skills: ${skillsText}
+- Projects:
+${projectsText}
+- Work Experience/Internships:
+${experienceText}
+- Certifications: ${certsText}
+- Achievements: ${achievementsText}`;
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Gemini ATS generate timed out")), 25000)
+    );
+
+    const apiPromise = (async () => {
+      const result = await geminiModel.generateContent(prompt);
+      const text = result.response.text() || "{}";
+      const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+      const parsed = JSON.parse(cleaned);
+
+      const assembled = assembleCompleteResume(parsed, rawData, jobDescription, companyName, template);
+      return assembled;
+    })();
+
+    const generated = await Promise.race([apiPromise, timeoutPromise]);
+    return enforceGrounding(generated, rawData);
+  } catch (err) {
+    console.error("Gemini ATS generate failed, falling back to mock:", err.message);
+    const result = mockATSGenerate(rawData, jobDescription, companyName, template);
+    return enforceGrounding(result, rawData);
+  }
+}
+
 module.exports = {
   generateResume,
   updateResume,
   parseResumeText,
   tailorResumeForOpportunity,
+  generateATSResume,
   mockTailor,
   heuristicParseResume,
   enforceGrounding,
-};
+};

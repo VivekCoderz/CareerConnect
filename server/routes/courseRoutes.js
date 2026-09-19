@@ -19,6 +19,7 @@ const {
 } = require("../controllers/courseController");
 
 const protect = require("../middleware/authMiddleware");
+const { getCourseCatalog } = require("../controllers/employerLearningController");
 
 const router = express.Router();
 
@@ -49,6 +50,9 @@ router.get("/recommended", protect, getRecommendedCourses);
 // All published courses catalog for students ("All Courses" tab)
 // GET /api/courses
 router.get("/", protect, getAllPublishedCourses);
+
+// Published course catalog for authenticated learners
+router.get("/catalog", protect, getCourseCatalog);
 
 // ==========================================
 // COURSE APPLICATION ROUTES
@@ -86,4 +90,3 @@ router.patch("/:id/status", protect, updateCourseStatus);
 
 
 module.exports = router;
-

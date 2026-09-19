@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import BrandLogo from "../../components/common/BrandLogo";
 import { useDispatch, useSelector } from "react-redux";
 import { signInWithPopup } from "firebase/auth";
 import { Eye, EyeOff } from "lucide-react";
@@ -329,6 +330,68 @@ const Signup = () => {
     }
   };
 
+  // ─── Google Candidate Sign-Up ────────────────────────────────────────────────
+  const handleGoogleSignup = async () => {
+    if (!auth || !googleProvider) {
+      setGoogleError(
+        "Google Sign-In is unavailable because Firebase API keys are not configured in client/.env"
+      );
+      return;
+    }
+
+    setGoogleLoading(true);
+    setGoogleError("");
+    dispatch(clearMessages());
+
+    try {
+      const captchaToken = await getCaptchaToken("google_signup");
+      // Firebase Google popup - triggered directly on user click
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
+
+      // Send to backend with role=user (candidate)
+      const response = await api.post("/auth/google-auth", {
+        idToken,
+        keepSignedIn: false,
+        role: "user",
+        captchaToken,
+      });
+
+      const { user, requiresPasswordSetup, token } = response.data;
+      dispatch(loginSuccess({ user, token }));
+
+      if (requiresPasswordSetup || user.hasPassword === false) {
+        navigate("/set-password", { replace: true });
+      } else if (!user.phone?.trim() || !user.isProfileComplete) {
+        navigate("/onboarding/profile", { replace: true });
+      } else {
+        navigate(getDashboardPath(user.userType, user), { replace: true });
+      }
+    } catch (err) {
+      if (
+        err.code === "auth/popup-closed-by-user" ||
+        err.code === "auth/cancelled-popup-request"
+      ) {
+        // User closed popup
+      } else if (err.code === "auth/popup-blocked") {
+        setGoogleError(
+          "Sign-in popup was blocked by your browser. Please allow popups for this site and try again."
+        );
+      } else if (err.code === "auth/account-exists-with-different-credential") {
+        setGoogleError(
+          "This email is already registered with a different sign-in method. Please use email + password."
+        );
+      } else {
+        setGoogleError(
+          err.response?.data?.message ||
+            err.message ||
+            "Google sign-up failed. Please try again."
+        );
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
   // ─── Step 1 Validation & Proceed ───────────────────────────────────────────
   const handleStep1Next = async () => {
     const errors = {};
@@ -482,51 +545,6 @@ const Signup = () => {
       }));
     }
     setCustomInterestInput("");
-  };
-
-  // ================= GOOGLE SIGNUP =================
-
-  const handleGoogleSignup = async () => {
-    setGoogleLoading(true);
-    setGoogleError("");
-
-    dispatch(clearMessages());
-
-    try {
-      const captchaToken = await getCaptchaToken("google_signup");
-      const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
-
-      const response = await api.post("/auth/google-auth", {
-        idToken,
-        keepSignedIn: false,
-        captchaToken,
-      });
-
-      const { user, requiresPasswordSetup, token } = response.data;
-      dispatch(loginSuccess({ user, token }));
-
-      if (requiresPasswordSetup || user.hasPassword === false) {
-        navigate("/set-password", { replace: true });
-      } else if (!user.phone?.trim() || !user.isProfileComplete) {
-        navigate("/onboarding/profile", { replace: true });
-      } else {
-        navigate(getDashboardPath(user.userType, user), { replace: true });
-      }
-    } catch (err) {
-      if (
-        err.code === "auth/popup-closed-by-user" ||
-        err.code === "auth/cancelled-popup-request"
-      ) {
-        // dismissed popup
-      } else if (err.code === "auth/account-exists-with-different-credential") {
-        setGoogleError("This email is already registered with a different sign-in method.");
-      } else {
-        setGoogleError(err.response?.data?.message || "Google sign-up failed.");
-      }
-    } finally {
-      setGoogleLoading(false);
-    }
   };
   // Resume Upload State for Step 4
   const [resumeFile, setResumeFile] = useState(null);
@@ -711,11 +729,7 @@ const Signup = () => {
       <div className="bg-white border-b border-slate-200/90 py-3 px-4 sm:px-6">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <img
-              src="/careerconnect-logo.png"
-              alt="CareerConnect"
-              className="h-10 w-auto object-contain"
-            />
+            <BrandLogo className="h-10 w-48" />
           </Link>
           <span className="text-xs font-semibold text-slate-500">
             Candidate Registration

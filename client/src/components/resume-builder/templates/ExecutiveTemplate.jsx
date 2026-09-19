@@ -7,12 +7,12 @@ const ExecutiveTemplate = ({ data }) => {
 
   return (
     <div className="bg-white text-gray-900 max-w-[800px] mx-auto text-[13px] leading-relaxed">
-      <header className="bg-slate-900 text-white px-8 py-5">
+      <div className="resume-header bg-slate-900 text-white px-8 py-5">
         <h1 className="text-2xl font-bold tracking-wide">{personal?.fullName}</h1>
         <p className="text-slate-300 text-xs mt-1">
           {[personal?.email, personal?.phone, personal?.location].filter(Boolean).join("  •  ")}
         </p>
-      </header>
+      </div>
 
       <div className="px-8 py-5">
         {summary && (

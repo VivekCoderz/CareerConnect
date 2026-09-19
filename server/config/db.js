@@ -1,13 +1,17 @@
 const mongoose = require("mongoose");
 const dns = require("dns");
 
-// Removed hardcoded public DNS servers (8.8.8.8) which hang on firewalled networks
+// Prioritize IPv4 first to prevent Windows getaddrinfo ENOTFOUND with MongoDB Atlas SRV / shard addresses
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder("ipv4first");
+}
 
-const connectDB = async () => {
+const connectDB = async (retryCount = 0) => {
   const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/careerconnect";
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
     });
     console.log(`MongoDB Connected successfully 🎉 (${conn.connection.host})`);
 
@@ -36,7 +40,7 @@ const connectDB = async () => {
       console.log("🔄 Attempting fallback to local MongoDB (mongodb://127.0.0.1:27017/careerconnect)...");
       try {
         const localConn = await mongoose.connect("mongodb://127.0.0.1:27017/careerconnect", {
-          serverSelectionTimeoutMS: 4000,
+          serverSelectionTimeoutMS: 5000,
         });
         console.log(`✅ Local MongoDB Connected successfully 🎉 (${localConn.connection.host})`);
         return;
@@ -45,7 +49,13 @@ const connectDB = async () => {
       }
     }
 
-    process.exit(1);
+    if (retryCount < 3) {
+      console.log(`🔄 Retrying MongoDB connection in 5 seconds (Attempt ${retryCount + 1}/3)...`);
+      setTimeout(() => connectDB(retryCount + 1), 5000);
+      return;
+    }
+
+    console.error("❌ Max connection retries reached. Please check your internet connection or MongoDB Atlas IP Whitelist (https://cloud.mongodb.com -> Network Access).");
   }
 };
 

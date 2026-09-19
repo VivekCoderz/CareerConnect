@@ -134,6 +134,8 @@ app.use("/api/assessments", assessmentRoutes);
 app.use("/api/interviews", interviewRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/organization", organizationRoutes);
+app.use("/api/organizations", require("./routes/organizationRequestRoutes"));
+app.use("/api/organization-requests", require("./routes/organizationRequestRoutes"));
 app.use("/api/resume", resumeRoutes);
 app.use("/api/api/resume", resumeRoutes); // Safety alias
 app.use("/api/opportunities", opportunityRoutes);

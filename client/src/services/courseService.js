@@ -243,6 +243,8 @@ export const updateCourseApplicationStatus = async (
     `/courses/${courseId}/applications/${applicationId}/status`,
     { status }
   );
+  return res.data;
+};
 /**
  * Get all applications across all courses for the logged-in employer.
  */

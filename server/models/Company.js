@@ -48,9 +48,19 @@ const companySchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    address: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    contactPerson: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     status: {
       type: String,
-      enum: ["active", "inactive"],
+      enum: ["active", "inactive", "suspended", "pending", "ACTIVE", "INACTIVE", "SUSPENDED", "PENDING"],
       default: "active",
       index: true,
     },

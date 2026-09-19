@@ -1,7 +1,9 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import { getResumeHref } from "../../utils/resumeAccess";
 import {
   setTemplate,
   nextStep,
@@ -42,6 +44,7 @@ import ReviewActions from "../../components/resume-builder/ReviewActions";
 import AIChangeRequest from "../../components/resume-builder/AIChangeRequest";
 import ManualEditor from "../../components/resume-builder/ManualEditor";
 import ParsedResumeReviewModal from "../../components/resume-builder/ParsedResumeReviewModal";
+import ATSResumeGenerator from "../../components/resume-builder/ATSResumeGenerator";
 
 // ─── Step indicator for AI flow ──────────────────────────────────────────────
 const FLOW_STEPS = [
@@ -211,7 +214,12 @@ const ResumeBuilder = () => {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get("mode");
 
-    if (mode === "ai" || mode === "new") {
+    if (mode === "ats" || mode === "job" || mode === "choose" || mode === "new") {
+      hasInitializedRef.current = true;
+      setActiveTab("ats");
+      return;
+    }
+    if (mode === "ai" || mode === "editor" || mode === "studio") {
       hasInitializedRef.current = true;
       dispatch(startNewResume());
       setActiveTab("editor");
@@ -235,15 +243,9 @@ const ResumeBuilder = () => {
         setActiveTab("editor");
         dispatch(setStep(2));
       } else if (savedResumes && savedResumes.length > 0) {
-        const primary = savedResumes.find((r) => r.isPrimary) || savedResumes[0];
-        if (primary) {
-          dispatch(loadSpecificResume(primary));
-        }
-        setActiveTab("editor");
-        dispatch(setStep(2));
+        setActiveTab("my-resumes");
       } else {
-        setActiveTab("editor");
-        dispatch(setStep(0));
+        setActiveTab("ats");
       }
     }
   }, [profileLoading, generatedResume, savedResumes, dispatch]);
@@ -450,26 +452,32 @@ const ResumeBuilder = () => {
     }
   };
 
+  const handleStartAtsResume = () => {
+    setActiveTab("ats");
+  };
+
   const activeSavedResume = (savedResumes || []).find((r) => r._id === activeResumeId);
 
   return (
     <div className="min-h-screen bg-slate-50">
 
       {/* =========================================================================
-          TOP NAVIGATION BAR (Professional Studio Header)
+          TOP NAVIGATION BAR (Executive SaaS Standard - Mobile-First & Responsive)
           ========================================================================= */}
-      <header className="bg-white border-b border-slate-200/90 sticky top-0 z-30 shadow-xs no-print">
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 shadow-2xs no-print">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 py-3.5">
-            {/* Brand Logo & Title with Dashboard Link */}
-            <div className="flex items-center gap-3">
+          
+          {/* Main App Bar: Back, Brand & Primary Action */}
+          <div className="flex items-center justify-between h-14 sm:h-16 gap-3">
+            {/* Left: Back Link & Studio Branding */}
+            <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
               <Link
                 to={dashboardPath}
-                className="group flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-blue-50 border border-slate-200/80 hover:border-blue-200 text-slate-700 hover:text-blue-600 transition shadow-2xs font-semibold text-xs"
-                title="Go back to Dashboard"
+                className="group inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 border border-slate-200/80 hover:border-blue-200 text-slate-700 hover:text-blue-600 transition text-xs font-semibold shrink-0"
+                title="Return to Dashboard"
               >
                 <svg
-                  className="w-4 h-4 group-hover:-translate-x-0.5 transition text-slate-500 group-hover:text-blue-600"
+                  className="w-4 h-4 text-slate-500 group-hover:text-blue-600 transition group-hover:-translate-x-0.5"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth={2.2}
@@ -480,136 +488,135 @@ const ResumeBuilder = () => {
                 <span className="hidden sm:inline">Dashboard</span>
               </Link>
 
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-700 flex items-center justify-center text-white text-xl shadow-md shadow-blue-500/20">
-                📄
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-                    Resume Studio
-                  </h1>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-1">
-                    <span>✓</span> ATS-Optimized
-                  </span>
+              <div className="h-4 w-px bg-slate-200 hidden sm:block shrink-0" />
+
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-base shadow-xs shadow-blue-500/20 shrink-0">
+                  📄
                 </div>
-                <p className="text-xs text-slate-500 hidden sm:block">
-                  Build, customize & manage multiple targeted resumes for placements and jobs
-                </p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                      Resume Studio
+                    </h1>
+                    <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shrink-0">
+                      <span>✓</span> ATS Verified
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Navigation Tabs, Dashboard & Primary CTA */}
-            <div className="flex items-center flex-wrap gap-2">
-              <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200/80 text-xs font-semibold">
-                {/* Tab 1: Resume Studio / Preview */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("editor")}
-                  className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === "editor"
-                      ? "bg-white text-blue-600 shadow-xs font-bold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <span>📝</span>
-                  <span>Resume Studio</span>
-                  {generatedResume && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse ml-0.5" />
-                  )}
-                </button>
-
-                {/* Tab 2: My Resumes (Count) */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("my-resumes")}
-                  className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === "my-resumes"
-                      ? "bg-white text-blue-600 shadow-xs font-bold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <span>📂</span>
-                  <span>My Resumes</span>
-                  {savedResumes && savedResumes.length > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 text-blue-700 font-bold">
-                      {savedResumes.length}
-                    </span>
-                  )}
-                </button>
-
-                {/* Tab 3: Upload PDF */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("upload")}
-                  className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === "upload"
-                      ? "bg-white text-blue-600 shadow-xs font-bold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <span>📎</span>
-                  <span>Upload PDF</span>
-                </button>
-              </div>
-
-              {/* Dashboard Shortcut Button */}
-              <Link
-                to={dashboardPath}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition shadow-2xs cursor-pointer"
-                title="Go to Dashboard"
-              >
-                <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-                <span className="hidden md:inline">Dashboard</span>
-              </Link>
-
-              {/* "+ Build a New Resume" CTA */}
+            {/* Right: Primary Call to Action */}
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={handleStartNew}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
-                title="Create a new resume without overwriting existing ones"
+                onClick={handleStartAtsResume}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-bold rounded-xl shadow-xs hover:shadow transition-all cursor-pointer whitespace-nowrap"
+                title="Create a new job-tailored resume with ATS optimization"
               >
-                <span>+</span>
-                <span>New Resume</span>
+                <span className="text-sm leading-none font-bold">+</span>
+                <span><span className="hidden sm:inline">New </span>Resume for Job</span>
               </button>
             </div>
           </div>
+
+          {/* Sub-Navigation Tabs: Horizontal Scrollable on Mobile */}
+          <div className="border-t border-slate-100 py-2 -mx-4 px-4 sm:mx-0 sm:px-0 flex items-center overflow-x-auto no-scrollbar scroll-smooth">
+            <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 border border-slate-200/80 text-xs font-semibold shrink-0">
+              {/* Tab 1: Build Resume from Job Description */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("ats")}
+                className={`px-3 sm:px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === "ats"
+                    ? "bg-white text-blue-600 shadow-xs font-bold ring-1 ring-black/5"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                }`}
+              >
+                <span>🎯</span>
+                <span>Build Resume for Job</span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                  activeTab === "ats" ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700"
+                }`}>
+                  Recommended
+                </span>
+              </button>
+
+              {/* Tab 2: Build Custom Resume */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("editor")}
+                className={`px-3 sm:px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === "editor"
+                    ? "bg-white text-blue-600 shadow-xs font-bold ring-1 ring-black/5"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                }`}
+              >
+                <span>📝</span>
+                <span>Build Custom Resume</span>
+                {generatedResume && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                )}
+              </button>
+
+              {/* Tab 3: My Saved Resumes */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("my-resumes")}
+                className={`px-3 sm:px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === "my-resumes"
+                    ? "bg-white text-blue-600 shadow-xs font-bold ring-1 ring-black/5"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                }`}
+              >
+                <span>📂</span>
+                <span>My Saved Resumes</span>
+                {savedResumes && savedResumes.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 text-blue-700 font-bold">
+                    {savedResumes.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Tab 4: Import Existing Resume */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("upload")}
+                className={`px-3 sm:px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === "upload"
+                    ? "bg-white text-blue-600 shadow-xs font-bold ring-1 ring-black/5"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                }`}
+              >
+                <span>📎</span>
+                <span>Import Existing Resume</span>
+              </button>
+            </div>
+          </div>
+
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7">
 
-        {/* Top Breadcrumb & Dashboard Link */}
-        <div className="flex items-center justify-between gap-3 mb-6 no-print">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Link
-              to={dashboardPath}
-              className="hover:text-blue-600 transition flex items-center gap-1.5 font-semibold text-slate-600"
-            >
-              <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span>Dashboard</span>
-            </Link>
-            <span>/</span>
-            <span className="font-semibold text-slate-800">
-              {activeTab === "editor"
-                ? "Resume Studio & Preview"
-                : activeTab === "my-resumes"
-                  ? "My Saved Resumes"
-                  : "Upload Resume PDF"}
-            </span>
+        {/* Tab Context Banner (Clean, Zero Redundancy) */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2 no-print border-b border-slate-200/60 pb-4">
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              {activeTab === "ats" && <><span>🎯</span> Build Resume for Job Description</>}
+              {activeTab === "editor" && <><span>📝</span> Build Custom Resume</>}
+              {activeTab === "my-resumes" && <><span>📂</span> My Saved Resumes</>}
+              {activeTab === "upload" && <><span>📎</span> Import Existing Resume</>}
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {activeTab === "ats" && "Paste a job description → AI reads it → builds your resume specifically for that job, ATS-optimized."}
+              {activeTab === "editor" && "Build a general resume manually, choose a layout theme, and preview it live."}
+              {activeTab === "my-resumes" && "View, download, set primary, or manage all your saved resume versions."}
+              {activeTab === "upload" && "Upload your existing PDF resume to automatically parse and sync it with your profile."}
+            </p>
           </div>
-
-          <Link
-            to={dashboardPath}
-            className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-blue-50/80 transition"
-          >
-            <span>← Back to Dashboard</span>
-          </Link>
         </div>
 
         {/* Global Error Banner */}
@@ -644,9 +651,9 @@ const ResumeBuilder = () => {
               <>
                 {profileLoading ? (
                   <div className="text-center py-24 text-slate-500">
-                    <div className="inline-block w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
+                    <JourneyLoader variant="resume" size="md" className="mb-3" />
                     <p className="font-semibold text-sm text-slate-800">
-                      Loading your profile information…
+                      Bringing your experience into focus…
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
                       Pulling verified education, projects, skills & experiences
@@ -722,7 +729,7 @@ const ResumeBuilder = () => {
             {/* ── Generating Spinner ── */}
             {isGenerating && (
               <div className="text-center py-20 bg-white rounded-3xl border border-slate-200/80 shadow-sm max-w-2xl mx-auto">
-                <div className="inline-block w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
+                <JourneyLoader variant="resume" size="lg" className="mb-4" />
                 <h3 className="text-slate-900 font-bold text-lg">
                   AI is crafting your professional resume…
                 </h3>
@@ -1104,7 +1111,7 @@ const ResumeBuilder = () => {
                         <div className="flex items-center gap-1.5">
                           {resItem.resumeUrl && (
                             <a
-                              href={resItem.resumeUrl}
+                              href={getResumeHref(resItem.resumeUrl)}
                               target="_blank"
                               rel="noreferrer"
                               className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-[11px] transition flex items-center gap-1 cursor-pointer"
@@ -1182,7 +1189,7 @@ const ResumeBuilder = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <a
-                    href={user.resumeUrl}
+                    href={getResumeHref(user.resumeUrl)}
                     target="_blank"
                     rel="noreferrer"
                     className="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
@@ -1251,7 +1258,7 @@ const ResumeBuilder = () => {
                   <div className="flex justify-center gap-3 pt-2">
                     {user?.resumeUrl && (
                       <a
-                        href={user.resumeUrl}
+                        href={getResumeHref(user.resumeUrl)}
                         target="_blank"
                         rel="noreferrer"
                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition"
@@ -1307,6 +1314,15 @@ const ResumeBuilder = () => {
           </div>
         )}
 
+        {/* =====================================================================
+            TAB 4: ATS OPTIMIZE — Job Description Based ATS Resume
+            ===================================================================== */}
+        {activeTab === "ats" && (
+          <div className="max-w-5xl mx-auto">
+            <ATSResumeGenerator />
+          </div>
+        )}
+
         {/* Parsed Resume Review Modal */}
         <ParsedResumeReviewModal
           isOpen={isReviewModalOpen}
@@ -1321,11 +1337,66 @@ const ResumeBuilder = () => {
       </main>
 
       <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
         @media print {
-          body * { visibility: hidden; }
-          #resume-print-area, #resume-print-area * { visibility: visible; }
-          #resume-print-area { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border: none !important; }
-          .no-print { display: none !important; }
+          @page {
+            size: A4 portrait;
+            margin: 6mm 8mm;
+          }
+          html, body, #root, #root > div, main {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-height: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* ONLY hide UI elements with .no-print. Never hide generic header/footer tags because resume templates use them! */
+          .no-print,
+          .no-print * {
+            display: none !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            visibility: hidden !important;
+          }
+          body * {
+            visibility: hidden;
+          }
+          #resume-print-area,
+          #resume-print-area * {
+            visibility: visible !important;
+          }
+          #resume-print-area header,
+          #resume-print-area header * {
+            display: block !important;
+            visibility: visible !important;
+          }
+          #resume-print-area {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            background: #ffffff !important;
+            overflow: visible !important;
+          }
         }
       `}</style>
     </div>

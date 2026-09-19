@@ -1,8 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, lazy, Suspense } from "react";
 import { useDispatch, useSelector } from "react-redux";
-
-
+import JourneyLoader from "./components/common/JourneyLoader";
 // Guards & Common Modals
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
 
@@ -30,6 +29,8 @@ const SelectRole = lazy(() => import("./pages/SelectRole"));
 const JobDiscoveryPage = lazy(() => import("./pages/jobs/JobDiscoveryPage"));
 const InternshipDiscoveryPage = lazy(() => import("./pages/internships/InternshipDiscoveryPage"));
 const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage"));
+const OrganizationRequestPage = lazy(() => import("./pages/organizations/OrganizationRequestPage"));
+const AdminActivate = lazy(() => import("./pages/admin/AdminActivate"));
 
 // Lazy-loaded Pages: Auth
 const Login = lazy(() => import("./pages/auth/Login"));
@@ -79,13 +80,7 @@ const ResumeBuilder = lazy(() => import("./pages/resume/ResumeBuilder"));
 // Lightweight Page Fallback Loader
 const PageFallback = () => (
   <div className="min-h-[50vh] flex flex-col items-center justify-center p-8">
-    <div className="relative flex items-center justify-center">
-      <div className="w-10 h-10 rounded-full border-3 border-slate-200 border-t-[#1e3a8a] animate-spin" />
-      <span className="absolute text-[9px] font-black text-[#1e3a8a]">CC</span>
-    </div>
-    <p className="mt-3 text-xs font-semibold text-slate-400 animate-pulse">
-      Loading...
-    </p>
+    <JourneyLoader message="Getting your next move ready" detail="Connecting the right opportunities." />
   </div>
 );
 
@@ -170,11 +165,7 @@ const AuthInitializer = ({ children }) => {
   if (initializing) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-4" />
-
-        <p className="text-sm font-medium text-slate-500">
-          Loading CareerConnect...
-        </p>
+        <JourneyLoader size="hero" variant="access" message="Opening your CareerConnect" detail="Your next step is coming together." />
       </div>
     );
   }
@@ -232,6 +223,8 @@ function App() {
             }
           />
           <Route path="/companies/:companyId" element={<CompanyPublicProfile />} />
+          <Route path="/organizations" element={<OrganizationRequestPage />} />
+          <Route path="/organizations/request-access" element={<OrganizationRequestPage />} />
 
           {/* =================================================
               SET PASSWORD
@@ -363,6 +356,7 @@ function App() {
           ================================================= */}
           {/* Public Admin Login only */}
           <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/activate" element={<AdminActivate />} />
 
           {/* 404 Security: /admin and public-facing fake routes return generic 404 */}
           <Route path="/admin" element={<NotFound />} />

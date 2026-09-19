@@ -1,3 +1,4 @@
+import JourneyLoader from "./common/JourneyLoader";
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -36,7 +37,7 @@ const ProtectedRoute = () => {
   if (checkingAuth) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
+        <JourneyLoader variant="access" size="hero" className="mb-4" />
         <p className="text-sm font-medium text-slate-600">Verifying session...</p>
       </div>
     );

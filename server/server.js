@@ -1,3 +1,7 @@
+const dns = require("dns");
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder("ipv4first");
+}
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, ".env") });
 // Startup validation for JWT_SECRET
@@ -27,16 +31,46 @@ if (process.env.NODE_ENV === "production" && SESSION_SECRET.length < 32) {
 } else if (SESSION_SECRET.length < 32) {
   console.warn("WARNING: SESSION_SECRET is shorter than 32 characters. Ensure a secret of at least 32 characters is used in production.");
 }
-
+const http = require("http");
 const app = require("./app.js");
 const connectDB = require("./config/db");
+const socketService = require("./services/socketService");
+const { getInterviewTimeDetails } = require("./utils/interviewTimeUtils");
 
 const PORT = process.env.PORT || 5001;
 
 // Connect Database
 connectDB();
 
-const server = app.listen(PORT, () => {
-    console.log(`CareerConnect server running on port ${PORT} 🔥`);
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+socketService.init(server);
+
+// Background job: Automatically sync expired interviews every 60s
+setInterval(async () => {
+  try {
+    const Interview = require("./models/Interview");
+    const activeInterviews = await Interview.find({
+      status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
+    });
+
+    const now = new Date();
+    for (const interview of activeInterviews) {
+      const timeDetails = getInterviewTimeDetails(interview, now);
+      if (timeDetails.isTimePast) {
+        interview.status = "completed";
+        interview.completedAt = timeDetails.endDateTime || now;
+        await interview.save();
+        socketService.emitInterviewStatusUpdated(interview.candidateId, interview);
+      }
+    }
+  } catch (err) {
+    // Silent catch for background job
+  }
+}, 60000);
+
+server.listen(PORT, () => {
+  console.log(`CareerConnect server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
 });
 

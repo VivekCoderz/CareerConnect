@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, AlertCircle, CheckCircle2 } from "lucide-react";
@@ -84,7 +85,7 @@ const EditCoursePage = ({ id: propId, onCancel, onSuccess }) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-6">
-        <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-4" />
+        <JourneyLoader variant="learning" size="md" className="mb-4" />
         <p className="text-xs font-semibold text-slate-600">Loading course data for editing...</p>
       </div>
     );

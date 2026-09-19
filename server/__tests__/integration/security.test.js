@@ -44,7 +44,7 @@ describe('🔒 Security & RBAC — Integration Tests', () => {
 
   // ─── Data Isolation ────────────────────────────────────────────────────
   describe('Data Isolation', () => {
-    it('✅ student A cannot see student B application data via /api/applications/my', async () => {
+    it('student A cannot see student B application data via /api/applications/me', async () => {
       const { user: student1 } = await createUserWithToken({ email: `s1${Date.now()}@test.com` });
       const { user: student2, token: token2 } = await createUserWithToken({ email: `s2${Date.now()}@test.com` });
       const { user: employer } = await createEmployerWithToken({ email: `emp${Date.now()}@test.com` });
@@ -61,30 +61,25 @@ describe('🔒 Security & RBAC — Integration Tests', () => {
         status: 'Applied',
       });
 
-      // Student2 requests MY applications — should see 0 (not student1's)
+      // Student2 requests their own applications — should see 0 (not student1's)
       const res = await request(app)
-        .get('/api/applications/my')
+        .get('/api/applications/me')
         .set('Cookie', `token=${token2}`);
 
-      if (res.statusCode === 200) {
-        const apps = res.body.applications || res.body.data || [];
-        apps.forEach(app => {
-          expect(app.candidateId.toString()).toBe(student2._id.toString());
-        });
-      }
+      expect(res.statusCode).toBe(200);
+      expect(res.body.applications).toEqual([]);
     });
   });
 
   // ─── Input Sanitization / XSS ─────────────────────────────────────────
   describe('Input Sanitization', () => {
-    it('❌ should handle XSS-like email input without crash', async () => {
-      const res = await request(app)
-        .post('/api/auth/check-email')
-        .send({ email: '<script>alert(1)</script>@evil.com' });
-
-      // Should not return 500. Either reject or sanitize.
-      expect(res.statusCode).not.toBe(500);
-      expect([200, 400, 422]).toContain(res.statusCode);
+    it('does not expose account-existence lookup endpoints', async () => {
+      const [email, phone] = await Promise.all([
+        request(app).post('/api/auth/check-email').send({ email: 'someone@example.com' }),
+        request(app).post('/api/auth/check-phone').send({ phone: '9876543210' }),
+      ]);
+      expect(email.statusCode).toBe(404);
+      expect(phone.statusCode).toBe(404);
     });
 
     it('❌ API should not leak stack traces in production errors', async () => {
