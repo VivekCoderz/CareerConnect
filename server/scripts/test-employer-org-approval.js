@@ -102,6 +102,7 @@ async function runTest() {
       state: "Haryana",
       country: "India",
       description: "AI-powered enterprise workflow automation company.",
+      verificationDocument: "https://example.com/cert.pdf",
     };
 
     const submitRes = await request("/employer/request-company-approval", {

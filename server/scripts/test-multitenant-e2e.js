@@ -153,7 +153,7 @@ async function runE2ETests() {
     // STEP 3: Super Admin Login
     // -----------------------------------------------------------------------
     console.log("\n[STEP 3] Testing Super Admin Authentication...");
-    const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD || "";
+    const adminPassword = process.env.ADMIN_PASSWORD || "";
     const adminLoginRes = await request("/admin/login", {
       method: "POST",
       body: JSON.stringify({
