@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { setUser } from "../../redux/features/authSlice";
 import { searchAdminData, getAdminNotifications, adminLogout } from "../../services/adminService";
+import BrandLogo from "../common/BrandLogo";
 import {
   LayoutDashboard,
   GraduationCap,
@@ -159,13 +160,11 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
             {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          <Link to="/admin/dashboard" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-              <ShieldCheck className="w-5 h-5 text-indigo-400" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-slate-900 tracking-tight">CareerConnect</span>
+          <Link to="/admin/dashboard" className="flex items-center gap-3">
+            <BrandLogo markOnly className="h-8 w-9 sm:hidden" />
+            <BrandLogo className="hidden h-8 w-44 sm:block" />
+            <div className="flex flex-col border-l border-slate-200 pl-2.5">
+              <div className="flex items-center gap-1.5">
                 <span
                   className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${
                     isSuperAdmin
@@ -176,7 +175,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
                   {isSuperAdmin ? "Super Admin" : "Company Admin"}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 font-medium">
+              <p className="text-[10px] text-slate-400 font-medium hidden md:block">
                 {isSuperAdmin ? "Global Platform Center" : user?.company?.name || "Assigned Company Workspace"}
               </p>
             </div>
@@ -422,7 +421,10 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
             <div className="relative w-64 bg-white h-full shadow-2xl p-4 flex flex-col justify-between z-10">
               <div className="space-y-2">
                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-                  <span className="text-xs font-bold text-slate-900">CareerConnect Admin</span>
+                  <div className="flex items-center gap-2">
+                    <BrandLogo className="h-7 w-36" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Admin</span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setMobileSidebarOpen(false)}
