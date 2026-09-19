@@ -214,11 +214,19 @@ const userSchema = new mongoose.Schema(
       type: String,
 
       enum: {
-        values: ["user", "admin", "employer"],
+        values: ["user", "admin", "employer", "SUPER_ADMIN", "COMPANY_ADMIN"],
         message: "Invalid user role",
       },
 
       default: "user",
+      index: true,
+    },
+
+    // Multi-tenant company association for COMPANY_ADMIN and company employees
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
       index: true,
     },
 
@@ -230,15 +238,42 @@ const userSchema = new mongoose.Schema(
       type: String,
 
       enum: {
-        values: ["student", "fresher", "professional", "employer"],
+        values: ["student", "fresher", "professional", "employer", "admin"],
         message: "Invalid user type",
       },
 
+      default: "student",
       required: [true, "User type is required"],
 
       index: true,
     },
 
+    status: {
+      type: String,
+      enum: ["active", "inactive", "suspended", "invited", "ACTIVE", "INACTIVE", "SUSPENDED", "INVITED"],
+      default: "active",
+      index: true,
+    },
+
+    // ========== ADMIN INVITATION ==========
+    invitationToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    invitationExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    invitationStatus: {
+      type: String,
+      enum: ["none", "invited", "used", "expired", "NONE", "INVITED", "USED", "EXPIRED"],
+      default: "none",
+      index: true,
+    },
 
     // ========== EMAIL VERIFICATION ==========
     isEmailVerified: {
