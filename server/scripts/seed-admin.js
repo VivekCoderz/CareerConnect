@@ -6,11 +6,11 @@ try { dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]); } catch(e){}
 const User = require("../models/User");
 
 async function seedAdmin() {
-  const uri = process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://127.0.0.1:27017/careerconnect";
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
   await mongoose.connect(uri);
   console.log("Connected to MongoDB for Admin check/seed...");
 
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@careerconnect.com";
+  const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD;
   if (!adminPassword) {
     throw new Error("ADMIN_PASSWORD or SEED_ADMIN_PASSWORD must be configured in environment variables.");
@@ -21,7 +21,7 @@ async function seedAdmin() {
   if (!admin) {
     admin = new User({
       fullName: "CareerConnect Administrator",
-      username: "admin_master",
+      username: "",
       email: adminEmail,
       password: adminPassword,
       role: "admin",
