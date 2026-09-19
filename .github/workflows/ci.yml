@@ -68,6 +68,7 @@ jobs:
       SESSION_SECRET: ci-only-session-secret-that-is-never-used-in-production
       CLIENT_URL: http://localhost:5173
       MONGOMS_DOWNLOAD_DIR: /home/runner/.cache/mongodb-binaries
+      MONGOMS_VERSION: 8.2.6
 
     steps:
       - name: Check out repository
@@ -98,6 +99,11 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
         working-directory: server
+
+      - name: Prepare isolated test database
+        run: npm run test:prepare-db
+        working-directory: server
+        timeout-minutes: 5
 
       - name: Run complete server test suite
         run: npm test -- --ci
