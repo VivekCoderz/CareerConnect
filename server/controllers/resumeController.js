@@ -17,7 +17,7 @@ const { uploadResumeToCloudinary } = require("../config/cloudinary.js");
 const { generateResumePdfBuffer } = require("../utils/generateResumePdf.js");
 const { PDFParse } = require("pdf-parse");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { analyzeATSMatch } = require("../services/atsScoringService.js");
+const { analyzeATSMatch, parseJobDescriptionText } = require("../services/atsScoringService.js");
 const mongoose = require("mongoose");
 
 /**
@@ -2102,12 +2102,7 @@ const confirmParsedProfileHandler = async (req, res) => {
   }
 };
 
-/**
- * POST /api/resume/tailor
- * Generates a Job- or Internship-specific tailored resume based exclusively
- * on verified user profile/resume data (never invents skills or facts).
- * Renders PDF and uploads to Cloudinary. Saves tailored resume without modifying primary profile.
- */
+/** POST /api/resume/ats-score */
 const analyzeATSResumeHandler = async (req, res) => {
   try {
     const {
@@ -2183,6 +2178,49 @@ const analyzeATSResumeHandler = async (req, res) => {
   }
 };
 
+/** POST /api/resume/parse-job-description */
+const parseJobDescriptionHandler = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Please upload a job description PDF" });
+    }
+
+    const isPdfName = req.file.originalname?.toLowerCase().endsWith(".pdf");
+    const isPdfSignature = req.file.buffer?.subarray(0, 5).toString("ascii") === "%PDF-";
+    if (!isPdfName || !isPdfSignature) {
+      return res.status(400).json({ success: false, message: "Only a valid PDF job description is supported" });
+    }
+
+    const extractedText = await extractTextFromPdfBuffer(req.file.buffer);
+    if (!extractedText || extractedText.trim().length < 30) {
+      return res.status(422).json({
+        success: false,
+        message: "No readable job description text was found. This PDF may be scanned; paste the description instead.",
+      });
+    }
+
+    const jobDescription = parseJobDescriptionText(extractedText);
+    return res.status(200).json({
+      success: true,
+      fileName: req.file.originalname,
+      jobDescription,
+    });
+  } catch (error) {
+    console.error("parseJobDescriptionHandler error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to read the job description PDF",
+      error: publicError(error),
+    });
+  }
+};
+
+/**
+ * POST /api/resume/tailor
+ * Generates a Job- or Internship-specific tailored resume based exclusively
+ * on verified user profile/resume data (never invents skills or facts).
+ * Renders PDF and uploads to Cloudinary. Saves tailored resume without modifying primary profile.
+ */
 const tailorResumeHandler = async (req, res) => {
   try {
     if (!req.user?._id) {
@@ -2493,6 +2531,7 @@ module.exports = {
   getProfileForResume,
   parseResumeHandler,
   confirmParsedProfileHandler,
+  parseJobDescriptionHandler,
   analyzeATSResumeHandler,
   tailorResumeHandler,
   getTailoredResumeHandler,

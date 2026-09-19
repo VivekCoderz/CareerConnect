@@ -26,7 +26,7 @@ const SKILL_ALIASES = {
   css: ["css", "css3"],
   tailwind: ["tailwind", "tailwind css"],
   bootstrap: ["bootstrap"],
-  "rest api": ["rest api", "restful api", "restful services"],
+  "rest api": ["rest api", "rest apis", "restful api", "restful apis", "restful services"],
   graphql: ["graphql"],
   firebase: ["firebase"],
   "machine learning": ["machine learning", "ml"],
@@ -71,7 +71,8 @@ const phraseExists = (text, phrase) => {
   const normalizedPhrase = normalize(phrase);
   if (!normalizedPhrase) return false;
   const escaped = normalizedPhrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^a-z0-9+#])${escaped}([^a-z0-9+#]|$)`, "i").test(text);
+  const boundary = ["js", "ts"].includes(normalizedPhrase) ? "[^a-z0-9+#.]" : "[^a-z0-9+#]";
+  return new RegExp(`(^|${boundary})${escaped}(${boundary}|$)`, "i").test(text);
 };
 
 const canonicalSkill = (skill) => {
@@ -85,6 +86,35 @@ const canonicalSkill = (skill) => {
 const extractKnownSkills = (text) => Object.entries(SKILL_ALIASES)
   .filter(([, aliases]) => aliases.some((alias) => phraseExists(text, alias)))
   .map(([canonical]) => canonical);
+
+const cleanJobDescriptionText = (value) => String(value || "")
+  .replace(/\u0000/g, "")
+  .replace(/\r\n?/g, "\n")
+  .replace(/[ \t]+/g, " ")
+  .replace(/\n{3,}/g, "\n\n")
+  .trim();
+
+const inferJobTitle = (text) => {
+  const cleaned = cleanJobDescriptionText(text);
+  const lines = cleaned.split("\n").map((line) => line.trim()).filter(Boolean);
+  const labelledTitle = lines.find((line) => /^(?:job\s*title|position|role)\s*[:\-–—]/i.test(line));
+  if (labelledTitle) {
+    return labelledTitle.replace(/^(?:job\s*title|position|role)\s*[:\-–—]\s*/i, "").slice(0, 150).trim();
+  }
+
+  const genericHeadings = /^(?:job description|about (?:us|the company|this role)|overview|responsibilities|requirements|qualifications)$/i;
+  const likelyTitle = lines.find((line) => line.length >= 3 && line.length <= 100 && !genericHeadings.test(line));
+  return (likelyTitle || "Target role").slice(0, 150);
+};
+
+const parseJobDescriptionText = (rawText) => {
+  const description = cleanJobDescriptionText(rawText).slice(0, 15000);
+  return {
+    title: inferJobTitle(description),
+    description,
+    requiredSkills: extractKnownSkills(normalize(description)).slice(0, 50),
+  };
+};
 
 const extractKeywords = (text, limit = 14) => {
   const counts = new Map();
@@ -190,4 +220,9 @@ const analyzeATSMatch = (resumeData, opportunity) => {
   };
 };
 
-module.exports = { analyzeATSMatch, normalize, canonicalSkill };
+module.exports = {
+  analyzeATSMatch,
+  normalize,
+  canonicalSkill,
+  parseJobDescriptionText,
+};

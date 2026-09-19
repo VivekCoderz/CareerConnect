@@ -1,4 +1,4 @@
-const { analyzeATSMatch } = require("../../../services/atsScoringService");
+const { analyzeATSMatch, parseJobDescriptionText } = require("../../../services/atsScoringService");
 
 describe("ATS scoring service", () => {
   const opportunity = {
@@ -37,5 +37,19 @@ describe("ATS scoring service", () => {
     }, opportunity);
 
     expect(strong.overallScore).toBeGreaterThan(weak.overallScore);
+  });
+
+  it("extracts an editable title and known skills from job description text", () => {
+    const parsed = parseJobDescriptionText(`
+      Job Title: Backend Engineer
+      We need a developer to build REST APIs using Node.js, Express, MongoDB and Docker.
+      The engineer will collaborate through Git and write integration testing.
+    `);
+
+    expect(parsed.title).toBe("Backend Engineer");
+    expect(parsed.description).toContain("build REST APIs");
+    expect(parsed.requiredSkills).toEqual(expect.arrayContaining([
+      "node.js", "express", "mongodb", "docker", "git", "rest api", "testing",
+    ]));
   });
 });

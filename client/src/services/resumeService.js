@@ -162,3 +162,16 @@ export const analyzeATSResumeAPI = async (payload) => {
   const res = await api.post("/resume/ats-score", payload);
   return res.data;
 };
+
+/**
+ * Extract editable role details from a job-description PDF.
+ */
+export const parseJobDescriptionAPI = async (file) => {
+  const formData = new FormData();
+  formData.append("jobDescription", file);
+
+  const res = await api.post("/resume/parse-job-description", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+};

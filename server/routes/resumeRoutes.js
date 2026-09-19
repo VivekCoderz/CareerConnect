@@ -18,6 +18,7 @@ const {
   getProfileForResume,
   parseResumeHandler,
   confirmParsedProfileHandler,
+  parseJobDescriptionHandler,
   analyzeATSResumeHandler,
   tailorResumeHandler,
   getTailoredResumeHandler,
@@ -51,6 +52,19 @@ const validateResumeUpload = (req, res, next) => {
   next();
 };
 
+const jobDescriptionUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 0, parts: 1 },
+  fileFilter: (req, file, cb) => {
+    const isPdfName = (file.originalname || "").toLowerCase().endsWith(".pdf");
+    const isPdfMime = ["application/pdf", "application/octet-stream"].includes(file.mimetype);
+    if (isPdfName && isPdfMime) return cb(null, true);
+    const error = new Error("Only PDF job descriptions are allowed");
+    error.statusCode = 400;
+    return cb(error);
+  },
+});
+
 // All resume routes require authentication
 router.use(protect);
 
@@ -61,6 +75,7 @@ router.post("/upload", upload.single("resume"), validateResumeUpload, uploadResu
 router.post("/upload-and-parse", upload.single("resume"), validateResumeUpload, uploadAndParseResumeHandler);
 router.post("/parse", upload.single("resume"), validateResumeUpload, parseResumeHandler);
 router.post("/confirm-parsed", confirmParsedProfileHandler);
+router.post("/parse-job-description", jobDescriptionUpload.single("jobDescription"), parseJobDescriptionHandler);
 router.post("/ats-score", analyzeATSResumeHandler);
 router.post("/tailor", tailorResumeHandler);
 router.get("/tailored/:opportunityType/:id", getTailoredResumeHandler);

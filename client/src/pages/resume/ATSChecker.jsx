@@ -15,6 +15,7 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import {
   analyzeATSResumeAPI,
   fetchAllResumesAPI,
+  parseJobDescriptionAPI,
   parseResumeAPI,
   tailorResumeAPI,
 } from "../../services/resumeService";
@@ -60,6 +61,7 @@ export default function ATSChecker() {
   const [savedResumes, setSavedResumes] = useState([]);
   const [resumeData, setResumeData] = useState(null);
   const [resumeLabel, setResumeLabel] = useState("");
+  const [jobDescriptionFile, setJobDescriptionFile] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [skillsText, setSkillsText] = useState("");
@@ -68,6 +70,7 @@ export default function ATSChecker() {
   const [tailoredResume, setTailoredResume] = useState(null);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadingJobDescription, setUploadingJobDescription] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [tailoring, setTailoring] = useState(false);
   const [error, setError] = useState("");
@@ -124,6 +127,41 @@ export default function ATSChecker() {
       setError(uploadError.response?.data?.message || uploadError.message || "Resume upload failed");
     } finally {
       setUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleJobDescriptionUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setError("Please upload the job description as a PDF.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Job description PDF must be 5 MB or smaller.");
+      event.target.value = "";
+      return;
+    }
+
+    setUploadingJobDescription(true);
+    setError("");
+    setAnalysis(null);
+    setAfterAnalysis(null);
+    setTailoredResume(null);
+    try {
+      const response = await parseJobDescriptionAPI(file);
+      const extracted = response.jobDescription;
+      if (!extracted?.description) throw new Error("The job description could not be read");
+      setJobTitle(extracted.title || "");
+      setJobDescription(extracted.description);
+      setSkillsText((extracted.requiredSkills || []).join(", "));
+      setJobDescriptionFile(response.fileName || file.name);
+    } catch (uploadError) {
+      setError(uploadError.response?.data?.message || uploadError.message || "Job description upload failed");
+    } finally {
+      setUploadingJobDescription(false);
       event.target.value = "";
     }
   };
@@ -238,9 +276,24 @@ export default function ATSChecker() {
           <section className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-11 h-11 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center"><Target size={22} /></div>
-              <div><h2 className="font-bold text-lg">2. Add target job</h2><p className="text-sm text-slate-500">Paste the original description for accurate matching.</p></div>
+              <div><h2 className="font-bold text-lg">2. Add target job</h2><p className="text-sm text-slate-500">Upload the JD PDF or paste its text.</p></div>
             </div>
             <div className="space-y-4">
+              <label className="flex items-center justify-center gap-3 min-h-24 rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/60 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition">
+                {uploadingJobDescription ? (
+                  <JourneyLoader size="compact" message="Extracting job details" />
+                ) : (
+                  <><FileUp className="text-indigo-600" /><span className="font-semibold text-indigo-800">Upload JD PDF</span><span className="text-xs text-indigo-500">up to 5 MB</span></>
+                )}
+                <input type="file" accept="application/pdf,.pdf" onChange={handleJobDescriptionUpload} className="hidden" disabled={uploadingJobDescription} />
+              </label>
+              {jobDescriptionFile && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700"><CheckCircle2 size={18} /> {jobDescriptionFile}</div>
+                  <p className="mt-1 text-xs text-emerald-700/80">Details extracted. Review them below, then check your ATS score.</p>
+                </div>
+              )}
+              <div className="flex items-center gap-3 text-xs font-semibold text-slate-400"><span className="h-px bg-slate-200 flex-1" />OR ENTER MANUALLY<span className="h-px bg-slate-200 flex-1" /></div>
               <div><label className="block text-sm font-semibold text-slate-700 mb-2">Job title</label><input value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} maxLength={150} placeholder="e.g. Frontend Developer" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
               <div><label className="block text-sm font-semibold text-slate-700 mb-2">Required skills <span className="font-normal text-slate-400">(optional, comma separated)</span></label><input value={skillsText} onChange={(event) => setSkillsText(event.target.value)} placeholder="React, JavaScript, REST API" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div>
               <div><label className="block text-sm font-semibold text-slate-700 mb-2">Job description</label><textarea value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} maxLength={15000} rows={7} placeholder="Paste responsibilities, requirements and preferred skills..." className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-y" /></div>
@@ -248,7 +301,7 @@ export default function ATSChecker() {
           </section>
         </div>
 
-        <button onClick={handleAnalyze} disabled={analyzing || uploading} className="mt-6 w-full rounded-2xl bg-blue-700 hover:bg-blue-800 disabled:bg-slate-400 text-white py-4 font-bold text-base flex items-center justify-center gap-2 shadow-lg shadow-blue-700/20 transition">
+        <button onClick={handleAnalyze} disabled={analyzing || uploading || uploadingJobDescription} className="mt-6 w-full rounded-2xl bg-blue-700 hover:bg-blue-800 disabled:bg-slate-400 text-white py-4 font-bold text-base flex items-center justify-center gap-2 shadow-lg shadow-blue-700/20 transition">
           {analyzing ? <><RefreshCw size={20} className="animate-spin" /> Analyzing match...</> : <><FileSearch size={20} /> Check ATS Match Score</>}
         </button>
 
@@ -263,7 +316,7 @@ export default function ATSChecker() {
                 {afterAnalysis && <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-4 py-2 text-sm font-bold text-emerald-700">Tailored score: {afterAnalysis.overallScore}/100 · {afterAnalysis.overallScore - analysis.overallScore >= 0 ? "+" : ""}{afterAnalysis.overallScore - analysis.overallScore} points</div>}
               </div>
               <button onClick={handleTailor} disabled={tailoring} className="rounded-2xl bg-slate-950 hover:bg-blue-950 disabled:bg-slate-400 text-white px-6 py-4 font-bold flex items-center justify-center gap-2 min-w-56 transition">
-                {tailoring ? <><RefreshCw size={19} className="animate-spin" /> Creating...</> : <><Sparkles size={19} /> Create ATS Resume</>}
+                {tailoring ? <><RefreshCw size={19} className="animate-spin" /> Creating...</> : <><Sparkles size={19} /> {analysis.overallScore < 80 ? "Improve Resume for This JD" : "Create Tailored Resume"}</>}
               </button>
             </div>
 
