@@ -22,4 +22,8 @@ router.post("/profile/unpublish", employerController.unpublishEmployerProfile);
 router.get("/dashboard", employerController.getEmployerDashboard);
 router.delete("/profile", employerController.deleteEmployerProfile);
 
+// Organization Verification & Super Admin Approval
+router.get("/organization-status", employerController.getOrganizationStatus);
+router.post("/request-company-approval", employerController.requestCompanyApproval);
+
 module.exports = router;
