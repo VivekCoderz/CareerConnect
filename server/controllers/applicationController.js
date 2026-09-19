@@ -702,7 +702,6 @@ exports.updateApplicationStatus = async (req, res, next) => {
       Offered: "Offered",
       Hired: "Hired",
       Rejected: "Rejected",
-      Withdrawn: "Withdrawn",
     };
 
     if (typeof rawStatus !== "string" || !Object.hasOwn(statusMap, rawStatus)) {
