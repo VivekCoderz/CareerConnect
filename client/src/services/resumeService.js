@@ -168,3 +168,35 @@ export const generateATSResumeAPI = async ({ rawData, jobDescription, companyNam
   });
   return res.data;
 };
+
+/**
+ * Perform comprehensive ATS Check and Skill Gap Analysis against a Job Description
+ * Supports FormData (with resume PDF file) OR JSON (with resumeText / resumeData)
+ */
+export const checkAtsAPI = async (payload) => {
+  if (payload instanceof FormData) {
+    const res = await api.post("/resume/ats-check", payload, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return res.data;
+  }
+  const res = await api.post("/resume/ats-check", payload);
+  return res.data;
+};
+
+/**
+ * 1-Click AI Resume Fixer
+ * Automatically resolves all detected mistakes, rewrites bullets with metrics & power verbs,
+ * fills skill gaps, and returns the 90%+ ATS-optimized resume.
+ */
+export const fixAtsResumeAPI = async ({ candidateData, jobDescription, gapAnalysis, template }) => {
+  const res = await api.post("/resume/ats-fix", {
+    candidateData,
+    jobDescription,
+    gapAnalysis,
+    template,
+  });
+  return res.data;
+};
