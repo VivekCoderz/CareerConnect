@@ -14,14 +14,44 @@ const ClassicTemplate = ({ data }) => {
           {[personal?.email, personal?.phone, personal?.location].filter(Boolean).join("  |  ")}
         </p>
         {(personal?.linkedin || personal?.github || personal?.portfolio) && (
-          <p className="text-[10.5px] text-blue-800 mt-0.5 font-medium">
+          <p className="text-[10.5px] text-blue-800 mt-0.5 font-medium flex items-center justify-center gap-2">
             {[
-              personal?.linkedin && `LinkedIn: ${personal.linkedin.replace(/^https?:\/\/(www\.)?/, '')}`,
-              personal?.github && `GitHub: ${personal.github.replace(/^https?:\/\/(www\.)?/, '')}`,
-              personal?.portfolio && `Portfolio: ${personal.portfolio.replace(/^https?:\/\/(www\.)?/, '')}`
+              personal?.linkedin && (
+                <a
+                  key="li"
+                  href={personal.linkedin.startsWith("http") ? personal.linkedin : `https://${personal.linkedin}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:underline"
+                >
+                  LinkedIn
+                </a>
+              ),
+              personal?.github && (
+                <a
+                  key="gh"
+                  href={personal.github.startsWith("http") ? personal.github : `https://${personal.github}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:underline"
+                >
+                  GitHub
+                </a>
+              ),
+              personal?.portfolio && (
+                <a
+                  key="pf"
+                  href={personal.portfolio.startsWith("http") ? personal.portfolio : `https://${personal.portfolio}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:underline"
+                >
+                  Portfolio
+                </a>
+              ),
             ]
               .filter(Boolean)
-              .join("  ·  ")}
+              .reduce((acc, el, idx) => (idx === 0 ? [el] : [...acc, <span key={`sep-${idx}`} className="text-gray-400">·</span>, el]), [])}
           </p>
         )}
       </div>
