@@ -568,10 +568,10 @@ const getStudentCourseContent = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only enrolled students can access content
+    // Only enrolled or completed students can access content
     // ------------------------------------------
 
-    if (application.status !== "Enrolled") {
+    if (application.status !== "Enrolled" && application.status !== "Completed") {
       return res.status(403).json({
         success: false,
         message: "You must be enrolled in this course to access its content",
@@ -588,6 +588,15 @@ const getStudentCourseContent = async (req, res) => {
     }).sort({ order: 1, createdAt: 1 });
 
     // ------------------------------------------
+    // Fetch progress from CourseProgress model
+    // ------------------------------------------
+
+    const progressRecord = await CourseProgress.findOne({
+      student: user._id,
+      course: courseId,
+    });
+
+    // ------------------------------------------
     // Response
     // ------------------------------------------
 
@@ -600,7 +609,8 @@ const getStudentCourseContent = async (req, res) => {
         description: course.description,
         thumbnail: course.thumbnail,
       },
-      progress: application.progress || 0,
+      progress: progressRecord ? progressRecord.progress : 0,
+      completedContents: progressRecord ? progressRecord.completedContents : [],
       content,
     });
   } catch (error) {

@@ -387,7 +387,7 @@ module.exports.registerUser = async (req, res, next) => {
       return res.status(409).json({
         success: false,
         field: "phone",
-        message: "Yeh mobile number pehle se registered hai (Mobile number is already registered)",
+        message: "Mobile number is already registered",
       });
     }
 
@@ -748,8 +748,27 @@ module.exports.firebaseLogin = async (req, res, next) => {
       });
     }
 
-    const { uid, email, email_verified: emailVerified } = decoded;
-    if (!uid || !email || emailVerified !== true) {
+    const { uid, email } = decoded;
+    const normalizedEmail = email?.toLowerCase();
+    const isGmail = Boolean(
+      normalizedEmail?.endsWith("@gmail.com") || normalizedEmail?.endsWith("@googlemail.com")
+    );
+    let emailVerified =
+      decoded.email_verified === true ||
+      decoded.email_verified === "true" ||
+      isGmail;
+
+    if (!emailVerified && uid) {
+      try {
+        const fbUser = await admin.auth().getUser(uid);
+        if (fbUser?.emailVerified || fbUser?.providerData?.some((p) => p.providerId === "google.com")) {
+          emailVerified = true;
+          admin.auth().updateUser(uid, { emailVerified: true }).catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    if (!uid || !normalizedEmail || !emailVerified) {
       return res.status(403).json({ success: false, message: "Verify your email before signing in." });
     }
 
@@ -852,15 +871,43 @@ module.exports.googleAuth = async (req, res, next) => {
     const { uid, email, name, picture } = decoded;
     const normalizedEmail = email?.toLowerCase();
 
-    const isGoogleProvider =
+    let isGoogleProvider =
       decoded.firebase?.sign_in_provider === "google.com" ||
       Boolean(decoded.firebase?.identities?.["google.com"]) ||
       decoded.firebase?.sign_in_provider === "google";
 
-    const isEmailVerified =
+    const isGmail = Boolean(
+      normalizedEmail?.endsWith("@gmail.com") || normalizedEmail?.endsWith("@googlemail.com")
+    );
+
+    // If not immediately marked as Google in token claims (e.g. linked accounts), check Firebase profile
+    if (!isGoogleProvider && uid) {
+      try {
+        const fbUser = await admin.auth().getUser(uid);
+        if (fbUser?.providerData?.some((p) => p.providerId === "google.com")) {
+          isGoogleProvider = true;
+        }
+      } catch (_) {}
+    }
+
+    let isEmailVerified =
       decoded.email_verified === true ||
       decoded.email_verified === "true" ||
-      (isGoogleProvider && (normalizedEmail?.endsWith("@gmail.com") || normalizedEmail?.endsWith("@googlemail.com")));
+      (isGoogleProvider && isGmail);
+
+    if (!isEmailVerified && uid) {
+      try {
+        const fbUser = await admin.auth().getUser(uid);
+        if (fbUser?.emailVerified || fbUser?.providerData?.some((p) => p.providerId === "google.com")) {
+          isEmailVerified = true;
+        }
+      } catch (_) {}
+    }
+
+    // Proactively sync Firebase user record if verified
+    if (uid && isEmailVerified && decoded.email_verified !== true) {
+      admin.auth().updateUser(uid, { emailVerified: true }).catch(() => {});
+    }
 
     if (!uid || !normalizedEmail || !isGoogleProvider || !isEmailVerified) {
       console.warn("[GoogleAuth] Rejected Google sign-in claims:", {
@@ -874,9 +921,9 @@ module.exports.googleAuth = async (req, res, next) => {
       });
       return res.status(403).json({
         success: false,
-        message: !isEmailVerified
-          ? "Your Google account email is not verified. Please verify your email with Google or sign in with a verified Gmail account."
-          : "A verified Google sign-in is required",
+        message: !isGoogleProvider
+          ? "A verified Google sign-in is required"
+          : "Your Google account email is not verified. Please verify your email with Google or sign in with a verified Gmail account.",
       });
     }
 
@@ -1095,16 +1142,38 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       });
     }
 
-    const isGoogleProvider =
+    let isGoogleProvider =
       decoded.firebase?.sign_in_provider === "google.com" ||
       Boolean(decoded.firebase?.identities?.["google.com"]) ||
       decoded.firebase?.sign_in_provider === "google";
 
     const normalizedTokenEmail = decoded.email?.toLowerCase();
-    const isEmailVerified =
+    const isGmail = Boolean(
+      normalizedTokenEmail?.endsWith("@gmail.com") || normalizedTokenEmail?.endsWith("@googlemail.com")
+    );
+
+    if (!isGoogleProvider && decoded.uid) {
+      try {
+        const fbUser = await admin.auth().getUser(decoded.uid);
+        if (fbUser?.providerData?.some((p) => p.providerId === "google.com")) {
+          isGoogleProvider = true;
+        }
+      } catch (_) {}
+    }
+
+    let isEmailVerified =
       decoded.email_verified === true ||
       decoded.email_verified === "true" ||
-      (isGoogleProvider && (normalizedTokenEmail?.endsWith("@gmail.com") || normalizedTokenEmail?.endsWith("@googlemail.com")));
+      (isGoogleProvider && isGmail);
+
+    if (!isEmailVerified && decoded.uid) {
+      try {
+        const fbUser = await admin.auth().getUser(decoded.uid);
+        if (fbUser?.emailVerified || fbUser?.providerData?.some((p) => p.providerId === "google.com")) {
+          isEmailVerified = true;
+        }
+      } catch (_) {}
+    }
 
     if (user.password || user.hasPassword || !user.firebaseUid ||
         user.firebaseUid !== decoded.uid ||
@@ -1442,7 +1511,7 @@ module.exports.registerEmployer = async (req, res, next) => {
       return res.status(409).json({
         success: false,
         field: "phone",
-        message: "Yeh mobile number pehle se registered hai (Mobile number is already registered)",
+        message: "Mobile number is already registered",
       });
     }
 
@@ -1685,7 +1754,7 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
       return res.status(409).json({
         success: false,
         field: "phone",
-        message: "Yeh mobile number pehle se registered hai (Mobile number is already registered)",
+        message: "Mobile number is already registered",
       });
     }
 
@@ -1911,7 +1980,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
       return res.status(409).json({
         success: false,
         field: "phone",
-        message: "Yeh mobile number pehle se registered hai (Mobile number is already registered)",
+        message: "Mobile number is already registered",
       });
     }
 

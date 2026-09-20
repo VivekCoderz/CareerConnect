@@ -136,7 +136,13 @@ const CourseForm = ({
     "UI/UX Design",
     "Cyber Security",
     "Software Testing",
-  ];
+    "data structure and algorithms",
+    "Digital Marketing",
+    "Project Management",
+    "Finance & Accounting",
+    "Healthcare & Sciences"
+,
+ ];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
