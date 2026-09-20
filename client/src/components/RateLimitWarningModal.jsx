@@ -127,8 +127,8 @@ const RateLimitWarningModal = () => {
         >
           {alertData.message ||
             (isBlocked24h
-              ? "Excessive requests ke chalte aapko 24 ghante ke liye temporarily block kar diya gaya hai."
-              : "Bohot zyada requests detect hui hain! Kripya request bhejna rokein, warna 24 ghante ke liye block kar diya jayega.")}
+              ? "You have been temporarily blocked for 24 hours due to excessive requests."
+              : "Too many requests detected! Please stop sending requests, or you will be blocked for 24 hours.")}
         </div>
 
         {/* Protection Explainer Box */}
@@ -139,8 +139,8 @@ const RateLimitWarningModal = () => {
           </div>
           <p>
             {isBlocked24h
-              ? "Aapka IP address 24 ghante ke liye temporarily restrict ho gaya hai taki server aur baki users DoS attack se safe rahein."
-              : "Agar aapne agle 1 minute ke andar dobara continuous requests bheji, to aapka IP address turant 24 hours ke liye freeze ho jayega."}
+              ? "Your IP address has been temporarily restricted for 24 hours to protect the server and other users from DoS attacks."
+              : "If you send continuous requests again within the next 1 minute, your IP address will be immediately frozen for 24 hours."}
           </p>
         </div>
 
