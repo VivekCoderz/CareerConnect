@@ -1,6 +1,7 @@
 const Application = require("../models/Application");
 const Internship = require("../models/Internship");
 const Job = require("../models/Job");
+const User = require("../models/User");
 const EmployerProfile = require("../models/EmployerProfile");
 const Interview = require("../models/Interview");
 const JobOffer = require("../models/JobOffer");
