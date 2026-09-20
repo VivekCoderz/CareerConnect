@@ -45,6 +45,7 @@ import AIChangeRequest from "../../components/resume-builder/AIChangeRequest";
 import ManualEditor from "../../components/resume-builder/ManualEditor";
 import ParsedResumeReviewModal from "../../components/resume-builder/ParsedResumeReviewModal";
 import ATSResumeGenerator from "../../components/resume-builder/ATSResumeGenerator";
+import ATSCheckerAndFixer from "../../components/resume-builder/ATSCheckerAndFixer";
 
 // ─── Step indicator for AI flow ──────────────────────────────────────────────
 const FLOW_STEPS = [
@@ -214,6 +215,11 @@ const ResumeBuilder = () => {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get("mode");
 
+    if (mode === "ats-checker" || mode === "checker" || mode === "scanner" || mode === "fix") {
+      hasInitializedRef.current = true;
+      setActiveTab("ats-checker");
+      return;
+    }
     if (mode === "ats" || mode === "job" || mode === "choose" || mode === "new") {
       hasInitializedRef.current = true;
       setActiveTab("ats");
@@ -540,6 +546,25 @@ const ResumeBuilder = () => {
                   activeTab === "ats" ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700"
                 }`}>
                   Recommended
+                </span>
+              </button>
+
+              {/* Tab: ATS Score Checker & Fixer */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("ats-checker")}
+                className={`px-3 sm:px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === "ats-checker"
+                    ? "bg-white text-indigo-600 shadow-xs font-bold ring-1 ring-black/5"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                }`}
+              >
+                <span>⚡</span>
+                <span>ATS Check & Fix</span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                  activeTab === "ats-checker" ? "bg-indigo-600 text-white" : "bg-indigo-100 text-indigo-700"
+                }`}>
+                  AI Fixer
                 </span>
               </button>
 
@@ -1323,6 +1348,23 @@ const ResumeBuilder = () => {
           </div>
         )}
 
+        {/* =====================================================================
+            TAB: ATS CHECKER & FIXER — Scan resume against JD, detect mistakes, 1-click fix
+            ===================================================================== */}
+        {activeTab === "ats-checker" && (
+          <div className="max-w-6xl mx-auto">
+            <ATSCheckerAndFixer
+              onSwitchToManualEdit={(resumeData) => {
+                if (resumeData) {
+                  dispatch(updateRawData(resumeData));
+                  setActiveTab("editor");
+                  dispatch(setStep(2));
+                }
+              }}
+            />
+          </div>
+        )}
+
         {/* Parsed Resume Review Modal */}
         <ParsedResumeReviewModal
           isOpen={isReviewModalOpen}
@@ -1378,10 +1420,38 @@ const ResumeBuilder = () => {
           #resume-print-area * {
             visibility: visible !important;
           }
-          #resume-print-area header,
-          #resume-print-area header * {
+          #resume-print-area header.resume-header,
+          #resume-print-area .resume-header {
             display: block !important;
             visibility: visible !important;
+            width: 100% !important;
+          }
+          #resume-print-area .resume-contact-row {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 4px 8px !important;
+            width: 100% !important;
+          }
+          #resume-print-area .resume-contact-row.is-modern {
+            justify-content: flex-start !important;
+          }
+          #resume-print-area .resume-contact-item,
+          #resume-print-area .resume-contact-link {
+            display: inline-block !important;
+            white-space: nowrap !important;
+            vertical-align: middle !important;
+          }
+          #resume-print-area .resume-contact-separator {
+            display: inline-block !important;
+            padding: 0 6px !important;
+            white-space: nowrap !important;
+            vertical-align: middle !important;
+          }
+          #resume-print-area a[href]:after {
+            content: "" !important;
           }
           #resume-print-area {
             position: absolute !important;
