@@ -5,6 +5,37 @@ const dns = require("dns");
 if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder("ipv4first");
 }
+try {
+  dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
+} catch (e) {}
+
+async function cleanupLegacyIndexes(conn) {
+  try {
+    const collections = await conn.connection.db.listCollections().toArray();
+    for (const name of ["jobs", "internships"]) {
+      const actualName = collections.find((c) => c.name.toLowerCase() === name)?.name;
+      if (actualName) {
+        const indexes = await conn.connection.db.collection(actualName).indexes();
+        const legacyIdx = indexes.find((i) => i.name === "source_1_externalId_1" && !i.partialFilterExpression);
+        if (legacyIdx) {
+          await conn.connection.db.collection(actualName).dropIndex("source_1_externalId_1");
+          console.log(` Cleaned legacy ${actualName} index without partialFilterExpression`);
+        }
+      }
+    }
+
+    const usersCollName = collections.find((c) => c.name.toLowerCase() === "users")?.name;
+    if (usersCollName) {
+      const userIndexes = await conn.connection.db.collection(usersCollName).indexes();
+      const legacyUserIdx = userIndexes.find((i) => i.name === "username_1" && !i.sparse);
+      if (legacyUserIdx) {
+        await conn.connection.db.collection(usersCollName).dropIndex("username_1");
+        await conn.connection.db.collection(usersCollName).createIndex({ username: 1 }, { unique: true, sparse: true });
+        console.log(` Replaced legacy users username_1 index with unique sparse index`);
+      }
+    }
+  } catch (idxErr) {}
+}
 
 const connectDB = async (retryCount = 0) => {
   const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/careerconnect";
@@ -14,24 +45,7 @@ const connectDB = async (retryCount = 0) => {
       socketTimeoutMS: 45000,
     });
     console.log(`MongoDB Connected successfully 🎉 (${conn.connection.host})`);
-
-    // Clean up any legacy indexes without partialFilterExpression
-    try {
-      const collections = await conn.connection.db.listCollections().toArray();
-      const collNames = collections.map((c) => c.name.toLowerCase());
-      
-      for (const name of ["jobs", "internships"]) {
-        const actualName = collections.find((c) => c.name.toLowerCase() === name)?.name;
-        if (actualName) {
-          const indexes = await conn.connection.db.collection(actualName).indexes();
-          const legacyIdx = indexes.find((i) => i.name === "source_1_externalId_1" && !i.partialFilterExpression);
-          if (legacyIdx) {
-            await conn.connection.db.collection(actualName).dropIndex("source_1_externalId_1");
-            console.log(` Cleaned legacy ${actualName} index without partialFilterExpression`);
-          }
-        }
-      }
-    } catch (idxErr) {}
+    await cleanupLegacyIndexes(conn);
   } catch (error) {
     console.error("MongoDB connection failed:", error.message);
     
@@ -43,6 +57,7 @@ const connectDB = async (retryCount = 0) => {
           serverSelectionTimeoutMS: 5000,
         });
         console.log(`✅ Local MongoDB Connected successfully 🎉 (${localConn.connection.host})`);
+        await cleanupLegacyIndexes(localConn);
         return;
       } catch (localErr) {
         console.error("Local MongoDB fallback also failed:", localErr.message);
