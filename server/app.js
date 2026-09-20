@@ -60,26 +60,45 @@ if (process.env.CLIENT_URL) {
   });
 }
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (e.g., mobile apps, curl, server-to-server)
-      if (!origin) return callback(null, true);
-      
-      const isAllowed = allowedOrigins.includes(origin) || (!isProduction && (
-        /^http:\/\/localhost:[0-9]+$/.test(origin) ||
-        /^http:\/\/127\.0\.0\.1:[0-9]+$/.test(origin)));
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin
+    if (!origin) return callback(null, true);
 
-      if (isAllowed) {
-        return callback(null, true);
-      }
-      return callback(new Error(`Not allowed by CORS: ${origin}`));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
-  })
-);
+    const isAllowed =
+      allowedOrigins.includes(origin) ||
+      (!isProduction &&
+        (/^http:\/\/localhost:[0-9]+$/.test(origin) ||
+          /^http:\/\/127\.0\.0\.1:[0-9]+$/.test(origin)));
+
+    if (isAllowed) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
+
+  credentials: true,
+
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+  ],
+
+  preflightContinue: false,
+
+  optionsSuccessStatus: 204,
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Handle OPTIONS preflight requests explicitly for all routes (Express 5 wildcard syntax)
+app.options("/{*path}", cors(corsOptions));
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));

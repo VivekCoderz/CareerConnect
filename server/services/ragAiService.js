@@ -277,63 +277,63 @@ ${opportunitiesText}
     const projs = context.studentProfile?.projects?.length || 0;
     fallbackAnswer = `### 📝 Resume & Profile Analysis
 
-Aapke profile ke mutabiq:
-- **Current Skills:** ${skills.length > 0 ? skills.join(", ") : "Abhi skills add nahi kiye gaye hain."}
-- **Projects:** ${projs > 0 ? `${projs} Projects listed` : "Kam se kam 2 live web/mobile projects add karein."}
+Based on your profile:
+- **Current Skills:** ${skills.length > 0 ? skills.join(", ") : "No skills added yet."}
+- **Projects:** ${projs > 0 ? `${projs} Projects listed` : "Add at least 2 live web/mobile projects."}
 
 **Key Suggestions to Boost Shortlisting:**
-1. **Add 5+ Core Technical Skills:** Industry recruitments me React, Node.js, SQL, aur Git sabse zyada demand me hain.
-2. **Action-Oriented Bullets:** Har project me measurable impact likhein (jaise *"Engineered RESTful API reducing query latency by 30%"*).
-3. **Verified Resume:** Sidebar me **Resume Builder** use karke ATS-friendly resume export karein.`;
+1. **Add 5+ Core Technical Skills:** React, Node.js, SQL, and Git are most in-demand in industry recruitments.
+2. **Action-Oriented Bullets:** Write measurable impact for each project (e.g., *"Engineered RESTful API reducing query latency by 30%"*).
+3. **Verified Resume:** Use the **Resume Builder** in the sidebar to export an ATS-friendly resume.`;
   } else if (/intern|stipend/i.test(qLower)) {
     fallbackAnswer = `### 🎓 Recommended Internships for You
 
-Aapke branch aur skills ke mutabiq sabse best live internships ye hain:
+Here are the best live internships matching your branch and skills:
 
 ${context.internships
   .map(
     (i, idx) =>
       `**${idx + 1}. ${i.title}** at **${i.company}**  \n📍 ${i.location} (${i.workMode}) • 💵 Stipend: ${i.stipend} • ⏱ Duration: ${i.duration}`
   )
-  .join("\n\n") || "Filhaal active internships discovery page par available hain."}
+  .join("\n\n") || "Active internships are currently available on the discovery page."}
 
-Neeche diye gaye card par click karke direct apply kar sakte hain!`;
+Click on the cards below to apply directly!`;
   } else if (/job|salary|opening/i.test(qLower)) {
     fallbackAnswer = `### 💼 Top Jobs Matching Your Profile
 
-Platform par yeh trending entry-level aur fresher openings active hain:
+Here are the trending entry-level and fresher openings active on the platform:
 
 ${context.jobs
   .map(
     (j, idx) =>
       `**${idx + 1}. ${j.title}** at **${j.company}**  \n📍 ${j.location} (${j.workMode}) • 💵 CTC: ${j.salary}`
   )
-  .join("\n\n") || "Filhaal active jobs discovery page par available hain."}
+  .join("\n\n") || "Active jobs are currently available on the discovery page."}
 
-Aap dashboard ya direct cards se 1-click apply kar sakte hain!`;
+You can apply in 1-click from the dashboard or directly from the cards!`;
   } else if (/course|learn|skill/i.test(qLower)) {
     fallbackAnswer = `### 📚 Recommended Courses & Certifications
 
-CareerConnect aur Geeta University ke verified certified courses:
+Verified certified courses on CareerConnect and Geeta University:
 
 ${context.courses
   .map(
     (c, idx) =>
       `**${idx + 1}. ${c.title}** (${c.provider})  \n⏱ ${c.duration} • 📊 ${c.level} • ★ ${c.rating} • ${c.isFree ? "FREE Access" : "Certified"}`
   )
-  .join("\n\n") || "Web development aur Python masterclass courses available hain."}
+  .join("\n\n") || "Web development and Python masterclass courses are available."}
 
-Inhe complete karke aap verified badges earn kar sakte hain!`;
+Complete these to earn verified badges!`;
   } else {
     fallbackAnswer = `### 🤖 CareerConnect Personal AI Assistant
 
-Main aapki madad live platform data se kar sakta hoon:
-- **Internships:** "Mere liye best internships kaunsi hain?"
-- **Jobs:** "Latest software engineer jobs dikhao"
-- **Resume Review:** "Mera resume analyze karke batao kya missing hai"
-- **Courses:** "Full Stack seekhne ke liye kaunsa course karein?"
+I can help you using live platform data:
+- **Internships:** "What are the best internships for me?"
+- **Jobs:** "Show me the latest software engineer jobs"
+- **Resume Review:** "Analyze my resume and tell me what's missing"
+- **Courses:** "Which course should I take to learn Full Stack?"
 
-Aap bina kisi hichkichaahat ke mujhse kuch bhi pooch sakte hain!`;
+Feel free to ask me anything!`;
   }
 
   return {
