@@ -46,7 +46,7 @@ const passwordResetLimiter = rateLimit({
     return res.status(429).json({
       success: false,
       code: "PASSWORD_RESET_LIMIT_24H",
-      message: "Aap 24 ghante (din) me sirf 3 baar hi password reset ki request bhej sakte hain. Limit poori ho chuki hai. Kripya baad me koshish karein.",
+      message: "You can only send 3 password reset requests per 24 hours. Limit reached. Please try again later.",
       retryAfterHours: 24,
     });
   },

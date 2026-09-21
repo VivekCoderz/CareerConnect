@@ -17,16 +17,16 @@ const ElegantTemplate = ({ data }) => {
 
   return (
     <div className="bg-white text-gray-900 p-10 max-w-[800px] mx-auto text-[13px] leading-relaxed font-sans">
-      <header className="mb-6">
+      <div className="resume-header mb-6">
         <h1 className="text-3xl font-light tracking-tight text-gray-900">
           {personal?.fullName}
         </h1>
-        <p className="text-xs text-gray-500 mt-2">
+        <p className="text-xs text-gray-600 mt-2 font-medium">
           {[personal?.email, personal?.phone, personal?.location]
             .filter(Boolean)
             .join("   ·   ")}
         </p>
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-blue-800 mt-1 font-medium">
           {[
             personal?.linkedin && "LinkedIn",
             personal?.github && "GitHub",
@@ -35,7 +35,7 @@ const ElegantTemplate = ({ data }) => {
             .filter(Boolean)
             .join("   ·   ")}
         </p>
-      </header>
+      </div>
 
       {summary && (
         <section className="mb-6">

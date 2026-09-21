@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Clock3,
   Lock,
+  ArrowLeft,
   CreditCard,
   Receipt,
   Download,
@@ -30,8 +31,9 @@ import PaymentReceiptModal from "../../components/courses/PaymentReceiptModal";
  * - Completed Courses (Passed & Certificates)
  */
 const StudentMyCoursesPage = () => {
+
+  const { user } = useSelector((state) => state.auth || {});
   const [coursesList, setCoursesList] = useState([]);
-  const { user } = useSelector((state) => state.auth);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -118,6 +120,12 @@ const StudentMyCoursesPage = () => {
         if (res.data.progress !== undefined) {
           setCourseProgressPercent(res.data.progress);
         }
+        // Hydrate completed content IDs from backend so prior completions are reflected
+        if (Array.isArray(res.data.completedContents)) {
+          setCompletedContentIds(
+            new Set(res.data.completedContents.map((id) => id.toString()))
+          );
+        }
       }
     } catch (err) {
       console.error("Fetch Student Course Content Error:", err);
@@ -172,7 +180,11 @@ const StudentMyCoursesPage = () => {
   if (activeTab === "completed") displayList = completedCourses;
 
   return (
+
     <div className="space-y-6">
+    
+ {/* Tab Switcher Buttons */}
+    
       {/* Tab Switcher & Status Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
@@ -241,7 +253,7 @@ const StudentMyCoursesPage = () => {
             <span>Payments & Invoices ({ordersList.length})</span>
           </button>
         </div>
-      </div>
+    </div>
 
       {error && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-700 flex items-center gap-2">

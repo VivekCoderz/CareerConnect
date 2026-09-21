@@ -22,6 +22,9 @@ const {
   analyzeATSResumeHandler,
   tailorResumeHandler,
   getTailoredResumeHandler,
+  generateATSResumeHandler,
+  atsCheckHandler,
+  atsFixHandler,
 } = require("../controllers/resumeController.js");
 
 const router = express.Router();
@@ -80,6 +83,9 @@ router.post("/ats-score", analyzeATSResumeHandler);
 router.post("/tailor", tailorResumeHandler);
 router.get("/tailored/:opportunityType/:id", getTailoredResumeHandler);
 router.post("/generate", generateResumeHandler);
+router.post("/ats-generate", generateATSResumeHandler);
+router.post("/ats-check", upload.single("resume"), validateResumeUpload, atsCheckHandler);
+router.post("/ats-fix", atsFixHandler);
 router.post("/update", updateResumeHandler);
 router.get("/me", getMyResume);
 router.put("/manual", saveManualEdit);
@@ -89,3 +95,4 @@ router.patch("/:id/primary", setPrimaryResume);
 router.delete("/:id", deleteResume);
 
 module.exports = router;
+

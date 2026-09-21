@@ -1,6 +1,6 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import BrandLogo from "../../components/common/BrandLogo";
@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Award,
 } from "lucide-react";
+
 import api from "../../api/api";
 import CourseCard from "../../components/courses/CourseCard";
 import StudentMyCoursesPage from "./StudentMyCoursesPage";
@@ -32,7 +33,8 @@ import PaymentReceiptModal from "../../components/courses/PaymentReceiptModal";
  */
 const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = false }) => {
 
-  // Navigation tab state: "recommended" | "my-courses" | "all" | "details"
+  // Navigation tab state:
+  // "recommended" | "my-courses" | "all" | "details"
   const [activeTab, setActiveTab] = useState("recommended");
   const [selectedCourseId, setSelectedCourseId] = useState(null);
 
@@ -59,7 +61,7 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
 
   // Razorpay Checkout / Receipt state
-  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+  const [processingCourseId, setProcessingCourseId] = useState(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
 
@@ -67,7 +69,11 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
   const [toastMessage, setToastMessage] = useState(null);
 
   const showToast = (msg, type = "success") => {
-    setToastMessage({ message: msg, type });
+    setToastMessage({
+      message: msg,
+      type,
+    });
+
     setTimeout(() => setToastMessage(null), 4000);
   };
 
@@ -118,12 +124,23 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
     }
 
     try {
-      setIsProcessingCheckout(true);
+      setProcessingCourseId(course._id);
 
       // 1. Free Course -> Direct Enrollment
       if (!course.price || course.price <= 0) {
-        const orderRes = await createCourseOrder(course._id);
-        if (orderRes.success) {
+        let orderRes;
+        try {
+          orderRes = await createCourseOrder(course._id);
+        } catch (callErr) {
+          const directRes = await api.post(`/courses/${course._id}/enroll`).catch(() => null);
+          if (directRes?.data?.success) {
+            orderRes = directRes.data;
+          } else {
+            throw callErr;
+          }
+        }
+
+        if (orderRes && orderRes.success) {
           showToast("Enrolled in free course successfully!", "success");
           setApplicationStatusMap((prev) => ({
             ...prev,
@@ -146,6 +163,8 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
             paidAt: new Date(),
           });
           setShowReceiptModal(true);
+        } else {
+          showToast(orderRes?.message || "Failed to enroll in free course.", "error");
         }
         return;
       }
@@ -158,8 +177,8 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
       }
 
       const orderRes = await createCourseOrder(course._id);
-      if (!orderRes.success) {
-        showToast(orderRes.message || "Failed to initiate payment.", "error");
+      if (!orderRes || !orderRes.success) {
+        showToast(orderRes?.message || "Failed to initiate payment.", "error");
         return;
       }
 
@@ -170,13 +189,13 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
         name: "CareerConnect",
         description: `Enrollment: ${course.title}`,
         image: "/favicon.svg",
-        order_id: orderRes.orderId,
+        ...(orderRes.isSimulated ? {} : { order_id: orderRes.orderId }),
         handler: async function (response) {
           try {
             const verifyRes = await verifyCoursePayment({
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
+              razorpayOrderId: response.razorpay_order_id || orderRes.orderId,
+              razorpayPaymentId: response.razorpay_payment_id || `pay_${Date.now()}`,
+              razorpaySignature: response.razorpay_signature || "",
               courseId: course._id,
             });
 
@@ -196,8 +215,8 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
                 ...prev.filter((i) => i.course?._id !== course._id),
               ]);
               setReceiptData({
-                paymentId: response.razorpay_payment_id,
-                orderId: response.razorpay_order_id,
+                paymentId: response.razorpay_payment_id || `pay_${Date.now()}`,
+                orderId: response.razorpay_order_id || orderRes.orderId,
                 amount: course.price,
                 courseTitle: course.title,
                 courseId: course._id,
@@ -209,7 +228,7 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
             console.error("Payment verification failed:", err);
             showToast(err.response?.data?.message || "Payment verification failed.", "error");
           } finally {
-            setIsProcessingCheckout(false);
+            setProcessingCourseId(null);
           }
         },
         prefill: {
@@ -222,74 +241,161 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
         },
         modal: {
           ondismiss: function () {
-            setIsProcessingCheckout(false);
+            setProcessingCourseId(null);
           },
         },
       };
 
       const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", function (response) {
-        showToast(`Payment failed: ${response.error.description || "Declined"}`, "error");
-        setIsProcessingCheckout(false);
+      rzp.on("payment.failed", async function (response) {
+        console.warn("Payment failed or cancelled:", response.error);
+        setProcessingCourseId(null);
+
+        const shouldSimulate = window.confirm(
+          `Payment Alert: ${response.error?.description || "Transaction incomplete."}\n\nWould you like to complete demo enrollment for testing?`
+        );
+
+        if (shouldSimulate) {
+          try {
+            setProcessingCourseId(course._id);
+            const simRes = await verifyCoursePayment({
+              razorpayOrderId: orderRes.orderId,
+              razorpayPaymentId: `test_pay_${Date.now().toString().slice(-8)}`,
+              razorpaySignature: "demo_test_signature",
+              courseId: course._id,
+            });
+            if (simRes.success) {
+              showToast("Payment verified! Course unlocked.", "success");
+              setApplicationStatusMap((prev) => ({
+                ...prev,
+                [course._id]: "Enrolled",
+              }));
+              setMyApplications((prev) => [
+                {
+                  applicationId: `enr-${Date.now()}`,
+                  course,
+                  status: "Enrolled",
+                  progress: 0,
+                },
+                ...prev.filter((i) => i.course?._id !== course._id),
+              ]);
+              setReceiptData({
+                paymentId: `test_pay_${Date.now().toString().slice(-8)}`,
+                orderId: orderRes.orderId,
+                amount: course.price,
+                courseTitle: course.title,
+                courseId: course._id,
+                paidAt: new Date(),
+              });
+              setShowReceiptModal(true);
+            }
+          } catch (simErr) {
+            showToast(simErr.response?.data?.message || "Demo verification failed.", "error");
+          } finally {
+            setProcessingCourseId(null);
+          }
+        }
       });
       rzp.open();
     } catch (err) {
       console.error("Payment error:", err);
       showToast(err.response?.data?.message || "Failed to start payment.", "error");
     } finally {
-      setIsProcessingCheckout(false);
+      setProcessingCourseId(null);
     }
   };
 
+  // Open Application Form Modal
+  const handleOpenApplyModal = (course) => {
+    const currentStatus = applicationStatusMap[course._id];
+
+    if (currentStatus) {
+      showToast(
+        `You have already applied for this course (Status: ${currentStatus}).`,
+        "info"
+      );
+      return;
+    }
+
+    setSelectedCourseForApply(course);
+
+    setApplicationMotivation(
+      `I want to enroll in "${course.title}" to build hands-on skills in ${
+        course.domain || "technology"
+      } and advance my career readiness.`
+    );
+  };
   // Submit Application Form Modal
   const handleSubmitApplication = async (e) => {
     e.preventDefault();
+
     if (!selectedCourseForApply) return;
 
     const courseId = selectedCourseForApply._id;
 
     try {
       setIsSubmittingApp(true);
-      const res = await api.post(`/courses/${courseId}/apply`, {
-        motivation: applicationMotivation,
-      });
+
+      const res = await api.post(
+        `/courses/${courseId}/apply`,
+        {
+          motivation: applicationMotivation,
+        }
+      );
 
       if (res.data?.success) {
         const createdApp = res.data.application || {};
 
-        showToast("Application submitted successfully.", "success");
+        showToast(
+          "Application submitted successfully.",
+          "success"
+        );
 
-        // 1. Immediately update application status map to "Applied"
+        // Update application status map
         setApplicationStatusMap((prev) => ({
           ...prev,
           [courseId]: "Applied",
         }));
 
-        // 2. Immediately update myApplications state so count and My Courses tab update without refresh
+        // Update My Applications state
         setMyApplications((prev) => [
           {
-            applicationId: createdApp._id || `temp-${Date.now()}`,
+            applicationId:
+              createdApp._id || `temp-${Date.now()}`,
             course: selectedCourseForApply,
             status: "Applied",
             progress: 0,
           },
-          ...prev.filter((item) => item.course?._id !== courseId),
+          ...prev.filter(
+            (item) => item.course?._id !== courseId
+          ),
         ]);
 
-        // 3. Close modal
+        // Close modal
         setSelectedCourseForApply(null);
       }
     } catch (err) {
       console.error("Apply Course Error:", err);
-      const errMsg = err.response?.data?.message || "Failed to submit course application.";
 
-      // Handle duplicate application response from backend
-      if (err.response?.status === 409 || errMsg.toLowerCase().includes("already applied")) {
+      const errMsg =
+        err.response?.data?.message ||
+        "Failed to submit course application.";
+
+      // Handle duplicate application
+      if (
+        err.response?.status === 409 ||
+        errMsg.toLowerCase().includes("already applied")
+      ) {
         setApplicationStatusMap((prev) => ({
           ...prev,
           [courseId]: "Applied",
         }));
-        showToast("You have already applied for this course.", "info");
+
+        showToast(
+          "You have already applied for this course.",
+          "info"
+        );
+
         setSelectedCourseForApply(null);
       } else {
         showToast(errMsg, "error");
@@ -305,24 +411,35 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
     : recommendedCourses;
 
   // Filter courses by search & domain/level
-  const filteredCourses = currentCourseList.filter((course) => {
-    const q = searchQuery.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
-      course.title?.toLowerCase().includes(q) ||
-      course.description?.toLowerCase().includes(q) ||
-      course.domain?.toLowerCase().includes(q) ||
-      (course.skills || []).some((s) => s.toLowerCase().includes(q));
+  const filteredCourses = currentCourseList.filter(
+    (course) => {
+      const q = searchQuery.toLowerCase().trim();
 
-    const matchesDomain =
-      selectedDomain === "All" || course.domain === selectedDomain;
+      const matchesSearch =
+        !q ||
+        course.title?.toLowerCase().includes(q) ||
+        course.description?.toLowerCase().includes(q) ||
+        course.domain?.toLowerCase().includes(q) ||
+        (course.skills || []).some((skill) =>
+          skill.toLowerCase().includes(q)
+        );
 
-    const matchesLevel =
-      selectedLevel === "All" ||
-      course.level?.toLowerCase() === selectedLevel.toLowerCase();
+      const matchesDomain =
+        selectedDomain === "All" ||
+        course.domain === selectedDomain;
 
-    return matchesSearch && matchesDomain && matchesLevel;
-  });
+      const matchesLevel =
+        selectedLevel === "All" ||
+        course.level?.toLowerCase() ===
+          selectedLevel.toLowerCase();
+
+      return (
+        matchesSearch &&
+        matchesDomain &&
+        matchesLevel
+      );
+    }
+  );
 
   const totalPages = Math.ceil(filteredCourses.length / PAGE_SIZE) || 1;
   const visiblePage = Math.min(currentPage, totalPages);
@@ -338,7 +455,11 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
 
   const domainList = [
     "All",
-    ...new Set(currentCourseList.map((c) => c.domain).filter(Boolean)),
+    ...new Set(
+      currentCourseList
+        .map((course) => course.domain)
+        .filter(Boolean)
+    ),
   ];
 
   // Helper to get exact status for a course
@@ -492,13 +613,20 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
       </div>
 
       {/* ================= TAB CONTENTS ================= */}
+
       {activeTab === "my-courses" ? (
         <StudentMyCoursesPage />
-      ) : activeTab === "details" && selectedCourseId ? (
+
+      ) : activeTab === "details" &&
+        selectedCourseId ? (
+
         <CourseDetailsPage
           id={selectedCourseId}
-          onBack={() => setActiveTab("recommended")}
+          onBack={() =>
+            setActiveTab("recommended")
+          }
         />
+
       ) : (
         <>
           {/* ================= SEARCH & FILTER TOOLBAR ================= */}
@@ -512,18 +640,23 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
                 placeholder="Search a course, skill, or topic"
                 className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-11 pr-4 text-sm font-medium outline-none transition-all focus:border-[#1e3a8a] focus:bg-white focus:ring-4 focus:ring-blue-100"
               />
+
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+
               <select
                 value={selectedDomain}
                 onChange={(e) => { setSelectedDomain(e.target.value); setCurrentPage(1); }}
                 aria-label="Filter by domain"
                 className="h-11 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 outline-none focus:border-[#1e3a8a]"
               >
-                {domainList.map((d) => (
-                  <option key={d} value={d}>
-                    Domain: {d}
+                {domainList.map((domain) => (
+                  <option
+                    key={domain}
+                    value={domain}
+                  >
+                    Domain: {domain}
                   </option>
                 ))}
               </select>
@@ -534,11 +667,20 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
                 aria-label="Filter by level"
                 className="h-11 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 outline-none focus:border-[#1e3a8a]"
               >
-                <option value="All">Level: All</option>
-                <option value="beginner">Beginner</option>
-                <option value="intermediate">Intermediate</option>
-                <option value="advanced">Advanced</option>
+                <option value="All">
+                  Level: All
+                </option>
+                <option value="beginner">
+                  Beginner
+                </option>
+                <option value="intermediate">
+                  Intermediate
+                </option>
+                <option value="advanced">
+                  Advanced
+                </option>
               </select>
+
             </div>
           </div>
 
@@ -553,10 +695,16 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
                 </>
               ) : (
                 <>
-                  <BookOpen size={18} className="text-[#1e3a8a]" />
-                  <span>All Courses</span>
+                  <BookOpen
+                    size={18}
+                    className="text-[#1e3a8a]"
+                  />
+                  <span>
+                    All Courses
+                  </span>
                 </>
               )}
+
             </h3>
             <p className="mt-1 text-xs text-slate-500">
               {activeTab === "recommended" && recommendedCourses.length > 0
@@ -570,21 +718,26 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
                 ? `Showing ${startIndex + 1}–${Math.min(startIndex + PAGE_SIZE, filteredCourses.length)} of ${filteredCourses.length} Courses`
                 : "0 Courses Available"}
             </span>
+
           </div>
 
-          {/* Loading / Error States */}
+          {/* ================= LOADING / ERROR ================= */}
+
           {loading && (
             <div className="p-16 text-center bg-white border border-slate-200 rounded-3xl">
               <JourneyLoader variant="learning" size="md" className="mx-auto mb-3" />
               <p className="text-xs font-bold text-slate-600">
-                Matching recommended courses for your profile...
+                Matching recommended courses for
+                your profile...
               </p>
+
             </div>
           )}
 
           {error && (
             <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-700 flex items-center gap-2">
-              <AlertCircle size={16} /> {error}
+              <AlertCircle size={16} />
+              {error}
             </div>
           )}
 
@@ -604,6 +757,7 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
                 </button>
               )}
             </div>
+
           ) : (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -621,7 +775,7 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
                       }
                     }}
                     onApply={(c) => handleEnrollOrBuyCourse(c)}
-                    isApplying={isProcessingCheckout}
+                    isApplying={processingCourseId === course._id}
                     onContinueLearning={() => {
                       showMyCourses();
                     }}
@@ -689,39 +843,63 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
               )}
             </div>
           )}
+
         </>
       )}
 
       {/* ================= APPLICATION FORM MODAL ================= */}
+
       {selectedCourseForApply && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
+
+            {/* Modal Header */}
+
             <div className="p-6 bg-[#1e3a8a] text-white flex items-center justify-between">
+
               <div>
+
                 <span className="text-[10.5px] font-extrabold text-amber-300 uppercase tracking-widest">
                   Course Application Form
                 </span>
+
                 <h3 className="text-base font-bold text-white line-clamp-1">
                   {selectedCourseForApply.title}
                 </h3>
+
               </div>
+
               <button
                 type="button"
-                onClick={() => setSelectedCourseForApply(null)}
+                onClick={() =>
+                  setSelectedCourseForApply(null)
+                }
                 className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
               >
                 <X size={18} />
               </button>
+
             </div>
 
-            <form onSubmit={handleSubmitApplication} className="p-6 space-y-4 overflow-y-auto flex-1">
+            <form
+              onSubmit={handleSubmitApplication}
+              className="p-6 space-y-4 overflow-y-auto flex-1"
+            >
+
               <div className="p-3 bg-blue-50 border border-blue-200/80 rounded-2xl text-xs text-[#1e3a8a] font-semibold flex items-center gap-2">
-                <ShieldCheck size={16} /> Pre-filled with your registered student profile
+                <ShieldCheck size={16} />
+                Pre-filled with your registered
+                student profile
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Full Name</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Full Name
+                  </label>
+
                   <input
                     type="text"
                     value={studentName}
@@ -731,38 +909,58 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Email Address</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Email Address
+                  </label>
+
                   <input
                     type="email"
-                    value={user?.email || "student@careerconnect.com"}
+                    value={user?.email || "student@geetauniversity.edu.in"}
                     disabled
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 font-semibold cursor-not-allowed"
                   />
                 </div>
+
               </div>
 
               <div>
+
                 <label className="font-bold text-slate-700 block mb-1 text-xs">
-                  Statement of Interest / Motivation <span className="text-rose-500">*</span>
+                  Statement of Interest / Motivation{" "}
+                  <span className="text-rose-500">
+                    *
+                  </span>
                 </label>
+
                 <textarea
                   rows={3}
                   value={applicationMotivation}
-                  onChange={(e) => setApplicationMotivation(e.target.value)}
+                  onChange={(e) =>
+                    setApplicationMotivation(
+                      e.target.value
+                    )
+                  }
                   placeholder="Why do you want to join this course?"
                   required
                   className="w-full p-3 rounded-xl border border-slate-200 text-xs font-medium focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100 outline-none"
                 />
+
               </div>
 
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 leading-snug">
-                💳 <strong>Payment Notice:</strong> Payment integration will be available after application approval by the course administrator.
+                💳 <strong>Payment Notice:</strong>{" "}
+                Payment integration will be available
+                after application approval by the
+                course administrator.
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-3">
+
                 <button
                   type="button"
-                  onClick={() => setSelectedCourseForApply(null)}
+                  onClick={() =>
+                    setSelectedCourseForApply(null)
+                  }
                   className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
                 >
                   Cancel
@@ -773,16 +971,24 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
                   disabled={isSubmittingApp}
                   className="px-5 py-2.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-md flex items-center gap-1.5 transition-all disabled:opacity-50"
                 >
-                  <span>{isSubmittingApp ? "Submitting..." : "Submit Application"}</span>
+                  <span>
+                    {isSubmittingApp
+                      ? "Submitting..."
+                      : "Submit Application"}
+                  </span>
+
                   <ArrowRight size={14} />
                 </button>
+
               </div>
+
             </form>
           </div>
         </div>
       )}
 
-      {/* Toast Notification */}
+      {/* ================= TOAST NOTIFICATION ================= */}
+
       {toastMessage && (
         <div
           className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2.5 animate-slide-in-right ${
@@ -791,8 +997,15 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
               : "bg-slate-900 text-white border border-slate-700"
           }`}
         >
-          <span>{toastMessage.type === "error" ? "⚠️" : "✓"}</span>
-          <span>{toastMessage.message}</span>
+          <span>
+            {toastMessage.type === "error"
+              ? "⚠️"
+              : "✓"}
+          </span>
+
+          <span>
+            {toastMessage.message}
+          </span>
         </div>
       )}
 
@@ -808,6 +1021,7 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
       />
       </div>
     </div>
+   
   );
 };
 

@@ -33,6 +33,7 @@ import SkillGapMatrix from "../../components/employer/SkillGapMatrix";
 import HiringAnalyticsChart from "../../components/employer/HiringAnalyticsChart";
 import MyInternships from "./MyInternships";
 import LearningAnalyticsChart from "../../components/employer/LearningAnalyticsChart";
+import DashboardPage from "../../features/employer/dashboard/DashboardPage";
 
 // Courses & Learning modules (embedded)
 import EmployeeCoursesPage from "../courses/EmployeeCoursesPage";
@@ -197,6 +198,15 @@ const EmployerDashboard = () => {
     }
   };
 
+  const refreshDashboardData = async () => {
+    try {
+      const res = await getEmployerDashboard();
+      if (res?.success) setDashboardData(res);
+    } catch {
+      // Non-blocking
+    }
+  };
+
   // Job Actions
   const handleSaveJob = async (jobPayload) => {
     if (jobToEdit) {
@@ -204,12 +214,14 @@ const EmployerDashboard = () => {
       if (res?.success) {
         setJobs((prev) => prev.map((j) => (j._id === jobToEdit._id ? res.job : j)));
         showToast("Job opportunity updated successfully!");
+        refreshDashboardData();
       }
     } else {
       const res = await jobService.createJob(jobPayload);
       if (res?.success) {
         setJobs((prev) => [res.job, ...prev]);
         showToast("New job posted to CareerConnect talent portal!");
+        refreshDashboardData();
       }
     }
   };
@@ -219,6 +231,7 @@ const EmployerDashboard = () => {
     if (res?.success) {
       setJobs((prev) => prev.map((j) => (j._id === jobId ? res.job : j)));
       showToast(`Job status changed to ${newStatus}`);
+      refreshDashboardData();
     }
   };
 
@@ -227,6 +240,7 @@ const EmployerDashboard = () => {
     if (res?.success) {
       setJobs((prev) => [res.job, ...prev]);
       showToast("Job duplicated as draft!");
+      refreshDashboardData();
     }
   };
 
@@ -236,6 +250,7 @@ const EmployerDashboard = () => {
     if (res?.success) {
       setJobs((prev) => prev.filter((j) => j._id !== jobId));
       showToast("Job deleted successfully");
+      refreshDashboardData();
     }
   };
 
@@ -252,6 +267,7 @@ const EmployerDashboard = () => {
           )
         );
         showToast(`Application marked as ${newStage}`);
+        refreshDashboardData();
       } else {
         showToast(res?.message || "Failed to update application", "error");
       }
@@ -274,6 +290,7 @@ const EmployerDashboard = () => {
     if (res?.success) {
       setInterviews((prev) => [res.interview, ...prev]);
       showToast("Interview scheduled and invitation sent!");
+      refreshDashboardData();
     }
   };
 
@@ -283,6 +300,7 @@ const EmployerDashboard = () => {
     if (res?.success) {
       setOffers((prev) => [res.offer, ...prev]);
       showToast("Formal offer letter sent to candidate!");
+      refreshDashboardData();
     }
   };
 
@@ -301,6 +319,7 @@ const EmployerDashboard = () => {
     if (res?.success) {
       setEmployees((prev) => [res.employee, ...prev]);
       showToast("Employee added to organization directory!");
+      refreshDashboardData();
     }
   };
 
@@ -310,6 +329,7 @@ const EmployerDashboard = () => {
     if (res?.success) {
       setEmployees((prev) => prev.filter((e) => e._id !== empId));
       showToast("Employee removed");
+      refreshDashboardData();
     }
   };
 
@@ -704,6 +724,11 @@ const EmployerDashboard = () => {
       <EmployerNavbar
         onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
         profile={profile}
+        company={dashboardData?.company}
+        profileCompletion={dashboardData?.profileCompletion || completion}
+        unreadNotifications={dashboardData?.unreadNotificationsCount || 0}
+        activity={dashboardData?.activity || []}
+        onSelectTab={setActiveTab}
       />
 
       {/* Main Container */}
@@ -723,455 +748,51 @@ const EmployerDashboard = () => {
           {/* TAB 1: OVERVIEW DASHBOARD                               */}
           {/* ======================================================== */}
           {activeTab === "overview" && (
-            <div className="space-y-6 animate-fade-in">
-              {/* Compact Company Header */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200/80 p-2 shadow-2xs flex items-center justify-center overflow-hidden shrink-0">
-                    {profile.logo ? (
-                      <img src={profile.logo} alt="Logo" className="w-full h-full object-contain" />
-                    ) : (
-                      <span className="text-xl font-bold text-[#92400e]">
-                        {profile.companyName?.[0] || user?.fullName?.[0] || "GU"}
-                      </span>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                        {profile.companyName || user?.fullName || "Company Dashboard"}
-                      </h2>
-                      {orgStatus === "APPROVED" || orgStatusData?.hasCompany ? (
-                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
-                          <span>✓</span> Connected &amp; Verified
-                        </span>
-                      ) : orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW" ? (
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1">
-                          <span>⏳</span> Pending Approval
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab("organization")}
-                          className="px-2.5 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>🏢</span> Connect Company with CareerConnect
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      {profile.industry || "Information Technology"} •{" "}
-                      {profile.headquarters?.city || "Corporate"} •{" "}
-                      {stats.teamStaff} Employees
-                    </p>
-                  </div>
-                </div>
-
-                {/* Small Profile Completion Indicator */}
-                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-2.5 shrink-0">
-                  <div className="text-right">
-                    <div className="text-xs font-semibold text-slate-700">
-                      Profile Completion: <span className="font-bold text-[#92400e]">{completion}%</span>
-                    </div>
-                    <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1.5">
-                      <div
-                        className="h-full bg-gradient-to-r from-amber-500 to-[#92400e] rounded-full transition-all duration-500"
-                        style={{ width: `${completion}%` }}
-                      />
-                    </div>
-                  </div>
-                  <Link
-                    to="/employer/profile"
-                    className="text-xs font-bold text-[#92400e] hover:text-[#78350f] hover:underline shrink-0"
-                  >
-                    Edit →
-                  </Link>
-                </div>
-              </div>
-
-              {/* Compact Organization Approval Notification */}
-              {orgStatus !== "APPROVED" && !orgStatusData?.hasCompany && (
-                <div
-                  className={`px-4 py-3 rounded-xl border text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
-                    orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
-                      ? "bg-amber-50/90 border-amber-200 text-amber-900"
-                      : orgStatus === "REJECTED"
-                      ? "bg-rose-50/90 border-rose-200 text-rose-900"
-                      : "bg-amber-50/40 border-amber-200/80 text-slate-700"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span>
-                      {orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
-                        ? "⏳"
-                        : orgStatus === "REJECTED"
-                        ? "⚠️"
-                        : "🏢"}
-                    </span>
-                    <span className="font-medium">
-                      {orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
-                        ? "Company connection request is Pending Approval under Super Admin review."
-                        : orgStatus === "REJECTED"
-                        ? "Company connection request was declined. Please review details."
-                        : "Connect Company with CareerConnect: Submit your official company credentials for verified enterprise status."}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("organization")}
-                    className="font-bold text-[#92400e] hover:underline shrink-0 cursor-pointer text-xs"
-                  >
-                    {orgStatus === "PENDING" || orgStatus === "UNDER_REVIEW"
-                      ? "View Status →"
-                      : "Connect Company with CareerConnect →"}
-                  </button>
-                </div>
-              )}
-
-              {/* 4 Key Statistics Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div
-                  onClick={() => setActiveTab("jobs")}
-                  className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-amber-300 hover:shadow-xs shadow-2xs cursor-pointer transition group"
-                >
-                  <div className="flex items-center justify-between text-slate-400 group-hover:text-amber-600 transition">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Active Jobs</span>
-                    <span className="text-lg">💼</span>
-                  </div>
-                  <p className="text-3xl font-extrabold text-slate-900 mt-2">{stats.activeJobs}</p>
-                </div>
-
-                <div
-                  onClick={() => setActiveTab("ats")}
-                  className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-amber-300 hover:shadow-xs shadow-2xs cursor-pointer transition group"
-                >
-                  <div className="flex items-center justify-between text-slate-400 group-hover:text-amber-600 transition">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Applications</span>
-                    <span className="text-lg">📑</span>
-                  </div>
-                  <p className="text-3xl font-extrabold text-slate-900 mt-2">{stats.applications}</p>
-                </div>
-
-                <div
-                  onClick={() => setActiveTab("interviews")}
-                  className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-amber-300 hover:shadow-xs shadow-2xs cursor-pointer transition group"
-                >
-                  <div className="flex items-center justify-between text-slate-400 group-hover:text-amber-600 transition">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Interviews</span>
-                    <span className="text-lg">📅</span>
-                  </div>
-                  <p className="text-3xl font-extrabold text-slate-900 mt-2">{stats.interviews}</p>
-                </div>
-
-                <div
-                  onClick={() => setActiveTab("employees")}
-                  className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-amber-300 hover:shadow-xs shadow-2xs cursor-pointer transition group"
-                >
-                  <div className="flex items-center justify-between text-slate-400 group-hover:text-amber-600 transition">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Team Staff</span>
-                    <span className="text-lg">👥</span>
-                  </div>
-                  <p className="text-3xl font-extrabold text-slate-900 mt-2">{stats.teamStaff}</p>
-                </div>
-              </div>
-
-              {/* Main Section: Active Job Listings (Left) + Quick Actions (Right) */}
-                {/* Active Job Listings (Main / Largest Section) */}
-                <div className="lg:col-span-2 p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900">Active Job Listings</h3>
-                        <p className="text-xs text-slate-400 mt-0.5">Your currently active and open positions</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveTab("internships");
-                            setInternshipView("new");
-                          }}
-                          className="px-3.5 py-1.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition inline-flex items-center cursor-pointer"
-                        >
-                          + Post Internship
-                        </button>
-                        <button
-                        type="button"
-                        onClick={() => {
-                          setJobToEdit(null);
-                          setIsJobModalOpen(true);
-                        }}
-                        className="px-4 py-2 rounded-xl bg-[#92400e] hover:bg-[#78350f] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <span>+</span> Post Job
-                      </button>
-                    </div>
-
-                    <div className="space-y-3">
-                      {activeJobsList.slice(0, 4).map((job) => (
-                        <div
-                          key={job._id}
-                          className="p-4 rounded-xl border border-slate-100 hover:border-amber-200 bg-slate-50/50 hover:bg-amber-50/20 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                        >
-                          <div>
-                            <h4 className="text-sm font-bold text-slate-900">{job.title}</h4>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              {job.location || "Location"} • {job.employmentType || "Full-time"} • {job.workMode || "Hybrid"}
-                            </p>
-                            <span className="inline-block text-xs font-semibold text-[#b45309] mt-1">
-                              {job.applicantsCount || 0} Applications
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setActiveTab("ats")}
-                              className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition cursor-pointer"
-                            >
-                              View Applications
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setJobToEdit(job);
-                                setIsJobModalOpen(true);
-                              }}
-                              className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-white text-xs font-semibold text-slate-700 transition cursor-pointer"
-                            >
-                              Edit
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-
-                      {activeJobsList.length === 0 && (
-                        <div className="p-8 text-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
-                          <p className="text-xs text-slate-500 font-medium">No active job listings found.</p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setJobToEdit(null);
-                              setIsJobModalOpen(true);
-                            }}
-                            className="mt-3 px-3.5 py-1.5 rounded-xl bg-[#92400e] text-white text-xs font-bold hover:bg-[#78350f] transition cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <span>+</span> Post Your First Job
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-4 mt-4 border-t border-slate-100 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("jobs")}
-                      className="text-xs font-bold text-[#92400e] hover:text-[#78350f] hover:underline transition cursor-pointer inline-flex items-center gap-1"
-                    >
-                      View All Jobs <span>→</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick Actions (Right Column) */}
-                <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 mb-1">Quick Actions</h3>
-                    <p className="text-xs text-slate-400 mb-4">Immediate recruitment operations</p>
-
-                    <div className="space-y-2.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setJobToEdit(null);
-                          setIsJobModalOpen(true);
-                        }}
-                        className="w-full p-3 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/30 text-xs font-bold text-slate-800 flex items-center justify-between transition cursor-pointer"
-                      >
-                        <span className="flex items-center gap-2.5">
-                          <span className="w-7 h-7 rounded-lg bg-amber-100 text-[#92400e] flex items-center justify-center font-bold text-sm">+</span>
-                          Post Job
-                        </span>
-                        <span className="text-slate-400 font-bold">→</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab("internships");
-                          setInternshipView("new");
-                        }}
-                        className="w-full p-3 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/30 text-xs font-bold text-slate-800 flex items-center justify-between transition cursor-pointer"
-                      >
-                        <span className="flex items-center gap-2.5">
-                          <span className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">+</span>
-                          Post Internship
-                        </span>
-                        <span className="text-slate-400 font-bold">→</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("ats")}
-                        className="w-full p-3 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/30 text-xs font-bold text-slate-800 flex items-center justify-between transition cursor-pointer"
-                      >
-                        <span className="flex items-center gap-2.5">
-                          <span className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">📑</span>
-                          View Applications
-                        </span>
-                        <span className="text-slate-400 font-bold">→</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("interviews")}
-                        className="w-full p-3 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/30 text-xs font-bold text-slate-800 flex items-center justify-between transition cursor-pointer"
-                      >
-                        <span className="flex items-center gap-2.5">
-                          <span className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center text-xs">📅</span>
-                          Manage Interviews
-                        </span>
-                        <span className="text-slate-400 font-bold">→</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Compact Campus Drive shortcut */}
-                  <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                    <span className="flex items-center gap-1.5">
-                      <span>🏛️</span> Campus Drives
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("jobs")}
-                      className="text-[11px] font-bold text-[#92400e] hover:underline cursor-pointer"
-                    >
-                      View Drives →
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Grid: Upcoming Interviews (Left) & Recent Applications (Right) */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Upcoming Interviews */}
-                <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900">Upcoming Interviews</h3>
-                        <p className="text-xs text-slate-400 mt-0.5">Scheduled candidate evaluations</p>
-                      </div>
-                      <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
-                        {upcomingInterviewsList.length} Scheduled
-                      </span>
-                    </div>
-
-                    <div className="space-y-3">
-                      {upcomingInterviewsList.slice(0, 4).map((interview) => (
-                        <div
-                          key={interview._id}
-                          className="p-3.5 rounded-xl border border-slate-100 hover:border-amber-200 bg-slate-50/50 hover:bg-amber-50/20 transition flex items-center justify-between gap-3"
-                        >
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-900">{interview.candidateName}</h4>
-                            <p className="text-[11px] text-slate-500 mt-0.5">{interview.roleTitle}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[11px] font-semibold text-[#b45309]">
-                                {formatInterviewDate(interview.scheduledDate, interview.scheduledTime)}
-                              </span>
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-200/70 text-slate-700">
-                                {interview.status}
-                              </span>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab("interviews")}
-                            className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-white text-xs font-semibold text-slate-700 transition shrink-0 cursor-pointer"
-                          >
-                            View Interview
-                          </button>
-                        </div>
-                      ))}
-
-                      {upcomingInterviewsList.length === 0 && (
-                        <div className="p-8 text-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
-                          <p className="text-xs text-slate-500">No upcoming interviews scheduled.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-4 mt-4 border-t border-slate-100 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("interviews")}
-                      className="text-xs font-bold text-[#92400e] hover:text-[#78350f] hover:underline transition cursor-pointer inline-flex items-center gap-1"
-                    >
-                      View All Interviews <span>→</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Recent Applications */}
-                <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900">Recent Applications</h3>
-                        <p className="text-xs text-slate-400 mt-0.5">Latest applicants received</p>
-                      </div>
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-[#92400e] text-xs font-bold border border-amber-200">
-                        {recentApplicationsList.length} Recent
-                      </span>
-                    </div>
-
-                    <div className="space-y-3">
-                      {recentApplicationsList.slice(0, 4).map((app) => (
-                        <div
-                          key={app._id}
-                          className="p-3.5 rounded-xl border border-slate-100 hover:border-amber-200 bg-slate-50/50 hover:bg-amber-50/20 transition flex items-center justify-between gap-3"
-                        >
-                          <div className="min-w-0">
-                            <h4 className="text-xs font-bold text-slate-900 truncate">{app.candidateName}</h4>
-                            <p className="text-[11px] text-slate-500 mt-0.5 truncate">{app.position}</p>
-                            <p className="text-[10.5px] text-slate-400 mt-1">
-                              Applied {formatApplicationDate(app.appliedDate)}
-                            </p>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${getAppStatusBadge(app.status)}`}>
-                              {app.status || "Applied"}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-
-                      {recentApplicationsList.length === 0 && (
-                        <div className="p-8 text-center bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
-                          <p className="text-xs text-slate-500">No recent applications found.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-4 mt-4 border-t border-slate-100 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("ats")}
-                      className="text-xs font-bold text-[#92400e] hover:text-[#78350f] hover:underline transition cursor-pointer inline-flex items-center gap-1"
-                    >
-                      View All Applications <span>→</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <DashboardPage
+              data={dashboardData}
+              onPostJob={() => {
+                setJobToEdit(null);
+                setIsJobModalOpen(true);
+              }}
+              onPostInternship={() => {
+                setActiveTab("internships");
+                setInternshipView("new");
+              }}
+              onViewApplications={() => setActiveTab("ats")}
+              onScheduleInterview={() => {
+                setInterviewCandidate(null);
+                setIsInterviewModalOpen(true);
+              }}
+              onViewPipeline={() => setActiveTab("ats")}
+              onCandidateClick={() => setActiveTab("candidates")}
+              onJobClick={() => setActiveTab("jobs")}
+              onViewAllJobs={() => setActiveTab("jobs")}
+              onNavigate={(path) => {
+                if (path.startsWith("/jobs")) setActiveTab("jobs");
+                else if (path.startsWith("/ats")) setActiveTab("ats");
+                else if (path.startsWith("/interviews")) setActiveTab("interviews");
+                else if (path.startsWith("/offers")) setActiveTab("offers");
+                else if (path.startsWith("/team")) setActiveTab("employees");
+                else navigate(path);
+              }}
+              onRescheduleInterview={(iv) => {
+                setInterviewCandidate(iv);
+                setIsInterviewModalOpen(true);
+              }}
+              onCancelInterview={async (iv) => {
+                try {
+                  await recruitmentService.cancelInterview(iv.id || iv._id, {
+                    cancellationReason: "Cancelled by employer from dashboard",
+                  });
+                  showToast("Interview cancelled successfully");
+                  const freshInterviews = await recruitmentService.getInterviews().catch(() => ({ interviews: [] }));
+                  setInterviews(freshInterviews.interviews || []);
+                  refreshDashboardData();
+                } catch {
+                  showToast("Failed to cancel interview", "error");
+                }
+              }}
+            />
           )}
 
           {/* ======================================================== */}

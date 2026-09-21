@@ -41,6 +41,17 @@ const courseApplicationSchema = new mongoose.Schema(
       default: "Applied",
       index: true,
     },
+
+    // ==========================================
+    // COURSE PROGRESS
+    // ==========================================
+
+    progress: {
+      type: Number,
+      min: [0, "Progress cannot be less than 0"],
+      max: [100, "Progress cannot be greater than 100"],
+      default: 0,
+    },
   },
   {
     timestamps: true,

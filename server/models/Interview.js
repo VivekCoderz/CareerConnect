@@ -82,6 +82,11 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       required: [true, "Interview date is required"],
     },
+    scheduledAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     startTime: {
       type: String,
       default: "",
@@ -139,16 +144,20 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       enum: [
         "scheduled",
+        "confirmed",
         "ongoing",
         "completed",
         "rescheduled",
         "cancelled",
+        "missed",
         "no_show",
         "draft",
         "Scheduled",
+        "Confirmed",
         "Ongoing",
         "Completed",
         "Cancelled",
+        "Missed",
         "Rescheduled",
         "Draft",
       ],
@@ -284,5 +293,29 @@ const interviewSchema = new mongoose.Schema(
 interviewSchema.index({ applicationId: 1, roundNumber: 1 });
 interviewSchema.index({ employerId: 1, status: 1 });
 interviewSchema.index({ candidateId: 1, status: 1 });
+interviewSchema.index({ companyId: 1, status: 1, scheduledAt: 1 });
+
+// Ensure scheduledAt is populated from scheduledDate + startTime if not explicitly provided
+interviewSchema.pre("save", function () {
+  if (!this.scheduledAt && this.scheduledDate) {
+    try {
+      const { getInterviewDateTimes } = require("../utils/interviewTimeUtils");
+      const times = getInterviewDateTimes(this);
+      if (times?.startDateTime) {
+        this.scheduledAt = times.startDateTime;
+      } else {
+        const parsed = new Date(this.scheduledDate);
+        if (!isNaN(parsed.getTime())) {
+          this.scheduledAt = parsed;
+        }
+      }
+    } catch {
+      const parsed = new Date(this.scheduledDate);
+      if (!isNaN(parsed.getTime())) {
+        this.scheduledAt = parsed;
+      }
+    }
+  }
+});
 
 module.exports = mongoose.model("Interview", interviewSchema);

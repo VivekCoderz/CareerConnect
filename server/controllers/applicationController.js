@@ -1,6 +1,7 @@
 const Application = require("../models/Application");
 const Internship = require("../models/Internship");
 const Job = require("../models/Job");
+const User = require("../models/User");
 const EmployerProfile = require("../models/EmployerProfile");
 const Interview = require("../models/Interview");
 const JobOffer = require("../models/JobOffer");
@@ -17,19 +18,21 @@ const getEmployerProfile = async (userId) => {
 const getEmployerOwnershipOrClauses = async (userId) => {
   const profile = await getEmployerProfile(userId);
   const profileId = profile ? profile._id : null;
+  const user = await User.findById(userId).select("companyId").lean();
+  const companyId = user?.companyId || null;
+
+  const jobOwnerConditions = [
+    { createdBy: userId },
+    ...(profileId ? [{ employerId: profileId }] : []),
+    ...(companyId ? [{ companyId }] : []),
+  ];
 
   const allEmployerJobs = await Job.find({
-    $or: [
-      { createdBy: userId },
-      ...(profileId ? [{ employerId: profileId }] : []),
-    ],
+    $or: jobOwnerConditions,
   }, "_id");
 
   const allEmployerInternships = await Internship.find({
-    $or: [
-      { createdBy: userId },
-      ...(profileId ? [{ employerId: profileId }] : []),
-    ],
+    $or: jobOwnerConditions,
   }, "_id");
 
   const jobIds = allEmployerJobs.map((j) => j._id);
@@ -38,6 +41,7 @@ const getEmployerOwnershipOrClauses = async (userId) => {
   const orClauses = [];
   if (profileId) orClauses.push({ employerId: profileId });
   orClauses.push({ employerId: userId });
+  if (companyId) orClauses.push({ companyId });
   if (jobIds.length > 0) orClauses.push({ jobId: { $in: jobIds } });
   if (internshipIds.length > 0) orClauses.push({ internshipId: { $in: internshipIds } });
 
