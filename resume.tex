@@ -1,0 +1,161 @@
+%-------------------------
+% Resume in LaTeX
+% ATS-friendly, clean and modern format
+% Compatible with Overleaf, TeX Live, MiKTeX
+%-------------------------
+
+\documentclass[letterpaper,10.8pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+    \textbf{\Huge \scshape Shivam Kumar} \\ \vspace{4pt}
+    \small +91 9876543210 $|$ 
+    \href{mailto:shivam@example.com}{\underline{shivam@example.com}} $|$ 
+    \href{https://linkedin.com/in/username}{\underline{linkedin.com/in/username}} $|$
+    \href{https://github.com/username}{\underline{github.com/username}} $|$
+    \href{https://yourportfolio.com}{\underline{portfolio.com}}
+\end{center}
+
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {ABC Institute of Engineering \& Technology}{City, State}
+      {Bachelor of Technology in Computer Science \& Engineering (CGPA: 8.5/10.0)}{Aug 2021 -- Jun 2025}
+    \resumeSubheading
+      {Senior Secondary High School}{City, State}
+      {CBSE Board -- Class XII (Percentage: 88\%)}{Apr 2020 -- Mar 2021}
+  \resumeSubHeadingListEnd
+
+
+%-----------TECHNICAL SKILLS-----------
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Languages}{: C++, Java, Python, JavaScript, TypeScript, SQL} \\
+     \textbf{Frontend}{: React.js, Next.js, Redux Toolkit, Tailwind CSS, HTML5, CSS3} \\
+     \textbf{Backend \& Databases}{: Node.js, Express.js, MongoDB, PostgreSQL, REST APIs} \\
+     \textbf{Developer Tools}{: Git, GitHub, Docker, Postman, VS Code, Overleaf} \\
+     \textbf{Core Concepts}{: Data Structures \& Algorithms, Object-Oriented Programming, DBMS, Computer Networks}
+    }}
+ \end{itemize}
+
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+
+    \resumeSubheading
+      {Full Stack Web Developer Intern}{Jun 2024 -- Aug 2024}
+      {Tech Solutions Pvt. Ltd.}{Remote / Noida, India}
+      \resumeItemListStart
+        \resumeItem{Developed responsive UI components using React.js and Tailwind CSS, improving user engagement by 25\%.}
+        \resumeItem{Engineered robust RESTful APIs with Node.js and Express to handle user authentication and session management.}
+        \resumeItem{Optimized MongoDB aggregation pipelines, reducing database response time by 30\% across 10k+ queries.}
+        \resumeItem{Collaborated with senior engineers using Git version control and participated in daily agile standups.}
+      \resumeItemListEnd
+
+  \resumeSubHeadingListEnd
+
+
+%-----------PROJECTS-----------
+\section{Projects}
+    \resumeSubHeadingListStart
+      \resumeSubheading
+        {CareerConnect -- Career \& Resume Platform $|$ \emph{React, Node.js, Express, MongoDB}}{Jan 2025 -- Present}
+        {\href{https://github.com/VivekCoderz/CareerConnect}{\underline{GitHub Link}}}{}
+        \resumeItemListStart
+          \resumeItem{Built a personalized career recommendation web application connecting students with jobs, internships, and courses.}
+          \resumeItem{Integrated an automated ATS Resume Analyzer and Builder allowing users to track skill gaps and optimize applications.}
+          \resumeItem{Implemented role-based access control (Student/Visitor), secure JWT authentication, and interactive dashboards.}
+        \resumeItemListEnd
+
+      \resumeSubheading
+        {AI Chat Assistant $|$ \emph{Python, FastAPI, LangChain, React, Vector DB}}{Oct 2024 -- Nov 2024}
+        {\href{https://github.com/username/project2}{\underline{GitHub Link}}}{}
+        \resumeItemListStart
+          \resumeItem{Engineered a context-aware RAG (Retrieval-Augmented Generation) chatbot for enterprise documentation queries.}
+          \resumeItem{Utilized vector embeddings with Pinecone and LLM APIs to deliver accurate responses with sub-second latency.}
+          \resumeItem{Designed clean chat UI featuring Markdown rendering, code highlighting, and streaming responses.}
+        \resumeItemListEnd
+    \resumeSubHeadingListEnd
+
+
+%-----------ACHIEVEMENTS & CERTIFICATIONS-----------
+\section{Achievements \& Certifications}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Coding Profiles}{: Solved 500+ problems on LeetCode / GeeksforGeeks (Max Rating: 1700+)} \\
+     \textbf{Certifications}{: Meta Certified Front-End Developer (Coursera), AWS Cloud Practitioner Essentials} \\
+     \textbf{Competitions}{: Ranked in Top 50 among 1,500+ teams in Smart India Hackathon internal college round}
+    }}
+ \end{itemize}
+
+%-------------------------------------------
+\end{document}

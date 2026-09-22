@@ -2,6 +2,7 @@ import React, { useState } from "react";
 
 const ReviewActions = ({
   onFinalize,
+  onExportLatex,
   onAskAI,
   onEditManually,
   onBuildNew,
@@ -159,6 +160,18 @@ const ReviewActions = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {onExportLatex && (
+              <button
+                type="button"
+                onClick={onExportLatex}
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                title="Export ATS-optimized LaTeX source code (.tex) or compile with Overleaf"
+              >
+                <span className="font-mono font-black text-[11px] bg-white/20 px-1 py-0.2 rounded">TEX</span>
+                <span>Export LaTeX</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onFinalize}

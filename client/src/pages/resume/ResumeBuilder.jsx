@@ -46,6 +46,7 @@ import ManualEditor from "../../components/resume-builder/ManualEditor";
 import ParsedResumeReviewModal from "../../components/resume-builder/ParsedResumeReviewModal";
 import ATSResumeGenerator from "../../components/resume-builder/ATSResumeGenerator";
 import ATSCheckerAndFixer from "../../components/resume-builder/ATSCheckerAndFixer";
+import LatexExportModal from "../../components/resume-builder/LatexExportModal";
 
 // ─── Step indicator for AI flow ──────────────────────────────────────────────
 const FLOW_STEPS = [
@@ -198,6 +199,15 @@ const ResumeBuilder = () => {
   const [parsedResumeData, setParsedResumeData] = useState(null);
   const [existingProfileData, setExistingProfileData] = useState(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isLatexModalOpen, setIsLatexModalOpen] = useState(false);
+  const [latexModalData, setLatexModalData] = useState(null);
+  const [latexModalTitle, setLatexModalTitle] = useState("");
+
+  const handleOpenLatexExport = (data = null, title = "") => {
+    setLatexModalData(data || generatedResume || rawData);
+    setLatexModalTitle(title || resumeTitle || "resume");
+    setIsLatexModalOpen(true);
+  };
 
   const hasInitializedRef = useRef(false);
 
@@ -251,7 +261,7 @@ const ResumeBuilder = () => {
       } else if (savedResumes && savedResumes.length > 0) {
         setActiveTab("my-resumes");
       } else {
-        setActiveTab("ats");
+        setActiveTab("ats-checker");
       }
     }
   }, [profileLoading, generatedResume, savedResumes, dispatch]);
@@ -530,7 +540,26 @@ const ResumeBuilder = () => {
           {/* Sub-Navigation Tabs: Horizontal Scrollable on Mobile */}
           <div className="border-t border-slate-100 py-2 -mx-4 px-4 sm:mx-0 sm:px-0 flex items-center overflow-x-auto no-scrollbar scroll-smooth">
             <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 border border-slate-200/80 text-xs font-semibold shrink-0">
-              {/* Tab 1: Build Resume from Job Description */}
+              {/* Tab 1: ATS Score Checker & Fixer (Resume + JD -> Mistakes -> Fix -> Download/Save) */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("ats-checker")}
+                className={`px-3.5 sm:px-4 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === "ats-checker"
+                    ? "bg-white text-indigo-600 shadow-xs font-bold ring-1 ring-black/5"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                }`}
+              >
+                <span>⚡</span>
+                <span>ATS Check &amp; Fix</span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                  activeTab === "ats-checker" ? "bg-indigo-600 text-white" : "bg-indigo-100 text-indigo-700"
+                }`}>
+                  AI Fixer
+                </span>
+              </button>
+
+              {/* Tab 2: Build Resume from Job Description */}
               <button
                 type="button"
                 onClick={() => setActiveTab("ats")}
@@ -542,30 +571,6 @@ const ResumeBuilder = () => {
               >
                 <span>🎯</span>
                 <span>Build Resume for Job</span>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                  activeTab === "ats" ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700"
-                }`}>
-                  Recommended
-                </span>
-              </button>
-
-              {/* Tab: ATS Score Checker & Fixer */}
-              <button
-                type="button"
-                onClick={() => setActiveTab("ats-checker")}
-                className={`px-3 sm:px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === "ats-checker"
-                    ? "bg-white text-indigo-600 shadow-xs font-bold ring-1 ring-black/5"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-                }`}
-              >
-                <span>⚡</span>
-                <span>ATS Check & Fix</span>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                  activeTab === "ats-checker" ? "bg-indigo-600 text-white" : "bg-indigo-100 text-indigo-700"
-                }`}>
-                  AI Fixer
-                </span>
               </button>
 
               {/* Tab 2: Build Custom Resume */}
@@ -894,6 +899,7 @@ const ResumeBuilder = () => {
                     {/* Bottom Review Actions / Save Decisions */}
                     <ReviewActions
                       onFinalize={handleFinalize}
+                      onExportLatex={() => handleOpenLatexExport(generatedResume, resumeTitle)}
                       onAskAI={handleAskAI}
                       onEditManually={handleEditManually}
                       onBuildNew={handleStartNew}
@@ -1147,6 +1153,16 @@ const ResumeBuilder = () => {
                           )}
                           <button
                             type="button"
+                            onClick={() => handleOpenLatexExport(resItem.generatedData || resItem.rawData, resItem.title)}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold text-[11px] transition flex items-center gap-1 cursor-pointer"
+                            title="Export ATS-optimized LaTeX (.tex) for this resume"
+                          >
+                            <span className="font-mono font-bold text-[10px]">TEX</span>
+                            <span>LaTeX</span>
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => {
                               dispatch(loadSpecificResume(resItem));
                               setTimeout(() => handleFinalize(), 200);
@@ -1374,6 +1390,14 @@ const ResumeBuilder = () => {
           resumeName={selectedFile?.name}
           onConfirm={handleConfirmParsedData}
           title="Review Imported Resume Information"
+        />
+
+        {/* LaTeX Resume Export Modal */}
+        <LatexExportModal
+          isOpen={isLatexModalOpen}
+          onClose={() => setIsLatexModalOpen(false)}
+          resumeData={latexModalData}
+          resumeTitle={latexModalTitle}
         />
 
       </main>
