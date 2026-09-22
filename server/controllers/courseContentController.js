@@ -3,6 +3,7 @@ const Course = require("../models/Course");
 const CourseContent = require("../models/CourseContent");
 const CourseApplication = require("../models/CourseApplication");
 const CourseProgress = require("../models/CourseProgress");
+const Enrollment = require("../models/Enrollment");
 const { cloudinary } = require("../config/cloudinary");
 const fs = require("fs");
 
@@ -525,17 +526,6 @@ const getStudentCourseContent = async (req, res) => {
       });
     }
 
-    // ------------------------------------------
-    // Only students can access course content
-    // ------------------------------------------
-
-    if (user.role !== "user" || user.userType !== "student") {
-      return res.status(403).json({
-        success: false,
-        message: "Only students can access course content",
-      });
-    }
-
     const { courseId } = req.params;
 
     // ------------------------------------------
@@ -552,7 +542,7 @@ const getStudentCourseContent = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Check student's course application
+    // Check student's course application / enrollment
     // ------------------------------------------
 
     const application = await CourseApplication.findOne({
@@ -560,22 +550,27 @@ const getStudentCourseContent = async (req, res) => {
       course: courseId,
     });
 
-    if (!application) {
+    const enrollment = await Enrollment.findOne({
+      userId: user._id,
+      courseId: courseId,
+    });
+
+    const isEnrolled =
+      (application && (application.status === "Enrolled" || application.status === "Completed")) ||
+      (enrollment && (enrollment.status === "Enrolled" || enrollment.status === "In Progress" || enrollment.status === "Completed"));
+
+    const isOwner =
+      course.createdBy?.toString() === user._id.toString() ||
+      user.role === "admin" ||
+      user.role === "SUPER_ADMIN";
+
+    // Only enrolled learners or course owners/admins can access protected content
+    if (!isEnrolled && !isOwner) {
       return res.status(403).json({
         success: false,
-        message: "You have not applied for this course",
-      });
-    }
-
-    // ------------------------------------------
-    // Only enrolled or completed students can access content
-    // ------------------------------------------
-
-    if (application.status !== "Enrolled" && application.status !== "Completed") {
-      return res.status(403).json({
-        success: false,
-        message: "You must be enrolled in this course to access its content",
-        status: application.status,
+        code: "ENROLLMENT_REQUIRED",
+        message: "You must be enrolled in this course to access its learning content",
+        status: application ? application.status : enrollment ? enrollment.status : "Not Enrolled",
       });
     }
 

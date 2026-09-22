@@ -654,9 +654,21 @@ const getCourseDetails = async (req, res) => {
       });
     }
 
+    // Fetch public curriculum outline (WITHOUT sensitive video/PDF URLs or private raw notes)
+    const publicCurriculum = await CourseContent.find({
+      course: course._id,
+    })
+      .select("_id type title description duration section order createdAt")
+      .sort({ order: 1, createdAt: 1 })
+      .lean();
+
+    const courseObj = course.toObject();
+    courseObj.curriculum = publicCurriculum;
+
     return res.status(200).json({
       success: true,
-      course,
+      course: courseObj,
+      curriculum: publicCurriculum,
     });
   } catch (error) {
     console.error("Get Course Details Error:", error);

@@ -11,7 +11,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("careerconnect_token");
-    if (token && !config.headers.Authorization) {
+    if (token && token !== "null" && token !== "undefined" && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;

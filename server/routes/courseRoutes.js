@@ -19,6 +19,7 @@ const {
 } = require("../controllers/courseController");
 
 const protect = require("../middleware/authMiddleware");
+const { optionalAuth } = require("../middleware/authMiddleware");
 const { getCourseCatalog } = require("../controllers/employerLearningController");
 
 const router = express.Router();
@@ -74,7 +75,7 @@ router.post("/:id/apply", protect, applyCourse);
 router.post("/:id/enroll", protect, enrollFreeCourse);
 
 // Get course details using id
-router.get("/:id", protect, getCourseDetails);
+router.get("/:id", optionalAuth, getCourseDetails);
 
 
 

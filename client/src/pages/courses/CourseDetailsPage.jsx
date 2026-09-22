@@ -26,6 +26,8 @@ import {
   ArrowRight,
   ShieldCheck,
   X,
+  CreditCard,
+  User,
 } from "lucide-react";
 import api from "../../api/api";
 import ApplicationList from "../../components/courses/ApplicationList";
@@ -78,42 +80,94 @@ const CourseDetailsPage = ({
       setLoading(true);
       setError(null);
 
-      // Fetch course info
+      // 1. Fetch public course details via /courses/:id
+      let fetchedCourse = null;
+
       if (isEmployer) {
-        const myRes = await api.get("/courses/my-courses").catch(() => null);
-        if (myRes?.data?.success && myRes.data.courses) {
-          const found = myRes.data.courses.find((c) => c._id === courseId);
-          if (found) setCourse(found);
-        }
+        try {
+          const myRes = await api.get("/courses/my-courses");
+          if (myRes?.data?.success && myRes.data.courses) {
+            fetchedCourse = myRes.data.courses.find((c) => c._id === courseId) || null;
+          }
+        } catch (_) {}
       }
 
-      if (!course) {
-        const detailRes = await api.get(`/courses/${courseId}`).catch(() => null);
-        if (detailRes?.data?.success) {
-          setCourse(detailRes.data.course);
-        }
-      }
-
-      // Check student's application status for this course
-      if (!isEmployer) {
-        const myCoursesRes = await api.get("/student/courses").catch(() => null);
-        if (myCoursesRes?.data?.courses) {
-          const foundApp = myCoursesRes.data.courses.find(
-            (item) => item.course?._id === courseId
-          );
-          if (foundApp) {
-            setStudentApplication(foundApp);
+      if (!fetchedCourse) {
+        try {
+          const detailRes = await api.get(`/courses/${courseId}`);
+          if (detailRes?.data?.success && detailRes.data.course) {
+            fetchedCourse = detailRes.data.course;
+          }
+        } catch (detailErr) {
+          if (detailErr.response?.status === 404) {
+            setError("Course not found or is no longer available.");
+            setLoading(false);
+            return;
           }
         }
       }
 
-      // Fetch course content list
-      const contentRes = await api.get(`/course-content/${courseId}`).catch(() => null);
-      if (contentRes?.data?.success) {
-        setContentList(contentRes.data.content || []);
-        if (contentRes.data.course && !course) {
-          setCourse(contentRes.data.course);
+      if (!fetchedCourse) {
+        setError("Course not found or is no longer available.");
+        setLoading(false);
+        return;
+      }
+
+      setCourse(fetchedCourse);
+
+      // 2. Check student's application / enrollment status for this course
+      let userIsEnrolled = false;
+      if (!isEmployer && user) {
+        try {
+          const myCoursesRes = await api.get("/student/courses");
+          if (myCoursesRes?.data?.courses) {
+            const foundApp = myCoursesRes.data.courses.find(
+              (item) => item.course?._id === courseId || item.course === courseId
+            );
+            if (foundApp) {
+              setStudentApplication(foundApp);
+              if (
+                foundApp.status === "Enrolled" ||
+                foundApp.status === "In Progress" ||
+                foundApp.status === "Completed"
+              ) {
+                userIsEnrolled = true;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fetch syllabus content based on user role & enrollment:
+      // - Employer owner: can call /course-content/:courseId
+      // - Enrolled student: can call /student/courses/:courseId/content
+      // - Non-enrolled student / visitor: use public curriculum outline from course details (safe, locked)
+      if (isEmployer) {
+        try {
+          const contentRes = await api.get(`/course-content/${courseId}`);
+          if (contentRes?.data?.success) {
+            setContentList(contentRes.data.content || []);
+          } else {
+            setContentList(fetchedCourse.curriculum || []);
+          }
+        } catch (_) {
+          setContentList(fetchedCourse.curriculum || []);
         }
+      } else if (userIsEnrolled) {
+        try {
+          const studentContentRes = await api.get(`/student/courses/${courseId}/content`);
+          if (studentContentRes?.data?.success) {
+            setContentList(studentContentRes.data.content || []);
+          } else {
+            setContentList(fetchedCourse.curriculum || []);
+          }
+        } catch (_) {
+          // Graceful fallback to public syllabus outline on 403 or network error
+          setContentList(fetchedCourse.curriculum || []);
+        }
+      } else {
+        // NON-ENROLLED: Use public curriculum outline (no video/PDF URLs exposed)
+        setContentList(fetchedCourse.curriculum || []);
       }
     } catch (err) {
       console.error("Fetch Course Details Error:", err);
@@ -405,6 +459,21 @@ const CourseDetailsPage = ({
                 </span>
               </div>
 
+              {/* Instructor info if available */}
+              {course.createdBy && (
+                <div className="flex items-center gap-2 pt-1 text-xs font-semibold text-slate-600">
+                  <User size={14} className="text-[#1e3a8a]" />
+                  <span>
+                    Instructor / Provider:{" "}
+                    <strong className="text-slate-800">
+                      {typeof course.createdBy === "object"
+                        ? course.createdBy.fullName || course.createdBy.username || "Geeta University Academy"
+                        : "Geeta University Academy"}
+                    </strong>
+                  </span>
+                </div>
+              )}
+
               {/* Skills Tags */}
               {course.skills && course.skills.length > 0 && (
                 <div className="flex items-center gap-1.5 pt-2 flex-wrap">
@@ -630,24 +699,43 @@ const CourseDetailsPage = ({
         {/* Student View Syllabus */}
         {!isEmployer && (
           <div className="p-6 bg-white border border-slate-200 rounded-3xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-extrabold text-slate-900">
-                Course Syllabus & Curriculum Overview
-              </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Course Syllabus & Curriculum Overview
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {contentList.length} Lessons • {isEnrolled ? "Full learning content unlocked" : "Enroll in this course to access the learning content."}
+                </p>
+              </div>
               {!isEnrolled && (
-                <span className="text-xs text-amber-800 font-bold bg-amber-50 px-3 py-1 rounded-full border border-amber-200 flex items-center gap-1">
+                <span className="text-xs text-amber-800 font-bold bg-amber-50 px-3 py-1 rounded-full border border-amber-200 flex items-center gap-1 self-start sm:self-auto">
                   <Lock size={12} /> Content Locked Until Enrollment
                 </span>
               )}
             </div>
 
+            {!isEnrolled && (
+              <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-center gap-2.5 text-xs text-amber-900 font-medium">
+                <Lock size={16} className="text-amber-700 flex-shrink-0" />
+                <span>
+                  <strong>Preview mode:</strong> You can view the full curriculum structure. Enroll in this course to watch video lectures, download PDFs, and complete coursework.
+                </span>
+              </div>
+            )}
+
             {contentList.length === 0 ? (
-              <p className="text-xs text-slate-500">Syllabus content will be available upon enrollment.</p>
+              <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl">
+                <BookOpen size={28} className="mx-auto text-slate-400 mb-2" />
+                <p className="text-xs font-semibold text-slate-600">
+                  Syllabus content outline will be available soon.
+                </p>
+              </div>
             ) : (
               <div className="space-y-3">
                 {contentList.map((item, idx) => (
                   <ContentCard
-                    key={item._id}
+                    key={item._id || idx}
                     item={item}
                     index={idx}
                     isStudent={true}

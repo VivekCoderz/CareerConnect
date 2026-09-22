@@ -23,6 +23,7 @@ const stripHtml = (str) => {
 const sanitizeObject = (obj) => {
   if (!obj || typeof obj !== "object") return;
   for (const key of Object.keys(obj)) {
+    if (key.toLowerCase().includes("password")) continue;
     if (typeof obj[key] === "string") {
       obj[key] = stripHtml(obj[key]);
     } else if (typeof obj[key] === "object" && obj[key] !== null) {
