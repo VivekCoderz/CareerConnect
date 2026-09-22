@@ -12,7 +12,14 @@ export const getDashboardPath = (userType, user = null) => {
         userType ||
         (user?.role && user.role !== "user" ? user.role : null);
 
-  if (user?.role === "admin" || roleOrType === "admin") {
+  if (
+    user?.role === "admin" ||
+    roleOrType === "admin" ||
+    user?.role === "SUPER_ADMIN" ||
+    user?.role === "COMPANY_ADMIN" ||
+    roleOrType === "SUPER_ADMIN" ||
+    roleOrType === "COMPANY_ADMIN"
+  ) {
     return "/admin/dashboard";
   }
 

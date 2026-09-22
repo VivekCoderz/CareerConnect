@@ -214,6 +214,8 @@ const applicationSchema = new mongoose.Schema(
             "In Progress",
             "Passed",
             "Failed",
+            "Scheduled",
+            "Completed",
             "Skipped",
             "Rejected",
             "Selected",
@@ -226,6 +228,47 @@ const applicationSchema = new mongoose.Schema(
         },
         completedAt: {
           type: Date,
+          default: null,
+        },
+        scheduledDate: {
+          type: String,
+          default: "",
+        },
+        scheduledTime: {
+          type: String,
+          default: "",
+        },
+        durationMinutes: {
+          type: Number,
+          default: 45,
+        },
+        meetingMode: {
+          type: String,
+          default: "Online",
+        },
+        meetingLink: {
+          type: String,
+          default: "",
+        },
+        location: {
+          type: String,
+          default: "",
+        },
+        instructions: {
+          type: String,
+          default: "",
+        },
+        feedback: {
+          type: String,
+          default: "",
+        },
+        score: {
+          type: Number,
+          default: 0,
+        },
+        interviewId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Interview",
           default: null,
         },
         remarks: {

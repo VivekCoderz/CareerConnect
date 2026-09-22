@@ -783,13 +783,21 @@ export default function MyApplications({ embedded = false }) {
                     </div>
 
                     <div className="mt-6 md:mt-0 md:ml-6 flex items-center gap-3 flex-wrap">
+                      <Link
+                        to={`/student/applications/${app._id}`}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-xs font-bold rounded-xl text-white transition-colors shadow-sm flex items-center gap-1.5"
+                      >
+                        <span>📍</span>
+                        <span>Track Application ➔</span>
+                      </Link>
+
                       <button
                         type="button"
                         onClick={() => setViewingAppModal(app)}
                         className="px-4 py-2 border border-slate-200 text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-1.5"
                       >
                         <span>📄</span>
-                        <span>View Application</span>
+                        <span>View Details</span>
                       </button>
 
                       {app.internshipId && (

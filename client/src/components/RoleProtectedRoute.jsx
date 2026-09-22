@@ -37,8 +37,13 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  const isAdminRole =
+    user.role === "SUPER_ADMIN" ||
+    user.role === "COMPANY_ADMIN" ||
+    user.role === "admin";
+
   // 1b. Profile information not collected yet (phone empty) → redirect to onboarding
-  if (!user.phone?.trim()) {
+  if (!isAdminRole && !user.phone?.trim()) {
     if (user.role === "employer") {
       return <Navigate to="/onboarding/employer" replace />;
     }

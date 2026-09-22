@@ -3,9 +3,7 @@ const Department = require("../models/Department");
 const TrainingAssignment = require("../models/TrainingAssignment");
 const EmployerProfile = require("../models/EmployerProfile");
 const Course = require("../models/Course");
-<<<<<<< HEAD
 const TeamRole = require("../models/TeamRole");
-=======
 const mongoose = require("mongoose");
 const { escapeRegex } = require("../utils/listingSecurity");
 
@@ -17,7 +15,6 @@ const getPage = (query) => ({
   page: Math.max(1, Math.min(1000, Number.parseInt(query.page, 10) || 1)),
   limit: Math.max(1, Math.min(200, Number.parseInt(query.limit, 10) || 50)),
 });
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
 
 const getEmployerProfileId = async (user) => {
   let profile = await EmployerProfile.findOne({ userId: user._id });

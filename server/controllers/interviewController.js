@@ -153,10 +153,9 @@ exports.getInterviews = async (req, res, next) => {
         const obj = item.toObject();
         if (obj.status !== "completed" && obj.status !== "Completed") {
           delete obj.scorecard;
-<<<<<<< HEAD
           delete obj.feedback;
           delete obj.interviewerFeedback;
-        } else {
+        } else if (obj.scorecard) {
           // Expose result, scores, recommendation, and recruiter feedback to candidate
           const feedbackText =
             obj.scorecard?.feedback ||
@@ -165,10 +164,6 @@ exports.getInterviews = async (req, res, next) => {
             obj.feedback?.comments ||
             "";
 
-=======
-        } else if (obj.scorecard) {
-          // Expose only overallScore and recommendation to candidate, hide internal notes
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
           obj.scorecard = {
             overallScore: obj.scorecard?.overallScore || obj.feedback?.rating || 0,
             technicalSkills: obj.scorecard?.technicalSkills || obj.feedback?.technicalScore || 0,
@@ -186,8 +181,6 @@ exports.getInterviews = async (req, res, next) => {
           };
           delete obj.interviewerFeedback;
         }
-        delete obj.feedback;
-        delete obj.interviewerFeedback;
         delete obj.notes;
         return obj;
       });
@@ -656,9 +649,33 @@ exports.scheduleInterview = async (req, res, next) => {
       result: "pending",
     });
 
-    // 8. Update Application Status to "Interview Scheduled"
+    // 8. Update Application Status & StageHistory
     application.status = "Interview Scheduled";
     application.stage = `Interview Round ${roundNum}`;
+
+    if (Array.isArray(application.stageHistory)) {
+      let stageEntry = application.stageHistory.find(
+        (sh) =>
+          sh.stageIndex === (roundNum - 1) ||
+          (sh.stageName && sh.stageName.toLowerCase() === (roundName || "").toLowerCase())
+      );
+      if (!stageEntry && application.stageHistory[roundNum - 1]) {
+        stageEntry = application.stageHistory[roundNum - 1];
+      }
+      if (stageEntry) {
+        stageEntry.status = "Scheduled";
+        stageEntry.scheduledDate = scheduledDate;
+        stageEntry.scheduledTime = finalTime;
+        stageEntry.durationMinutes = finalDuration;
+        stageEntry.meetingMode = finalType;
+        stageEntry.meetingLink = meetingLink || "";
+        stageEntry.location = location || "";
+        stageEntry.instructions = instructions || notes || "";
+        stageEntry.interviewId = interview._id;
+        stageEntry.updatedBy = req.user._id;
+      }
+    }
+
     application.notes.push({
       text: `Interview Round ${roundNum} (${interview.roundName}) scheduled for ${scheduledDate} at ${finalTime}`,
       addedBy: req.user._id,
@@ -1110,58 +1127,50 @@ exports.submitInterviewScorecard = async (req, res, next) => {
 
     await interview.save();
 
-    // Advance Application Status based on finalResult
+    // Advance Application Status & stageHistory based on finalResult
     const shouldSelect = finalResult === "selected" || Boolean(markSelected);
     const shouldReject = finalResult === "rejected";
 
-    if (shouldSelect) {
-      await Application.findByIdAndUpdate(interview.applicationId, {
-        status: "Selected",
-        stage: "Selected / Eligible for Offer",
-        $push: {
-          notes: {
-            text: `Candidate cleared ${interview.roundName} with score ${overallScore}/5.0 and has been SELECTED. Result: SELECTED.`,
-            addedBy: req.user._id,
-            createdAt: new Date(),
-          },
-        },
+    const appDoc = await Application.findById(interview.applicationId);
+    if (appDoc) {
+      if (Array.isArray(appDoc.stageHistory)) {
+        let stageEntry = appDoc.stageHistory.find(
+          (sh) =>
+            (sh.interviewId && sh.interviewId.toString() === interview._id.toString()) ||
+            sh.stageIndex === (interview.roundNumber - 1) ||
+            (sh.stageName && sh.stageName.toLowerCase() === (interview.roundName || "").toLowerCase())
+        );
+        if (stageEntry) {
+          stageEntry.status = shouldSelect ? "Selected" : shouldReject ? "Failed" : "Passed";
+          stageEntry.feedback = finalFeedbackText;
+          stageEntry.score = overallScore;
+          stageEntry.completedAt = new Date();
+          stageEntry.updatedBy = req.user._id;
+        }
+      }
+
+      if (shouldSelect) {
+        appDoc.status = "Selected";
+        appDoc.overallStatus = "Selected";
+        appDoc.stage = "Selected";
+      } else if (shouldReject) {
+        appDoc.status = "Rejected";
+        appDoc.overallStatus = "Rejected";
+        appDoc.stage = "Rejected";
+      } else if (finalResult === "next_round" || finalResult === "passed") {
+        appDoc.status = "Interview Completed";
+        appDoc.stage = `Cleared ${interview.roundName}`;
+      } else {
+        appDoc.status = "Interview Completed";
+        appDoc.stage = `${interview.roundName} - Completed`;
+      }
+
+      appDoc.notes.push({
+        text: `Interview evaluation completed for ${interview.roundName}. Score: ${overallScore}/5.0. Result: ${finalResult.toUpperCase()}.`,
+        addedBy: req.user._id,
+        createdAt: new Date(),
       });
-    } else if (shouldReject) {
-      await Application.findByIdAndUpdate(interview.applicationId, {
-        status: "Rejected",
-        stage: "Rejected",
-        $push: {
-          notes: {
-            text: `Interview evaluation completed for ${interview.roundName}. Result: REJECTED.`,
-            addedBy: req.user._id,
-            createdAt: new Date(),
-          },
-        },
-      });
-    } else if (finalResult === "next_round") {
-      await Application.findByIdAndUpdate(interview.applicationId, {
-        status: "Interview Completed",
-        stage: `Cleared ${interview.roundName} - Ready for Next Round`,
-        $push: {
-          notes: {
-            text: `Candidate cleared ${interview.roundName} with score ${overallScore}/5.0. Recommended for Next Round.`,
-            addedBy: req.user._id,
-            createdAt: new Date(),
-          },
-        },
-      });
-    } else {
-      await Application.findByIdAndUpdate(interview.applicationId, {
-        status: "Interview Completed",
-        stage: `${interview.roundName} - Completed`,
-        $push: {
-          notes: {
-            text: `Feedback submitted for ${interview.roundName}. Score: ${overallScore}/5.0 | Result: ${finalResult.toUpperCase()}`,
-            addedBy: req.user._id,
-            createdAt: new Date(),
-          },
-        },
-      });
+      await appDoc.save();
     }
 
     // Dispatch In-App Notification to Candidate

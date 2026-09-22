@@ -2,7 +2,6 @@ const JobOffer = require("../models/JobOffer");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
-const Job = require("../models/Job");
 
 const getEmployerProfileId = async (user) => {
   let profile = await EmployerProfile.findOne({ userId: user._id });
@@ -77,17 +76,10 @@ exports.createOffer = async (req, res, next) => {
       additionalTerms,
     } = req.body;
 
-<<<<<<< HEAD
-    if (!candidateId || !jobId || !designation || !salary || !joiningDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Candidate, Job, Designation, Salary, and Joining Date are required",
-=======
     if (!candidateId || !jobId || !applicationId || !salary || !joiningDate || !expiryDate) {
       return res.status(400).json({
         success: false,
-        message: "Application, candidate, job, salary and dates are required",
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
+        message: "Application, candidate, job, salary, and dates are required",
       });
     }
 

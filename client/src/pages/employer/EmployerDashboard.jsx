@@ -703,20 +703,14 @@ const EmployerDashboard = () => {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setActiveTab("internships");
-                          setInternshipView("new");
-                        }}
+                        onClick={() => navigate("/employer/jobs/create?type=internship")}
                         className="px-3.5 py-1.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition inline-flex items-center"
                       >
                         + Post Internship
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setJobToEdit(null);
-                          setIsJobModalOpen(true);
-                        }}
+                        onClick={() => navigate("/employer/jobs/create?type=job")}
                         className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold shadow-xs transition"
                       >
                         + Post Job
@@ -752,10 +746,7 @@ const EmployerDashboard = () => {
                           </div>
                           <button
                             type="button"
-                            onClick={() => {
-                              setJobToEdit(job);
-                              setIsJobModalOpen(true);
-                            }}
+                            onClick={() => navigate(`/employer/jobs/create?edit=${job._id}`)}
                             className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-white text-xs font-semibold text-slate-700"
                           >
                             Edit
@@ -778,10 +769,7 @@ const EmployerDashboard = () => {
                     <div className="space-y-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setJobToEdit(null);
-                          setIsJobModalOpen(true);
-                        }}
+                        onClick={() => navigate("/employer/jobs/create?type=job")}
                         className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/40 text-xs font-semibold text-slate-700 flex items-center justify-between transition"
                       >
                         <span className="flex items-center gap-2"><span>➕</span> Post Job Listing</span>
@@ -789,10 +777,7 @@ const EmployerDashboard = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setActiveTab("internships");
-                          setInternshipView("new");
-                        }}
+                        onClick={() => navigate("/employer/jobs/create?type=internship")}
                         className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/40 text-xs font-semibold text-slate-700 flex items-center justify-between transition"
                       >
                         <span className="flex items-center gap-2"><span>💼</span> Post Internship</span>
@@ -897,10 +882,7 @@ const EmployerDashboard = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setJobToEdit(null);
-                    setIsJobModalOpen(true);
-                  }}
+                  onClick={() => navigate("/employer/jobs/create?type=job")}
                   className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5"
                 >
                   <span>+</span> Post Opportunity
@@ -964,10 +946,7 @@ const EmployerDashboard = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setJobToEdit(job);
-                          setIsJobModalOpen(true);
-                        }}
+                        onClick={() => navigate(`/employer/jobs/create?edit=${job._id}`)}
                         className="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-xs hover:bg-slate-800"
                       >
                         Edit

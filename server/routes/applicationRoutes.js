@@ -34,6 +34,7 @@ const {
   selectCandidate,
   rejectCandidate,
   markStageFailed,
+  updateApplicationRound,
 } = applicationController;
 
 // ========== CANDIDATE ==========
@@ -127,6 +128,13 @@ router.patch(
   protect,
   employerOnly,
   ensureFn(markStageFailed, "markStageFailed")
+);
+
+router.patch(
+  "/:id/pipeline/round",
+  protect,
+  employerOnly,
+  ensureFn(updateApplicationRound, "updateApplicationRound")
 );
 
 // ========== DETAIL ==========

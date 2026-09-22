@@ -100,17 +100,7 @@ exports.getJobs = async (req, res, next) => {
       limit = 10,
     } = req.query;
 
-<<<<<<< HEAD
     const isMyJobs = myJobs === "true" || myJobs === true || myJobs === "1";
-=======
-    const pageNum = Math.max(1, Number.parseInt(page, 10) || 1);
-    const pageSize = Math.min(50, Math.max(1, Number.parseInt(limit, 10) || 10));
-    const windowSize = pageNum * pageSize;
-    if (windowSize > 5000) {
-      return res.status(400).json({ success: false, message: "Please narrow your search to view more results" });
-    }
-
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
     const query = {};
 
     if (isMyJobs) {
@@ -299,14 +289,10 @@ exports.getJobs = async (req, res, next) => {
       allJobs.sort((a, b) => getTimestamp(b) - getTimestamp(a));
     }
 
-<<<<<<< HEAD
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const defaultPageSize = isMyJobs ? 100 : 10;
     const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || defaultPageSize));
     const total = allJobs.length;
-=======
-    const total = campusTotal + allJobs.length - campusJobs.length;
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
     const paginatedJobs = allJobs.slice((pageNum - 1) * pageSize, pageNum * pageSize);
 
     return res.status(200).json({
@@ -442,16 +428,12 @@ exports.updateJob = async (req, res, next) => {
       });
     }
 
-<<<<<<< HEAD
     const updates = { ...req.body };
     if (updates.recruitmentStages) {
       updates.recruitmentStages = sanitizeRecruitmentStages(updates.recruitmentStages);
     }
 
     Object.assign(job, updates);
-=======
-    Object.assign(job, pickListingUpdate(req.body));
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
     await job.save();
     clearSearchCache();
 

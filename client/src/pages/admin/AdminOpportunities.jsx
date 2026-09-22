@@ -1,8 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
-<<<<<<< HEAD
-import AdminLayout from "../../components/admin/AdminLayout";
-import { getAdminOpportunities, updateOpportunityStatus } from "../../services/adminService";
-=======
+﻿import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/admin/AdminLayout";
 import {
@@ -14,7 +10,6 @@ import {
   closeAdminOpportunity,
   toggleFeatureOpportunity,
 } from "../../services/adminService";
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
 import {
   Briefcase,
   GraduationCap,
@@ -32,50 +27,6 @@ import {
   Calendar,
   X,
   FileSpreadsheet,
-<<<<<<< HEAD
-} from "lucide-react";
-
-const AdminOpportunities = () => {
-  const [opportunities, setOpportunities] = useState([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    published: 0,
-    pending: 0,
-    draft: 0,
-    closed: 0,
-    totalJobs: 0,
-    totalInternships: 0,
-  });
-  const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, pages: 1 });
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [type, setType] = useState("all");
-  const [status, setStatus] = useState("all");
-  const [selectedOpportunity, setSelectedOpportunity] = useState(null);
-  const [updatingId, setUpdatingId] = useState(null);
-
-  const fetchOpportunities = useCallback(async (page = 1) => {
-    setLoading(true);
-    try {
-      const res = await getAdminOpportunities({
-        type,
-        status,
-        search,
-        page,
-        limit: 12,
-      });
-      if (res?.success) {
-        setOpportunities(res.data.opportunities || []);
-        setStats(res.data.stats || {});
-        setPagination(res.data.pagination || { page: 1, limit: 12, total: 0, pages: 1 });
-      }
-    } catch (err) {
-      console.error("Failed to load opportunities:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [type, status, search]);
-=======
   Star,
   Edit3,
   Filter,
@@ -189,51 +140,11 @@ const AdminOpportunities = () => {
     },
     [type, status, debouncedSearch, selectedCompanyId, startDate, endDate]
   );
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
 
   useEffect(() => {
     fetchOpportunities(1);
   }, [fetchOpportunities]);
 
-<<<<<<< HEAD
-  const handleStatusChange = async (opp, nextStatus) => {
-    const oppType = opp.opportunityType?.toLowerCase() || (opp.duration ? "internship" : "job");
-    const confirmMsg = `Change status of "${opp.title}" to ${nextStatus}?`;
-    if (!window.confirm(confirmMsg)) return;
-
-    setUpdatingId(opp._id);
-    try {
-      const res = await updateOpportunityStatus(oppType, opp._id, nextStatus);
-      if (res?.success) {
-        setOpportunities((prev) =>
-          prev.map((o) => (o._id === opp._id ? { ...o, status: nextStatus } : o))
-        );
-      }
-    } catch (err) {
-      console.error("Failed to update status:", err);
-      alert("Failed to update opportunity status.");
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  const getStatusBadge = (st) => {
-    switch (st) {
-      case "Published":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200";
-      case "Pending Approval":
-        return "bg-amber-50 text-amber-700 border-amber-200";
-      case "Draft":
-        return "bg-slate-100 text-slate-700 border-slate-200";
-      case "Closed":
-      case "Paused":
-        return "bg-rose-50 text-rose-700 border-rose-200";
-      default:
-        return "bg-slate-50 text-slate-700 border-slate-200";
-    }
-  };
-
-=======
   // Moderation: Quick Approve
   const handleApprove = async (opp) => {
     if (!window.confirm(`Approve "${opp.title}" and make it live for candidates?`)) return;
@@ -417,7 +328,6 @@ const AdminOpportunities = () => {
     return "bg-slate-50 text-slate-700 border-slate-200";
   };
 
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
   return (
     <AdminLayout onRefresh={() => fetchOpportunities(pagination.page)} isRefreshing={loading}>
       <div className="space-y-6">
@@ -428,21 +338,6 @@ const AdminOpportunities = () => {
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 Opportunity Management
               </h1>
-<<<<<<< HEAD
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Page 27
-              </span>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Platform-wide moderation of Job Openings and Internship listings posted by employers.
-            </p>
-          </div>
-        </div>
-
-        {/* Top Summary Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs">
-=======
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                 Super Admin Moderation
               </span>
@@ -470,7 +365,6 @@ const AdminOpportunities = () => {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {/* Card 1: Total Listings */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs transition hover:border-slate-300">
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-500">Total Listings</span>
               <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -480,17 +374,13 @@ const AdminOpportunities = () => {
             <p className="text-2xl font-black text-slate-900 mt-2">{stats.total || 0}</p>
             <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
               <span>{stats.totalJobs || 0} Jobs</span>
-              <span>•</span>
+              <span>ΓÇó</span>
               <span>{stats.totalInternships || 0} Internships</span>
             </div>
           </div>
 
-<<<<<<< HEAD
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs">
-=======
           {/* Card 2: Active & Published */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs transition hover:border-slate-300">
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-500">Active & Published</span>
               <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -498,18 +388,11 @@ const AdminOpportunities = () => {
               </div>
             </div>
             <p className="text-2xl font-black text-emerald-600 mt-2">{stats.published || 0}</p>
-<<<<<<< HEAD
-            <p className="text-[11px] text-slate-400 mt-1">Accepting candidate applications</p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs">
-=======
             <p className="text-[11px] text-slate-400 mt-1">Live & accepting applications</p>
           </div>
 
           {/* Card 3: Pending Review */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs transition hover:border-slate-300">
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-500">Pending Review</span>
               <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -517,18 +400,11 @@ const AdminOpportunities = () => {
               </div>
             </div>
             <p className="text-2xl font-black text-amber-600 mt-2">{stats.pending || 0}</p>
-<<<<<<< HEAD
-            <p className="text-[11px] text-slate-400 mt-1">Requires admin approval</p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs">
-=======
             <p className="text-[11px] text-slate-400 mt-1">Awaiting admin verification</p>
           </div>
 
           {/* Card 4: Closed / Expired */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs transition hover:border-slate-300">
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-500">Closed / Expired</span>
               <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
@@ -536,64 +412,6 @@ const AdminOpportunities = () => {
               </div>
             </div>
             <p className="text-2xl font-black text-rose-600 mt-2">{stats.closed || 0}</p>
-<<<<<<< HEAD
-            <p className="text-[11px] text-slate-400 mt-1">Applications halted</p>
-          </div>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-          {/* Search */}
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search title, company, location..."
-              className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition"
-            />
-          </div>
-
-          {/* Type & Status Filters */}
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            >
-              <option value="all">All Opportunities</option>
-              <option value="job">Jobs Only</option>
-              <option value="internship">Internships Only</option>
-            </select>
-
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            >
-              <option value="all">All Status</option>
-              <option value="Published">Published</option>
-              <option value="Pending Approval">Pending Approval</option>
-              <option value="Draft">Draft</option>
-              <option value="Closed">Closed</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Opportunities Table */}
-        <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
-          {loading ? (
-            <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center">
-              <RefreshCw className="w-6 h-6 animate-spin text-indigo-600 mb-2" />
-              <p className="text-xs font-semibold">Loading opportunities...</p>
-            </div>
-          ) : opportunities.length === 0 ? (
-            <div className="p-12 text-center text-slate-400">
-              <Briefcase className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-              <p className="text-sm font-bold text-slate-700">No opportunities found</p>
-              <p className="text-xs text-slate-400 mt-1">Try adjusting your search criteria.</p>
-=======
             <p className="text-[11px] text-slate-400 mt-1">Halted or past deadline</p>
           </div>
         </div>
@@ -769,22 +587,11 @@ const AdminOpportunities = () => {
               <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
                 There are currently no job or internship listings matching your criteria.
               </p>
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-<<<<<<< HEAD
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="py-3.5 px-4">Opportunity</th>
-                    <th className="py-3.5 px-4">Type</th>
-                    <th className="py-3.5 px-4">Mode / Location</th>
-                    <th className="py-3.5 px-4">Applicants</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-4">Posted Date</th>
-                    <th className="py-3.5 px-4 text-right">Moderation</th>
-=======
                   <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3.5 px-4">Opportunity</th>
                     <th className="py-3.5 px-4">Company</th>
@@ -794,24 +601,10 @@ const AdminOpportunities = () => {
                     <th className="py-3.5 px-4">Posted Date</th>
                     <th className="py-3.5 px-4">Deadline</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                   {opportunities.map((opp) => (
-<<<<<<< HEAD
-                    <tr key={opp._id} className="hover:bg-slate-50/60 transition">
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="font-bold text-slate-900 leading-tight">{opp.title}</p>
-                          <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                            <Building2 className="w-3 h-3 text-slate-400" />
-                            {opp.companyName || "Organization"}
-                          </p>
-                        </div>
-                      </td>
-
-=======
                     <tr key={opp._id} className="hover:bg-slate-50/70 transition group">
                       {/* Column 1: Opportunity Title & Location */}
                       <td className="py-3 px-4">
@@ -830,7 +623,7 @@ const AdminOpportunities = () => {
                               </span>
                               {opp.department && (
                                 <>
-                                  <span>•</span>
+                                  <span>ΓÇó</span>
                                   <span>{opp.department}</span>
                                 </>
                               )}
@@ -868,7 +661,6 @@ const AdminOpportunities = () => {
                       </td>
 
                       {/* Column 3: Type */}
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                       <td className="py-3 px-4">
                         {opp.opportunityType === "Internship" ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
@@ -881,35 +673,6 @@ const AdminOpportunities = () => {
                         )}
                       </td>
 
-<<<<<<< HEAD
-                      <td className="py-3 px-4">
-                        <p className="font-medium text-slate-800">
-                          {opp.workMode || opp.employmentType || "Full-time"}
-                        </p>
-                        <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {opp.location || "Remote"}
-                        </p>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs">
-                          <FileSpreadsheet className="w-3 h-3 text-slate-500" />
-                          {opp.applicationsCount || 0}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getStatusBadge(
-                            opp.status
-                          )}`}
-                        >
-                          {opp.status}
-                        </span>
-                      </td>
-
-=======
                       {/* Column 4: Status */}
                       <td className="py-3 px-4">
                         <span
@@ -935,20 +698,10 @@ const AdminOpportunities = () => {
                       </td>
 
                       {/* Column 6: Posted Date */}
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                       <td className="py-3 px-4 text-slate-500 text-[11px]">
                         {opp.createdAt ? new Date(opp.createdAt).toLocaleDateString() : "N/A"}
                       </td>
 
-<<<<<<< HEAD
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedOpportunity(opp)}
-                            title="View Details"
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-100 transition cursor-pointer"
-=======
                       {/* Column 7: Deadline */}
                       <td className="py-3 px-4 text-[11px]">
                         {opp.deadline ? (
@@ -975,19 +728,10 @@ const AdminOpportunities = () => {
                             onClick={() => setSelectedOpportunity(opp)}
                             title="Review Opportunity Details"
                             className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                           >
                             <Eye className="w-4 h-4" />
                           </button>
 
-<<<<<<< HEAD
-                          {opp.status !== "Published" && (
-                            <button
-                              type="button"
-                              onClick={() => handleStatusChange(opp, "Published")}
-                              disabled={updatingId === opp._id}
-                              title="Approve / Publish"
-=======
                           {/* Quick Approve (for Pending or Rejected) */}
                           {opp.status !== "Published" && (
                             <button
@@ -995,24 +739,12 @@ const AdminOpportunities = () => {
                               onClick={() => handleApprove(opp)}
                               disabled={actionLoading}
                               title="Approve & Publish"
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                               className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition cursor-pointer"
                             >
                               <CheckCircle2 className="w-4 h-4" />
                             </button>
                           )}
 
-<<<<<<< HEAD
-                          {opp.status === "Published" && (
-                            <button
-                              type="button"
-                              onClick={() => handleStatusChange(opp, "Closed")}
-                              disabled={updatingId === opp._id}
-                              title="Close Listing"
-                              className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                            >
-                              <XCircle className="w-4 h-4" />
-=======
                           {/* Reject (for Pending or Published) */}
                           {opp.status !== "Rejected" && (
                             <button
@@ -1065,7 +797,6 @@ const AdminOpportunities = () => {
                               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                             >
                               <X className="w-4 h-4" />
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                             </button>
                           )}
                         </div>
@@ -1077,11 +808,7 @@ const AdminOpportunities = () => {
             </div>
           )}
 
-<<<<<<< HEAD
-          {/* Pagination */}
-=======
           {/* Server-Side Pagination */}
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
           {pagination.pages > 1 && (
             <div className="p-4 bg-slate-50/80 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
               <span>
@@ -1091,30 +818,18 @@ const AdminOpportunities = () => {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-<<<<<<< HEAD
-                  disabled={pagination.page <= 1}
-=======
                   disabled={pagination.page <= 1 || loading}
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                   onClick={() => fetchOpportunities(pagination.page - 1)}
                   className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-<<<<<<< HEAD
-                <span className="px-2 font-bold text-slate-800">
-=======
                 <span className="px-2.5 font-bold text-slate-800">
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                   {pagination.page} / {pagination.pages}
                 </span>
                 <button
                   type="button"
-<<<<<<< HEAD
-                  disabled={pagination.page >= pagination.pages}
-=======
                   disabled={pagination.page >= pagination.pages || loading}
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                   onClick={() => fetchOpportunities(pagination.page + 1)}
                   className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
                 >
@@ -1125,20 +840,6 @@ const AdminOpportunities = () => {
           )}
         </div>
 
-<<<<<<< HEAD
-        {/* Opportunity Details Modal */}
-        {selectedOpportunity && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center">
-                    <Briefcase className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">{selectedOpportunity.title}</h3>
-                    <p className="text-xs text-slate-400">{selectedOpportunity.companyName}</p>
-=======
         {/* ==================================================
             RECENT MODERATION ACTIVITY (Real AuditLog)
         ================================================== */}
@@ -1197,7 +898,6 @@ const AdminOpportunities = () => {
                         <span className="text-emerald-600 text-[10px] font-bold">Verified Company</span>
                       )}
                     </p>
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                   </div>
                 </div>
                 <button
@@ -1209,43 +909,6 @@ const AdminOpportunities = () => {
                 </button>
               </div>
 
-<<<<<<< HEAD
-              <div className="space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                    <span className="text-slate-400 block mb-1">Opportunity Type</span>
-                    <p className="font-semibold text-slate-800">{selectedOpportunity.opportunityType || "Job"}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                    <span className="text-slate-400 block mb-1">Current Status</span>
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadge(
-                        selectedOpportunity.status
-                      )}`}
-                    >
-                      {selectedOpportunity.status}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                    <span className="text-slate-400 block mb-1">Location & Mode</span>
-                    <p className="font-semibold text-slate-800">
-                      {selectedOpportunity.location || "Remote"} ({selectedOpportunity.workMode || "Hybrid"})
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                    <span className="text-slate-400 block mb-1">Applications Received</span>
-                    <p className="font-semibold text-slate-800">{selectedOpportunity.applicationsCount || 0} Candidates</p>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                  <span className="text-slate-400 block mb-1">Description</span>
-                  <p className="text-slate-700 leading-relaxed max-h-32 overflow-y-auto">
-                    {selectedOpportunity.description || "No description provided."}
-=======
               {/* Overview Details Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
@@ -1295,14 +958,10 @@ const AdminOpportunities = () => {
                     {selectedOpportunity.deadline
                       ? new Date(selectedOpportunity.deadline).toLocaleDateString()
                       : "No deadline specified"}
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                   </p>
                 </div>
               </div>
 
-<<<<<<< HEAD
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-=======
               {/* Rejection / Moderation Notes */}
               {selectedOpportunity.rejectionReason && (
                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs space-y-1">
@@ -1341,30 +1000,10 @@ const AdminOpportunities = () => {
 
               {/* Modal Actions Footer */}
               <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                 <div className="flex items-center gap-2">
                   {selectedOpportunity.status !== "Published" && (
                     <button
                       type="button"
-<<<<<<< HEAD
-                      onClick={() => {
-                        handleStatusChange(selectedOpportunity, "Published");
-                        setSelectedOpportunity((prev) => ({ ...prev, status: "Published" }));
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-semibold text-xs hover:bg-emerald-700 transition cursor-pointer"
-                    >
-                      Publish
-                    </button>
-                  )}
-                  {selectedOpportunity.status === "Published" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleStatusChange(selectedOpportunity, "Closed");
-                        setSelectedOpportunity((prev) => ({ ...prev, status: "Closed" }));
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-rose-600 text-white font-semibold text-xs hover:bg-rose-700 transition cursor-pointer"
-=======
                       disabled={actionLoading}
                       onClick={() => handleApprove(selectedOpportunity)}
                       className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-xs transition cursor-pointer flex items-center gap-1.5"
@@ -1403,7 +1042,6 @@ const AdminOpportunities = () => {
                       disabled={actionLoading}
                       onClick={() => handleClose(selectedOpportunity)}
                       className="px-3 py-2 rounded-xl bg-slate-100 text-rose-600 hover:bg-rose-50 text-xs font-bold transition cursor-pointer"
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                     >
                       Close Listing
                     </button>
@@ -1414,18 +1052,12 @@ const AdminOpportunities = () => {
                   onClick={() => setSelectedOpportunity(null)}
                   className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200 transition cursor-pointer"
                 >
-<<<<<<< HEAD
-                  Close
-=======
                   Dismiss
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                 </button>
               </div>
             </div>
           </div>
         )}
-<<<<<<< HEAD
-=======
 
         {/* ==================================================
             MODAL 2: REJECT OPPORTUNITY (With Reason & Note)
@@ -1624,7 +1256,6 @@ const AdminOpportunities = () => {
             </div>
           </div>
         )}
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
       </div>
     </AdminLayout>
   );

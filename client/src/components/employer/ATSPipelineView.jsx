@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 
 const DEFAULT_STAGES = [
   { name: "Resume Screening", type: "Resume Screening", order: 0 },
@@ -479,7 +480,12 @@ const ATSPipelineView = ({
                                 {info.name[0] || "C"}
                               </div>
                               <div>
-                                <h5 className="text-xs font-bold text-slate-900">{info.name}</h5>
+                                <Link
+                                  to={`/employer/applications/${app._id}`}
+                                  className="text-xs font-bold text-slate-900 hover:text-indigo-600 transition"
+                                >
+                                  {info.name}
+                                </Link>
                                 <p className="text-[10px] text-slate-500 truncate max-w-[140px]">{info.education}</p>
                               </div>
                             </div>
@@ -514,13 +520,12 @@ const ATSPipelineView = ({
 
                           {/* Actions */}
                           <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setViewingApp(app)}
-                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-bold transition"
+                            <Link
+                              to={`/employer/applications/${app._id}`}
+                              className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[10.5px] font-bold transition flex items-center gap-1"
                             >
-                              Details
-                            </button>
+                              Manage ↗
+                            </Link>
 
                             <div className="flex items-center gap-1">
                               {stage.type.includes("Interview") && (
@@ -605,20 +610,24 @@ const ATSPipelineView = ({
                   return (
                     <div key={app._id} className="p-3 bg-white rounded-2xl border border-emerald-200 shadow-2xs space-y-2">
                       <div className="flex items-center justify-between">
-                        <h5 className="text-xs font-bold text-slate-900">{info.name}</h5>
+                        <Link
+                          to={`/employer/applications/${app._id}`}
+                          className="text-xs font-bold text-slate-900 hover:text-emerald-700 transition"
+                        >
+                          {info.name}
+                        </Link>
                         <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
                           Selected
                         </span>
                       </div>
                       <p className="text-[10.5px] text-slate-500">{info.education}</p>
                       <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                        <button
-                          type="button"
-                          onClick={() => setViewingApp(app)}
+                        <Link
+                          to={`/employer/applications/${app._id}`}
                           className="text-[10.5px] font-bold text-emerald-700 hover:underline"
                         >
-                          View Details
-                        </button>
+                          View Details ↗
+                        </Link>
                         {onCreateOffer && (
                           <button
                             type="button"
@@ -667,7 +676,13 @@ const ATSPipelineView = ({
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-sm font-bold text-slate-900">{info.name}</h4>
+                          <Link
+                            to={`/employer/applications/${app._id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-sm font-bold text-slate-900 hover:text-indigo-600 transition"
+                          >
+                            {info.name}
+                          </Link>
                           <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-slate-100 text-slate-600">
                             {info.positionType}
                           </span>
@@ -826,16 +841,13 @@ const ATSPipelineView = ({
                   {/* ======================================================== */}
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setViewingApp(app);
-                        }}
+                      <Link
+                        to={`/employer/applications/${app._id}`}
+                        onClick={(e) => e.stopPropagation()}
                         className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1.5"
                       >
-                        <span>👁️</span> Application
-                      </button>
+                        <span>👁️</span> Manage Application ↗
+                      </Link>
 
                       <button
                         type="button"
@@ -1000,13 +1012,12 @@ const ATSPipelineView = ({
               </div>
 
               <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setViewingApp(selectedApp)}
-                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
+                <Link
+                  to={`/employer/applications/${selectedApp._id}`}
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
                 >
-                  <span>📄 View Complete Application Form</span>
-                </button>
+                  <span>📄 Open Full Application Page ↗</span>
+                </Link>
                 <button
                   type="button"
                   onClick={() => setViewingHistoryApp(selectedApp)}

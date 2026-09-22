@@ -3,7 +3,6 @@ const AssessmentSubmission = require("../models/AssessmentSubmission");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
-const Job = require("../models/Job");
 
 const getEmployerProfileId = async (user) => {
   let profile = await EmployerProfile.findOne({ userId: user._id });

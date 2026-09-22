@@ -12,6 +12,7 @@ const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require("../services/jobScraperService");
 const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
+const { sanitizeRecruitmentStages } = require("./jobController");
 
 // Helper to normalize URL slugs to category names
 const formatCategorySlug = (slug = "") => {
@@ -56,8 +57,11 @@ exports.createInternship = async (req, res, next) => {
       });
     }
 
+    const stages = sanitizeRecruitmentStages(req.body.recruitmentStages);
+
     const internship = await Internship.create({
       ...req.body,
+      recruitmentStages: stages,
       employerId: profile._id,
       createdBy: req.user._id,
       companyName: profile.companyName,
@@ -296,7 +300,6 @@ exports.getInternships = async (req, res, next) => {
             .sort(sortOption)
             .limit(windowSize)
             .lean(),
-<<<<<<< HEAD
           myPosts !== "true"
             ? Job.find(jobInternFilter)
                 .populate("employerId", "companyName logo headquarters website industry description")
@@ -306,13 +309,6 @@ exports.getInternships = async (req, res, next) => {
                 .populate("employerId", "companyName logo headquarters website industry description")
                 .sort(sortOption)
                 .lean(),
-=======
-          Job.find(effectiveJobFilter)
-            .populate("employerId", "companyName logo headquarters website industry description")
-            .sort(sortOption).limit(windowSize).lean(),
-          Internship.countDocuments(filter),
-          Job.countDocuments(effectiveJobFilter),
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
         ]);
         campusTotal = internshipTotal + jobTotal;
 
@@ -679,6 +675,9 @@ exports.updateInternship = async (req, res, next) => {
     }
 
     Object.assign(internship, pickListingUpdate(req.body));
+    if (Array.isArray(req.body.recruitmentStages)) {
+      internship.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
+    }
     await internship.save();
     clearSearchCache();
 

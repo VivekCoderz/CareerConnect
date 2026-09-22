@@ -169,6 +169,31 @@ exports.applyToInternship = async (req, res, next) => {
       else employerId = internship.createdBy;
     }
 
+    // Determine initial dynamic recruitment stage from internship configuration
+    const stages = Array.isArray(internship.recruitmentStages) && internship.recruitmentStages.length > 0
+      ? internship.recruitmentStages
+      : defaultRecruitmentStages;
+    const firstStage = stages[0];
+    const initialStageName = firstStage ? firstStage.name : "Resume Screening";
+    const initialStageType = firstStage ? firstStage.type : "Resume Screening";
+    const initialStageId = firstStage ? firstStage._id : null;
+
+    const initialStageHistory = [
+      {
+        stageId: initialStageId,
+        stageName: initialStageName,
+        stageType: initialStageType,
+        stageIndex: 0,
+        status: "In Progress",
+        startedAt: new Date(),
+        completedAt: null,
+        remarks: "Applied to opportunity. Initial recruitment stage started.",
+        stage: initialStageName,
+        notes: "Application submitted",
+        changedAt: new Date(),
+      },
+    ];
+
     const application = await Application.create({
       candidateId,
       internshipId,
@@ -189,7 +214,13 @@ exports.applyToInternship = async (req, res, next) => {
       resumeUrl: finalResume,
       applicationData,
       status: "Applied",
-      stage: "Applied",
+      overallStatus: "In Progress",
+      stage: initialStageName,
+      currentStageId: initialStageId,
+      currentStageName: initialStageName,
+      currentStageType: initialStageType,
+      currentStageIndex: 0,
+      stageHistory: initialStageHistory,
       isExternal: false,
       appliedAt: new Date(),
     });
@@ -561,8 +592,191 @@ exports.getApplicationById = async (req, res, next) => {
       });
     }
 
+    // Retrieve all interviews scheduled for this application
+    const interviews = await Interview.find({ applicationId: application._id })
+      .populate("interviewerId", "fullName email")
+      .sort({ roundNumber: 1, scheduledDate: 1, createdAt: 1 });
+
+    const appObj = application.toObject();
+    appObj.interviews = interviews;
+
+    // Resolve dynamic recruitment stages
+    const oppStages = appObj.jobId?.recruitmentStages?.length
+      ? appObj.jobId.recruitmentStages
+      : (appObj.internshipId?.recruitmentStages?.length
+        ? appObj.internshipId.recruitmentStages
+        : defaultRecruitmentStages);
+    appObj.recruitmentStages = [...oppStages].sort((a, b) => a.order - b.order);
+
+    if (isCandidate) {
+      delete appObj.notes;
+      if (Array.isArray(appObj.stageHistory)) {
+        appObj.stageHistory = appObj.stageHistory.map((sh) => {
+          const { remarks, ...safeSh } = sh;
+          return safeSh;
+        });
+      }
+      if (Array.isArray(appObj.interviews)) {
+        appObj.interviews = appObj.interviews.map((inv) => {
+          const { notes, interviewerFeedback, scorecard, ...safeInv } = inv;
+          return safeInv;
+        });
+      }
+    }
+
     return res.status(200).json({
       success: true,
+      application: appObj,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// EMPLOYER — UPDATE DYNAMIC APPLICATION ROUND
+// PATCH /api/applications/:id/pipeline/round
+// ==========================================
+exports.updateApplicationRound = async (req, res, next) => {
+  try {
+    const application = await verifyEmployerApplicationAccess(req.user._id, req.params.id);
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found or access denied",
+      });
+    }
+
+    const {
+      roundIndex,
+      stageId,
+      status,
+      scheduledDate,
+      scheduledTime,
+      meetingMode,
+      meetingLink,
+      location,
+      instructions,
+      feedback,
+      remarks,
+      score,
+      advanceNext = false,
+    } = req.body;
+
+    const oppStages = application.jobId?.recruitmentStages?.length
+      ? application.jobId.recruitmentStages
+      : (application.internshipId?.recruitmentStages?.length
+        ? application.internshipId.recruitmentStages
+        : defaultRecruitmentStages);
+    const stages = [...oppStages].sort((a, b) => a.order - b.order);
+
+    const targetIndex = typeof roundIndex === "number"
+      ? roundIndex
+      : (stageId ? stages.findIndex((s) => s._id?.toString() === stageId.toString()) : application.currentStageIndex || 0);
+
+    if (targetIndex < 0 || targetIndex >= stages.length) {
+      return res.status(400).json({ success: false, message: "Invalid recruitment round index" });
+    }
+
+    const targetStage = stages[targetIndex];
+    const now = new Date();
+
+    if (!Array.isArray(application.stageHistory)) {
+      application.stageHistory = [];
+    }
+
+    let historyItem = application.stageHistory.find(
+      (sh) =>
+        sh.stageIndex === targetIndex ||
+        (sh.stageId && targetStage._id && sh.stageId.toString() === targetStage._id.toString()) ||
+        (sh.stageName && sh.stageName.toLowerCase() === targetStage.name.toLowerCase())
+    );
+
+    if (!historyItem) {
+      historyItem = {
+        stageId: targetStage._id || null,
+        stageName: targetStage.name,
+        stageType: targetStage.type,
+        stageIndex: targetIndex,
+        status: status || "In Progress",
+        startedAt: now,
+      };
+      application.stageHistory.push(historyItem);
+      historyItem = application.stageHistory[application.stageHistory.length - 1];
+    }
+
+    if (status) historyItem.status = status;
+    if (scheduledDate !== undefined) historyItem.scheduledDate = scheduledDate;
+    if (scheduledTime !== undefined) historyItem.scheduledTime = scheduledTime;
+    if (meetingMode !== undefined) historyItem.meetingMode = meetingMode;
+    if (meetingLink !== undefined) historyItem.meetingLink = meetingLink;
+    if (location !== undefined) historyItem.location = location;
+    if (instructions !== undefined) historyItem.instructions = instructions;
+    if (feedback !== undefined) historyItem.feedback = feedback;
+    if (remarks !== undefined) historyItem.remarks = remarks;
+    if (score !== undefined) historyItem.score = Number(score);
+    if (status === "Passed" || status === "Completed" || status === "Failed" || status === "Selected" || status === "Rejected") {
+      historyItem.completedAt = now;
+    }
+    historyItem.updatedBy = req.user._id;
+
+    if (status === "Scheduled") {
+      application.status = "Interview Scheduled";
+      application.stage = `${targetStage.name} (Scheduled)`;
+    } else if (status === "Passed") {
+      if (advanceNext && targetIndex < stages.length - 1) {
+        const nextIdx = targetIndex + 1;
+        const nextStage = stages[nextIdx];
+        application.currentStageIndex = nextIdx;
+        application.currentStageId = nextStage._id || null;
+        application.currentStageName = nextStage.name;
+        application.currentStageType = nextStage.type;
+        application.stage = nextStage.name;
+        application.overallStatus = "In Progress";
+        application.status = nextStage.type?.includes("Interview") ? "Interview" : "Under Review";
+
+        const hasNext = application.stageHistory.some(
+          (sh) => sh.stageIndex === nextIdx || (sh.stageName && sh.stageName.toLowerCase() === nextStage.name.toLowerCase())
+        );
+        if (!hasNext) {
+          application.stageHistory.push({
+            stageId: nextStage._id || null,
+            stageName: nextStage.name,
+            stageType: nextStage.type,
+            stageIndex: nextIdx,
+            status: "In Progress",
+            startedAt: now,
+            completedAt: null,
+            remarks: "",
+            updatedBy: req.user._id,
+          });
+        }
+      }
+    } else if (status === "Failed") {
+      application.stage = `${targetStage.name} (Failed)`;
+    } else if (status === "Selected") {
+      application.overallStatus = "Selected";
+      application.status = "Selected";
+      application.stage = "Selected";
+    } else if (status === "Rejected") {
+      application.overallStatus = "Rejected";
+      application.status = "Rejected";
+      application.stage = "Rejected";
+    }
+
+    if (remarks || feedback) {
+      application.notes.push({
+        text: `[Round Update: ${targetStage.name}] Status: ${status || historyItem.status}. ${remarks ? `Remarks: ${remarks}` : ""} ${feedback ? `Feedback: ${feedback}` : ""}`,
+        addedBy: req.user._id,
+        createdAt: now,
+      });
+    }
+
+    await application.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Round "${targetStage.name}" updated successfully`,
       application,
     });
   } catch (error) {
@@ -878,7 +1092,6 @@ exports.addApplicationNote = async (req, res, next) => {
     next(error);
   }
 };
-<<<<<<< HEAD
 
 // ==========================================
 // EMPLOYER — MOVE APPLICATION TO NEXT STAGE
@@ -1272,5 +1485,3 @@ exports.markStageFailed = async (req, res, next) => {
     next(error);
   }
 };
-=======
->>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
