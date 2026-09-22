@@ -526,6 +526,25 @@ const getStudentCourseContent = async (req, res) => {
       });
     }
 
+<<<<<<< HEAD
+=======
+    // ------------------------------------------
+    // Only candidates can access course content
+    // ------------------------------------------
+
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
+      return res.status(403).json({
+        success: false,
+        message: "Only candidates can access course content",
+      });
+    }
+
+>>>>>>> origin/develop
     const { courseId } = req.params;
 
     // ------------------------------------------
@@ -640,13 +659,18 @@ const markContentComplete = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students
+    // Only candidates
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
       return res.status(403).json({
         success: false,
-        message: "Only students can complete course content",
+        message: "Only candidates can complete course content",
       });
     }
 

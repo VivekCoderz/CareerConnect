@@ -5,7 +5,7 @@ const axios = require("axios");
 const mongoose = require("mongoose");
 const User = require("../models/User");
 
-const SERVER_URL = "http://localhost:5000";
+const SERVER_URL = `http://localhost:${process.env.PORT || 5001}`;
 const CLIENT_URL = "http://localhost:5173";
 
 async function runAcceptanceTests() {
@@ -35,7 +35,7 @@ async function runAcceptanceTests() {
       email: process.env.ADMIN_EMAIL || "admin@careerconnect.com",
     }).select("+password");
     assert(adminUser !== null, "1. Admin user exists in database");
-    const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD || "";
+    const adminPassword = process.env.ADMIN_PASSWORD || "";
     assert(adminUser?.role === "admin", "2. Admin user role is strictly 'admin'");
     assert(
       adminUser?.password && adminUser.password.startsWith("$2"),

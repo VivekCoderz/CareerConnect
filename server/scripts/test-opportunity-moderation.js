@@ -1,7 +1,7 @@
 require("dotenv").config();
 const axios = require("axios");
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = `http://localhost:${process.env.PORT || 5001}`;
 
 async function testOpportunityModeration() {
   console.log("\n=======================================================");
@@ -10,7 +10,7 @@ async function testOpportunityModeration() {
 
   // 1. Authenticate as Super Admin
   let adminToken = null;
-  const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD || "";
+  const adminPassword = process.env.ADMIN_PASSWORD || "";
   try {
     const loginRes = await axios.post(`${BASE_URL}/api/admin/login`, {
       email: "superadmin@careerconnect.com",

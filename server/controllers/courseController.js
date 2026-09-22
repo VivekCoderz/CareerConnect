@@ -1,9 +1,12 @@
 const { publicError } = require("../utils/publicError");
 const Course = require("../models/Course");
 const StudentProfile = require("../models/StudentProfile");
+const FresherProfile = require("../models/FresherProfile");
+const ProfessionalProfile = require("../models/ProfessionalProfile");
 const CourseApplication = require("../models/CourseApplication");
 const CourseProgress = require("../models/CourseProgress");
 const CourseContent = require("../models/CourseContent");
+const Enrollment = require("../models/Enrollment");
 
 // ==========================================
 // CREATE COURSE
@@ -364,38 +367,48 @@ const getRecommendedCourses = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students can access recommendations
+    // Only candidates/learners can access recommendations
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
       return res.status(403).json({
         success: false,
-        message: "Only students can access recommended courses",
+        message: "Only candidates can access recommended courses",
       });
     }
 
     // ------------------------------------------
-    // Find student's profile
+    // Find candidate's profile
     // ------------------------------------------
 
-    const studentProfile = await StudentProfile.findOne({
+    let studentProfile = await StudentProfile.findOne({
       userId: user._id,
     });
 
     if (!studentProfile) {
-      return res.status(404).json({
-        success: false,
-        message: "Student profile not found",
-      });
+      studentProfile =
+        (await FresherProfile.findOne({ userId: user._id })) ||
+        (await ProfessionalProfile.findOne({ userId: user._id }));
     }
 
-    // ------------------------------------------
     // Get all published courses
-    // ------------------------------------------
-
     const courses = await Course.find({
       status: "Published",
     }).lean();
+
+    if (!studentProfile) {
+      // If profile not yet created, return published courses catalog directly
+      return res.status(200).json({
+        success: true,
+        count: courses.length,
+        courses,
+      });
+    }
 
     // ------------------------------------------
     // Student profile data
@@ -697,11 +710,16 @@ const applyCourse = async (req, res) => {
       });
     }
 
-    // Only students can apply
-    if (user.role !== "user" || user.userType !== "student") {
+    // Only candidates can apply
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
       return res.status(403).json({
         success: false,
-        message: "Only students can apply for courses",
+        message: "Only candidates can apply for courses",
       });
     }
 
@@ -777,13 +795,18 @@ const enrollFreeCourse = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students can enroll
+    // Only candidates can enroll
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
       return res.status(403).json({
         success: false,
-        message: "Only students can enroll in courses",
+        message: "Only candidates can enroll in courses",
       });
     }
 
@@ -818,15 +841,19 @@ const enrollFreeCourse = async (req, res) => {
     // Check existing application/enrollment
     // ------------------------------------------
 
-    const existingApplication = await CourseApplication.findOne({
+    let existingApplication = await CourseApplication.findOne({
       student: user._id,
       course: course._id,
     });
 
     if (existingApplication) {
-      return res.status(409).json({
-        success: false,
-        message: "You are already enrolled or have already applied for this course",
+      if (existingApplication.status !== "Enrolled" && existingApplication.status !== "Completed") {
+        existingApplication.status = "Enrolled";
+        await existingApplication.save();
+      }
+      return res.status(200).json({
+        success: true,
+        message: "Successfully enrolled in free course",
         application: existingApplication,
       });
     }
@@ -841,6 +868,20 @@ const enrollFreeCourse = async (req, res) => {
       status: "Enrolled",
       progress: 0,
     });
+
+    // Sync to Enrollment model
+    await Enrollment.findOneAndUpdate(
+      { userId: user._id, courseId: course._id },
+      {
+        userId: user._id,
+        courseId: course._id,
+        enrolledRole: user.userType || "student",
+        status: "Enrolled",
+        progressPercentage: 0,
+        lastAccessedAt: new Date(),
+      },
+      { upsert: true, new: true }
+    ).catch(() => {});
 
     // ------------------------------------------
     // Response
@@ -1265,13 +1306,18 @@ const getStudentMyCourses = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students
+    // Only candidates
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
       return res.status(403).json({
         success: false,
-        message: "Only students can access My Courses",
+        message: "Only candidates can access My Courses",
       });
     }
 

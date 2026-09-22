@@ -5,6 +5,8 @@ const {
   parseResumeText,
   tailorResumeForOpportunity,
   generateATSResume,
+  analyzeResumeAgainstJD,
+  fixAndOptimizeResumeWithAI,
 } = require("../services/aiResumeservice.js");
 const Resume = require("../models/Resume.js");
 const User = require("../models/User.js");
@@ -1260,23 +1262,33 @@ ${rawText.slice(0, 10000)}
   const genAI = new GoogleGenerativeAI(key);
   const modelsToTry = [
     process.env.GEMINI_MODEL,
-    "gemini-3.5-flash",
     "gemini-3.6-flash",
-    "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-3-flash-preview",
+    "gemini-flash-latest",
     "gemini-3.8-flash",
   ].filter(Boolean);
   const uniqueModels = [...new Set(modelsToTry)];
 
   for (const modelName of uniqueModels) {
-    try {
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text() || "{}";
-      const cleanJson = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-      return JSON.parse(cleanJson);
-    } catch (err) {
-      console.warn(`AI resume parsing with ${modelName} warning:`, err.message);
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text() || "{}";
+        const cleanJson = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+        return JSON.parse(cleanJson);
+      } catch (err) {
+        const isTransient = /503|fetch failed|terminated|high demand|overloaded|ECONNRESET/i.test(err.message);
+        if (isTransient && attempt < 2) {
+          console.warn(`AI resume parsing with ${modelName} attempt ${attempt} transient issue (${err.message}). Retrying in 1200ms...`);
+          await new Promise((r) => setTimeout(r, 1200));
+          continue;
+        }
+        console.warn(`AI resume parsing with ${modelName} warning:`, err.message);
+        break;
+      }
     }
   }
 
@@ -2445,6 +2457,203 @@ const generateATSResumeHandler = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/resume/ats-check
+ * Accepts multipart file (req.file) OR resumeText / resumeData + jobDescription
+ */
+/**
+ * POST /api/resume/ats-check
+ * Accepts multipart file (req.file) OR resumeText / resumeData + jobDescription
+ */
+const atsCheckHandler = async (req, res) => {
+  try {
+    const jobDescription = req.body.jobDescription || "";
+    const targetRole = req.body.targetRole || "";
+    const companyName = req.body.companyName || "";
+
+    if (!jobDescription || !jobDescription.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Job description is required to perform ATS gap analysis.",
+      });
+    }
+
+    let parsedCandidate = null;
+
+    if (req.file) {
+      const extractedText = await extractTextFromPdfBuffer(req.file.buffer);
+      if (!extractedText || !extractedText.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Could not extract text from uploaded resume. Please ensure it is a valid, readable PDF.",
+        });
+      }
+      parsedCandidate = await parseResumeText(extractedText);
+    } else if (req.body.resumeText) {
+      parsedCandidate = await parseResumeText(req.body.resumeText);
+    } else if (req.body.resumeData) {
+      try {
+        parsedCandidate = typeof req.body.resumeData === "string" ? JSON.parse(req.body.resumeData) : req.body.resumeData;
+      } catch (_) {
+        parsedCandidate = req.body.resumeData;
+      }
+    }
+
+    // If candidate data is empty or missing details, merge from user's saved DB resume / student profile
+    const userResume = await Resume.findOne({ user: req.user._id }).sort({ isPrimary: -1, updatedAt: -1 });
+    const userProfile = await StudentProfile.findOne({ userId: req.user._id });
+
+    parsedCandidate = parsedCandidate || {};
+    parsedCandidate.personal = parsedCandidate.personal || {};
+
+    // Guaranteed real name, email, phone from resume, DB resume, or logged in user
+    parsedCandidate.personal.fullName =
+      parsedCandidate.personal.fullName ||
+      userResume?.personal?.fullName ||
+      req.user?.name ||
+      req.user?.fullName ||
+      "Candidate";
+
+    parsedCandidate.personal.email =
+      parsedCandidate.personal.email ||
+      userResume?.personal?.email ||
+      req.user?.email ||
+      "";
+
+    parsedCandidate.personal.phone =
+      parsedCandidate.personal.phone ||
+      userResume?.personal?.phone ||
+      req.user?.phone ||
+      "";
+
+    parsedCandidate.personal.location =
+      parsedCandidate.personal.location ||
+      userResume?.personal?.location ||
+      userProfile?.location?.city ||
+      "";
+
+    parsedCandidate.personal.linkedin =
+      parsedCandidate.personal.linkedin ||
+      userResume?.personal?.linkedin ||
+      userProfile?.socialLinks?.linkedin ||
+      "";
+
+    parsedCandidate.personal.github =
+      parsedCandidate.personal.github ||
+      userResume?.personal?.github ||
+      userProfile?.socialLinks?.github ||
+      "";
+
+    // Enrich skills if empty
+    if (!parsedCandidate.skills || (typeof parsedCandidate.skills === "object" && !Object.values(parsedCandidate.skills).some(v => v && v.length > 0))) {
+      if (userResume?.skills) parsedCandidate.skills = userResume.skills;
+      else if (userProfile?.skills?.length) {
+        parsedCandidate.skills = {
+          programmingLanguages: userProfile.skills.slice(0, 5).map(s => s.name || s).join(", "),
+          frameworks: userProfile.skills.slice(5, 10).map(s => s.name || s).join(", "),
+          tools: userProfile.skills.slice(10).map(s => s.name || s).join(", "),
+        };
+      }
+    }
+
+    // Enrich projects if empty
+    if (!parsedCandidate.projects?.length && userResume?.projects?.length) {
+      parsedCandidate.projects = userResume.projects;
+    }
+
+    // Enrich experience if empty
+    if (!parsedCandidate.experience?.length && userResume?.experience?.length) {
+      parsedCandidate.experience = userResume.experience;
+    }
+
+    // Enrich education if empty
+    if (!parsedCandidate.education?.length) {
+      if (userResume?.education?.length) {
+        parsedCandidate.education = userResume.education;
+      } else if (userProfile?.education?.length) {
+        parsedCandidate.education = userProfile.education.map(e => ({
+          college: e.institution || e.college || "",
+          degree: e.degree || "",
+          branch: e.specialization || e.fieldOfStudy || "",
+          cgpa: e.grade || e.percentageOrCgpa || "",
+          startYear: e.startYear ? String(e.startYear) : "",
+          endYear: e.endYear ? String(e.endYear) : "",
+        }));
+      }
+    }
+
+    const auditReport = await analyzeResumeAgainstJD(
+      parsedCandidate,
+      jobDescription.trim(),
+      targetRole.trim(),
+      companyName.trim()
+    );
+
+    return res.status(200).json({
+      success: true,
+      ...auditReport,
+      candidateData: parsedCandidate,
+    });
+  } catch (error) {
+    console.error("atsCheckHandler error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to perform ATS gap analysis",
+      error: publicError(error),
+    });
+  }
+};
+
+/**
+ * POST /api/resume/ats-fix
+ * 1-Click AI Resume Fixer
+ */
+const atsFixHandler = async (req, res) => {
+  try {
+    const { candidateData, jobDescription, gapAnalysis, template } = req.body;
+
+    if (!jobDescription || !jobDescription.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Job description is required to fix resume.",
+      });
+    }
+
+    // Enrich personal data so no dummy or empty data is rendered
+    const enriched = { ...(candidateData || {}) };
+    enriched.personal = { ...(enriched.personal || {}) };
+
+    if (!enriched.personal.fullName) {
+      enriched.personal.fullName = req.user?.name || req.user?.fullName || "Candidate";
+    }
+    if (!enriched.personal.email) {
+      enriched.personal.email = req.user?.email || "";
+    }
+    if (!enriched.personal.phone) {
+      enriched.personal.phone = req.user?.phone || "";
+    }
+
+    const fixedResult = await fixAndOptimizeResumeWithAI(
+      enriched,
+      jobDescription.trim(),
+      gapAnalysis,
+      template || "classic"
+    );
+
+    return res.status(200).json({
+      success: true,
+      ...fixedResult,
+    });
+  } catch (error) {
+    console.error("atsFixHandler error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fix and optimize resume",
+      error: publicError(error),
+    });
+  }
+};
+
 module.exports = {
   generateResumeHandler,
   updateResumeHandler,
@@ -2463,4 +2672,6 @@ module.exports = {
   tailorResumeHandler,
   getTailoredResumeHandler,
   generateATSResumeHandler,
+  atsCheckHandler,
+  atsFixHandler,
 };
