@@ -96,7 +96,7 @@ export default function Jobs({
         <div>
           {!embedded && (
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              Geeta University · CareerConnect
+              CareerConnect · CareerConnect
             </p>
           )}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -372,11 +372,11 @@ export default function Jobs({
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/home" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
-              GU
+              CC
             </div>
             <div className="leading-tight">
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                Geeta University
+                CareerConnect
               </p>
               <p className="text-sm font-bold text-slate-900">CareerConnect</p>
             </div>

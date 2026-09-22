@@ -8,6 +8,7 @@ const { requireUserType } = require("../middleware/roleMiddleware");
 // Public route for recruiter / public preview
 router.get(
   "/public/:usernameOrId",
+  protect.optionalAuth,
   professionalController.getPublicProfessionalProfile,
 );
 

@@ -64,7 +64,7 @@ const ATSPipelineView = ({
     const phone = app.studentPhone || appData.phone || cand.phone || "N/A";
     const address = appData.address || "N/A";
     const education = app.education || appData.education || appData.degree || "B.Tech CSE";
-    const college = appData.college || "Geeta University";
+    const college = appData.college || "CareerConnect";
     const graduationYear = appData.graduationYear || "";
 
     let skillsList = [];

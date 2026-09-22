@@ -1,9 +1,24 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, lazy, Suspense } from "react";
 import { useDispatch, useSelector } from "react-redux";
-
 // Guards & Common Modals
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
+
+// Admin & 404
+import NotFound from "./pages/NotFound";
+import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const AdminCompanies = lazy(() => import("./pages/admin/AdminCompanies"));
+const AdminCompanyAdmins = lazy(() => import("./pages/admin/AdminCompanyAdmins"));
+const AdminCompanyProfile = lazy(() => import("./pages/admin/AdminCompanyProfile"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminOpportunities = lazy(() => import("./pages/admin/AdminOpportunities"));
+const AdminApplications = lazy(() => import("./pages/admin/AdminApplications"));
+const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
+
+// Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
 import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
 
@@ -64,7 +79,7 @@ const PageFallback = () => (
   <div className="min-h-[50vh] flex flex-col items-center justify-center p-8">
     <div className="relative flex items-center justify-center">
       <div className="w-10 h-10 rounded-full border-3 border-slate-200 border-t-[#1e3a8a] animate-spin" />
-      <span className="absolute text-[9px] font-black text-[#1e3a8a]">GU</span>
+      <span className="absolute text-[9px] font-black text-[#1e3a8a]">CC</span>
     </div>
     <p className="mt-3 text-xs font-semibold text-slate-400 animate-pulse">
       Loading...
@@ -82,6 +97,9 @@ const RootRoute = () => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
   if (user) {
+    if (user.role === "SUPER_ADMIN" || user.role === "COMPANY_ADMIN" || user.role === "admin") {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
     if (user.hasPassword === false) {
       return <Navigate to="/set-password" replace />;
     }
@@ -97,6 +115,9 @@ const PublicOnlyRoute = ({ children }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
   if (!isInitialized) return null;
   if (user) {
+    if (user.role === "SUPER_ADMIN" || user.role === "COMPANY_ADMIN" || user.role === "admin") {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
     if (user.hasPassword === false) {
       return <Navigate to="/set-password" replace />;
     }
@@ -336,13 +357,50 @@ function App() {
           </Route>
 
           {/* =================================================
+              ADMIN AUTHENTICATION & DASHBOARD
+          ================================================= */}
+          {/* Public Admin Login only */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+
+          {/* 404 Security: /admin and public-facing fake routes return generic 404 */}
+          <Route path="/admin" element={<NotFound />} />
+          <Route path="/admin/register" element={<NotFound />} />
+          <Route path="/admin/signup" element={<NotFound />} />
+          <Route path="/admin/create" element={<NotFound />} />
+
+          {/* Strictly Protected Admin Routes */}
+          <Route element={<AdminProtectedRoute />}>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+            {/* SUPER_ADMIN ONLY: Platform Multi-Tenant Provisioning & Management */}
+            <Route element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}>
+              <Route path="/admin/companies" element={<AdminCompanies />} />
+              <Route path="/admin/company-admins" element={<AdminCompanyAdmins />} />
+            </Route>
+
+            {/* COMPANY_ADMIN ONLY: Own Assigned Organization Profile & Settings */}
+            <Route element={<AdminProtectedRoute allowedRoles={["COMPANY_ADMIN"]} />}>
+              <Route path="/admin/company" element={<AdminCompanyProfile />} />
+            </Route>
+
+            {/* Shared Scoped Admin Routes */}
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/students" element={<AdminUsers />} />
+            <Route path="/admin/employers" element={<AdminUsers />} />
+            <Route path="/admin/opportunities" element={<AdminOpportunities />} />
+            <Route path="/admin/applications" element={<AdminApplications />} />
+            <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
+          </Route>
+
+          {/* =================================================
               RESUME BUILDER
           ================================================= */}
           <Route path="/resume-builder" element={<ResumeBuilder />} />
 
-          {/* ========== DEFAULT ========== */}
+          {/* ========== DEFAULT & 404 ========== */}
           <Route path="/" element={<RootRoute />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
     </AuthInitializer>

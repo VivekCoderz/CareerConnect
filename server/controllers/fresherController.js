@@ -5,6 +5,7 @@ const Job = require("../models/Job");
 const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 
 // Skill benchmarks for target roles for Job Matching & Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -307,7 +308,7 @@ module.exports.getFresherProfile = async (req, res, next) => {
 module.exports.updateFresherProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const updateData = { ...req.body };
+    const updateData = sanitizeProfileUpdate(req.body);
 
     // Synchronize basic user fields if present in updateData
     const userUpdateFields = {};
@@ -447,6 +448,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
           })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
+            .limit(20)
             .lean(),
           Job.find({
             status: "Published",
@@ -454,6 +456,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
           })
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
+            .limit(20)
             .lean(),
         ]);
       } catch (dbErr) {
@@ -599,6 +602,8 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       _id: app._id,
       id: app._id.toString(),
       jobId: app.jobId?._id || "",
+      internshipId: app.internshipId?._id || app.internshipId || "",
+      opportunityType: app.opportunityType,
       title: app.jobId?.title || "Position",
       company: app.jobId?.employerId?.companyName || app.employerId?.companyName || "Employer",
       appliedDate: new Date(app.createdAt).toLocaleDateString("en-GB", {
@@ -940,11 +945,11 @@ module.exports.getPublicFresherProfile = async (req, res, next) => {
 
     let user = null;
     if (usernameOrId.match(/^[0-9a-fA-F]{24}$/)) {
-      user = await User.findById(usernameOrId).select("fullName username email phone profileImage socialLinks userType");
+      user = await User.findById(usernameOrId).select("fullName username profileImage socialLinks userType");
     }
     if (!user) {
       user = await User.findOne({ username: usernameOrId.toLowerCase() }).select(
-        "fullName username email phone profileImage socialLinks userType"
+        "fullName username profileImage socialLinks userType"
       );
     }
 
@@ -971,11 +976,19 @@ module.exports.getPublicFresherProfile = async (req, res, next) => {
       });
     }
 
+    const source = profile.toObject();
+    const publicFields = ["_id", "professionalHeadline", "careerObjective", "targetRole", "targetRoles",
+      "primarySkills", "targetIndustry", "location", "bio", "socialLinks", "education", "skills",
+      "projects", "internships", "certifications", "achievements", "codingProfiles", "profileVisibility",
+      "verificationStatus"];
+    const safeProfile = Object.fromEntries(publicFields.filter((field) => source[field] !== undefined)
+      .map((field) => [field, source[field]]));
+
     return res.status(200).json({
       success: true,
       data: {
         user,
-        profile,
+        profile: safeProfile,
       },
     });
   } catch (error) {

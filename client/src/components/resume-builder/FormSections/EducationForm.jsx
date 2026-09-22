@@ -330,7 +330,7 @@ const EducationForm = ({ data = [], onChange }) => {
                     value={edu.college || ''}
                     onChange={(e) => handleItemChange(index, 'college', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    placeholder="e.g. Geeta University, Panipat"
+                    placeholder="e.g. CareerConnect, Panipat"
                   />
                 </div>
                 <div>

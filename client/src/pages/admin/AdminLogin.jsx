@@ -11,12 +11,27 @@ const AdminLogin = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
+<<<<<<< HEAD
   // If already authenticated as admin, redirect directly to dashboard
   React.useEffect(() => {
     if (user && user.role === "admin") {
       navigate("/admin/dashboard", { replace: true });
     }
   }, [user, navigate]);
+=======
+  const isExpired = new URLSearchParams(location.search).get("expired") === "1";
+  const isAdmin =
+    user?.role === "SUPER_ADMIN" ||
+    user?.role === "COMPANY_ADMIN" ||
+    user?.role === "admin";
+
+  // If already authenticated as admin, redirect directly to dashboard
+  React.useEffect(() => {
+    if (user && isAdmin) {
+      navigate("/admin/dashboard", { replace: true });
+    }
+  }, [user, isAdmin, navigate]);
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
 
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -42,6 +57,12 @@ const AdminLogin = () => {
       });
 
       if (res?.success && res?.user) {
+<<<<<<< HEAD
+=======
+        if (res.token) {
+          localStorage.setItem("careerconnect_token", res.token);
+        }
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
         dispatch(setUser(res.user));
         let redirectPath = location.state?.from?.pathname || "/admin/dashboard";
         const isSuperAdmin = res.user.role === "SUPER_ADMIN" || (res.user.role === "admin" && !res.user.companyId);
@@ -91,6 +112,16 @@ const AdminLogin = () => {
 
         {/* Login Card */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl space-y-5">
+<<<<<<< HEAD
+=======
+          {isExpired && !error && (
+            <div className="p-3.5 rounded-xl bg-amber-950/50 border border-amber-800/80 text-amber-300 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+              <span>Your administrative session has expired. Please sign in again.</span>
+            </div>
+          )}
+
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
           {error && (
             <div className="p-3.5 rounded-xl bg-rose-950/50 border border-rose-800/80 text-rose-300 text-xs flex items-start gap-2.5 animate-shake">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />

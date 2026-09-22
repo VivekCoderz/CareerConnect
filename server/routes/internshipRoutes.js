@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const internshipController = require("../controllers/internshipController");
 const protect = require("../middleware/authMiddleware");
+const { optionalAuth } = require("../middleware/authMiddleware");
 const { requireEmployer: employerOnly } = require("../middleware/roleMiddleware");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
 
@@ -79,7 +80,7 @@ router.get("/", (req, res, next) => {
 });
 
 // Single internship details
-router.get("/:id", internshipController.getInternshipById);
+router.get("/:id", optionalAuth, internshipController.getInternshipById);
 
 // Employer update/delete operations
 router.put("/:id", protect, employerOnly, internshipController.updateInternship);

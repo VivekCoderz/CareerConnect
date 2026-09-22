@@ -4,12 +4,7 @@ const rateLimit = require("express-rate-limit");
  * Helper to get clean client IP
  */
 const getClientIp = (req) => {
-  return (
-    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-    req.ip ||
-    req.socket?.remoteAddress ||
-    "127.0.0.1"
-  );
+  return req.ip || req.socket?.remoteAddress || "unknown";
 };
 
 /**

@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate ,Link} from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
 import api from "../../api/api";
 import { updateUserProfile, logout } from "../../redux/features/authSlice";
 import PhoneInput from "../../components/common/PhoneInput";
+import GoogleAccountAvatar from "../../components/common/GoogleAccountAvatar";
 
 const inputCls = (err) =>
   `w-full h-11 rounded-xl border bg-white px-4 text-sm outline-none transition focus:ring-4 ${
@@ -52,7 +53,7 @@ const GoogleEmployerOnboarding = () => {
     countryCode: "+91",
     phone: "",
     companyName: "",
-    contactPerson: user?.fullName || "",
+    contactPerson: null,
     designation: "",
     website: "",
     companyType: "Private",
@@ -76,12 +77,7 @@ const GoogleEmployerOnboarding = () => {
     }
   }, [user, navigate]);
 
-  // Keep contactPerson synced if user loads after initial render
-  useEffect(() => {
-    if (user?.fullName && !formData.contactPerson) {
-      setFormData((prev) => ({ ...prev, contactPerson: user.fullName }));
-    }
-  }, [user?.fullName]);
+  const contactPerson = formData.contactPerson ?? user?.fullName ?? "";
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -105,7 +101,7 @@ const GoogleEmployerOnboarding = () => {
       }
     }
     if (!formData.companyName.trim()) errors.companyName = "Company name is required";
-    if (!formData.contactPerson.trim()) errors.contactPerson = "Contact person is required";
+    if (!contactPerson.trim()) errors.contactPerson = "Contact person is required";
     if (!formData.designation.trim()) errors.designation = "Designation is required";
     if (!formData.industry.trim()) errors.industry = "Industry is required";
     if (!formData.location.trim()) errors.location = "Location is required";
@@ -141,7 +137,7 @@ const GoogleEmployerOnboarding = () => {
         countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         companyName: formData.companyName.trim(),
-        contactPerson: formData.contactPerson.trim(),
+        contactPerson: contactPerson.trim(),
         designation: formData.designation.trim(),
         website: formData.website.trim(),
         companyType: formData.companyType,
@@ -175,11 +171,13 @@ const GoogleEmployerOnboarding = () => {
         <div className="absolute bottom-0 left-0 w-56 h-56 bg-black/10 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
 
         <div className="relative z-10">
-          <div className="w-11 h-11 rounded-xl bg-white/20 border border-white/30 flex items-center justify-center font-bold text-sm">
-            GU
-          </div>
-          <p className="text-[15px] font-bold tracking-tight mt-2">GEETA UNIVERSITY</p>
-          <p className="text-[11px] text-amber-200 font-semibold">CareerConnect — Employer</p>
+          <Link to="/" className="inline-block">
+            <img
+              src="/careerconnect-logo.png"
+              alt="CareerConnect"
+              className="h-12 w-auto bg-white/95 rounded-2xl px-3 py-2 shadow-sm"
+            />
+          </Link>
         </div>
 
         <div className="relative z-10">
@@ -212,14 +210,14 @@ const GoogleEmployerOnboarding = () => {
       <div className="flex-1 flex items-center justify-center p-5 sm:p-8 overflow-y-auto">
         <div className="w-full max-w-md py-8">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-6">
-            <div className="w-9 h-9 rounded-lg bg-[#f59e0b] text-white flex items-center justify-center font-bold text-xs">
-              GU
-            </div>
-            <div>
-              <p className="text-sm font-bold text-[#f59e0b]">GEETA UNIVERSITY</p>
-              <p className="text-[10px] text-slate-500 font-semibold">CareerConnect — Employer</p>
-            </div>
+          <div className="lg:hidden flex items-center justify-center mb-6">
+            <Link to="/">
+              <img
+                src="/careerconnect-logo.png"
+                alt="CareerConnect"
+                className="h-11 w-auto"
+              />
+            </Link>
           </div>
 
           {/* Back to Home / Cancel Header */}
@@ -240,17 +238,7 @@ const GoogleEmployerOnboarding = () => {
 
           {/* Google account info */}
           <div className="mb-6 flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
-            {user?.profileImage ? (
-              <img
-                src={user.profileImage}
-                alt={user.fullName}
-                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-[#f59e0b] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                {user?.fullName?.[0]?.toUpperCase() || "E"}
-              </div>
-            )}
+            <GoogleAccountAvatar user={user} />
             <div>
               <p className="text-sm font-semibold text-slate-800">{user?.fullName}</p>
               <p className="text-xs text-slate-500">{user?.email}</p>
@@ -316,7 +304,7 @@ const GoogleEmployerOnboarding = () => {
                 </label>
                 <input
                   name="contactPerson"
-                  value={formData.contactPerson}
+                  value={contactPerson}
                   onChange={handleChange}
                   placeholder="Recruiter name"
                   className={inputCls(fieldErrors.contactPerson)}

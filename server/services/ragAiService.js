@@ -25,7 +25,9 @@ const retrievePlatformContext = async (queryText, userId = null) => {
   const tokens = queryLower
     .replace(/[^\w\s]/gi, "")
     .split(/\s+/)
-    .filter((t) => t.length > 2);
+    .filter((t) => t.length > 2)
+    .slice(0, 8)
+    .map((t) => t.slice(0, 40));
 
   const contextData = {
     jobs: [],
@@ -130,6 +132,7 @@ const retrievePlatformContext = async (queryText, userId = null) => {
   try {
     const courseRegex = tokens.length > 0 ? new RegExp(tokens.join("|"), "i") : /full stack|react|python|cloud|ai/i;
     const courses = await Course.find({
+      status: "Published",
       $or: [
         { title: { $regex: courseRegex } },
         { provider: { $regex: courseRegex } },

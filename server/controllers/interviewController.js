@@ -57,14 +57,6 @@ const verifyEmployerApplicationAccess = async (employerProfileId, userId, applic
 exports.getInterviews = async (req, res, next) => {
   try {
     const isEmployer = req.user.role === "employer" || req.user.userType === "employer";
-    console.log(">>> [getInterviews] Called by user:", {
-      id: req.user._id,
-      email: req.user.email,
-      name: req.user.fullName,
-      role: req.user.role,
-      userType: req.user.userType,
-      isEmployer,
-    });
     let query = {};
 
     if (isEmployer) {
@@ -161,6 +153,7 @@ exports.getInterviews = async (req, res, next) => {
         const obj = item.toObject();
         if (obj.status !== "completed" && obj.status !== "Completed") {
           delete obj.scorecard;
+<<<<<<< HEAD
           delete obj.feedback;
           delete obj.interviewerFeedback;
         } else {
@@ -172,6 +165,10 @@ exports.getInterviews = async (req, res, next) => {
             obj.feedback?.comments ||
             "";
 
+=======
+        } else if (obj.scorecard) {
+          // Expose only overallScore and recommendation to candidate, hide internal notes
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
           obj.scorecard = {
             overallScore: obj.scorecard?.overallScore || obj.feedback?.rating || 0,
             technicalSkills: obj.scorecard?.technicalSkills || obj.feedback?.technicalScore || 0,
@@ -189,6 +186,9 @@ exports.getInterviews = async (req, res, next) => {
           };
           delete obj.interviewerFeedback;
         }
+        delete obj.feedback;
+        delete obj.interviewerFeedback;
+        delete obj.notes;
         return obj;
       });
     }
@@ -436,7 +436,7 @@ exports.getInterviewById = async (req, res, next) => {
       .populate("jobId", "title department location type description requirements")
       .populate("internshipId", "title department location type companyName description")
       .populate("employerId", "companyName logo officialEmail mobile location website")
-      .populate("applicationId")
+      .populate("applicationId", "studentName studentEmail studentPhone education skills experience portfolioUrl resumeUrl status stage appliedAt opportunityType opportunityTitle")
       .populate("interviewerId", "fullName email department");
 
     if (!interview) {
@@ -446,11 +446,11 @@ exports.getInterviewById = async (req, res, next) => {
     // Authorization check
     if (isEmployer) {
       const employerProfileId = await getEmployerProfileId(req.user);
-      if (!interview.employerId._id.equals(employerProfileId) && !interview.employerId._id.equals(req.user._id)) {
+      if (!interview.employerId || (!interview.employerId._id.equals(employerProfileId) && !interview.employerId._id.equals(req.user._id))) {
         return res.status(403).json({ success: false, message: "Unauthorized access to this interview record" });
       }
     } else {
-      if (!interview.candidateId._id.equals(req.user._id)) {
+      if (!interview.candidateId || !interview.candidateId._id.equals(req.user._id)) {
         return res.status(403).json({ success: false, message: "Unauthorized access to this interview record" });
       }
     }
@@ -463,10 +463,14 @@ exports.getInterviewById = async (req, res, next) => {
     const interviewData = interview.toObject();
 
     // Sanitize for candidate
-    if (!isEmployer && interviewData.status !== "completed") {
-      delete interviewData.scorecard;
+    if (!isEmployer) {
+      interviewData.scorecard = interviewData.scorecard && ["completed", "Completed"].includes(interviewData.status) ? {
+        overallScore: interviewData.scorecard.overallScore,
+        recommendation: interviewData.scorecard.recommendation,
+      } : undefined;
       delete interviewData.feedback;
       delete interviewData.interviewerFeedback;
+      delete interviewData.notes;
     }
 
     return res.status(200).json({

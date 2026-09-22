@@ -30,7 +30,7 @@ const FALLBACK_INTERNSHIP = {
 const FALLBACK_COURSE = {
   id: "crs-fb-1",
   title: "Full Stack Web Development Masterclass",
-  provider: "Geeta University Academy",
+  provider: "CareerConnect Academy",
   duration: "8 Weeks (Certified)",
   level: "Beginner to Advanced",
   rating: "4.9",
@@ -43,6 +43,8 @@ const InternshalaDashboardRecommendations = ({
   internships = [],
   courses = [],
   savedIds = [],
+  appliedJobIds = new Set(),
+  appliedInternshipIds = new Set(),
   onSave,
   onApply,
   onNavigateTab,
@@ -54,7 +56,9 @@ const InternshalaDashboardRecommendations = ({
   const topCourse = courses && courses.length > 0 ? courses[0] : FALLBACK_COURSE;
 
   const isJobSaved = savedIds.includes(topJob.id || topJob._id);
+  const isJobApplied = appliedJobIds.has(String(topJob.id || topJob._id));
   const isInternshipSaved = savedIds.includes(topInternship.id || topInternship._id);
+  const isInternshipApplied = appliedInternshipIds.has(String(topInternship.id || topInternship._id));
 
   // Normalize skills arrays safely
   const jobSkills = topJob.skillsRequired || topJob.skills || ["React", "Node.js", "SQL"];
@@ -96,7 +100,7 @@ const InternshalaDashboardRecommendations = ({
             </span>
           </div>
           <span className="text-xs font-semibold text-slate-500 hidden sm:inline-block">
-            Curated hiring drives for Geeta University Students
+            Curated hiring drives for CareerConnect Students
           </span>
         </div>
 
@@ -156,7 +160,7 @@ const InternshalaDashboardRecommendations = ({
               <h3 className="text-base font-bold mt-2.5 group-hover:text-purple-200 transition leading-snug line-clamp-1">
                 Certified Career Tracks
               </h3>
-              <p className="text-xs text-purple-100/80 mt-1">Free Geeta University Specialization</p>
+              <p className="text-xs text-purple-100/80 mt-1">Free CareerConnect Specialization</p>
             </div>
             <span className="text-xs font-bold text-purple-200 mt-3 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
               <span>Explore Courses</span>
@@ -338,7 +342,11 @@ const InternshalaDashboardRecommendations = ({
                     {isJobSaved ? "★" : "☆"}
                   </button>
 
-                  {isJobExternal ? (
+                  {isJobApplied ? (
+                    <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
+                      ✓ Applied
+                    </button>
+                  ) : isJobExternal ? (
                     <a
                       href={jobApplyHref}
                       target="_blank"
@@ -477,7 +485,11 @@ const InternshalaDashboardRecommendations = ({
                     {isInternshipSaved ? "★" : "☆"}
                   </button>
 
-                  {isIntExternal ? (
+                  {isInternshipApplied ? (
+                    <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
+                      ✓ Applied
+                    </button>
+                  ) : isIntExternal ? (
                     <a
                       href={intApplyHref}
                       target="_blank"
@@ -538,7 +550,7 @@ const InternshalaDashboardRecommendations = ({
                       {topCourse.title}
                     </h3>
                     <p className="text-xs font-semibold text-slate-600 line-clamp-1">
-                      {topCourse.provider || "Geeta University Academy"}
+                      {topCourse.provider || "CareerConnect Academy"}
                     </p>
                   </div>
                   <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 font-black text-xl flex items-center justify-center shrink-0">

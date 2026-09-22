@@ -10,26 +10,21 @@ const pendingOTPSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
-    otp: {
+    otpHash: {
       type: String,
       required: true,
+      select: false,
     },
     expiresAt: {
       type: Date,
       required: true,
     },
-    isVerified: {
-      type: Boolean,
-      default: false,
-    },
+    verifiedAt: { type: Date, default: null },
+    verificationTokenHash: { type: String, default: null, select: false },
+    attempts: { type: Number, default: 0 },
     purpose: {
       type: String,
       default: "verification",
-    },
-    tempData: {
-      fullName: String,
-      phone: String,
-      password: String,
     },
   },
   { timestamps: true }

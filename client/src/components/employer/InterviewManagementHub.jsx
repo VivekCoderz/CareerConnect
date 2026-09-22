@@ -92,6 +92,7 @@ const InterviewManagementHub = ({
   const filteredInterviews = useMemo(() => {
     return interviews
       .filter((item) => {
+<<<<<<< HEAD
         const s = (item.status || "").toLowerCase();
         if (statusFilter === "Upcoming") {
           if (s !== "scheduled" && s !== "rescheduled") return false;
@@ -100,6 +101,10 @@ const InterviewManagementHub = ({
         } else if (statusFilter === "Cancelled") {
           if (s !== "cancelled") return false;
         } else if (statusFilter !== "All" && s !== statusFilter.toLowerCase()) {
+=======
+        // Status filter (case-insensitive)
+        if (statusFilter !== "All" && (item.status || "").toLowerCase() !== statusFilter.toLowerCase()) {
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
           return false;
         }
 
@@ -555,6 +560,7 @@ const InterviewManagementHub = ({
                       <span>View</span>
                     </button>
 
+<<<<<<< HEAD
                     {!isCancelled && !isCompleted ? (
                       <button
                         type="button"
@@ -565,10 +571,25 @@ const InterviewManagementHub = ({
                       >
                         <span>✓</span>
                         <span>Mark Completed</span>
+=======
+                    {!isCancelled ? (
+                      <button
+                        type="button"
+                        onClick={() => setScorecardInterview(item)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs ${
+                          isCompleted
+                            ? "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                            : "bg-[#f59e0b] hover:bg-[#d97706] text-white"
+                        }`}
+                      >
+                        <span>📝</span>
+                        <span>{isCompleted ? "Scorecard" : "Evaluate & Score"}</span>
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                       </button>
                     ) : (
                       <button
                         type="button"
+<<<<<<< HEAD
                         onClick={() => setScorecardInterview(item)}
                         className="py-2 px-3 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold transition flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
                         title="Give Feedback"
@@ -624,12 +645,65 @@ const InterviewManagementHub = ({
                           type="button"
                           onClick={() => handleScheduleNextRound(cand)}
                           className="flex-1 py-1.5 px-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold transition text-center cursor-pointer"
+=======
+                        onClick={() => handleScheduleNextRound(cand)}
+                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#1e3a8a] hover:bg-[#1e40af] text-white transition flex items-center justify-center gap-1.5 shadow-2xs"
+                      >
+                        <span>📅</span>
+                        <span>+ Schedule New</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setHistoryCandidate(cand)}
+                      className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
+                      title="View Multi-Round History"
+                    >
+                      📊
+                    </button>
+                  </div>
+
+                  {/* Sub-actions */}
+                  {!isCancelled && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {!isCompleted && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setRescheduleInterview(item)}
+                            className="flex-1 py-1 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-bold transition text-center"
+                          >
+                            🔄 Reschedule
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => handleCancelInterview(item)}
+                            className="flex-1 py-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10.5px] font-bold transition text-center"
+                          >
+                            ✕ Cancel
+                          </button>
+                        </>
+                      )}
+
+                      {isCompleted && (feedback.recommendation === "Move to Next Round" || item.result === "passed") && (
+                        <button
+                          type="button"
+                          onClick={() => handleScheduleNextRound(cand)}
+                          className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold transition text-center"
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                         >
                           + Next Round
                         </button>
                       )}
 
+<<<<<<< HEAD
                       {(item.result === "passed" || item.result === "selected" || feedback.recommendation === "Strong Hire" || feedback.recommendation === "Hire / Select") && onOpenOfferModal && (
+=======
+                      {(item.result === "passed" || feedback.recommendation === "Strong Hire" || feedback.recommendation === "Hire / Select") && onOpenOfferModal && (
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                         <button
                           type="button"
                           onClick={() => onOpenOfferModal(item.applicationId || item)}
@@ -640,6 +714,7 @@ const InterviewManagementHub = ({
                       )}
                     </div>
                   )}
+<<<<<<< HEAD
 
                   {isCancelled && (
                     <button
@@ -650,6 +725,8 @@ const InterviewManagementHub = ({
                       📅 Schedule New Interview
                     </button>
                   )}
+=======
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                 </div>
               </div>
             );
@@ -733,6 +810,7 @@ const InterviewManagementHub = ({
                             className="p-1 px-2 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold hover:bg-slate-200 transition cursor-pointer"
                             title="View Interview Details"
                           >
+<<<<<<< HEAD
                             👁️ View
                           </button>
                           {!isCompleted && !isCancelled && (
@@ -746,25 +824,40 @@ const InterviewManagementHub = ({
                               ✓ Complete
                             </button>
                           )}
+=======
+                            🔍
+                          </button>
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                           {!isCancelled ? (
                             <button
                               type="button"
                               onClick={() => setScorecardInterview(item)}
+<<<<<<< HEAD
                               className="px-2 py-1 rounded-lg bg-[#f59e0b] text-white text-[11px] font-bold hover:bg-[#d97706] transition cursor-pointer"
                               title={isCompleted ? "View/Edit Scorecard" : "Give Feedback"}
                             >
                               {isCompleted ? "Feedback" : "Evaluate"}
+=======
+                              className="px-2.5 py-1 rounded-lg bg-[#f59e0b] text-white text-[11px] font-bold hover:bg-[#d97706] transition"
+                            >
+                              Scorecard
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={() => handleScheduleNextRound(cand)}
+<<<<<<< HEAD
                               className="px-2 py-1 rounded-lg bg-blue-50 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold hover:bg-blue-100 transition cursor-pointer"
+=======
+                              className="px-2.5 py-1 rounded-lg bg-blue-50 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold hover:bg-blue-100 transition"
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                             >
                               + Schedule
                             </button>
                           )}
                           {!isCompleted && !isCancelled && (
+<<<<<<< HEAD
                             <>
                               <button
                                 type="button"
@@ -784,6 +877,16 @@ const InterviewManagementHub = ({
                                 ✕
                               </button>
                             </>
+=======
+                            <button
+                              type="button"
+                              onClick={() => handleCancelInterview(item)}
+                              className="p-1 px-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold hover:bg-rose-100 transition"
+                              title="Cancel Interview"
+                            >
+                              ✕
+                            </button>
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
                           )}
                           <button
                             type="button"

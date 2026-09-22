@@ -7,11 +7,14 @@ const { sendAiRecommendationNotification } = require("../services/notificationSe
  */
 exports.chat = async (req, res) => {
   try {
-    const { query, conversationHistory = [] } = req.body;
+    const { query, conversationHistory = [] } = req.body || {};
     const userId = req.user?._id || null;
 
-    if (!query || !query.trim()) {
-      return res.status(400).json({ success: false, message: "Query text is required." });
+    if (typeof query !== "string" || !query.trim() || query.length > 2000 ||
+        !Array.isArray(conversationHistory) || conversationHistory.length > 10 ||
+        conversationHistory.some((item) => !item || !["user", "assistant"].includes(item.role) ||
+          typeof item.content !== "string" || item.content.length > 2000)) {
+      return res.status(400).json({ success: false, message: "Invalid query or conversation history." });
     }
 
     const response = await answerUserQuery({

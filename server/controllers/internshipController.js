@@ -11,6 +11,7 @@ const FresherProfile = require("../models/FresherProfile");
 const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require("../services/jobScraperService");
+const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
 
 // Helper to normalize URL slugs to category names
 const formatCategorySlug = (slug = "") => {
@@ -31,6 +32,7 @@ const getUserProfileFromReq = async (req) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select("-password");
     if (!user) return null;
+    if ((decoded.av || 0) !== (user.authVersion || 0)) return null;
 
     if (user.userType === "student") {
       return await StudentProfile.findOne({ userId: user._id });
@@ -175,7 +177,7 @@ exports.getInternships = async (req, res, next) => {
       }
       filter.createdBy = req.user._id;
     } else {
-      filter.status = status || "Published";
+      filter.status = "Published";
     }
 
     // Work Mode
@@ -187,7 +189,7 @@ exports.getInternships = async (req, res, next) => {
     const targetCity = city && city !== "All" ? city.replace(/-/g, " ") : "";
     const targetLocation = location && location !== "All" ? location : "";
     if (targetCity || targetLocation) {
-      const locTerm = targetCity || targetLocation;
+      const locTerm = escapeRegex(targetCity || targetLocation);
       filter.$or = [
         { city: { $regex: locTerm, $options: "i" } },
         { location: { $regex: locTerm, $options: "i" } },
@@ -197,7 +199,7 @@ exports.getInternships = async (req, res, next) => {
     // Category
     if (category && category !== "All") {
       const formattedCategory = formatCategorySlug(category);
-      const catRegex = new RegExp(formattedCategory, "i");
+      const catRegex = new RegExp(escapeRegex(formattedCategory), "i");
       const catFilter = [
         { category: { $regex: catRegex } },
         { subCategory: { $regex: catRegex } },
@@ -214,7 +216,7 @@ exports.getInternships = async (req, res, next) => {
 
     // Specific Skill
     if (skill && skill !== "All") {
-      filter.requiredSkills = { $in: [new RegExp(skill, "i")] };
+      filter.requiredSkills = { $in: [new RegExp(escapeRegex(skill), "i")] };
     }
 
     // Paid status
@@ -243,7 +245,7 @@ exports.getInternships = async (req, res, next) => {
     // Search query (keyword: q or search)
     const searchTerm = (search || q || "").trim();
     if (searchTerm) {
-      const sRegex = new RegExp(searchTerm, "i");
+      const sRegex = new RegExp(escapeRegex(searchTerm), "i");
       const searchOr = [
         { title: { $regex: sRegex } },
         { description: { $regex: sRegex } },
@@ -271,9 +273,14 @@ exports.getInternships = async (req, res, next) => {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
     const skip = (pageNum - 1) * pageSize;
+    const windowSize = pageNum * pageSize;
+    if (windowSize > 5000) {
+      return res.status(400).json({ success: false, message: "Please narrow your search to view more results" });
+    }
 
     // 1. Fetch Campus Internships from MongoDB (unless source is explicitly "external")
     let campusList = [];
+    let campusTotal = 0;
     if (source !== "external" && mongoose.connection.readyState === 1) {
       try {
         const jobInternFilter = {
@@ -281,12 +288,15 @@ exports.getInternships = async (req, res, next) => {
           employmentType: { $regex: /^internship$/i },
         };
 
-        const [intDocs, jobDocs] = await Promise.all([
+        const myJobFilter = { employerId: filter.employerId, employmentType: { $regex: /^internship$/i } };
+        const effectiveJobFilter = myPosts === "true" ? myJobFilter : jobInternFilter;
+        const [intDocs, jobDocs, internshipTotal, jobTotal] = await Promise.all([
           Internship.find(filter)
             .populate("employerId", "companyName logo headquarters website industry description")
             .sort(sortOption)
-            .limit(200)
+            .limit(windowSize)
             .lean(),
+<<<<<<< HEAD
           myPosts !== "true"
             ? Job.find(jobInternFilter)
                 .populate("employerId", "companyName logo headquarters website industry description")
@@ -296,7 +306,15 @@ exports.getInternships = async (req, res, next) => {
                 .populate("employerId", "companyName logo headquarters website industry description")
                 .sort(sortOption)
                 .lean(),
+=======
+          Job.find(effectiveJobFilter)
+            .populate("employerId", "companyName logo headquarters website industry description")
+            .sort(sortOption).limit(windowSize).lean(),
+          Internship.countDocuments(filter),
+          Job.countDocuments(effectiveJobFilter),
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7
         ]);
+        campusTotal = internshipTotal + jobTotal;
 
         const combined = [...(intDocs || []), ...(jobDocs || [])];
 
@@ -436,7 +454,7 @@ exports.getInternships = async (req, res, next) => {
       finalList = [...campusList, ...externalList];
     }
 
-    const total = finalList.length;
+    const total = (source === "external" ? 0 : campusTotal) + (source === "campus" ? 0 : externalList.length);
     const paginatedList = finalList.slice(skip, skip + pageSize);
 
     return res.status(200).json({
@@ -626,12 +644,16 @@ exports.getInternshipById = async (req, res, next) => {
       );
     }
 
-    if (!internship) {
+    if (!internship || (internship.status !== "Published" && (!req.user ||
+      !(String(internship.createdBy) === String(req.user._id) || await EmployerProfile.exists({
+        _id: internship.employerId, userId: req.user._id,
+      }))))) {
       return res.status(404).json({ success: false, message: "Internship opportunity not found" });
     }
 
-    internship.viewsCount = (internship.viewsCount || 0) + 1;
-    await internship.save();
+    if (internship.status === "Published") {
+      await internship.constructor.updateOne({ _id: internship._id }, { $inc: { viewsCount: 1 } });
+    }
 
     return res.status(200).json({
       success: true,
@@ -656,11 +678,7 @@ exports.updateInternship = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Internship not found or access denied" });
     }
 
-    ["employerId", "createdBy", "source", "isExternal", "externalId"].forEach(
-      (k) => delete req.body[k]
-    );
-
-    Object.assign(internship, req.body);
+    Object.assign(internship, pickListingUpdate(req.body));
     await internship.save();
     clearSearchCache();
 

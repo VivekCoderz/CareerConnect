@@ -75,7 +75,7 @@ const EmployerSidebar = ({ activeTab, onSelectTab, mobileOpen, onCloseMobile, st
         <div className="lg:hidden h-16 px-4 flex items-center justify-between border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#92400e] to-[#b45309] text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              GU
+              CC
             </div>
             <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
               Employer Hub

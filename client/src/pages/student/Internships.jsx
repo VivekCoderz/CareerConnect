@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { getInternships } from "../../services/internshipService";
+import { getMyAppliedIds } from "../../services/applicationService";
 
 export default function Internships({
   embedded = false,
   onSelectInternship,
   studentProfile,
+  appliedInternshipIds,
 }) {
+  const userId = useSelector((state) => state.auth.user?._id);
+  const [standaloneApplied, setStandaloneApplied] = useState({ userId: null, ids: new Set() });
+  const visibleAppliedIds = appliedInternshipIds ||
+    (standaloneApplied.userId === userId ? standaloneApplied.ids : new Set());
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -15,6 +22,17 @@ export default function Internships({
   const [q, setQ] = useState("");
   const [source, setSource] = useState("");
   const [workMode, setWorkMode] = useState("");
+
+  useEffect(() => {
+    if (appliedInternshipIds || !userId) return;
+    let active = true;
+    getMyAppliedIds()
+      .then((response) => {
+        if (active) setStandaloneApplied({ userId, ids: new Set(response.internshipIds || []) });
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [appliedInternshipIds, userId]);
 
   const fetchList = async (pageToFetch = currentPage) => {
     try {
@@ -67,7 +85,7 @@ export default function Internships({
         <div>
           {!embedded && (
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              Geeta University · CareerConnect
+              CareerConnect · CareerConnect
             </p>
           )}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -209,7 +227,11 @@ export default function Internships({
                 </div>
 
                 <div className="flex sm:flex-col items-stretch gap-2 shrink-0">
-                  {item.applyLink ? (
+                  {visibleAppliedIds.has(String(item._id)) ? (
+                    <button type="button" disabled className="h-10 px-5 rounded-xl bg-slate-200 text-slate-600 text-xs font-bold cursor-not-allowed">
+                      ✓ Applied
+                    </button>
+                  ) : item.applyLink ? (
                     <a
                       href={item.applyLink}
                       target="_blank"
@@ -312,11 +334,11 @@ export default function Internships({
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/home" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
-              GU
+              CC
             </div>
             <div className="leading-tight">
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                Geeta University
+                CareerConnect
               </p>
               <p className="text-sm font-bold text-slate-900">CareerConnect</p>
             </div>

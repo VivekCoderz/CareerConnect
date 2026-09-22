@@ -3,6 +3,7 @@ const ProfessionalProfile = require("../models/ProfessionalProfile");
 const Job = require("../models/Job");
 const Application = require("../models/Application");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 
 // Skill benchmarks for target senior/executive roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -439,7 +440,7 @@ module.exports.getProfessionalProfile = async (req, res, next) => {
 module.exports.updateProfessionalProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const updateData = { ...req.body };
+    const updateData = sanitizeProfileUpdate(req.body);
 
     // Synchronize basic user fields
     const userUpdateFields = {};
@@ -791,11 +792,11 @@ module.exports.getPublicProfessionalProfile = async (req, res, next) => {
 
     let user = null;
     if (usernameOrId.match(/^[0-9a-fA-F]{24}$/)) {
-      user = await User.findById(usernameOrId).select("fullName username email profileImage socialLinks userType");
+      user = await User.findById(usernameOrId).select("fullName username profileImage socialLinks userType email");
     }
     if (!user) {
       user = await User.findOne({ username: usernameOrId.toLowerCase() }).select(
-        "fullName username email profileImage socialLinks userType"
+        "fullName username profileImage socialLinks userType email"
       );
     }
 
@@ -822,16 +823,31 @@ module.exports.getPublicProfessionalProfile = async (req, res, next) => {
       });
     }
 
-    // Deep copy profile and protect confidential compensation fields
-    const safeProfile = profile.toObject();
-    if (safeProfile.compensation?.isCurrentSalaryConfidential) {
-      delete safeProfile.compensation.currentSalary;
+    const isRecruiter = req.user?.role === "employer" || req.user?.role === "admin";
+    if (profile.profileVisibility === "recruiter-only" && !isRecruiter &&
+        String(req.user?._id || "") !== String(user._id)) {
+      return res.status(403).json({ success: false, message: "This profile is available to recruiters only." });
     }
+
+    // Return portfolio fields only. Salary, date of birth, resume files and
+    // job-search preferences are not part of a public profile.
+    const source = profile.toObject();
+    const publicFields = ["_id", "professionalHeadline", "professionalSummary", "careerSpecialization",
+      "currentLevel", "totalExperienceYears", "totalExperienceMonths", "location", "bio", "socialLinks",
+      "skills", "projects", "achievements", "leadership", "certifications", "professionalDevelopment",
+      "education", "profileVisibility", "verificationStatus"];
+    const safeProfile = Object.fromEntries(publicFields.filter((field) => source[field] !== undefined)
+      .map((field) => [field, source[field]]));
+    const safeUser = {
+      _id: user._id, fullName: user.fullName, username: user.username,
+      profileImage: user.profileImage, socialLinks: user.socialLinks, userType: user.userType,
+    };
+    if (isRecruiter && source.recruiterPreferences?.allowContact) safeUser.email = user.email;
 
     return res.status(200).json({
       success: true,
       data: {
-        user,
+        user: safeUser,
         profile: safeProfile,
       },
     });

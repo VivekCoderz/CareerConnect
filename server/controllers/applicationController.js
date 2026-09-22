@@ -403,6 +403,28 @@ exports.applyToJob = async (req, res, next) => {
 // MY APPLICATIONS (Candidate)
 // GET /api/applications/me
 // ==========================================
+exports.getMyAppliedIds = async (req, res, next) => {
+  try {
+    const applications = await Application.find({ candidateId: req.user._id })
+      .select("jobId internshipId opportunityType")
+      .lean();
+    const jobIds = new Set();
+    const internshipIds = new Set();
+
+    for (const application of applications) {
+      const target = application.opportunityType === "Internship" ? internshipIds : jobIds;
+      const id = application.opportunityType === "Internship"
+        ? application.internshipId || application.jobId
+        : application.jobId;
+      if (id) target.add(String(id));
+    }
+
+    return res.status(200).json({ success: true, jobIds: [...jobIds], internshipIds: [...internshipIds] });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.getMyApplications = async (req, res, next) => {
   try {
     const applications = await Application.find({ candidateId: req.user._id })
@@ -636,28 +658,19 @@ exports.getEmployerApplications = async (req, res, next) => {
 exports.updateApplicationStatus = async (req, res, next) => {
   try {
     const rawStatus = req.body.status || req.body.stage;
-    const allowed = [
-      "Applied",
-      "Approved",
-      "Screening",
-      "Under Review",
-      "Shortlisted",
-      "Assessment",
-      "Interview",
-      "Interview Scheduled",
-      "Interview Completed",
-      "Selected",
-      "Offer",
-      "Offered",
-      "Hired",
-      "Rejected",
-      "Withdrawn",
-    ];
+    const statusMap = {
+      Applied: "Applied", Approved: "Approved", Screening: "Under Review",
+      "Under Review": "Under Review", Shortlisted: "Shortlisted",
+      Assessment: "Under Review", Interview: "Interview",
+      "Interview Scheduled": "Interview Scheduled", "Interview Completed": "Interview Completed",
+      Selected: "Selected", Offer: "Offered", Offered: "Offered",
+      Hired: "Hired", Rejected: "Rejected",
+    };
 
-    if (!rawStatus || !allowed.includes(rawStatus)) {
+    if (typeof rawStatus !== "string" || !Object.hasOwn(statusMap, rawStatus)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid status. Allowed: ${allowed.join(", ")}`,
+        message: "Invalid application status",
       });
     }
 
@@ -695,7 +708,7 @@ exports.updateApplicationStatus = async (req, res, next) => {
       });
     }
 
-    application.status = rawStatus;
+    application.status = statusMap[rawStatus];
     application.stage = rawStatus;
     application.updatedAt = new Date();
     await application.save();
@@ -718,14 +731,14 @@ exports.updateApplicationStatus = async (req, res, next) => {
 exports.updateApplicationStage = async (req, res, next) => {
   try {
     const rawStage = req.body.stage || req.body.status;
-    if (!rawStage || !rawStage.toString().trim()) {
+    if (typeof rawStage !== "string" || !rawStage.trim() || rawStage.length > 80) {
       return res.status(400).json({
         success: false,
         message: "Stage is required",
       });
     }
 
-    const stage = rawStage.toString().trim();
+    const stage = rawStage.trim();
 
     const allEmployerJobs = await Job.find({
       createdBy: req.user._id,
@@ -771,18 +784,20 @@ exports.updateApplicationStage = async (req, res, next) => {
       Shortlisted: "Shortlisted",
       Assessment: "Under Review",
       Interview: "Interview",
+      "Interview Scheduled": "Interview Scheduled",
+      "Interview Completed": "Interview Completed",
+      Selected: "Selected",
       Offer: "Offered",
       Offered: "Offered",
       Hired: "Hired",
       Rejected: "Rejected",
     };
-    if (stageToStatus[stage]) {
-      application.status = stageToStatus[stage];
-    } else {
-      application.status = stage;
-    }
+    application.status = Object.hasOwn(stageToStatus, stage) ? stageToStatus[stage] : "Under Review";
 
     if (req.body.notes) {
+      if (typeof req.body.notes !== "string" || req.body.notes.length > 2000) {
+        return res.status(400).json({ success: false, message: "Invalid stage notes" });
+      }
       application.notes.push({
         text: req.body.notes,
         addedBy: req.user._id,
@@ -810,7 +825,7 @@ exports.updateApplicationStage = async (req, res, next) => {
 exports.addApplicationNote = async (req, res, next) => {
   try {
     const { text } = req.body;
-    if (!text?.trim()) {
+    if (typeof text !== "string" || !text.trim() || text.length > 2000) {
       return res.status(400).json({
         success: false,
         message: "Note text is required",
@@ -863,6 +878,7 @@ exports.addApplicationNote = async (req, res, next) => {
     next(error);
   }
 };
+<<<<<<< HEAD
 
 // ==========================================
 // EMPLOYER — MOVE APPLICATION TO NEXT STAGE
@@ -1256,3 +1272,5 @@ exports.markStageFailed = async (req, res, next) => {
     next(error);
   }
 };
+=======
+>>>>>>> f60867c15d511c34986d3dc19cb080813fa799e7

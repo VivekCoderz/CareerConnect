@@ -9,6 +9,7 @@ import {
   ArrowRight,
   User,
   ShieldCheck,
+  CreditCard,
 } from "lucide-react";
 
 /**
@@ -247,10 +248,22 @@ const CourseCard = ({
                 type="button"
                 onClick={() => onApply && onApply(course)}
                 disabled={isApplying}
-                className="px-4 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs hover:shadow-md flex items-center gap-1 transition-all disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs hover:shadow-md flex items-center gap-1.5 transition-all disabled:opacity-50"
               >
-                <span>{isApplying ? "Submitting..." : "Apply Now"}</span>
-                <ArrowRight size={14} />
+                {isApplying ? (
+                  <span>Processing...</span>
+                ) : price > 0 ? (
+                  <>
+                    <CreditCard size={13} />
+                    <span>Buy Now</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={13} />
+                    <span>Enroll Free</span>
+                  </>
+                )}
+                <ArrowRight size={13} />
               </button>
             )}
           </div>
