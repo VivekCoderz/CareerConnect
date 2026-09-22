@@ -692,13 +692,18 @@ const getStudentCourseContent = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students can access course content
+    // Only candidates can access course content
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
       return res.status(403).json({
         success: false,
-        message: "Only students can access course content",
+        message: "Only candidates can access course content",
       });
     }
 
@@ -734,10 +739,10 @@ const getStudentCourseContent = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only enrolled students can access content
+    // Only enrolled or completed students can access content
     // ------------------------------------------
 
-    if (application.status !== "Enrolled") {
+    if (application.status !== "Enrolled" && application.status !== "Completed") {
       return res.status(403).json({
         success: false,
         message: "You must be enrolled in this course to access its content",
@@ -756,6 +761,15 @@ const getStudentCourseContent = async (req, res) => {
     const sanitizedContent = content.map((item) => sanitizeContentUrl(item));
 
     // ------------------------------------------
+    // Fetch progress from CourseProgress model
+    // ------------------------------------------
+
+    const progressRecord = await CourseProgress.findOne({
+      student: user._id,
+      course: courseId,
+    });
+
+    // ------------------------------------------
     // Response
     // ------------------------------------------
 
@@ -768,7 +782,8 @@ const getStudentCourseContent = async (req, res) => {
         description: course.description,
         thumbnail: course.thumbnail,
       },
-      progress: application.progress || 0,
+      progress: progressRecord ? progressRecord.progress : (application.progress || 0),
+      completedContents: progressRecord ? progressRecord.completedContents : [],
       content: sanitizedContent,
     });
   } catch (error) {
@@ -886,13 +901,18 @@ const markContentComplete = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students
+    // Only candidates
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
       return res.status(403).json({
         success: false,
-        message: "Only students can complete course content",
+        message: "Only candidates can complete course content",
       });
     }
 

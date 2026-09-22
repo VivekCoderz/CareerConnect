@@ -17,7 +17,7 @@ const CompactTemplate = ({ data }) => {
   return (
     <div className="bg-white text-gray-900 p-6 max-w-[800px] mx-auto text-[12px] leading-snug font-sans">
       {/* Header */}
-      <header className="flex justify-between items-end border-b-2 border-teal-700 pb-2 mb-3">
+      <div className="resume-header flex justify-between items-end border-b-2 border-teal-700 pb-2 mb-3">
         <div>
           <h1 className="text-xl font-bold text-teal-900">{personal?.fullName}</h1>
           <p className="text-[11px] text-gray-600 mt-0.5">
@@ -31,7 +31,7 @@ const CompactTemplate = ({ data }) => {
           {personal?.github && <div>GitHub</div>}
           {personal?.portfolio && <div>Portfolio</div>}
         </div>
-      </header>
+      </div>
 
       {summary && (
         <section className="mb-3">

@@ -259,7 +259,10 @@ const CourseCard = ({
                 className="px-4 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs hover:shadow-md flex items-center gap-1.5 transition-all disabled:opacity-50"
               >
                 {isApplying ? (
-                  <span>Processing...</span>
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Processing...</span>
+                  </>
                 ) : price > 0 ? (
                   <>
                     <CreditCard size={13} />

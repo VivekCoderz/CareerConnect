@@ -30,6 +30,11 @@ const protect = async (req, res, next) => {
         return res.status(401).json({ success: false, code: "SESSION_EXPIRED", message: "Please sign in again." });
       }
 
+      if (user.isActive === false) {
+        req.session.destroy(() => {});
+        return res.status(403).json({ success: false, code: "ACCOUNT_SUSPENDED", message: "Account suspended." });
+      }
+
       // Update session activity time
       req.session.user.lastActive = new Date();
 
@@ -59,10 +64,7 @@ const protect = async (req, res, next) => {
 
     let decoded;
     try {
-<<<<<<< HEAD
-=======
       if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not configured");
->>>>>>> origin/develop
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (jwtErr) {
       if (jwtErr.name === "TokenExpiredError") {

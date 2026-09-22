@@ -3,7 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
 import { useDispatch, useSelector } from "react-redux";
 import { signInWithPopup } from "firebase/auth";
+import { Eye, EyeOff } from "lucide-react";
+
 import { auth, googleProvider } from "../../config/firebase";
+
 import {
   signupStart,
   signupSuccess,
@@ -11,6 +14,7 @@ import {
   clearMessages,
   loginSuccess,
 } from "../../redux/features/authSlice";
+
 import api from "../../api/api";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
@@ -181,13 +185,16 @@ const Signup = () => {
 
   const handleGeneratePassword = () => {
     const generated = generateStrongPassword();
+
     setFormData((prev) => ({
       ...prev,
       password: generated,
       confirmPassword: generated,
     }));
+
     setShowPassword(true);
     setShowConfirmPassword(true);
+
     setFieldErrors((prev) => ({
       ...prev,
       password: "",
@@ -219,18 +226,31 @@ const Signup = () => {
   // ─── Step 1: Send OTP ───────────────────────────────────────────────────────
   const handleSendEmailOTP = async () => {
     const emailToVerify = formData.email.trim().toLowerCase();
+
     if (!emailToVerify) {
-      setFieldErrors((prev) => ({ ...prev, email: "Please enter your email address" }));
+      setFieldErrors((prev) => ({
+        ...prev,
+        email: "Please enter your email address",
+      }));
       return;
     }
+
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToVerify)) {
-      setFieldErrors((prev) => ({ ...prev, email: "Please enter a valid email" }));
+      setFieldErrors((prev) => ({
+        ...prev,
+        email: "Please enter a valid email",
+      }));
       return;
     }
 
     try {
       setCheckingEmail(true);
-      setFieldErrors((prev) => ({ ...prev, email: "" }));
+
+      setFieldErrors((prev) => ({
+        ...prev,
+        email: "",
+      }));
+
       setOtpError("");
       setOtpSuccessMsg("");
 
@@ -245,19 +265,28 @@ const Signup = () => {
       setOtp("");
       setOtpSuccessMsg(`OTP sent to ${emailToVerify}`);
       setResendCooldown(60);
+
       const timer = setInterval(() => {
         setResendCooldown((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
             return 0;
           }
+
           return prev - 1;
         });
       }, 1000);
     } catch (err) {
-      const msg = err.response?.data?.message || "Failed to send OTP. Try again.";
+      const msg =
+        err.response?.data?.message ||
+        "Failed to send OTP. Try again.";
+
       const field = err.response?.data?.field || "email";
-      setFieldErrors((prev) => ({ ...prev, [field]: msg }));
+
+      setFieldErrors((prev) => ({
+        ...prev,
+        [field]: msg,
+      }));
     } finally {
       setCheckingEmail(false);
     }
@@ -266,10 +295,12 @@ const Signup = () => {
   // ─── Step 1: Verify OTP ─────────────────────────────────────────────────────
   const handleVerifyInlineOTP = async () => {
     const cleanOtp = otp.replace(/\D/g, "").slice(0, 6);
+
     if (!cleanOtp || cleanOtp.length !== 6) {
       setOtpError("Please enter the 6-digit OTP");
       return;
     }
+
     try {
       setVerifyingOtp(true);
       setOtpError("");
@@ -277,14 +308,23 @@ const Signup = () => {
         email: formData.email.trim().toLowerCase(),
         otp: cleanOtp,
       });
-      setVerificationToken(response.data.verificationToken);
+      if (response.data?.verificationToken) {
+        setVerificationToken(response.data.verificationToken);
+      }
       setEmailVerified(true);
       setOtpSent(false);
       setOtp("");
       setOtpSuccessMsg("Email verified successfully!");
-      setFieldErrors((prev) => ({ ...prev, email: "" }));
+
+      setFieldErrors((prev) => ({
+        ...prev,
+        email: "",
+      }));
     } catch (err) {
-      setOtpError(err.response?.data?.message || "Invalid or expired OTP");
+      setOtpError(
+        err.response?.data?.message ||
+          "Invalid or expired OTP"
+      );
     } finally {
       setVerifyingOtp(false);
     }
@@ -292,11 +332,19 @@ const Signup = () => {
 
   // ─── Google Candidate Sign-Up ────────────────────────────────────────────────
   const handleGoogleSignup = async () => {
+    if (!auth || !googleProvider) {
+      setGoogleError(
+        "Google Sign-In is unavailable because Firebase API keys are not configured in client/.env"
+      );
+      return;
+    }
+
     setGoogleLoading(true);
     setGoogleError("");
     dispatch(clearMessages());
 
     try {
+      const captchaToken = await getCaptchaToken("google_signup");
       // Firebase Google popup - triggered directly on user click
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
@@ -306,6 +354,7 @@ const Signup = () => {
         idToken,
         keepSignedIn: false,
         role: "user",
+        captchaToken,
       });
 
       const { user, requiresPasswordSetup, token } = response.data;
@@ -343,7 +392,6 @@ const Signup = () => {
       setGoogleLoading(false);
     }
   };
-
   // ─── Step 1 Validation & Proceed ───────────────────────────────────────────
   const handleStep1Next = async () => {
     const errors = {};
@@ -429,11 +477,14 @@ const Signup = () => {
         phone: formData.phone.trim(),
         countryCode: formData.countryCode || "+91",
       });
+
       if (checkRes.data?.exists) {
         setFieldErrors((prev) => ({
           ...prev,
-          phone: "This mobile number is already registered with another account",
+          phone:
+            "This mobile number is already registered with another account",
         }));
+
         return;
       }
     } catch (err) {
@@ -495,7 +546,6 @@ const Signup = () => {
     }
     setCustomInterestInput("");
   };
-
   // Resume Upload State for Step 4
   const [resumeFile, setResumeFile] = useState(null);
   const [resumeUploading, setResumeUploading] = useState(false);
@@ -521,6 +571,7 @@ const Signup = () => {
     setCaptchaError("");
 
     dispatch(signupStart());
+
     try {
       const finalCaptchaToken = await getCaptchaToken("signup");
 
@@ -559,8 +610,12 @@ const Signup = () => {
       setStep(4);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      const message = err.response?.data?.message || "Registration failed. Please try again.";
+      const message =
+        err.response?.data?.message ||
+        "Registration failed. Please try again.";
+
       dispatch(signupFailure(message));
+
       if (err.response?.data?.field) {
         setFieldErrors({ [err.response.data.field]: err.response.data.message });
         if (err.response.data.field === "phone" || err.response.data.field === "city") {
@@ -612,9 +667,6 @@ const Signup = () => {
 
       if (res.data?.success) {
         setResumeSuccess(true);
-        if (res.data?.user) {
-          dispatch(updateUserProfile(res.data.user));
-        }
         setParsedResultData(res.data?.parsedData || null);
         const extractedSkills =
           (res.data?.parsedData?.skills?.programmingLanguages?.length || 0) +
@@ -633,8 +685,8 @@ const Signup = () => {
   };
 
   const handleSkipToDashboard = () => {
-    const targetType = formData.type || user?.userType || "student";
-    const dest = getDashboardPath(targetType, user || { userType: targetType });
+    const targetType = formData.type || "student";
+    const dest = getDashboardPath(targetType, { userType: targetType });
     navigate(dest, { replace: true });
   };
 
@@ -730,6 +782,7 @@ const Signup = () => {
             </div>
           </div>
 
+          {/* ERROR */}
           {error && (
             <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
               {error}
@@ -761,10 +814,21 @@ const Signup = () => {
                     <label className="block text-xs font-semibold text-slate-700">
                       Email Address <span className="text-red-500">*</span>
                     </label>
+
                     {emailVerified && (
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                        <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        <svg
+                          className="w-3.5 h-3.5 text-emerald-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2.5"
+                            d="M5 13l4 4L19 7"
+                          />
                         </svg>
                         Verified
                       </span>
@@ -778,8 +842,14 @@ const Signup = () => {
                       value={formData.email}
                       onChange={(e) => {
                         handleChange(e);
-                        if (emailVerified) setEmailVerified(false);
-                        if (otpSent) setOtpSent(false);
+
+                        if (emailVerified) {
+                          setEmailVerified(false);
+                        }
+
+                        if (otpSent) {
+                          setOtpSent(false);
+                        }
                       }}
                       disabled={emailVerified}
                       placeholder="Enter your email address"
@@ -787,6 +857,7 @@ const Signup = () => {
                         emailVerified ? "bg-slate-50 border-emerald-400 text-slate-700 pr-10" : "border-slate-200"
                       }`}
                     />
+
                     {emailVerified && (
                       <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-emerald-600">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -799,7 +870,10 @@ const Signup = () => {
                   {/* Send OTP button below Email */}
                   {!emailVerified && !otpSent && (
                     <div className="mt-2 flex items-center justify-between">
-                      <span className="text-[12px] text-slate-500">Verify email with OTP</span>
+                      <span className="text-[12px] text-slate-500">
+                        Verify email with OTP
+                      </span>
+
                       <button
                         type="button"
                         onClick={handleSendEmailOTP}
@@ -825,6 +899,7 @@ const Signup = () => {
                         <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                           Enter 6-digit OTP
                         </span>
+
                         {resendCooldown > 0 ? (
                           <span className="text-[11px] text-slate-400 font-medium">
                             Resend in {resendCooldown}s
@@ -832,7 +907,7 @@ const Signup = () => {
                         ) : (
                           <button
                             type="button"
-                            onClick={handleSendEmailOTP}
+                            onClick={handleResendOTP}
                             disabled={checkingEmail}
                             className="text-[11px] font-bold text-[#008bdc] hover:underline"
                           >
@@ -848,12 +923,18 @@ const Signup = () => {
                           maxLength={6}
                           value={otp}
                           onChange={(e) => {
-                            setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                            setOtp(
+                              e.target.value
+                                .replace(/\D/g, "")
+                                .slice(0, 6)
+                            );
+
                             setOtpError("");
                           }}
                           placeholder="000000"
                           className="flex-1 h-10 px-3 text-center tracking-[0.25em] font-bold text-slate-800 bg-white border border-slate-300 rounded-lg text-sm outline-none focus:border-[#008bdc]"
                         />
+
                         <button
                           type="button"
                           onClick={handleVerifyInlineOTP}
@@ -864,9 +945,16 @@ const Signup = () => {
                         </button>
                       </div>
 
-                      {otpError && <p className="text-xs text-red-600 font-medium">{otpError}</p>}
+                      {otpError && (
+                        <p className="text-xs text-red-600 font-medium">
+                          {otpError}
+                        </p>
+                      )}
+
                       {otpSuccessMsg && !otpError && (
-                        <p className="text-xs text-emerald-600 font-medium">{otpSuccessMsg}</p>
+                        <p className="text-xs text-emerald-600 font-medium">
+                          {otpSuccessMsg}
+                        </p>
                       )}
                     </div>
                   )}
@@ -889,43 +977,69 @@ const Signup = () => {
                         Generate
                       </button>
                     </div>
+
                     <div className="relative">
                       <input
-                        type={showPassword ? "text" : "password"}
+                        type={
+                          showPassword
+                            ? "text"
+                            : "password"
+                        }
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
                         placeholder="At least 6 chars"
                         className="w-full h-11 rounded-lg border border-slate-200 bg-white px-3.5 pr-10 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#008bdc]"
                       />
+
                       <button
                         type="button"
                         onClick={() => setShowPassword((p) => !p)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       >
-                        <EyeIcon hidden={showPassword} />
+                        {showPassword ? (
+                          <EyeOff size={18} />
+                        ) : (
+                          <Eye size={18} />
+                        )}
                       </button>
                     </div>
-                    {fieldErrors.password && <p className="text-xs text-red-500 mt-1">{fieldErrors.password}</p>}
+
+                    {fieldErrors.password && (
+                      <p className="text-xs text-red-500 mt-1">
+                        {fieldErrors.password}
+                      </p>
+                    )}
                   </div>
+
+                  {/* CONFIRM PASSWORD */}
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">Confirm Password</label>
                     <div className="relative">
                       <input
-                        type={showConfirmPassword ? "text" : "password"}
+                        type={
+                          showConfirmPassword
+                            ? "text"
+                            : "password"
+                        }
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleChange}
                         placeholder="Re-enter password"
                         className="w-full h-11 rounded-lg border border-slate-200 bg-white px-3.5 pr-10 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#008bdc]"
                       />
+
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword((p) => !p)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       >
-                        <EyeIcon hidden={showConfirmPassword} />
+                        {showConfirmPassword ? (
+                          <EyeOff size={18} />
+                        ) : (
+                          <Eye size={18} />
+                        )}
                       </button>
                     </div>
                     {fieldErrors.confirmPassword && (
@@ -933,6 +1047,8 @@ const Signup = () => {
                     )}
                   </div>
                 </div>
+
+                {/* CONTINUE */}
 
                 <button
                   type="button"
@@ -967,7 +1083,11 @@ const Signup = () => {
                 {/* Google Sign-in Alternative */}
                 <div className="flex items-center gap-3 my-2">
                   <div className="flex-1 h-px bg-slate-200" />
-                  <span className="text-xs text-slate-400 font-medium">OR</span>
+
+                  <span className="text-xs text-slate-400 font-medium">
+                    OR
+                  </span>
+
                   <div className="flex-1 h-px bg-slate-200" />
                 </div>
 
@@ -1844,3 +1964,5 @@ const Signup = () => {
 };
 
 export default Signup;
+
+

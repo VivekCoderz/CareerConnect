@@ -250,6 +250,13 @@ export const updateCourseApplicationStatus = async (
   );
   return res.data;
 };
+/**
+ * Get all applications across all courses for the logged-in employer.
+ */
+export const getEmployerAllApplications = async () => {
+  const res = await api.get("/courses/my-applications");
+  return res.data;
+};
 
 export default {
   getRecommendedCourses,
@@ -274,4 +281,5 @@ export default {
   deleteCourseContent,
   getCourseApplications,
   updateCourseApplicationStatus,
+  getEmployerAllApplications,
 };

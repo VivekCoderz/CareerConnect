@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
@@ -198,7 +199,7 @@ const ProfessionalProfile = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4" />
+        <JourneyLoader variant="profile" size="hero" className="mb-4" />
         <h2 className="text-base font-bold text-slate-800">Loading Profile Builder...</h2>
         <p className="text-xs text-slate-500 mt-1">Retrieving your executive profile and credentials</p>
       </div>

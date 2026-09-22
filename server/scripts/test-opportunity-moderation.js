@@ -1,7 +1,7 @@
 require("dotenv").config();
 const axios = require("axios");
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = `http://localhost:${process.env.PORT || 5001}`;
 
 async function testOpportunityModeration() {
   console.log("\n=======================================================");
@@ -10,10 +10,11 @@ async function testOpportunityModeration() {
 
   // 1. Authenticate as Super Admin
   let adminToken = null;
+  const adminPassword = process.env.ADMIN_PASSWORD || "";
   try {
     const loginRes = await axios.post(`${BASE_URL}/api/admin/login`, {
       email: "superadmin@careerconnect.com",
-      password: "TestAdminPassword123!",
+      password: adminPassword,
     });
     adminToken = loginRes.data.token;
     console.log("PASS 1: Super Admin login succeeded. Role:", loginRes.data.user?.role);
@@ -21,7 +22,7 @@ async function testOpportunityModeration() {
     try {
       const fallbackRes = await axios.post(`${BASE_URL}/api/auth/login`, {
         email: "admin@careerconnect.com",
-        password: "TestAdminPassword123!",
+        password: adminPassword,
       });
       adminToken = fallbackRes.data.token;
       console.log("PASS 1: Fallback admin login succeeded. Role:", fallbackRes.data.user?.role);

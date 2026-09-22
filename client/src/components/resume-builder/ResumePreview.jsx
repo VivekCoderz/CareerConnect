@@ -6,6 +6,7 @@ import TwoColumnTemplate from "./templates/TwoColumnTemplate";
 import CompactTemplate from "./templates/CompactTemplate";
 import ElegantTemplate from "./templates/ElegantTemplate";
 import BoldTemplate from "./templates/BoldTemplate";
+import ATSSafeResumeRenderer from "./templates/ATSSafeResumeRenderer";
 
 const ResumePreview = ({ data, templateId }) => {
   if (!data) {
@@ -17,6 +18,19 @@ const ResumePreview = ({ data, templateId }) => {
   const tid = (templateId || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
   switch (tid) {
+    case "classic":
+    case "professional":
+    case "traditional":
+    case "atssafe":
+    case "ats":
+      return <ATSSafeResumeRenderer data={data} templateId="classic" />;
+    case "modern":
+    case "bold":
+    case "boldheader":
+      return <ATSSafeResumeRenderer data={data} templateId="modern" />;
+    case "minimal":
+    case "elegant":
+      return <ATSSafeResumeRenderer data={data} templateId="minimal" />;
     case "executive":
     case "corporate":
       return <ExecutiveTemplate data={data} />;
@@ -31,18 +45,8 @@ const ResumePreview = ({ data, templateId }) => {
     case "tech":
     case "developer":
       return <CompactTemplate data={data} />;
-    case "elegant":
-    case "minimal":
-      return <ElegantTemplate data={data} />;
-    case "bold":
-    case "boldheader":
-    case "modern":
-      return <BoldTemplate data={data} />;
-    case "classic":
-    case "professional":
-    case "traditional":
     default:
-      return <ClassicTemplate data={data} />;
+      return <ATSSafeResumeRenderer data={data} templateId={tid || "classic"} />;
   }
 };
 

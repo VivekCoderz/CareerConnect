@@ -8,7 +8,6 @@ import api from "../../api/api";
 import { updateUserProfile, logout } from "../../redux/features/authSlice";
 import PhoneInput from "../../components/common/PhoneInput";
 import GoogleAccountAvatar from "../../components/common/GoogleAccountAvatar";
-
 const inputCls = (err) =>
   `w-full h-11 rounded-xl border bg-white px-4 text-sm outline-none transition focus:ring-4 ${
     err
@@ -36,10 +35,12 @@ const GoogleEmployerOnboarding = () => {
   const handleCancelAndGoHome = async () => {
     setCancelling(true);
     try {
-      try {
-        await signOut(auth);
-      } catch (err) {
-        console.warn("Sign out warning:", err.message);
+      if (auth) {
+        try {
+          await signOut(auth);
+        } catch (err) {
+          console.warn("Sign out warning:", err.message);
+        }
       }
     } finally {
       dispatch(logout());
@@ -116,24 +117,6 @@ const GoogleEmployerOnboarding = () => {
     setSubmitError("");
 
     try {
-      // Check duplicate phone
-      try {
-        const checkRes = await api.post("/auth/check-phone", {
-          phone: formData.phone.trim(),
-          countryCode: formData.countryCode || "+91",
-        });
-        if (checkRes.data?.exists) {
-          setFieldErrors((prev) => ({
-            ...prev,
-            phone: "This mobile number is already registered with another account",
-          }));
-          setLoading(false);
-          return;
-        }
-      } catch (err) {
-        console.warn("Phone check warning:", err.message);
-      }
-
       const res = await api.post("/auth/complete-employer-google-onboarding", {
         countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),

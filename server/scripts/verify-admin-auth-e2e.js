@@ -5,7 +5,7 @@ const axios = require("axios");
 const mongoose = require("mongoose");
 const User = require("../models/User");
 
-const SERVER_URL = "http://localhost:5000";
+const SERVER_URL = `http://localhost:${process.env.PORT || 5001}`;
 const CLIENT_URL = "http://localhost:5173";
 
 async function runAcceptanceTests() {
@@ -35,13 +35,14 @@ async function runAcceptanceTests() {
       email: process.env.ADMIN_EMAIL || "admin@careerconnect.com",
     }).select("+password");
     assert(adminUser !== null, "1. Admin user exists in database");
+    const adminPassword = process.env.ADMIN_PASSWORD || "";
     assert(adminUser?.role === "admin", "2. Admin user role is strictly 'admin'");
     assert(
       adminUser?.password && adminUser.password.startsWith("$2"),
       "3. Admin password is stored securely hashed with bcrypt ($2a$ / $2b$)"
     );
     assert(
-      !adminUser?.password.includes("TestAdminPassword123!"),
+      adminPassword && !adminUser?.password.includes(adminPassword),
       "4. Plaintext password is NOT stored anywhere in database"
     );
 
@@ -133,7 +134,7 @@ async function runAcceptanceTests() {
     try {
       const adminLoginRes = await axios.post(`${SERVER_URL}/api/admin/login`, {
         email: "admin@careerconnect.com",
-        password: "TestAdminPassword123!",
+        password: adminPassword,
       });
       assert(adminLoginRes.status === 200, "15. Valid ADMIN credentials successfully log in (200 OK)");
       assert(adminLoginRes.data.user.role === "admin", "16. Returned admin record has role 'admin'");

@@ -2,15 +2,6 @@ const crypto = require("crypto");
 const os = require("os");
 const multer = require("multer");
 
-<<<<<<< HEAD
-// Use memory storage so req.file.buffer is available for direct Cloudinary streaming.
-// This avoids saving files locally and then needing to serve them from the Express server,
-// which caused black-screen videos (wrong port) and PDF 401 errors (local paths not Cloudinary).
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 1024 * 1024 * 1024, // 1 GB
-=======
 const storage = multer.diskStorage({
   destination: (_req, _file, callback) => callback(null, os.tmpdir()),
   filename: (_req, _file, callback) => callback(null, `careerconnect-${crypto.randomUUID()}`),
@@ -34,7 +25,6 @@ const upload = multer({
     const error = new Error("Only PDF, MP4, MOV, M4V, and WebM files are allowed");
     error.statusCode = 400;
     callback(error);
->>>>>>> origin/develop
   },
 });
 

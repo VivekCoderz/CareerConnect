@@ -8,6 +8,8 @@
     "dev": "nodemon server.js",
     "check:cloudinary": "node scripts/check-cloudinary-assets.js",
     "test:email": "node scripts/test-email-protection.js",
+    "qa:launch": "node ../scripts/qa-launch.js",
+    "test:prepare-db": "node scripts/prepare-test-mongodb.js",
     "test": "jest --forceExit --runInBand",
     "test:unit": "jest __tests__/unit --forceExit",
     "test:integration": "jest __tests__/integration --forceExit --runInBand",
@@ -42,7 +44,8 @@
     "pdfkit": "^0.20.2",
     "react-redux": "^9.3.0",
     "react-router-dom": "^7.18.2",
-    "sib-api-v3-sdk": "^8.5.0"
+    "sib-api-v3-sdk": "^8.5.0",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.6.0",

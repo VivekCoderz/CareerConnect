@@ -5,6 +5,7 @@ const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const User = require("../models/User");
 const notificationService = require("../services/notificationService");
+const socketService = require("../services/socketService");
 
 // Helper to get or create EmployerProfile for the authenticated user
 const getEmployerProfileId = async (user) => {
@@ -159,10 +160,54 @@ exports.getInterviews = async (req, res, next) => {
       });
     }
 
+    // Base query for stats and tabCounts
+    const allForCounts = await Interview.find(isEmployer ? {
+      $or: [
+        { employerId: await getEmployerProfileId(req.user) },
+        { employerId: req.user._id },
+      ],
+    } : query.$or ? { $or: query.$or } : {});
+
+    const total = allForCounts.length;
+    const scheduled = allForCounts.filter((i) => (i.status || "").toLowerCase() === "scheduled").length;
+    const completed = allForCounts.filter((i) => (i.status || "").toLowerCase() === "completed").length;
+    const rescheduled = allForCounts.filter((i) => (i.status || "").toLowerCase() === "rescheduled").length;
+    const cancelled = allForCounts.filter((i) => (i.status || "").toLowerCase() === "cancelled").length;
+
+    const upcoming = scheduled + rescheduled;
+    const pendingEvaluation = allForCounts.filter((i) => {
+      const isComp = (i.status || "").toLowerCase() === "completed";
+      const hasScorecard =
+        (i.scorecard && i.scorecard.submittedAt) ||
+        (i.feedback && i.feedback.submittedAt) ||
+        (i.scorecard?.overallScore > 0);
+      return isComp && !hasScorecard;
+    }).length;
+
+    const stats = {
+      upcoming,
+      completed,
+      pendingEvaluation,
+      total,
+      scheduled,
+      rescheduled,
+      cancelled,
+    };
+
+    const tabCounts = {
+      All: total,
+      Scheduled: scheduled,
+      Completed: completed,
+      Rescheduled: rescheduled,
+      Cancelled: cancelled,
+    };
+
     return res.status(200).json({
       success: true,
       count: interviews.length,
       interviews,
+      stats,
+      tabCounts,
     });
   } catch (error) {
     next(error);
@@ -208,15 +253,20 @@ exports.getInterviewStats = async (req, res, next) => {
     const todayStr = new Date().toISOString().split("T")[0];
 
     const total = allInterviews.length;
-    const upcoming = allInterviews.filter((i) => {
-      const s = (i.status || "").toLowerCase();
-      const isSched = s === "scheduled" || s === "rescheduled";
-      return isSched && (!i.scheduledDate || i.scheduledDate >= todayStr);
-    }).length;
-
+    const scheduled = allInterviews.filter((i) => (i.status || "").toLowerCase() === "scheduled").length;
     const completed = allInterviews.filter((i) => (i.status || "").toLowerCase() === "completed").length;
     const rescheduled = allInterviews.filter((i) => (i.status || "").toLowerCase() === "rescheduled").length;
     const cancelled = allInterviews.filter((i) => (i.status || "").toLowerCase() === "cancelled").length;
+
+    const upcoming = scheduled + rescheduled;
+    const pendingEvaluation = allInterviews.filter((i) => {
+      const isComp = (i.status || "").toLowerCase() === "completed";
+      const hasScorecard =
+        (i.scorecard && i.scorecard.submittedAt) ||
+        (i.feedback && i.feedback.submittedAt) ||
+        (i.scorecard?.overallScore > 0);
+      return isComp && !hasScorecard;
+    }).length;
 
     const scored = allInterviews.filter((i) => {
       const score = i.scorecard?.overallScore || i.feedback?.overallScore || i.feedback?.rating;
@@ -250,9 +300,11 @@ exports.getInterviewStats = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       stats: {
-        total,
         upcoming,
         completed,
+        pendingEvaluation,
+        total,
+        scheduled,
         rescheduled,
         cancelled,
         avgScore,
@@ -260,6 +312,13 @@ exports.getInterviewStats = async (req, res, next) => {
         failed,
         selected: selectedCount,
         recommendedHire: passed,
+      },
+      tabCounts: {
+        All: total,
+        Scheduled: scheduled,
+        Completed: completed,
+        Rescheduled: rescheduled,
+        Cancelled: cancelled,
       },
     });
   } catch (error) {
@@ -349,6 +408,54 @@ exports.getEligibleCandidates = async (req, res, next) => {
           }
         }
 
+        // Configured interview process rounds with real completion and lock status
+        const defaultRounds = [
+          { roundNumber: 1, name: "Round 1 - Technical Assessment", type: "Technical", durationMinutes: 45 },
+          { roundNumber: 2, name: "Round 2 - Live Problem Solving & Coding", type: "Coding", durationMinutes: 45 },
+          { roundNumber: 3, name: "Round 3 - HR & Culture Fit Discussion", type: "HR", durationMinutes: 30 },
+        ];
+
+        const roundsPipeline = defaultRounds.map((r) => {
+          const matchingInterview = appInterviews.find((i) => i.roundNumber === r.roundNumber);
+          if (matchingInterview) {
+            const s = (matchingInterview.status || "").toLowerCase();
+            const res = (matchingInterview.result || "").toLowerCase();
+            if (s === "completed") {
+              return {
+                ...r,
+                status: res === "passed" ? "completed" : "failed",
+                label: res === "passed" ? "Completed" : "Not Cleared",
+                interviewId: matchingInterview._id,
+                isSelectable: false,
+              };
+            } else {
+              return {
+                ...r,
+                status: "scheduled",
+                label: "Already Scheduled",
+                interviewId: matchingInterview._id,
+                isSelectable: false,
+              };
+            }
+          }
+
+          if (r.roundNumber === nextRoundNumber && isEligible) {
+            return {
+              ...r,
+              status: "available",
+              label: "Available",
+              isSelectable: true,
+            };
+          }
+
+          return {
+            ...r,
+            status: "locked",
+            label: "Locked",
+            isSelectable: false,
+          };
+        });
+
         return {
           applicationId: app._id,
           candidateId: app.candidateId?._id,
@@ -367,6 +474,7 @@ exports.getEligibleCandidates = async (req, res, next) => {
           nextRoundNumber,
           isEligible,
           eligibilityReason,
+          roundsPipeline,
           lastInterview: lastInterview
             ? {
                 roundNumber: lastInterview.roundNumber,
@@ -384,6 +492,113 @@ exports.getEligibleCandidates = async (req, res, next) => {
       success: true,
       count: eligibleList.length,
       candidates: eligibleList,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/interviews/availability
+ * Returns available time slots for a given date, checking interviewer & candidate conflicts
+ */
+exports.getInterviewAvailability = async (req, res, next) => {
+  try {
+    const employerProfileId = await getEmployerProfileId(req.user);
+    const { date, interviewerId, interviewerName, candidateId, duration = 45 } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ success: false, message: "Date is required to check availability" });
+    }
+
+    const durationNum = Number(duration) || 45;
+
+    // Define standard business hour slot templates
+    const baseSlotDefinitions = [
+      { start: "09:30 AM", end: "10:15 AM" },
+      { start: "10:30 AM", end: "11:15 AM" },
+      { start: "11:30 AM", end: "12:15 PM" },
+      { start: "02:00 PM", end: "02:45 PM" },
+      { start: "03:00 PM", end: "03:45 PM" },
+      { start: "04:00 PM", end: "04:45 PM" },
+      { start: "05:00 PM", end: "05:45 PM" },
+    ];
+
+    // Find all active scheduled or rescheduled interviews on that date
+    const query = {
+      scheduledDate: date,
+      status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
+    };
+
+    query.$or = [{ employerId: employerProfileId }, { employerId: req.user._id }];
+
+    const existingInterviews = await Interview.find(query).select(
+      "scheduledTime startTime endTime interviewerId interviewerName candidateId status"
+    );
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const isToday = date === todayStr;
+    const now = new Date();
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+
+    const slots = baseSlotDefinitions.map((slot) => {
+      const slotTimeStr = `${slot.start} - ${slot.end}`;
+
+      // Check if slot has already passed today
+      let isPast = false;
+      if (isToday) {
+        const [timePart, meridiem] = slot.start.split(" ");
+        const [hStr, mStr] = timePart.split(":");
+        let h = parseInt(hStr, 10);
+        const m = parseInt(mStr, 10);
+        if (meridiem === "PM" && h !== 12) h += 12;
+        if (meridiem === "AM" && h === 12) h = 0;
+
+        if (h < currentHours || (h === currentHours && m <= currentMinutes)) {
+          isPast = true;
+        }
+      }
+
+      // Check conflict with existing interview
+      let conflictReason = null;
+      for (const inv of existingInterviews) {
+        const invTime = (inv.scheduledTime || inv.startTime || "").trim().toLowerCase();
+        const matchesSlot =
+          invTime.includes(slot.start.toLowerCase()) ||
+          invTime === slotTimeStr.toLowerCase();
+
+        if (matchesSlot) {
+          if (
+            (interviewerId && inv.interviewerId && inv.interviewerId.toString() === interviewerId.toString()) ||
+            (interviewerName && inv.interviewerName && inv.interviewerName.toLowerCase() === interviewerName.toLowerCase())
+          ) {
+            conflictReason = "Interviewer has a conflicting interview";
+            break;
+          }
+          if (candidateId && inv.candidateId && inv.candidateId.toString() === candidateId.toString()) {
+            conflictReason = "Candidate already booked at this time";
+            break;
+          }
+        }
+      }
+
+      const available = !isPast && !conflictReason;
+
+      return {
+        slot: slotTimeStr,
+        startTime: slot.start,
+        endTime: slot.end,
+        durationMinutes: durationNum,
+        available,
+        reason: conflictReason || (isPast ? "Time slot has passed" : "Available"),
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      date,
+      slots,
     });
   } catch (error) {
     next(error);
@@ -590,9 +805,40 @@ exports.scheduleInterview = async (req, res, next) => {
     const finalTime = startTime || scheduledTime || "11:00 AM";
     const finalDuration = Number(duration || durationMinutes) || 45;
 
+    // 6.1 Prevent double-booking / conflicting slot for this interviewer or candidate
+    const conflictQuery = {
+      scheduledDate,
+      status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
+      $or: [
+        { scheduledTime: finalTime },
+        { startTime: finalTime },
+      ],
+    };
+
+    const conflictOr = [];
+    if (interviewerId) conflictOr.push({ interviewerId });
+    if (interviewerName) conflictOr.push({ interviewerName });
+    conflictOr.push({ candidateId: application.candidateId });
+
+    const conflictingInterview = await Interview.findOne({
+      ...conflictQuery,
+      $or: conflictOr,
+    });
+
+    if (conflictingInterview) {
+      const isCandidateConflict = conflictingInterview.candidateId?.toString() === application.candidateId?.toString();
+      return res.status(409).json({
+        success: false,
+        message: isCandidateConflict
+          ? `The candidate already has an interview scheduled on ${scheduledDate} at ${finalTime}. Please choose another time slot.`
+          : `Interviewer ${interviewerName || "selected"} is already booked for an interview on ${scheduledDate} at ${finalTime}. Please choose another available slot.`,
+      });
+    }
+
     // 7. Create Interview
     const interview = await Interview.create({
       employerId: employerProfileId,
+      companyId: application.companyId || req.user.companyId || null,
       candidateId: application.candidateId,
       jobId: application.jobId || jobId || null,
       internshipId: application.internshipId || internshipId || null,
@@ -659,6 +905,10 @@ exports.scheduleInterview = async (req, res, next) => {
     } catch (notifErr) {
       console.warn("Failed to dispatch schedule notification:", notifErr.message);
     }
+
+    // Real-time socket broadcast
+    socketService.emitInterviewScheduled(application.candidateId, interview);
+    socketService.emitApplicationUpdated(application);
 
     return res.status(201).json({
       success: true,
@@ -795,6 +1045,9 @@ exports.rescheduleInterview = async (req, res, next) => {
       console.warn("Failed to dispatch reschedule notification:", notifErr.message);
     }
 
+    // Real-time socket broadcast
+    socketService.emitInterviewRescheduled(interview.candidateId, interview);
+
     return res.status(200).json({
       success: true,
       message: "Interview rescheduled successfully",
@@ -892,6 +1145,9 @@ exports.cancelInterview = async (req, res, next) => {
       console.warn("Failed to dispatch cancel notification:", notifErr.message);
     }
 
+    // Real-time socket broadcast
+    socketService.emitInterviewCancelled(interview.candidateId, interview);
+
     return res.status(200).json({
       success: true,
       message: "Interview has been cancelled. Application remains shortlisted.",
@@ -964,6 +1220,9 @@ exports.completeInterview = async (req, res, next) => {
     await Application.findByIdAndUpdate(interview.applicationId, {
       status: "Interview Completed",
     });
+
+    // Real-time socket broadcast
+    socketService.emitInterviewStatusUpdated(interview.candidateId, interview);
 
     return res.status(200).json({
       success: true,
@@ -1117,6 +1376,9 @@ exports.submitInterviewScorecard = async (req, res, next) => {
     } catch (notifErr) {
       console.warn("Failed to dispatch scorecard notification:", notifErr.message);
     }
+
+    // Real-time socket broadcast
+    socketService.emitInterviewStatusUpdated(interview.candidateId, interview);
 
     return res.status(200).json({
       success: true,

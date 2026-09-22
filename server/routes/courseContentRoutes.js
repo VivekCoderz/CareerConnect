@@ -56,24 +56,16 @@ router.get("/:contentId/view-video", streamVideoContent);
 
 // Add content to a course
 // POST /api/courses/:courseId/content
-<<<<<<< HEAD
-router.post("/:courseId", protect, upload.single("file"), addCourseContent);
+router.post("/:courseId", protect, upload.single("file"), validateCourseUpload, addCourseContent);
+router.post("/:courseId/content", protect, upload.single("file"), validateCourseUpload, addCourseContent);
+
 // Get course content
-=======
-router.post("/:courseId",protect,upload.single("file"),validateCourseUpload,addCourseContent);
-router.post("/:courseId/content",protect,upload.single("file"),validateCourseUpload,addCourseContent);
-//get course content
->>>>>>> origin/develop
 router.get("/:courseId", protect, getCourseContent);
+
 // Update course content
 router.put("/:contentId", protect, upload.single("file"), updateCourseContent);
 
 // Delete course content
 router.delete("/:contentId", protect, deleteCourseContent);
 
-<<<<<<< HEAD
 module.exports = router;
-=======
-
-module.exports = router;
->>>>>>> origin/develop

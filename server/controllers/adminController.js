@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
@@ -14,6 +15,7 @@ const ProfessionalProfile = require("../models/ProfessionalProfile");
 const AuditLog = require("../models/AuditLog");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
+const OrganizationRequest = require("../models/OrganizationRequest");
 
 /**
  * Generate JWT and set secure cookie for Admin sessions
@@ -97,8 +99,8 @@ function getStartDateForRange(range) {
  */
 exports.adminLogin = async (req, res) => {
   try {
-    const { email, username, password } = req.body;
-    const loginIdentifier = (email || username || "").trim().toLowerCase();
+    const { email, username, emailOrUsername, password } = req.body;
+    const loginIdentifier = (email || username || emailOrUsername || "").trim().toLowerCase();
 
     if (!loginIdentifier || !password) {
       return res.status(400).json({
@@ -211,6 +213,35 @@ exports.getAdminDashboard = async (req, res, next) => {
     const startDate = getStartDateForRange(range);
     const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
 
+    // Helper for funnel aggregation
+    const getFunnelCounts = async (matchFilter) => {
+      const agg = await Application.aggregate([
+        { $match: matchFilter },
+        { $group: { _id: { $toLower: "$status" }, count: { $sum: 1 } } },
+      ]);
+      const map = {};
+      agg.forEach((item) => {
+        map[item._id] = item.count;
+      });
+      const applied = (map["applied"] || 0);
+      const underReview = (map["under review"] || map["under_review"] || map["approved"] || 0);
+      const shortlisted = (map["shortlisted"] || 0);
+      const interview = (map["interview"] || map["interview scheduled"] || map["interview completed"] || 0);
+      const selected = (map["selected"] || map["hired"] || map["offered"] || 0);
+      const rejected = (map["rejected"] || 0);
+      const withdrawn = (map["withdrawn"] || 0);
+      return {
+        applied,
+        underReview,
+        shortlisted,
+        interview,
+        selected,
+        rejected,
+        withdrawn,
+        total: applied + underReview + shortlisted + interview + selected + rejected + withdrawn,
+      };
+    };
+
     // -------------------------------------------------------------------
     // A. COMPANY_ADMIN DASHBOARD: Strictly Scoped to Assigned Company
     // -------------------------------------------------------------------
@@ -227,37 +258,50 @@ exports.getAdminDashboard = async (req, res, next) => {
 
       const [
         companyUsersCount,
-        companyJobsCount,
-        companyActiveJobsCount,
-        companyInternshipsCount,
-        companyActiveInternshipsCount,
-        companyApplicationsCount,
-        companySelectedCount,
+        companyJobsTotal,
+        companyJobsPublished,
+        companyJobsPending,
+        companyJobsClosed,
+        companyInternshipsTotal,
+        companyInternshipsPublished,
+        companyInternshipsPending,
+        companyInternshipsClosed,
+        companyUpcomingInterviews,
+        companyCompletedInterviews,
+        companyCancelledInterviews,
         companyReportsCount,
+        funnelData,
         recentApplications,
-        recentOpportunities,
+        recentCompanyLogs,
       ] = await Promise.all([
         User.countDocuments({ companyId }),
         Job.countDocuments({ companyId }),
         Job.countDocuments({ companyId, status: { $in: ["Published", "active"] } }),
+        Job.countDocuments({ companyId, status: "Pending Approval" }),
+        Job.countDocuments({ companyId, status: "Closed" }),
         Internship.countDocuments({ companyId }),
         Internship.countDocuments({ companyId, status: { $in: ["Published", "active"] } }),
-        Application.countDocuments({ companyId }),
-        Application.countDocuments({ companyId, status: { $in: ["Selected", "Hired"] } }),
+        Internship.countDocuments({ companyId, status: "Pending Approval" }),
+        Internship.countDocuments({ companyId, status: "Closed" }),
+        Interview.countDocuments({ companyId, status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] } }),
+        Interview.countDocuments({ companyId, status: { $in: ["completed", "Completed"] } }),
+        Interview.countDocuments({ companyId, status: { $in: ["cancelled", "Cancelled"] } }),
         Report.countDocuments({ companyId, status: "Open" }),
+        getFunnelCounts({ companyId }),
         Application.find({ companyId })
           .populate("candidateId", "fullName email profileImage")
           .sort({ createdAt: -1 })
           .limit(6)
           .lean(),
-        Job.find({ companyId })
+        AuditLog.find({ companyId })
           .sort({ createdAt: -1 })
-          .limit(5)
+          .limit(6)
           .lean(),
       ]);
 
-      const totalOpportunities = companyJobsCount + companyInternshipsCount;
-      const activeOpportunities = companyActiveJobsCount + companyActiveInternshipsCount;
+      const totalOpportunities = companyJobsTotal + companyInternshipsTotal;
+      const activeOpportunities = companyJobsPublished + companyInternshipsPublished;
+      const pendingReviews = companyJobsPending + companyInternshipsPending;
 
       const dashboardData = {
         role: "COMPANY_ADMIN",
@@ -275,40 +319,60 @@ exports.getAdminDashboard = async (req, res, next) => {
           activeEmployers: 1,
           totalOpportunities,
           activeOpportunities,
-          totalApplications: companyApplicationsCount,
-          upcomingInterviews: companySelectedCount,
-          requiresAttention: companyReportsCount,
+          totalApplications: funnelData.total,
+          upcomingInterviews: companyUpcomingInterviews,
+          completedInterviews: companyCompletedInterviews,
+          cancelledInterviews: companyCancelledInterviews,
+          pendingReviews,
+          requiresAttention: companyReportsCount + pendingReviews,
         },
         users: {
-          students: companyUsersCount,
+          students: 0,
           freshers: 0,
           professionals: 0,
-          employers: 1,
+          employers: companyUsersCount,
         },
         opportunities: {
-          jobs: { total: companyJobsCount, published: companyActiveJobsCount },
-          internships: { total: companyInternshipsCount, published: companyActiveInternshipsCount },
+          jobs: {
+            total: companyJobsTotal,
+            published: companyJobsPublished,
+            pendingApproval: companyJobsPending,
+            closed: companyJobsClosed,
+          },
+          internships: {
+            total: companyInternshipsTotal,
+            published: companyInternshipsPublished,
+            pendingApproval: companyInternshipsPending,
+            closed: companyInternshipsClosed,
+          },
         },
         applicationFunnel: {
-          total: companyApplicationsCount,
-          selected: companySelectedCount,
-          byType: { jobs: companyJobsCount, internships: companyInternshipsCount },
+          ...funnelData,
+          byType: { jobs: companyJobsTotal, internships: companyInternshipsTotal },
         },
         userGrowth: [],
         attention: (await Report.find({ companyId, status: "Open" }).limit(5).lean()).map((r) => ({
           id: r._id,
-          title: `${r.reportType}: ${r.targetTitle || "Complaint"}`,
+          title: `${r.reportType || "Report"}: ${r.title || r.details?.slice(0, 40) || "Complaint"}`,
           category: "Reports",
           severity: "high",
           link: "/admin/reports",
         })),
-        recentActivity: (recentApplications || []).map((app) => ({
-          id: app._id,
-          title: `Application for ${app.opportunityTitle || "Role"}`,
-          candidate: app.candidateId?.fullName || "Candidate",
-          status: app.status || "Applied",
-          date: app.createdAt,
-        })),
+        recentActivity: recentCompanyLogs.length > 0
+          ? recentCompanyLogs.map((log) => ({
+              id: log._id,
+              title: log.action.replace(/_/g, " "),
+              candidate: log.actorName || "Team Member",
+              status: log.module || "System",
+              date: log.createdAt,
+            }))
+          : (recentApplications || []).map((app) => ({
+              id: app._id,
+              title: `Application for ${app.opportunityTitle || "Role"}`,
+              candidate: app.candidateId?.fullName || "Candidate",
+              status: app.status || "Applied",
+              date: app.createdAt,
+            })),
       };
 
       return res.status(200).json({
@@ -331,16 +395,23 @@ exports.getAdminDashboard = async (req, res, next) => {
       totalProfessionals,
       totalJobs,
       activeJobs,
+      pendingJobs,
+      closedJobs,
       totalInternships,
       activeInternships,
-      totalApplications,
-      selectedApplications,
+      pendingInternships,
+      closedInternships,
+      upcomingInterviews,
+      completedInterviews,
+      cancelledInterviews,
       openReports,
+      pendingOrgRequests,
+      funnelData,
       recentCompanies,
-      recentApplications,
+      recentAuditLogs,
     ] = await Promise.all([
       Company.countDocuments(),
-      Company.countDocuments({ status: "active" }),
+      Company.countDocuments({ status: { $in: ["active", "ACTIVE"] } }),
       User.countDocuments({ role: "COMPANY_ADMIN" }),
       User.countDocuments({ userType: "student" }),
       User.countDocuments({ userType: "employer" }),
@@ -348,22 +419,26 @@ exports.getAdminDashboard = async (req, res, next) => {
       User.countDocuments({ userType: "professional" }),
       Job.countDocuments(),
       Job.countDocuments({ status: { $in: ["Published", "active"] } }),
+      Job.countDocuments({ status: "Pending Approval" }),
+      Job.countDocuments({ status: "Closed" }),
       Internship.countDocuments(),
       Internship.countDocuments({ status: { $in: ["Published", "active"] } }),
-      Application.countDocuments(),
-      Application.countDocuments({ status: { $in: ["Selected", "Hired"] } }),
+      Internship.countDocuments({ status: "Pending Approval" }),
+      Internship.countDocuments({ status: "Closed" }),
+      Interview.countDocuments({ status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] } }),
+      Interview.countDocuments({ status: { $in: ["completed", "Completed"] } }),
+      Interview.countDocuments({ status: { $in: ["cancelled", "Cancelled"] } }),
       Report.countDocuments({ status: "Open" }),
+      OrganizationRequest.countDocuments({ status: "PENDING" }),
+      getFunnelCounts({}),
       Company.find().sort({ createdAt: -1 }).limit(5).lean(),
-      Application.find()
-        .populate("candidateId", "fullName email profileImage")
-        .sort({ createdAt: -1 })
-        .limit(6)
-        .lean(),
+      AuditLog.find().sort({ createdAt: -1 }).limit(8).lean(),
     ]);
 
     const totalUsers = totalStudents + totalEmployers + totalFreshers + totalProfessionals;
     const totalOpportunities = totalJobs + totalInternships;
     const activeOpportunities = activeJobs + activeInternships;
+    const pendingReviews = pendingJobs + pendingInternships + pendingOrgRequests;
 
     // Monthly Trends aggregation
     const applicationTrends = await Application.aggregate([
@@ -386,9 +461,12 @@ exports.getAdminDashboard = async (req, res, next) => {
         activeEmployers: activeCompanies || totalEmployers,
         totalOpportunities,
         activeOpportunities,
-        totalApplications,
-        upcomingInterviews: selectedApplications,
-        requiresAttention: openReports,
+        totalApplications: funnelData.total,
+        upcomingInterviews,
+        completedInterviews,
+        cancelledInterviews,
+        pendingReviews,
+        requiresAttention: openReports + pendingReviews,
         totalCompanies,
         activeCompanies,
         totalCompanyAdmins,
@@ -400,29 +478,55 @@ exports.getAdminDashboard = async (req, res, next) => {
         professionals: totalProfessionals,
       },
       opportunities: {
-        jobs: { total: totalJobs, published: activeJobs },
-        internships: { total: totalInternships, published: activeInternships },
+        jobs: {
+          total: totalJobs,
+          published: activeJobs,
+          pendingApproval: pendingJobs,
+          closed: closedJobs,
+        },
+        internships: {
+          total: totalInternships,
+          published: activeInternships,
+          pendingApproval: pendingInternships,
+          closed: closedInternships,
+        },
       },
       applicationFunnel: {
-        total: totalApplications,
-        selected: selectedApplications,
+        ...funnelData,
         byType: { jobs: totalJobs, internships: totalInternships },
       },
       userGrowth: applicationTrends.map((item) => ({ date: item._id, count: item.count })),
-      attention: (await Report.find({ status: "Open" }).limit(5).lean()).map((r) => ({
-        id: r._id,
-        title: `${r.reportType}: ${r.targetTitle || "Flagged Content"}`,
-        category: "Reports",
-        severity: "high",
-        link: "/admin/reports",
-      })),
-      recentActivity: (recentApplications || []).map((app) => ({
-        id: app._id,
-        title: `Application for ${app.opportunityTitle || "Role"}`,
-        candidate: app.candidateId?.fullName || "Candidate",
-        status: app.status || "Applied",
-        date: app.createdAt,
-      })),
+      attention: [
+        ...(await Report.find({ status: "Open" }).limit(3).lean()).map((r) => ({
+          id: r._id,
+          title: `Report: ${r.reportType || "Flagged Content"} - ${r.title || r.details?.slice(0, 30)}`,
+          category: "Reports",
+          severity: "high",
+          link: "/admin/reports",
+        })),
+        ...(await OrganizationRequest.find({ status: "PENDING" }).limit(3).lean()).map((o) => ({
+          id: o._id,
+          title: `New Organization Request: ${o.organizationName}`,
+          category: "Onboarding",
+          severity: "medium",
+          link: "/admin/companies",
+        })),
+      ],
+      recentActivity: recentAuditLogs.length > 0
+        ? recentAuditLogs.map((log) => ({
+            id: log._id,
+            title: log.action.replace(/_/g, " "),
+            candidate: log.actorName || "Admin",
+            status: log.module || "Platform",
+            date: log.createdAt,
+          }))
+        : (await Application.find().populate("candidateId", "fullName email").sort({ createdAt: -1 }).limit(5).lean()).map((app) => ({
+            id: app._id,
+            title: `Application for ${app.opportunityTitle || "Role"}`,
+            candidate: app.candidateId?.fullName || "Candidate",
+            status: app.status || "Applied",
+            date: app.createdAt,
+          })),
       recentCompanies: (recentCompanies || []).map((c) => ({
         _id: c._id,
         name: c.name,
@@ -861,12 +965,13 @@ exports.getCompanyAdmins = async (req, res, next) => {
  */
 exports.createCompanyAdmin = async (req, res, next) => {
   try {
-    const { fullName, email, password, companyId } = req.body;
+    const { fullName, email, officialEmail, password, companyId, phone } = req.body;
+    const targetEmail = (officialEmail || email || "").trim().toLowerCase();
 
-    if (!fullName || !email || !password || !companyId) {
+    if (!fullName || !targetEmail || !companyId) {
       return res.status(400).json({
         success: false,
-        message: "Full name, email, password, and assigned company are required",
+        message: "Full name, official email, and assigned company are required.",
       });
     }
 
@@ -877,16 +982,72 @@ exports.createCompanyAdmin = async (req, res, next) => {
     }
 
     // Check duplicate email
-    const existing = await User.findOne({ email: email.trim().toLowerCase() });
+    const existing = await User.findOne({ email: targetEmail });
     if (existing) {
       return res.status(400).json({ success: false, message: "User with this email already exists" });
     }
 
-    const username = await generateAdminUsername(email, "admin");
+    const username = await generateAdminUsername(targetEmail, "admin");
+
+    // If no password provided, initiate Invitation flow
+    if (!password) {
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const admin = await User.create({
+        fullName: fullName.trim(),
+        email: targetEmail,
+        username,
+        phone: (phone || "").trim(),
+        role: "COMPANY_ADMIN",
+        userType: "admin",
+        companyId: company._id,
+        status: "invited",
+        isActive: true,
+        isEmailVerified: true,
+        isProfileComplete: true,
+        hasPassword: false,
+        invitationToken: token,
+        invitationExpires: expiry,
+        invitationStatus: "invited",
+      });
+
+      await AuditLog.create({
+        actorId: req.user._id,
+        actorName: req.user.fullName,
+        action: "COMPANY_ADMIN_INVITED",
+        module: "Roles",
+        target: company.name,
+        details: `Invited ${fullName} (${targetEmail}) as Company Admin for ${company.name}`,
+        ipAddress: req.ip || "127.0.0.1",
+      });
+
+      const activationLink = `/admin/activate?token=${token}`;
+
+      return res.status(201).json({
+        success: true,
+        message: `Company Admin invitation created successfully for ${company.name}`,
+        admin: {
+          _id: admin._id,
+          fullName: admin.fullName,
+          email: admin.email,
+          role: admin.role,
+          companyId: admin.companyId,
+          companyName: company.name,
+          status: admin.status,
+          invitationExpires: expiry,
+        },
+        activationLink,
+        invitationToken: token,
+      });
+    }
+
+    // Direct creation with password
     const admin = await User.create({
       fullName: fullName.trim(),
-      email: email.trim().toLowerCase(),
+      email: targetEmail,
       username,
+      phone: (phone || "").trim(),
       password, // Password hashing handled by User pre-save hook
       role: "COMPANY_ADMIN",
       userType: "admin",
@@ -908,6 +1069,575 @@ exports.createCompanyAdmin = async (req, res, next) => {
         role: admin.role,
         companyId: admin.companyId,
         companyName: company.name,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/admin/company-admins/invite
+ * Super Admin creates a secure, time-limited Company Admin invitation without permanent password
+ */
+exports.inviteCompanyAdmin = async (req, res, next) => {
+  try {
+    const { fullName, email, officialEmail, phone, companyId } = req.body;
+    const targetEmail = (officialEmail || email || "").trim().toLowerCase();
+
+    if (!fullName || !targetEmail || !companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name, official email, and assigned company are required.",
+      });
+    }
+
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({ success: false, message: "Selected company does not exist." });
+    }
+
+    if (company.status === "inactive" || company.status === "suspended") {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot invite admin to a ${company.status} company. Please activate the company first.`,
+      });
+    }
+
+    const existing = await User.findOne({ email: targetEmail });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: "An account with this email address already exists.",
+      });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    let candidatePhone = (phone || "").trim();
+    if (candidatePhone) {
+      const existingPhone = await User.findOne({ phone: candidatePhone });
+      if (existingPhone) candidatePhone = "";
+    }
+
+    const username = await generateAdminUsername(targetEmail, "admin");
+    const admin = await User.create({
+      fullName: fullName.trim(),
+      email: targetEmail,
+      username,
+      phone: candidatePhone,
+      role: "COMPANY_ADMIN",
+      userType: "admin",
+      companyId: company._id,
+      status: "invited",
+      isActive: true,
+      isEmailVerified: true,
+      isProfileComplete: true,
+      hasPassword: false,
+      invitationToken: token,
+      invitationExpires: expiry,
+      invitationStatus: "invited",
+    });
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.fullName,
+      action: "COMPANY_ADMIN_INVITED",
+      module: "Roles",
+      target: company.name,
+      details: `Invited ${fullName} (${targetEmail}) as Company Admin for ${company.name}`,
+      ipAddress: req.ip || "127.0.0.1",
+    });
+
+    const activationLink = `/admin/activate?token=${token}`;
+
+    return res.status(201).json({
+      success: true,
+      message: `Invitation generated successfully for ${fullName} (${company.name})`,
+      admin: {
+        _id: admin._id,
+        fullName: admin.fullName,
+        email: admin.email,
+        role: admin.role,
+        companyId: admin.companyId,
+        companyName: company.name,
+        status: admin.status,
+        invitationExpires: expiry,
+      },
+      activationLink,
+      invitationToken: token,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/admin/activate/verify
+ * Public verification of Company Admin invitation token
+ */
+exports.verifyAdminInvitation = async (req, res, next) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Invitation token is required.",
+      });
+    }
+
+    const user = await User.findOne({
+      invitationToken: token,
+      role: "COMPANY_ADMIN",
+    }).select("+invitationToken +invitationExpires");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        code: "INVALID_TOKEN",
+        message: "Invalid or expired invitation token. Please request a new invitation.",
+      });
+    }
+
+    if (user.invitationExpires && user.invitationExpires < new Date()) {
+      return res.status(400).json({
+        success: false,
+        code: "TOKEN_EXPIRED",
+        message: "This invitation token has expired. Please contact the platform administrator.",
+      });
+    }
+
+    if (user.status === "active" && user.hasPassword) {
+      return res.status(400).json({
+        success: false,
+        code: "INVITATION_ALREADY_USED",
+        message: "This invitation has already been used. Please sign in directly.",
+      });
+    }
+
+    const company = await Company.findById(user.companyId);
+    if (!company || company.status === "inactive" || company.status === "suspended") {
+      return res.status(403).json({
+        success: false,
+        code: "COMPANY_INACTIVE",
+        message: "The associated organization is currently inactive or suspended.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      invitation: {
+        fullName: user.fullName,
+        email: user.email,
+        companyId: company._id,
+        companyName: company.name,
+        companyLogo: company.logo || "",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/admin/activate
+ * Public first-time Company Admin password creation & account activation
+ */
+exports.activateAdmin = async (req, res, next) => {
+  try {
+    const { token, password, confirmPassword } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Invitation token and password are required.",
+      });
+    }
+
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match.",
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must contain at least 6 characters.",
+      });
+    }
+
+    const user = await User.findOne({
+      invitationToken: token,
+      role: "COMPANY_ADMIN",
+    }).select("+invitationToken +invitationExpires +password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        code: "INVALID_TOKEN",
+        message: "Invalid invitation token. Please request a new invitation.",
+      });
+    }
+
+    if (user.invitationExpires && user.invitationExpires < new Date()) {
+      return res.status(400).json({
+        success: false,
+        code: "TOKEN_EXPIRED",
+        message: "This invitation token has expired.",
+      });
+    }
+
+    const company = await Company.findById(user.companyId);
+    if (!company || company.status === "inactive" || company.status === "suspended") {
+      return res.status(403).json({
+        success: false,
+        code: "COMPANY_INACTIVE",
+        message: "The associated organization is currently inactive or suspended.",
+      });
+    }
+
+    user.password = password; // User pre-save hook hashes with bcryptjs
+    user.hasPassword = true;
+    user.status = "active";
+    user.isActive = true;
+    user.invitationToken = null;
+    user.invitationStatus = "used";
+    user.lastLogin = new Date();
+
+    await user.save();
+
+    await OrganizationRequest.findOneAndUpdate(
+      { adminInvitationToken: token },
+      { adminInvitationToken: null }
+    );
+
+    await AuditLog.create({
+      actorId: user._id,
+      actorName: user.fullName,
+      companyId: user.companyId,
+      action: "COMPANY_ADMIN_ACTIVATED",
+      module: "Roles",
+      target: company.name,
+      details: `Account activated and password configured for ${user.email}`,
+      ipAddress: req.ip || "127.0.0.1",
+    });
+
+    return sendAdminTokenResponse(user, 200, res, company);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/admin/organization-requests
+ * Super Admin views pending and past organization onboarding requests
+ */
+exports.getOrganizationRequests = async (req, res, next) => {
+  try {
+    const { search = "", status = "all", page = 1, limit = 15 } = req.query;
+    const query = {};
+
+    if (status && status !== "all") {
+      query.status = status.toUpperCase();
+    }
+
+    if (search.trim()) {
+      const q = search.trim();
+      query.$or = [
+        { organizationName: { $regex: q, $options: "i" } },
+        { officialEmail: { $regex: q, $options: "i" } },
+        { contactPerson: { $regex: q, $options: "i" } },
+        { city: { $regex: q, $options: "i" } },
+      ];
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 15));
+
+    const [total, requests] = await Promise.all([
+      OrganizationRequest.countDocuments(query),
+      OrganizationRequest.find(query)
+        .populate("reviewedBy", "fullName email")
+        .populate("approvedBy", "fullName email")
+        .populate("rejectedBy", "fullName email")
+        .populate("companyId", "name status")
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * pageSize)
+        .limit(pageSize)
+        .lean(),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      requests,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / pageSize) || 1,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/admin/organization-requests/:id
+ * Detailed view of an organization onboarding request
+ */
+exports.getOrganizationRequestById = async (req, res, next) => {
+  try {
+    const request = await OrganizationRequest.findById(req.params.id)
+      .populate("reviewedBy", "fullName email")
+      .populate("approvedBy", "fullName email")
+      .populate("rejectedBy", "fullName email")
+      .populate("companyId", "name status");
+
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Organization request not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      request,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/admin/organization-requests/:id/review
+ * Marks an organization request as UNDER_REVIEW
+ */
+exports.reviewOrganizationRequest = async (req, res, next) => {
+  try {
+    const request = await OrganizationRequest.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Organization request not found" });
+    }
+
+    if (request.status === "APPROVED" || request.status === "REJECTED") {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot review request that is already ${request.status}`,
+      });
+    }
+
+    request.status = "UNDER_REVIEW";
+    request.reviewedBy = req.user._id;
+    request.reviewedAt = new Date();
+    await request.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Organization request marked as UNDER_REVIEW",
+      request,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/admin/organization-requests/:id/approve
+ * Approves request -> Creates Company -> Invites Company Admin -> Company becomes ACTIVE
+ */
+exports.approveOrganizationRequest = async (req, res, next) => {
+  try {
+    const request = await OrganizationRequest.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Organization request not found" });
+    }
+
+    if (request.status === "APPROVED") {
+      return res.status(400).json({
+        success: false,
+        message: "This organization request has already been approved.",
+      });
+    }
+
+    // 1. Create or Find Company
+    let company = await Company.findOne({
+      name: { $regex: `^${request.organizationName.trim()}$`, $options: "i" },
+    });
+
+    const fullLocation = [request.city, request.state, request.country].filter(Boolean).join(", ");
+
+    if (!company) {
+      company = await Company.create({
+        name: request.organizationName.trim(),
+        description: request.description || request.reason || `Official profile for ${request.organizationName}`,
+        email: request.officialEmail.trim().toLowerCase(),
+        phone: request.phone ? request.phone.trim() : "",
+        website: request.website ? request.website.trim() : "",
+        companyType: request.organizationType || "Private",
+        industry: request.industry || "Information Technology",
+        location: fullLocation,
+        address: request.address ? request.address.trim() : "",
+        contactPerson: request.requestingEmployeeName || request.contactPerson.trim(),
+        status: "active",
+        settings: { emailNotifications: true, autoShortlist: false },
+      });
+    } else {
+      company.status = "active";
+      if (!company.email) company.email = request.officialEmail.trim().toLowerCase();
+      if (!company.website && request.website) company.website = request.website.trim();
+      if (!company.industry && request.industry) company.industry = request.industry;
+      await company.save();
+    }
+
+    // Link requesting employee to this company if request originated from logged-in employee
+    if (request.requestedBy) {
+      await User.findByIdAndUpdate(request.requestedBy, { companyId: company._id });
+      await EmployerProfile.findOneAndUpdate(
+        { userId: request.requestedBy },
+        { companyId: company._id }
+      );
+    }
+
+    // 2. Prepare Company Admin Account / Invitation
+    const adminEmail = request.officialEmail.trim().toLowerCase();
+    let admin = await User.findOne({ email: adminEmail });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    if (!admin) {
+      let candidatePhone = (request.phone || "").trim();
+      if (candidatePhone) {
+        const existingPhone = await User.findOne({ phone: candidatePhone });
+        if (existingPhone) candidatePhone = "";
+      }
+
+      const username = await generateAdminUsername(adminEmail, "admin");
+      admin = await User.create({
+        fullName: request.contactPerson.trim(),
+        email: adminEmail,
+        username,
+        phone: candidatePhone,
+        role: "COMPANY_ADMIN",
+        userType: "admin",
+        companyId: company._id,
+        status: "invited",
+        isActive: true,
+        isEmailVerified: true,
+        isProfileComplete: true,
+        hasPassword: false,
+        invitationToken: token,
+        invitationExpires: expiry,
+        invitationStatus: "invited",
+      });
+    } else {
+      admin.role = "COMPANY_ADMIN";
+      admin.companyId = company._id;
+      admin.invitationToken = token;
+      admin.invitationExpires = expiry;
+      admin.invitationStatus = "invited";
+      await admin.save({ validateBeforeSave: false });
+    }
+
+    // 3. Update OrganizationRequest Document
+    request.status = "APPROVED";
+    request.approvedBy = req.user._id;
+    request.approvedAt = new Date();
+    request.companyId = company._id;
+    request.adminInvitationToken = token;
+    request.adminInvitationExpires = expiry;
+    await request.save();
+
+    // 4. Audit Log
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.fullName,
+      companyId: company._id,
+      action: "ORGANIZATION_REQUEST_APPROVED",
+      module: "Settings",
+      target: company.name,
+      details: `Super Admin approved organization request. Created Company ${company.name} and invited ${request.contactPerson} (${adminEmail}) as Company Admin.`,
+      ipAddress: req.ip || "127.0.0.1",
+    });
+
+    const activationLink = `/admin/activate?token=${token}`;
+
+    return res.status(200).json({
+      success: true,
+      message: `Organization request approved successfully. Company is now ACTIVE and admin invitation is ready.`,
+      company: {
+        _id: company._id,
+        name: company.name,
+        status: company.status,
+        officialEmail: company.email,
+        website: company.website,
+      },
+      admin: {
+        _id: admin._id,
+        fullName: admin.fullName,
+        email: admin.email,
+        role: admin.role,
+        status: admin.status,
+      },
+      activationLink,
+      invitationToken: token,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/admin/organization-requests/:id/reject
+ * Rejects request with required rejection reason (never deletes document)
+ */
+exports.rejectOrganizationRequest = async (req, res, next) => {
+  try {
+    const { rejectionReason } = req.body;
+
+    if (!rejectionReason || !rejectionReason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "A rejection reason is strictly required.",
+      });
+    }
+
+    const request = await OrganizationRequest.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Organization request not found" });
+    }
+
+    if (request.status === "APPROVED") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot reject an organization request that has already been approved.",
+      });
+    }
+
+    request.status = "REJECTED";
+    request.rejectedBy = req.user._id;
+    request.rejectedAt = new Date();
+    request.rejectionReason = rejectionReason.trim();
+    await request.save();
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.fullName,
+      action: "ORGANIZATION_REQUEST_REJECTED",
+      module: "Settings",
+      target: request.organizationName,
+      details: `Super Admin rejected organization request for ${request.organizationName}. Reason: ${rejectionReason.trim()}`,
+      ipAddress: req.ip || "127.0.0.1",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Organization request has been rejected.",
+      request: {
+        _id: request._id,
+        organizationName: request.organizationName,
+        status: request.status,
+        rejectedAt: request.rejectedAt,
+        rejectionReason: request.rejectionReason,
       },
     });
   } catch (error) {
@@ -994,43 +1724,85 @@ exports.updateCompanyAdminStatus = async (req, res, next) => {
  */
 exports.getAdminUsers = async (req, res, next) => {
   try {
-    const { userType = "", search = "", status = "", page = 1, limit = 15 } = req.query;
-    const query = {};
+    const {
+      userType = "",
+      search = "",
+      status = "",
+      page = 1,
+      limit = 25,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    const andConditions = [];
 
     // Strict Scope: Company Admins only see their own company users
     if (req.user.role === "COMPANY_ADMIN") {
-      query.companyId = req.user.companyId;
+      andConditions.push({ companyId: req.user.companyId });
     } else if (req.isSuperAdmin) {
       // Super Admin can optionally filter by companyId
       if (req.query.companyId) {
-        query.companyId = req.query.companyId;
+        andConditions.push({ companyId: req.query.companyId });
       }
     }
 
+    // User Type Filtering (support student, employer, fresher, professional, admin)
     if (userType && userType !== "all") {
-      query.userType = userType;
+      if (userType === "admin") {
+        andConditions.push({
+          $or: [
+            { role: { $in: ["SUPER_ADMIN", "COMPANY_ADMIN", "admin"] } },
+            { userType: "admin" },
+          ],
+        });
+      } else {
+        andConditions.push({
+          $or: [{ userType: userType }, { role: userType }],
+        });
+      }
     }
 
+    // Status Filtering (active / inactive)
     if (status && status !== "all") {
-      query.status = status;
+      if (status === "active") {
+        andConditions.push({
+          $or: [{ status: "active" }, { isActive: true }],
+        });
+      } else if (status === "inactive") {
+        andConditions.push({
+          $or: [{ status: "inactive" }, { isActive: false }],
+        });
+      }
     }
 
-    if (search.trim()) {
-      query.$or = [
-        { fullName: { $regex: search.trim(), $options: "i" } },
-        { email: { $regex: search.trim(), $options: "i" } },
-        { username: { $regex: search.trim(), $options: "i" } },
-      ];
+    // Search sanitization: Escape regex characters to prevent ReDoS attacks
+    if (search && search.trim()) {
+      const sanitized = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      andConditions.push({
+        $or: [
+          { fullName: { $regex: sanitized, $options: "i" } },
+          { email: { $regex: sanitized, $options: "i" } },
+          { username: { $regex: sanitized, $options: "i" } },
+        ],
+      });
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
+    const query = andConditions.length > 0 ? { $and: andConditions } : {};
+
+    const parsedLimit = limit === "all" ? 1000 : Math.min(Math.max(Number(limit) || 25, 1), 200);
+    const parsedPage = Math.max(Number(page) || 1, 1);
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
+    const sortField = ["createdAt", "fullName", "email"].includes(sortBy) ? sortBy : "createdAt";
+
     const [users, total] = await Promise.all([
       User.find(query)
         .populate("companyId", "name industry")
-        .select("-password")
-        .sort({ createdAt: -1 })
+        .select("-password -resetPasswordToken -resetPasswordExpire")
+        .sort({ [sortField]: sortDirection })
         .skip(skip)
-        .limit(Number(limit))
+        .limit(parsedLimit)
         .lean(),
       User.countDocuments(query),
     ]);
@@ -1039,8 +1811,9 @@ exports.getAdminUsers = async (req, res, next) => {
       success: true,
       users,
       total,
-      page: Number(page),
-      totalPages: Math.ceil(total / Number(limit)),
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages: Math.ceil(total / parsedLimit) || 1,
     });
   } catch (error) {
     next(error);
@@ -1053,9 +1826,24 @@ exports.getAdminUsers = async (req, res, next) => {
 exports.updateUserStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
+    if (!["active", "inactive"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status value. Must be 'active' or 'inactive'",
+      });
+    }
+
     const targetUser = await User.findById(req.params.id);
     if (!targetUser) {
       return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Security: Prevent self-deactivation of current administrative account
+    if (targetUser._id.toString() === req.user._id.toString() && status === "inactive") {
+      return res.status(400).json({
+        success: false,
+        message: "Security violation: You cannot deactivate your own administrative account.",
+      });
     }
 
     // Company Admin cannot modify users outside their company
@@ -1068,6 +1856,15 @@ exports.updateUserStatus = async (req, res, next) => {
       }
     }
 
+    // Super Admin protection: Non-superadmins cannot modify an admin account
+    const isTargetAdmin = ["SUPER_ADMIN", "COMPANY_ADMIN", "admin"].includes(targetUser.role);
+    if (isTargetAdmin && req.user.role !== "SUPER_ADMIN" && !req.isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "Security violation: Only a Super Administrator can alter administrative privileges.",
+      });
+    }
+
     targetUser.status = status;
     targetUser.isActive = status === "active";
     await targetUser.save();
@@ -1075,7 +1872,13 @@ exports.updateUserStatus = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: `User status updated to ${status}`,
-      user: targetUser,
+      user: {
+        _id: targetUser._id,
+        fullName: targetUser.fullName,
+        email: targetUser.email,
+        status: targetUser.status,
+        isActive: targetUser.isActive,
+      },
     });
   } catch (error) {
     next(error);

@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/admin/AdminLayout";
@@ -574,7 +575,7 @@ const AdminOpportunities = () => {
         <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
           {loading ? (
             <div className="p-16 text-center text-slate-400 flex flex-col items-center justify-center">
-              <RefreshCw className="w-7 h-7 animate-spin text-indigo-600 mb-2" />
+              <JourneyLoader variant="admin" size="sm" className="mb-2" />
               <p className="text-xs font-bold text-slate-700">Querying database opportunities...</p>
               <p className="text-[11px] text-slate-400 mt-0.5">Aggregating live moderation records</p>
             </div>

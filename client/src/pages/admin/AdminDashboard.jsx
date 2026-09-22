@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import AdminKPICards from "../../components/admin/AdminKPICard";
@@ -57,7 +58,7 @@ const AdminDashboard = () => {
       {/* Loading State */}
       {loading && !data && (
         <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
-          <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <JourneyLoader variant="admin" size="hero" />
           <div className="text-center">
             <p className="text-sm font-bold text-slate-800">Loading CareerConnect Admin...</p>
             <p className="text-xs text-slate-400 mt-1">Aggregating platform database metrics</p>

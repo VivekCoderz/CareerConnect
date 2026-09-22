@@ -1,6 +1,8 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import { getAdminStudents, updateStudentStatus } from "../../services/adminService";
+import { getResumeHref } from "../../utils/resumeAccess";
 import {
   Users,
   Search,
@@ -239,7 +241,7 @@ const AdminStudents = () => {
         <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center">
-              <RefreshCw className="w-6 h-6 animate-spin text-indigo-600 mb-2" />
+              <JourneyLoader variant="admin" size="sm" className="mb-2" />
               <p className="text-xs font-semibold">Loading platform candidates...</p>
             </div>
           ) : candidates.length === 0 ? (
@@ -475,7 +477,7 @@ const AdminStudents = () => {
                       </div>
                     </div>
                     <a
-                      href={selectedCandidate.resumeUrl}
+                      href={getResumeHref(selectedCandidate.resumeUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 transition"

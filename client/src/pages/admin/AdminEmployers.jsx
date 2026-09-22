@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import { getAdminEmployers, updateEmployerStatus } from "../../services/adminService";
@@ -174,7 +175,7 @@ const AdminEmployers = () => {
         <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center">
-              <RefreshCw className="w-6 h-6 animate-spin text-indigo-600 mb-2" />
+              <JourneyLoader variant="admin" size="sm" className="mb-2" />
               <p className="text-xs font-semibold">Loading employer accounts...</p>
             </div>
           ) : employers.length === 0 ? (
