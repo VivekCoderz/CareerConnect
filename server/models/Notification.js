@@ -60,12 +60,24 @@ const notificationSchema = new mongoose.Schema(
     notificationType: {
       type: String,
       enum: [
+        "APPLICATION_RECEIVED",
+        "APPLICATION_STATUS",
+        "CANDIDATE_SHORTLISTED",
+        "ASSESSMENT_ASSIGNED",
         "INTERVIEW_SCHEDULED",
         "INTERVIEW_RESCHEDULED",
         "INTERVIEW_CANCELLED",
         "INTERVIEW_COMPLETED",
         "INTERVIEW_RESULT",
-        "APPLICATION_STATUS",
+        "OFFER_RECEIVED",
+        "OFFER_ACCEPTED",
+        "OFFER_REJECTED",
+        "OFFER_WITHDRAWN",
+        "NEW_MESSAGE",
+        "VERIFICATION_APPROVED",
+        "VERIFICATION_REJECTED",
+        "VERIFICATION_CHANGES_REQUESTED",
+        "SYSTEM_ANNOUNCEMENT",
         "GENERAL",
       ],
       default: "GENERAL",
@@ -79,6 +91,20 @@ const notificationSchema = new mongoose.Schema(
     relatedApplicationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Application",
+      default: null,
+    },
+    relatedOfferId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "JobOffer",
+      default: null,
+    },
+    relatedConversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Conversation",
+      default: null,
+    },
+    relatedEntityId: {
+      type: String,
       default: null,
     },
     actionUrl: {

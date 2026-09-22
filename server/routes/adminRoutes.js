@@ -72,6 +72,7 @@ const {
   reviewOrganizationRequest,
   approveOrganizationRequest,
   rejectOrganizationRequest,
+  requestChangesOrganizationRequest,
 } = require("../controllers/adminController");
 
 // ===================================================
@@ -109,6 +110,7 @@ router.get("/organization-requests/:id", requireSuperAdmin, getOrganizationReque
 router.patch("/organization-requests/:id/review", requireSuperAdmin, reviewOrganizationRequest);
 router.patch("/organization-requests/:id/approve", requireSuperAdmin, approveOrganizationRequest);
 router.patch("/organization-requests/:id/reject", requireSuperAdmin, sanitizeInputs, rejectOrganizationRequest);
+router.patch("/organization-requests/:id/request-changes", requireSuperAdmin, sanitizeInputs, requestChangesOrganizationRequest);
 
 // Companies Management
 router.get("/companies", requireSuperAdmin, getAdminCompanies);

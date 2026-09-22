@@ -1,6 +1,35 @@
 import JourneyLoader from "../common/JourneyLoader";
 import React, { useState, useEffect, useMemo } from "react";
 import recruitmentService from "../../services/recruitmentService";
+import { subscribeToEvent } from "../../services/socketService";
+
+const isPastInterview = (item) => {
+  const s = (item.status || "").toLowerCase();
+  if (s === "completed" || s === "cancelled" || s === "no_show" || s === "missed") return true;
+
+  try {
+    let dateStr = item.scheduledDate || item.date;
+    if (!dateStr && item.scheduledAt) {
+      dateStr = new Date(item.scheduledAt).toISOString().split("T")[0];
+    }
+    if (!dateStr) return false;
+
+    let timeStr = item.scheduledTime || item.startTime || item.time || "23:59";
+    const isPM = /pm/i.test(timeStr);
+    const isAM = /am/i.test(timeStr);
+    const cleanTime = timeStr.replace(/(am|pm)/i, "").trim();
+    let [hours, minutes] = cleanTime.split(":").map((v) => parseInt(v, 10) || 0);
+    if (isPM && hours < 12) hours += 12;
+    if (isAM && hours === 12) hours = 0;
+
+    const interviewEnd = new Date(dateStr);
+    interviewEnd.setHours(hours, minutes + (item.durationMinutes || item.duration || 45), 0, 0);
+
+    return interviewEnd.getTime() < Date.now();
+  } catch {
+    return false;
+  }
+};
 
 const CandidateInterviewsView = () => {
   const [interviews, setInterviews] = useState([]);
@@ -10,37 +39,51 @@ const CandidateInterviewsView = () => {
   const [historyFilter, setHistoryFilter] = useState("all"); // "all" | "completed" | "cancelled"
   const [selectedInterview, setSelectedInterview] = useState(null);
 
-  const fetchCandidateInterviews = async () => {
+  const fetchCandidateInterviews = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError("");
       const res = await recruitmentService.getInterviews();
       setInterviews(res.interviews || []);
     } catch (err) {
       console.error("Failed to load student interviews:", err);
-      setError(err.response?.data?.message || err.message || "Failed to load interviews.");
+      if (!silent) setError(err.response?.data?.message || err.message || "Failed to load interviews.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchCandidateInterviews();
+
+    const unsubSched = subscribeToEvent("INTERVIEW_SCHEDULED", () => fetchCandidateInterviews(true));
+    const unsubResched = subscribeToEvent("INTERVIEW_RESCHEDULED", () => fetchCandidateInterviews(true));
+    const unsubCancel = subscribeToEvent("INTERVIEW_CANCELLED", () => fetchCandidateInterviews(true));
+    const unsubStatus = subscribeToEvent("INTERVIEW_STATUS_UPDATED", () => fetchCandidateInterviews(true));
+
+    return () => {
+      unsubSched();
+      unsubResched();
+      unsubCancel();
+      unsubStatus();
+    };
   }, []);
 
   // Filter groups
   const upcomingInterviews = useMemo(() => {
     return interviews.filter((item) => {
       const s = (item.status || "").toLowerCase();
-      return s === "scheduled" || s === "rescheduled";
+      const isActive = s === "scheduled" || s === "rescheduled";
+      return isActive && !isPastInterview(item);
     });
   }, [interviews]);
 
   const historyInterviews = useMemo(() => {
     return interviews.filter((item) => {
+      const past = isPastInterview(item);
+      if (!past) return false;
       const s = (item.status || "").toLowerCase();
-      if (s !== "completed" && s !== "cancelled" && s !== "no_show") return false;
-      if (historyFilter === "completed") return s === "completed";
+      if (historyFilter === "completed") return s === "completed" || s === "scheduled" || s === "rescheduled";
       if (historyFilter === "cancelled") return s === "cancelled";
       return true;
     });

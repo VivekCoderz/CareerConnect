@@ -16,6 +16,7 @@ const AuditLog = require("../models/AuditLog");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
+const JobOffer = require("../models/JobOffer");
 
 /**
  * Generate JWT and set secure cookie for Admin sessions
@@ -62,11 +63,18 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
 /**
  * Helper to compute date filter based on range
  */
-function getStartDateForRange(range) {
+function getStartDateForRange(range, customStart, customEnd) {
   const now = new Date();
   switch (range) {
+    case "today": {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
     case "7d":
       return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    case "30d":
+      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     case "3m": {
       const d = new Date(now);
       d.setMonth(d.getMonth() - 3);
@@ -82,7 +90,12 @@ function getStartDateForRange(range) {
       d.setFullYear(d.getFullYear() - 1);
       return d;
     }
-    case "30d":
+    case "custom": {
+      if (customStart) {
+        return new Date(customStart);
+      }
+      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
     default:
       return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   }
@@ -269,6 +282,11 @@ exports.getAdminDashboard = async (req, res, next) => {
         companyUpcomingInterviews,
         companyCompletedInterviews,
         companyCancelledInterviews,
+        companyOffersTotal,
+        companyOffersAccepted,
+        companyOffersPending,
+        companyOffersRejected,
+        companyOffersWithdrawn,
         companyReportsCount,
         funnelData,
         recentApplications,
@@ -286,6 +304,11 @@ exports.getAdminDashboard = async (req, res, next) => {
         Interview.countDocuments({ companyId, status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] } }),
         Interview.countDocuments({ companyId, status: { $in: ["completed", "Completed"] } }),
         Interview.countDocuments({ companyId, status: { $in: ["cancelled", "Cancelled"] } }),
+        JobOffer.countDocuments({ companyId }),
+        JobOffer.countDocuments({ companyId, status: "Accepted" }),
+        JobOffer.countDocuments({ companyId, status: { $in: ["Pending", "Pending Approval", "Approved"] } }),
+        JobOffer.countDocuments({ companyId, status: "Rejected" }),
+        JobOffer.countDocuments({ companyId, status: "Withdrawn" }),
         Report.countDocuments({ companyId, status: "Open" }),
         getFunnelCounts({ companyId }),
         Application.find({ companyId })
@@ -323,6 +346,15 @@ exports.getAdminDashboard = async (req, res, next) => {
           upcomingInterviews: companyUpcomingInterviews,
           completedInterviews: companyCompletedInterviews,
           cancelledInterviews: companyCancelledInterviews,
+          offers: {
+            total: companyOffersTotal,
+            accepted: companyOffersAccepted,
+            pending: companyOffersPending,
+            rejected: companyOffersRejected,
+            withdrawn: companyOffersWithdrawn,
+          },
+          totalOffers: companyOffersTotal,
+          acceptedOffers: companyOffersAccepted,
           pendingReviews,
           requiresAttention: companyReportsCount + pendingReviews,
         },
@@ -404,6 +436,11 @@ exports.getAdminDashboard = async (req, res, next) => {
       upcomingInterviews,
       completedInterviews,
       cancelledInterviews,
+      totalOffers,
+      acceptedOffers,
+      pendingOffers,
+      rejectedOffers,
+      withdrawnOffers,
       openReports,
       pendingOrgRequests,
       funnelData,
@@ -428,6 +465,11 @@ exports.getAdminDashboard = async (req, res, next) => {
       Interview.countDocuments({ status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] } }),
       Interview.countDocuments({ status: { $in: ["completed", "Completed"] } }),
       Interview.countDocuments({ status: { $in: ["cancelled", "Cancelled"] } }),
+      JobOffer.countDocuments(),
+      JobOffer.countDocuments({ status: "Accepted" }),
+      JobOffer.countDocuments({ status: { $in: ["Pending", "Pending Approval", "Approved"] } }),
+      JobOffer.countDocuments({ status: "Rejected" }),
+      JobOffer.countDocuments({ status: "Withdrawn" }),
       Report.countDocuments({ status: "Open" }),
       OrganizationRequest.countDocuments({ status: "PENDING" }),
       getFunnelCounts({}),
@@ -465,6 +507,15 @@ exports.getAdminDashboard = async (req, res, next) => {
         upcomingInterviews,
         completedInterviews,
         cancelledInterviews,
+        offers: {
+          total: totalOffers,
+          accepted: acceptedOffers,
+          pending: pendingOffers,
+          rejected: rejectedOffers,
+          withdrawn: withdrawnOffers,
+        },
+        totalOffers,
+        acceptedOffers,
         pendingReviews,
         requiresAttention: openReports + pendingReviews,
         totalCompanies,
@@ -1639,6 +1690,68 @@ exports.rejectOrganizationRequest = async (req, res, next) => {
         rejectedAt: request.rejectedAt,
         rejectionReason: request.rejectionReason,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/admin/organization-requests/:id/request-changes
+ * Super Admin requests changes for an organization request
+ */
+exports.requestChangesOrganizationRequest = async (req, res, next) => {
+  try {
+    const { changeReason } = req.body;
+    if (!changeReason || !changeReason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "A description of required changes is required.",
+      });
+    }
+
+    const request = await OrganizationRequest.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Organization request not found" });
+    }
+
+    if (request.status === "APPROVED") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot request changes on an already approved request.",
+      });
+    }
+
+    request.status = "CHANGES_REQUESTED";
+    request.changeReason = changeReason.trim();
+    request.reviewedBy = req.user._id;
+    request.reviewedAt = new Date();
+    if (!request.verificationHistory) request.verificationHistory = [];
+    request.verificationHistory.push({
+      status: "CHANGES_REQUESTED",
+      action: "Request Changes",
+      reviewer: req.user._id,
+      reviewerName: req.user.fullName || "Super Admin",
+      notes: changeReason.trim(),
+      date: new Date(),
+    });
+
+    await request.save();
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.fullName,
+      action: "ORGANIZATION_REQUEST_CHANGES_REQUESTED",
+      module: "Settings",
+      target: request.organizationName,
+      details: `Super Admin requested changes for ${request.organizationName}: ${changeReason.trim()}`,
+      ipAddress: req.ip || "127.0.0.1",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Changes have been requested for this organization request.",
+      request,
     });
   } catch (error) {
     next(error);

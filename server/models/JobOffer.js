@@ -17,7 +17,19 @@ const jobOfferSchema = new mongoose.Schema(
     jobId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Job",
-      required: true,
+      default: null,
+      index: true,
+    },
+    internshipId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Internship",
+      default: null,
+      index: true,
+    },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
       index: true,
     },
     applicationId: {
@@ -80,17 +92,21 @@ const jobOfferSchema = new mongoose.Schema(
       type: String,
       enum: [
         "Draft",
+        "Pending Approval",
+        "Approved",
         "Sent",
         "Pending",
         "Accepted",
         "Rejected",
         "Expired",
+        "Withdrawn",
         "draft",
         "sent",
         "pending",
         "accepted",
         "rejected",
         "expired",
+        "withdrawn",
       ],
       default: "Sent",
       index: true,
@@ -103,6 +119,27 @@ const jobOfferSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    withdrawnAt: {
+      type: Date,
+      default: null,
+    },
+    withdrawnBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    withdrawnReason: {
+      type: String,
+      default: "",
+    },
+    offerHistory: [
+      {
+        status: { type: String, default: "" },
+        changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        notes: { type: String, default: "" },
+        timestamp: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true,

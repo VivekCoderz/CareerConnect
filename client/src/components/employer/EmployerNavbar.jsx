@@ -16,9 +16,11 @@ import {
   X,
   ExternalLink,
   Users,
+  MessageSquare,
 } from "lucide-react";
 import useLogout from "../../hooks/useLogout";
 import BrandLogo from "../common/BrandLogo";
+import MessagingDrawer from "../common/MessagingDrawer";
 
 const formatRelativeTime = (timestamp) => {
   if (!timestamp) return "—";
@@ -56,6 +58,7 @@ const EmployerNavbar = ({
   const { user } = useSelector((state) => state.auth);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [activityMenuOpen, setActivityMenuOpen] = useState(false);
+  const [messagesOpen, setMessagesOpen] = useState(false);
 
   // Take top recent activities (up to 5 real notifications)
   const recentActivities = useMemo(() => {
@@ -137,6 +140,17 @@ const EmployerNavbar = ({
             />
           </div>
         </div>
+
+        {/* Messages Button */}
+        <button
+          type="button"
+          onClick={() => setMessagesOpen(true)}
+          className="relative p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-[#1e3a8a] bg-white hover:bg-slate-50 transition flex items-center justify-center cursor-pointer"
+          title="Direct Messages"
+          aria-label="Open messages"
+        >
+          <MessageSquare className="w-4 h-4" />
+        </button>
 
         {/* Recent Activity Bell with Dropdown Popover */}
         <div className="relative">
@@ -364,6 +378,8 @@ const EmployerNavbar = ({
           )}
         </div>
       </div>
+      {/* Messaging Drawer */}
+      <MessagingDrawer isOpen={messagesOpen} onClose={() => setMessagesOpen(false)} />
     </header>
   );
 };

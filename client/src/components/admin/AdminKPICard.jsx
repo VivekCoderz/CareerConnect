@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Users,
   Building2,
@@ -7,6 +6,7 @@ import {
   Calendar,
   AlertCircle,
   TrendingUp,
+  Award,
 } from "lucide-react";
 
 const AdminKPICards = ({ overview = {}, users = {}, opportunities = {}, applicationFunnel = {} }) => {
@@ -66,6 +66,17 @@ const AdminKPICards = ({ overview = {}, users = {}, opportunities = {}, applicat
       ],
     },
     {
+      title: "Offers Released",
+      value: overview.offers?.total ?? overview.totalOffers ?? 0,
+      icon: Award,
+      color: "teal",
+      subtext: "Job & Internship Offers",
+      breakdown: [
+        { label: "Accepted", val: overview.offers?.accepted ?? overview.acceptedOffers ?? 0 },
+        { label: "Pending", val: overview.offers?.pending ?? 0 },
+      ],
+    },
+    {
       title: "Pending Reviews",
       value: overview.pendingReviews ?? 0,
       icon: AlertCircle,
@@ -100,6 +111,10 @@ const AdminKPICards = ({ overview = {}, users = {}, opportunities = {}, applicat
       bg: "bg-purple-50 text-purple-700 border-purple-200",
       iconBg: "bg-purple-600 text-white",
     },
+    teal: {
+      bg: "bg-teal-50 text-teal-700 border-teal-200",
+      iconBg: "bg-teal-600 text-white",
+    },
     rose: {
       bg: "bg-rose-50 text-rose-700 border-rose-200",
       iconBg: "bg-rose-600 text-white",
@@ -107,7 +122,7 @@ const AdminKPICards = ({ overview = {}, users = {}, opportunities = {}, applicat
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4">
       {cards.map((card) => {
         const Icon = card.icon;
         const color = colorStyles[card.color] || colorStyles.blue;
