@@ -13,6 +13,7 @@ import {
   reviewOrganizationRequest,
   approveOrganizationRequest,
   rejectOrganizationRequest,
+  requestChangesOrganizationRequest,
 } from "../../services/adminService";
 import {
   Building2,
@@ -84,7 +85,9 @@ const AdminCompanies = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showChangesModal, setShowChangesModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [changeReason, setChangeReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [approvalResult, setApprovalResult] = useState(null);
@@ -162,9 +165,12 @@ const AdminCompanies = () => {
   const handleOpenReview = (reqDoc) => {
     setSelectedRequest(reqDoc);
     setRejectionReason("");
+    setChangeReason("");
     setActionError(null);
     setApprovalResult(null);
     setShowReviewModal(true);
+    setShowRejectModal(false);
+    setShowChangesModal(false);
   };
 
   const handleMarkReview = async () => {
@@ -215,6 +221,26 @@ const AdminCompanies = () => {
       fetchOrgRequests();
     } catch (err) {
       setActionError(err.response?.data?.message || "Failed to reject organization request.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRequestChanges = async () => {
+    if (!selectedRequest) return;
+    if (!changeReason.trim()) {
+      setActionError("Please describe the changes or missing documentation requested.");
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setActionError(null);
+      await requestChangesOrganizationRequest(selectedRequest._id, changeReason.trim());
+      setShowChangesModal(false);
+      setShowReviewModal(false);
+      fetchOrgRequests();
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Failed to request changes.");
     } finally {
       setActionLoading(false);
     }
@@ -533,6 +559,7 @@ const AdminCompanies = () => {
                   <option value="all">All Requests</option>
                   <option value="PENDING">Pending Review Only</option>
                   <option value="UNDER_REVIEW">Under Review</option>
+                  <option value="CHANGES_REQUESTED">Changes Requested</option>
                   <option value="APPROVED">Approved</option>
                   <option value="REJECTED">Rejected</option>
                 </select>
@@ -600,12 +627,14 @@ const AdminCompanies = () => {
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                   : req.status === "UNDER_REVIEW"
                                   ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : req.status === "CHANGES_REQUESTED"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
                                   : req.status === "REJECTED"
                                   ? "bg-rose-50 text-rose-700 border-rose-200"
-                                  : "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
                               }`}
                             >
-                              {req.status}
+                              {req.status === "CHANGES_REQUESTED" ? "Changes Requested" : req.status}
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-slate-500 text-[11px]">
@@ -709,11 +738,13 @@ const AdminCompanies = () => {
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : selectedRequest.status === "UNDER_REVIEW"
                             ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : selectedRequest.status === "CHANGES_REQUESTED"
+                            ? "bg-amber-50 text-amber-700 border-amber-200"
                             : selectedRequest.status === "REJECTED"
                             ? "bg-rose-50 text-rose-700 border-rose-200"
-                            : "bg-amber-50 text-amber-700 border-amber-200"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
                         }`}>
-                          {selectedRequest.status}
+                          {selectedRequest.status === "CHANGES_REQUESTED" ? "Changes Requested" : selectedRequest.status}
                         </span>
                       </div>
                       <p className="text-base font-bold text-slate-900">{selectedRequest.organizationName}</p>
@@ -790,6 +821,13 @@ const AdminCompanies = () => {
                       )}
                     </div>
 
+                    {selectedRequest.changeReason && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
+                        <span className="font-bold">Requested Changes:</span>
+                        <p className="mt-0.5">{selectedRequest.changeReason}</p>
+                      </div>
+                    )}
+
                     {selectedRequest.rejectionReason && (
                       <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs">
                         <span className="font-bold">Rejection Reason:</span>
@@ -815,14 +853,24 @@ const AdminCompanies = () => {
 
                     <div className="flex items-center gap-2">
                       {selectedRequest.status !== "APPROVED" && selectedRequest.status !== "REJECTED" && (
-                        <button
-                          type="button"
-                          onClick={() => setShowRejectModal(true)}
-                          disabled={actionLoading}
-                          className="px-4 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition cursor-pointer"
-                        >
-                          Reject
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setShowChangesModal(true)}
+                            disabled={actionLoading}
+                            className="px-3.5 py-2 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition cursor-pointer"
+                          >
+                            Request Changes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowRejectModal(true)}
+                            disabled={actionLoading}
+                            className="px-4 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                        </>
                       )}
 
                       {selectedRequest.status !== "APPROVED" && (
@@ -881,9 +929,56 @@ const AdminCompanies = () => {
                   type="button"
                   onClick={handleRejectRequest}
                   disabled={actionLoading || !rejectionReason.trim()}
-                  className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl disabled:opacity-50"
+                  className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl disabled:opacity-50 cursor-pointer"
                 >
                   {actionLoading ? "Rejecting..." : "Confirm Rejection"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            MODAL: REQUEST CHANGES
+        ========================================================= */}
+        {showChangesModal && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-2 text-amber-600 font-bold text-sm">
+                <AlertCircle className="w-5 h-5" />
+                <span>Request Changes / Additional Information</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Specify what documents or details the company contact needs to provide or update before approval can proceed.
+              </p>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Required Changes / Notes <span className="text-amber-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={changeReason}
+                  onChange={(e) => setChangeReason(e.target.value)}
+                  placeholder="e.g. Please upload a clear GSTIN / Certificate of Incorporation document."
+                  className="w-full p-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowChangesModal(false)}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRequestChanges}
+                  disabled={actionLoading || !changeReason.trim()}
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl disabled:opacity-50 cursor-pointer"
+                >
+                  {actionLoading ? "Submitting..." : "Send Request to Company"}
                 </button>
               </div>
             </div>

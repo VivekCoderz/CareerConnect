@@ -115,7 +115,18 @@ const organizationRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED"],
+      enum: [
+        "PENDING",
+        "UNDER_REVIEW",
+        "APPROVED",
+        "REJECTED",
+        "CHANGES_REQUESTED",
+        "Pending",
+        "Under Review",
+        "Approved",
+        "Rejected",
+        "Changes Requested",
+      ],
       default: "PENDING",
       index: true,
     },
@@ -151,6 +162,21 @@ const organizationRequestSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    changeReason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    verificationHistory: [
+      {
+        status: { type: String, default: "" },
+        action: { type: String, default: "" },
+        reviewer: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        reviewerName: { type: String, default: "" },
+        notes: { type: String, default: "" },
+        date: { type: Date, default: Date.now },
+      },
+    ],
     companyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Company",

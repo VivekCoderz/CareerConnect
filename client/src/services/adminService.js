@@ -292,6 +292,11 @@ export const rejectOrganizationRequest = async (id, rejectionReason) => {
   return response.data;
 };
 
+export const requestChangesOrganizationRequest = async (id, changeReason) => {
+  const response = await api.patch(`/admin/organization-requests/${id}/request-changes`, { changeReason });
+  return response.data;
+};
+
 // ==========================================
 // COMPANY ADMIN INVITATION & ACTIVATION
 // ==========================================

@@ -47,6 +47,7 @@ const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
 const Internships = lazy(() => import("./pages/student/Internships"));
 const InternshipDetail = lazy(() => import("./pages/student/InternshipDetail"));
 const MyApplications = lazy(() => import("./pages/student/MyApplications"));
+const EligibleJobsPage = lazy(() => import("./pages/student/EligibleJobsPage"));
 
 // Lazy-loaded Pages: Courses
 const StudentCoursesPage = lazy(() => import("./pages/courses/StudentCoursesPage"));
@@ -70,6 +71,7 @@ const ProfessionalProfile = lazy(() => import("./pages/professional/Professional
 const EmployerProfile = lazy(() => import("./pages/employer/EmployerProfile"));
 const EmployerDashboard = lazy(() => import("./pages/employer/EmployerDashboard"));
 const CompanyPublicProfile = lazy(() => import("./pages/employer/CompanyPublicProfile"));
+const JobVisibilityPage = lazy(() => import("./pages/employer/JobVisibilityPage"));
 const PostInternship = lazy(() => import("./pages/employer/PostInternship"));
 const MyInternships = lazy(() => import("./pages/employer/MyInternships"));
 const EditInternship = lazy(() => import("./pages/employer/EditInternship"));
@@ -295,6 +297,7 @@ function App() {
           >
             <Route path="/student/dashboard" element={<StudentDashboard />} />
             <Route path="/student/profile" element={<StudentProfile />} />
+            <Route path="/student/eligible-jobs" element={<EligibleJobsPage />} />
           </Route>
 
           {/* =================================================
@@ -340,6 +343,7 @@ function App() {
             <Route path="/employer/dashboard" element={<EmployerDashboard />} />
             <Route path="/employer/profile" element={<EmployerProfile />} />
             <Route path="/employer/company" element={<CompanyPublicProfile />} />
+            <Route path="/employer/job-visibility" element={<JobVisibilityPage />} />
             <Route path="/employer/internships" element={<MyInternships />} />
             <Route path="/employer/internships/new" element={<PostInternship />} />
             <Route path="/employer/internships/:id/edit" element={<EditInternship />} />

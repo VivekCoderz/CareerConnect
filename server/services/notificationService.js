@@ -131,8 +131,13 @@ const createNotification = async ({
   notificationType = "GENERAL",
   relatedInterviewId = null,
   relatedApplicationId = null,
+  relatedOfferId = null,
+  relatedConversationId = null,
+  relatedEntityId = null,
   actionUrl = "",
   metadata = {},
+  sender = "CareerConnect System",
+  senderRole = "system",
 }) => {
   try {
     if (!recipientId) return null;
@@ -145,8 +150,8 @@ const createNotification = async ({
       recipient: recipientId,
       recipientId,
       senderId,
-      sender: "CareerConnect System",
-      senderRole: "system",
+      sender,
+      senderRole,
       title,
       preview: message,
       message,
@@ -155,11 +160,26 @@ const createNotification = async ({
       category: "system",
       relatedInterviewId,
       relatedApplicationId,
+      relatedOfferId,
+      relatedConversationId,
+      relatedEntityId,
       actionUrl,
       metadata,
     });
 
     broadcastRealtimeNotification(notif, recipientId);
+
+    // Also emit via Socket.IO if available
+    try {
+      const socketService = require("./socketService");
+      const io = socketService.getIO();
+      if (io) {
+        io.to(`user_${String(recipientId)}`).emit("NEW_NOTIFICATION", notif);
+      }
+    } catch (sockErr) {
+      // Socket.io emit non-fatal
+    }
+
     return notif;
   } catch (err) {
     console.error("Error creating notification:", err.message);

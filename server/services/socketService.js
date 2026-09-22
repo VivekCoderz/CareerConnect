@@ -60,10 +60,18 @@ function init(httpServer) {
       }
     });
 
-    // Leave rooms
-    socket.on("leave_interview", (interviewId) => {
-      if (interviewId) {
-        socket.leave(`interview_${String(interviewId)}`);
+    // Join conversation room
+    socket.on("join_conversation", (conversationId) => {
+      if (conversationId) {
+        const room = `conversation_${String(conversationId)}`;
+        socket.join(room);
+      }
+    });
+
+    // Leave conversation room
+    socket.on("leave_conversation", (conversationId) => {
+      if (conversationId) {
+        socket.leave(`conversation_${String(conversationId)}`);
       }
     });
 

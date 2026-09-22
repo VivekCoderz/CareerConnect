@@ -33,6 +33,7 @@ const recommendationRoutes = require("./routes/recommendationRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
 const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
+const messageRoutes = require("./routes/messageRoutes.js");
 
 const app = express();
 const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
@@ -145,6 +146,7 @@ app.use("/api/feed", opportunityRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/fresher/recommendations", recommendationRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/messages", messageRoutes);
 app.use("/api/ai", aiAssistantRoutes);
 app.use("/api/admin", adminRoutes);
 

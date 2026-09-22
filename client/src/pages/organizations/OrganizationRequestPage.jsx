@@ -24,6 +24,9 @@ const OrganizationRequestPage = () => {
     organizationType: "Private",
     officialEmail: "",
     website: "",
+    industry: "Information Technology",
+    companySize: "11-50",
+    verificationDocument: "",
     contactPerson: "",
     designation: "",
     phone: "",
@@ -31,7 +34,6 @@ const OrganizationRequestPage = () => {
     city: "",
     state: "",
     country: "India",
-    reason: "",
     description: "",
   });
 
@@ -70,8 +72,7 @@ const OrganizationRequestPage = () => {
       !formData.phone.trim() ||
       !formData.address.trim() ||
       !formData.city.trim() ||
-      !formData.state.trim() ||
-      !formData.reason.trim()
+      !formData.state.trim()
     ) {
       setError("Please fill in all mandatory fields marked with an asterisk (*).");
       return;
@@ -415,25 +416,24 @@ const OrganizationRequestPage = () => {
 
                 <hr className="border-slate-100" />
 
-                {/* 4. Purpose & Narrative */}
+                {/* 4. Company Verification Details & Description */}
                 <div>
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#008bdc] mb-4 flex items-center gap-2">
                     <FileText className="w-4 h-4" />
-                    4. Reason for Joining & Description
+                    4. Verification Details & Description
                   </h3>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Reason for using CareerConnect <span className="text-rose-500">*</span>
+                        Company Registration / Verification Details <span className="text-slate-400 font-normal">(CIN / GST / Business Registration #)</span>
                       </label>
-                      <textarea
-                        name="reason"
-                        value={formData.reason}
+                      <input
+                        type="text"
+                        name="verificationDocument"
+                        value={formData.verificationDocument}
                         onChange={handleChange}
-                        rows={2}
-                        placeholder="e.g. Hiring full-time software engineers and recruiting winter/summer engineering interns."
+                        placeholder="e.g. CIN: U72200HR2020PTC012345 or GSTIN"
                         className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                        required
                       />
                     </div>
 

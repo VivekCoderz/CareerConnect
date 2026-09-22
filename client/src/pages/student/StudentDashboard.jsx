@@ -45,6 +45,7 @@ import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
 import CourseDetailsPage from "../courses/CourseDetailsPage";
 
 import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
+import MessagingDrawer from "../../components/common/MessagingDrawer";
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -469,6 +470,14 @@ const StudentDashboard = () => {
             <div className="animate-fade-in">
               <CandidateInterviewsView />
             </div>
+          )}
+
+          {/* ================= MESSAGES ================= */}
+          {activeTab === "messages" && (
+            <MessagingDrawer
+              isOpen={true}
+              onClose={() => setActiveTab("dashboard")}
+            />
           )}
 
           {/* ================= SAVED ================= */}
