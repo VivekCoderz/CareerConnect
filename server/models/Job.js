@@ -1,6 +1,39 @@
 // models/Job.js
 const mongoose = require("mongoose");
 
+const interviewRoundSchema = new mongoose.Schema(
+  {
+    order: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1,
+    },
+    name: {
+      type: String,
+      required: [true, "Round name is required"],
+      trim: true,
+      maxlength: [100, "Round name cannot exceed 100 characters"],
+    },
+    type: {
+      type: String,
+      enum: ["online_assessment", "technical", "coding", "managerial", "hr", "behavioral", "final", "other"],
+      default: "technical",
+    },
+    description: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [1000, "Round description cannot exceed 1000 characters"],
+    },
+    isMandatory: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: true }
+);
+
 const jobSchema = new mongoose.Schema(
   {
     employerId: {
@@ -243,6 +276,20 @@ const jobSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+    },
+
+    // ---------- Interview & Selection Rounds ----------
+    interviewRounds: {
+      type: [interviewRoundSchema],
+      default: () => [
+        {
+          order: 1,
+          name: "Technical Interview",
+          type: "technical",
+          description: "Initial technical evaluation and coding assessment.",
+          isMandatory: true,
+        },
+      ],
     },
   },
   {

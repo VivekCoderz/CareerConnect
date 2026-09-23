@@ -73,6 +73,7 @@ const CompanyPublicProfile = lazy(() => import("./pages/employer/CompanyPublicPr
 const PostInternship = lazy(() => import("./pages/employer/PostInternship"));
 const MyInternships = lazy(() => import("./pages/employer/MyInternships"));
 const EditInternship = lazy(() => import("./pages/employer/EditInternship"));
+const JobPostingFlow = lazy(() => import("./pages/employer/JobPostingFlow"));
 
 // Lazy-loaded Pages: Resume Builder
 const ResumeBuilder = lazy(() => import("./pages/resume/ResumeBuilder"));
@@ -343,6 +344,14 @@ function App() {
             <Route path="/employer/internships" element={<MyInternships />} />
             <Route path="/employer/internships/new" element={<PostInternship />} />
             <Route path="/employer/internships/:id/edit" element={<EditInternship />} />
+
+            {/* EMPLOYER JOBS & INTERVIEW PROCESS FLOW */}
+            <Route path="/employer/jobs/new" element={<JobPostingFlow mode="create" step="details" />} />
+            <Route path="/employer/jobs/new/interview-process" element={<JobPostingFlow mode="create" step="interview-process" />} />
+            <Route path="/employer/jobs/new/review" element={<JobPostingFlow mode="create" step="review" />} />
+            <Route path="/employer/jobs/:id/edit" element={<JobPostingFlow mode="edit" step="details" />} />
+            <Route path="/employer/jobs/:id/edit/interview-process" element={<JobPostingFlow mode="edit" step="interview-process" />} />
+            <Route path="/employer/jobs/:id/edit/review" element={<JobPostingFlow mode="edit" step="review" />} />
 
             {/* EMPLOYER COURSES */}
             <Route path="/employer/courses" element={<EmployeeCoursesPage />} />

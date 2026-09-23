@@ -750,10 +750,7 @@ const EmployerDashboard = () => {
           {activeTab === "overview" && (
             <DashboardPage
               data={dashboardData}
-              onPostJob={() => {
-                setJobToEdit(null);
-                setIsJobModalOpen(true);
-              }}
+              onPostJob={() => navigate("/employer/jobs/new")}
               onPostInternship={() => {
                 setActiveTab("internships");
                 setInternshipView("new");
@@ -837,10 +834,7 @@ const EmployerDashboard = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setJobToEdit(null);
-                    setIsJobModalOpen(true);
-                  }}
+                  onClick={() => navigate("/employer/jobs/new")}
                   className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5"
                 >
                   <span>+</span> Post Opportunity
@@ -870,6 +864,12 @@ const EmployerDashboard = () => {
                         </span>
                         <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10.5px] font-semibold">
                           {job.workMode}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[10.5px] font-bold border border-purple-200/60 flex items-center gap-1">
+                          <span>🎯</span>
+                          <span>
+                            {job.interviewRounds?.length || 1} {job.interviewRounds?.length === 1 ? "Round" : "Rounds"}
+                          </span>
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
@@ -904,10 +904,7 @@ const EmployerDashboard = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setJobToEdit(job);
-                          setIsJobModalOpen(true);
-                        }}
+                        onClick={() => navigate(`/employer/jobs/${job._id}/edit`)}
                         className="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-xs hover:bg-slate-800"
                       >
                         Edit

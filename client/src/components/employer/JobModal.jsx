@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: "",
     category: "Web Development",
@@ -163,10 +165,29 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         status: formData.status,
       };
 
-      await onSave(payload);
+      // Transition to Step 2: Dedicated Interview Process page
+      try {
+        sessionStorage.setItem(
+          "careerconnect_job_draft_v2",
+          JSON.stringify({
+            formData,
+            interviewRounds: Array.isArray(jobToEdit?.interviewRounds) && jobToEdit.interviewRounds.length > 0
+              ? jobToEdit.interviewRounds
+              : undefined,
+          })
+        );
+      } catch {
+        // quota fallback
+      }
+
       onClose();
+      if (jobToEdit?._id) {
+        navigate(`/employer/jobs/${jobToEdit._id}/edit/interview-process`);
+      } else {
+        navigate("/employer/jobs/new/interview-process");
+      }
     } catch (err) {
-      setError(err.message || "Failed to save job");
+      setError(err.message || "Failed to proceed to interview configuration");
     } finally {
       setSaving(false);
     }
@@ -436,7 +457,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                   Saving...
                 </>
               ) : (
-                jobToEdit ? "Update Opportunity" : "Publish Opportunity"
+                "Continue to Interview Process →"
               )}
             </button>
           </div>
