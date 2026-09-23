@@ -19,6 +19,7 @@ const Application = require("../models/Application");
 const Interview = require("../models/Interview");
 const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
+const { getEmployerDashboardData } = require("../services/employerDashboardService");
 
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
@@ -325,13 +326,27 @@ exports.unpublishEmployerProfile = async (req, res, next) => {
 
 /**
  * GET /api/employer/dashboard
- * Employer metrics, opportunities overview, recent applications
+ * Server-authoritative aggregated employer dashboard
+ * Strictly scoped by authenticated user's companyId
  */
 exports.getEmployerDashboard = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    let profile = await EmployerProfile.findOne({ userId });
 
+    // Security: Check for spoofed companyId
+    const requestedCompanyId = req.query.companyId || req.body?.companyId;
+    if (requestedCompanyId && req.user.companyId && requestedCompanyId.toString() !== req.user.companyId.toString()) {
+      return res.status(403).json({
+        success: false,
+        code: "FORBIDDEN_COMPANY_ACCESS",
+        message: "Access denied: You cannot access data belonging to another company",
+      });
+    }
+
+    // Resolve effective companyId
+    let effectiveCompanyId = req.user.companyId || null;
+
+    let profile = await EmployerProfile.findOne({ userId });
     if (!profile) {
       profile = await EmployerProfile.create({
         userId,
@@ -344,154 +359,28 @@ exports.getEmployerDashboard = async (req, res, next) => {
       });
     }
 
-    const completion = calculateEmployerCompletion(profile, req.user);
-    const profileId = profile._id;
-
-    // Scope queries by employer identity: createdBy: userId OR employerId: profileId
-    const jobOwnerOr = [{ createdBy: userId }];
-    if (profileId) jobOwnerOr.push({ employerId: profileId });
-    const jobOwnerFilter = { $or: jobOwnerOr };
-
-    // 1. Active Jobs: count & top active listings
-    const activeJobQuery = {
-      ...jobOwnerFilter,
-      status: { $in: ["Published", "Active", "Open"] },
-    };
-    const activeJobsCount = await Job.countDocuments(activeJobQuery);
-
-    const rawActiveJobs = await Job.find(activeJobQuery)
-      .sort({ createdAt: -1 })
-      .limit(6)
-      .lean();
-
-    // Ensure applicant count is accurate from Application records
-    const activeJobs = await Promise.all(
-      rawActiveJobs.map(async (j) => {
-        const count = await Application.countDocuments({
-          $or: [{ jobId: j._id }, { internshipId: j._id }],
-        });
-        return {
-          ...j,
-          applicantsCount: Math.max(j.applicantsCount || 0, count),
-        };
-      })
-    );
-
-    // 2. Fetch all opportunity IDs owned by employer for application & interview associations
-    const allEmployerJobs = await Job.find(jobOwnerFilter, "_id");
-    const allEmployerInternships = await Internship.find(jobOwnerFilter, "_id");
-    const jobIds = allEmployerJobs.map((j) => j._id);
-    const internshipIds = allEmployerInternships.map((i) => i._id);
-
-    const appOrConditions = [];
-    if (profileId) appOrConditions.push({ employerId: profileId });
-    appOrConditions.push({ employerId: userId });
-    if (jobIds.length > 0) appOrConditions.push({ jobId: { $in: jobIds } });
-    if (internshipIds.length > 0) appOrConditions.push({ internshipId: { $in: internshipIds } });
-    const appFilter = appOrConditions.length > 0 ? { $or: appOrConditions } : { _id: null };
-
-    const applicationsCount = await Application.countDocuments(appFilter);
-
-    // 3. Upcoming Interviews
-    const interviewOrConditions = [];
-    if (profileId) interviewOrConditions.push({ employerId: profileId });
-    interviewOrConditions.push({ employerId: userId });
-    if (jobIds.length > 0) interviewOrConditions.push({ jobId: { $in: jobIds } });
-    if (internshipIds.length > 0) interviewOrConditions.push({ internshipId: { $in: internshipIds } });
-    const interviewOwnerFilter = interviewOrConditions.length > 0 ? { $or: interviewOrConditions } : { _id: null };
-
-    // Exclude cancelled, completed, no_show, and draft interviews
-    const upcomingStatusFilter = {
-      $nin: [
-        "cancelled",
-        "completed",
-        "no_show",
-        "draft",
-        "Cancelled",
-        "Completed",
-        "No Show",
-        "Draft",
-      ],
-    };
-
-    const upcomingInterviewsCount = await Interview.countDocuments({
-      ...interviewOwnerFilter,
-      status: upcomingStatusFilter,
-    });
-
-    const rawUpcomingInterviews = await Interview.find({
-      ...interviewOwnerFilter,
-      status: upcomingStatusFilter,
-    })
-      .populate("candidateId", "fullName email phone profileImage")
-      .populate("jobId", "title location employmentType workMode")
-      .populate("internshipId", "title location type")
-      .sort({ scheduledDate: 1, startTime: 1, scheduledTime: 1 })
-      .limit(6)
-      .lean();
-
-    const upcomingInterviews = rawUpcomingInterviews.map((iv) => ({
-      _id: iv._id,
-      candidateName: iv.candidateId?.fullName || iv.candidateName || "Candidate",
-      candidateEmail: iv.candidateId?.email || "",
-      candidateImage: iv.candidateId?.profileImage || "",
-      roleTitle: iv.jobId?.title || iv.internshipId?.title || iv.title || "Position",
-      scheduledDate: iv.scheduledDate || "",
-      scheduledTime: iv.scheduledTime || iv.startTime || "",
-      status: iv.status || "Scheduled",
-      meetingLink: iv.meetingLink || "",
-      meetingMode: iv.meetingMode || "Online",
-      jobId: iv.jobId?._id || iv.jobId,
-    }));
-
-    // 4. Team Staff count from Employee and TeamMember collections
-    let teamStaffCount = await Employee.countDocuments({ employerId: profileId });
-    if (teamStaffCount === 0) {
-      const memberCount = await TeamMember.countDocuments({ employerId: profileId });
-      if (memberCount > 0) {
-        teamStaffCount = memberCount;
-      } else if (profile.companySize && /^\d+$/.test(profile.companySize.trim())) {
-        teamStaffCount = parseInt(profile.companySize.trim(), 10);
+    if (!effectiveCompanyId) {
+      // Check if Company exists matching profile or user
+      const matchedCompany = await Company.findOne({
+        $or: [
+          { email: profile.officialEmail || req.user.email },
+          { name: profile.companyName },
+        ],
+      });
+      if (matchedCompany) {
+        effectiveCompanyId = matchedCompany._id;
+        req.user.companyId = matchedCompany._id;
+        await User.findByIdAndUpdate(userId, { companyId: matchedCompany._id });
       }
     }
 
-    // 5. Recent Applications
-    const rawRecentApps = await Application.find(appFilter)
-      .populate("candidateId", "fullName email phone profileImage")
-      .populate("jobId", "title")
-      .populate("internshipId", "title")
-      .sort({ appliedAt: -1, createdAt: -1 })
-      .limit(6)
-      .lean();
-
-    const recentApplications = rawRecentApps.map((app) => ({
-      _id: app._id,
-      candidateName: app.studentName || app.candidateId?.fullName || "Applicant",
-      candidateEmail: app.studentEmail || app.candidateId?.email || "",
-      candidateImage: app.candidateId?.profileImage || "",
-      position: app.opportunityTitle || app.jobId?.title || app.internshipId?.title || "Role",
-      status: app.status || "Applied",
-      appliedDate: app.appliedAt || app.createdAt,
-      resumeUrl: app.resumeUrl || "",
-    }));
-
-    const stats = {
-      activeJobs: activeJobsCount,
-      applications: applicationsCount,
-      upcomingInterviews: upcomingInterviewsCount,
-      interviews: upcomingInterviewsCount,
-      teamStaff: teamStaffCount,
-      employees: teamStaffCount,
-    };
+    const completion = calculateEmployerCompletion(profile, req.user);
+    const data = await getEmployerDashboardData(effectiveCompanyId, req.user);
 
     return res.status(200).json({
       success: true,
+      ...data,
       profile,
-      stats,
-      activeJobs,
-      activeListings: activeJobs,
-      upcomingInterviews,
-      recentApplications,
       profileCompletion: completion,
     });
   } catch (error) {
