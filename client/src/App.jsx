@@ -367,8 +367,7 @@ function App() {
                 path="/courses/:id/learn"
                 element={<CourseContentPage />}
               />
-            }
-          >
+           
             <Route path="/internships/:id" element={<InternshipDetail />} />
             <Route path="/student/jobs/:id" element={<InternshipDetail />} />
             <Route path="/applications" element={<MyApplications />} />
@@ -427,8 +426,7 @@ function App() {
                 path="/employer/dashboard"
                 element={<EmployerDashboard />}
               />
-            }
-          >
+           
             <Route path="/employer/dashboard" element={<EmployerDashboard />} />
             <Route path="/employer/jobs/create" element={<CreateOpportunityPage />} />
             <Route path="/employer/jobs/:id" element={<CreateOpportunityPage />} />
