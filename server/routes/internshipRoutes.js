@@ -73,7 +73,7 @@ router.post("/", protect, employerOnly, internshipController.createInternship);
 
 // General filterable catalog / myPosts
 router.get("/", (req, res, next) => {
-  if (req.query.myPosts === "true") {
+  if (req.query.myPosts === "true" || req.query.myPosts === true || req.query.myPosts === "1") {
     return protect(req, res, () => internshipController.getInternships(req, res, next));
   }
   return internshipController.getInternships(req, res, next);

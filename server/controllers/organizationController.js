@@ -3,6 +3,7 @@ const Department = require("../models/Department");
 const TrainingAssignment = require("../models/TrainingAssignment");
 const EmployerProfile = require("../models/EmployerProfile");
 const Course = require("../models/Course");
+const TeamRole = require("../models/TeamRole");
 const mongoose = require("mongoose");
 const { escapeRegex } = require("../utils/listingSecurity");
 
@@ -407,6 +408,54 @@ exports.getSkillGapAnalysis = async (req, res, next) => {
       success: true,
       skillGaps: departmentSkillGaps,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==================== DYNAMIC TEAM ROLES ====================
+
+// GET /api/organization/team-roles
+exports.getTeamRoles = async (req, res, next) => {
+  try {
+    const employerId = await getEmployerProfileId(req.user);
+    const roles = await TeamRole.find({ employerId }).sort({ createdAt: -1 });
+    return res.status(200).json({ success: true, count: roles.length, roles });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/organization/team-roles
+exports.createTeamRole = async (req, res, next) => {
+  try {
+    const employerId = await getEmployerProfileId(req.user);
+    const { name, description, permissions, type } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: "Role name is required" });
+    }
+    const role = await TeamRole.create({
+      employerId,
+      name: name.trim(),
+      description: description || "",
+      permissions: Array.isArray(permissions) ? permissions : [],
+      type: type || "custom",
+    });
+    return res.status(201).json({ success: true, message: "Role created successfully", role });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/organization/team-roles/:id
+exports.deleteTeamRole = async (req, res, next) => {
+  try {
+    const employerId = await getEmployerProfileId(req.user);
+    const deleted = await TeamRole.findOneAndDelete({ _id: req.params.id, employerId });
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: "Role not found" });
+    }
+    return res.status(200).json({ success: true, message: "Role deleted successfully" });
   } catch (error) {
     next(error);
   }

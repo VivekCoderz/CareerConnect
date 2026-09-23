@@ -30,6 +30,11 @@ const {
   updateApplicationStage,
   addApplicationNote,
   withdrawApplication,
+  moveToNextStage,
+  selectCandidate,
+  rejectCandidate,
+  markStageFailed,
+  updateApplicationRound,
 } = applicationController;
 
 // ========== CANDIDATE ==========
@@ -94,6 +99,42 @@ router.post(
   protect,
   employerOnly,
   ensureFn(addApplicationNote, "addApplicationNote")
+);
+
+// ========== EMPLOYER DYNAMIC PIPELINE ACTIONS ==========
+router.patch(
+  "/:id/pipeline/move-next",
+  protect,
+  employerOnly,
+  ensureFn(moveToNextStage, "moveToNextStage")
+);
+
+router.patch(
+  "/:id/pipeline/select",
+  protect,
+  employerOnly,
+  ensureFn(selectCandidate, "selectCandidate")
+);
+
+router.patch(
+  "/:id/pipeline/reject",
+  protect,
+  employerOnly,
+  ensureFn(rejectCandidate, "rejectCandidate")
+);
+
+router.patch(
+  "/:id/pipeline/mark-failed",
+  protect,
+  employerOnly,
+  ensureFn(markStageFailed, "markStageFailed")
+);
+
+router.patch(
+  "/:id/pipeline/round",
+  protect,
+  employerOnly,
+  ensureFn(updateApplicationRound, "updateApplicationRound")
 );
 
 // ========== DETAIL ==========

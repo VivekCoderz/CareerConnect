@@ -536,6 +536,7 @@ const EmployeeCoursesPage = ({
 }) => {
   const navigate = useNavigate();
 
+  const { user } = useSelector((state) => state.auth || {});
   const [activeTab, setActiveTab] = useState("courses"); // "courses" or "applications"
   const [courses, setCourses] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -568,7 +569,12 @@ const EmployeeCoursesPage = ({
           coursesRes.value?.data?.courses ||
           coursesRes.value?.data ||
           [];
-        setCourses(Array.isArray(cData) ? cData : []);
+        const rawCourses = Array.isArray(cData) ? cData : [];
+        const myUserId = (user?._id || user?.id || "").toString();
+        const userCourses = myUserId
+          ? rawCourses.filter((c) => (c.createdBy?._id || c.createdBy)?.toString() === myUserId)
+          : rawCourses;
+        setCourses(userCourses);
       } else {
         console.error("Failed to load courses:", coursesRes.reason);
       }

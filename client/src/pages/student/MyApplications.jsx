@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { getMyApplications, withdraw } from "../../services/applicationService";
 import recruitmentService from "../../services/recruitmentService";
 import CandidateOfferResponseModal from "../../components/student/CandidateOfferResponseModal";
+import ApplicationTrackingProgress from "../../components/student/ApplicationTrackingProgress";
 import { getResumeHref } from "../../utils/resumeAccess";
 
 export default function MyApplications({ embedded = false }) {
@@ -158,6 +159,99 @@ export default function MyApplications({ embedded = false }) {
     }
   };
 
+  const getStageTypeIcon = (type) => {
+    switch (type) {
+      case "Resume Screening":
+        return "📄";
+      case "Aptitude Test":
+      case "Coding Test":
+      case "Assessment":
+        return "💻";
+      case "Technical Interview":
+      case "Interview Round":
+        return "🎙️";
+      case "HR Interview":
+        return "👥";
+      case "Document Verification":
+        return "📑";
+      case "Final Selection":
+        return "🏆";
+      default:
+        return "📌";
+    }
+  };
+
+  const getStageStatusInfo = (app, stageIndex) => {
+    const isTerminalRejected = app.overallStatus === "Rejected" || app.status === "Rejected";
+    const isTerminalSelected = app.overallStatus === "Selected" || app.status === "Selected" || app.status === "Hired";
+    const currentIndex = typeof app.currentStageIndex === "number" ? app.currentStageIndex : 0;
+
+    if (isTerminalSelected) {
+      return {
+        label: "Cleared",
+        badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        dotClass: "bg-emerald-500 text-white",
+        icon: "✓",
+        isCurrent: stageIndex === currentIndex,
+      };
+    }
+
+    if (isTerminalRejected) {
+      if (stageIndex < currentIndex) {
+        return {
+          label: "Cleared",
+          badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+          dotClass: "bg-emerald-500 text-white",
+          icon: "✓",
+          isCurrent: false,
+        };
+      } else if (stageIndex === currentIndex) {
+        return {
+          label: "Not Cleared",
+          badgeClass: "bg-red-50 text-red-700 border-red-200",
+          dotClass: "bg-red-500 text-white",
+          icon: "✕",
+          isCurrent: true,
+        };
+      } else {
+        return {
+          label: "Not Reached",
+          badgeClass: "bg-slate-100 text-slate-400 border-slate-200",
+          dotClass: "bg-slate-200 text-slate-400",
+          icon: "○",
+          isCurrent: false,
+        };
+      }
+    }
+
+    // In Progress / Active
+    if (stageIndex < currentIndex) {
+      return {
+        label: "Passed",
+        badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        dotClass: "bg-emerald-500 text-white",
+        icon: "✓",
+        isCurrent: false,
+      };
+    } else if (stageIndex === currentIndex) {
+      return {
+        label: "Active Stage",
+        badgeClass: "bg-blue-50 text-blue-700 border-blue-300 font-bold",
+        dotClass: "bg-[#1e3a8a] text-white ring-4 ring-blue-100 animate-pulse",
+        icon: "●",
+        isCurrent: true,
+      };
+    } else {
+      return {
+        label: "Upcoming",
+        badgeClass: "bg-slate-50 text-slate-400 border-slate-200",
+        dotClass: "bg-slate-200 text-slate-500",
+        icon: "○",
+        isCurrent: false,
+      };
+    }
+  };
+
   const filtered =
     filter === "All"
       ? applications
@@ -245,22 +339,53 @@ export default function MyApplications({ embedded = false }) {
           </div>
         )}
 
-        {/* Status Filters */}
-        <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
-          {statusTabs.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setFilter(tab)}
-              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition ${
-                filter === tab
-                  ? "bg-[#1e3a8a] text-white shadow-sm"
-                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        {/* Status Filter Dropdown */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 sm:px-4 rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 shrink-0">
+              Filter by Status:
+            </span>
+            <div className="relative min-w-[200px] sm:min-w-[240px]">
+              <select
+                id="application-status-filter"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-full appearance-none bg-slate-50 hover:bg-slate-100/70 border border-slate-200 focus:border-[#1e3a8a] focus:bg-white focus:ring-2 focus:ring-blue-100 rounded-xl px-3.5 py-2 pr-9 text-xs sm:text-sm font-semibold text-slate-800 transition cursor-pointer outline-none shadow-2xs"
+              >
+                {statusTabs.map((tab) => {
+                  const count =
+                    tab === "All"
+                      ? applications.length
+                      : applications.filter((a) => a.status === tab).length;
+                  return (
+                    <option key={tab} value={tab}>
+                      {tab} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-medium text-slate-500">
+              Showing <span className="font-bold text-slate-900">{filtered.length}</span> of {applications.length}
+            </span>
+            {filter !== "All" && (
+              <button
+                type="button"
+                onClick={() => setFilter("All")}
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Error */}
@@ -438,126 +563,121 @@ export default function MyApplications({ embedded = false }) {
                 return (
                   <div
                     key={app._id}
-                    className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col md:flex-row md:items-center md:justify-between hover:shadow-sm transition-shadow shadow-sm"
+                    className="bg-white border border-slate-200/90 rounded-3xl p-6 hover:shadow-md transition-shadow shadow-xs"
                   >
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(
-                            app.status
-                          )}`}
-                        >
-                          {app.status}
-                        </span>
+                    {/* Top Row: Opportunity Info and Actions */}
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(
+                              app.status
+                            )}`}
+                          >
+                            {app.status}
+                          </span>
 
-                        <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                          {app.opportunityType ||
-                            "Internship"}
-                        </span>
-                      </div>
-
-                      <h3 className="text-lg font-bold text-slate-900">
-                        {app.opportunityTitle ||
-                          opportunity?.title ||
-                          "Opportunity"}
-                      </h3>
-
-                      <p className="text-sm font-semibold text-slate-600">
-                        {app.companyName ||
-                          opportunity?.companyName ||
-                          "Company"}
-                      </p>
-
-                      <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-slate-500">
-                        <div>
-                          <p className="font-bold text-slate-400 uppercase tracking-wider">
-                            Applied On
-                          </p>
-
-                          <p className="font-semibold text-slate-800 mt-0.5">
-                            {app.createdAt
-                              ? new Date(
-                                  app.createdAt
-                                ).toLocaleDateString(
-                                  "en-IN"
-                                )
-                              : "N/A"}
-                          </p>
+                          <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                            {app.opportunityType || "Internship"}
+                          </span>
                         </div>
 
-                        {opportunity?.location && (
+                        <h3 className="text-lg font-bold text-slate-900">
+                          {app.opportunityTitle ||
+                            opportunity?.title ||
+                            "Opportunity"}
+                        </h3>
+
+                        <p className="text-sm font-semibold text-slate-600">
+                          {app.companyName ||
+                            opportunity?.companyName ||
+                            "Company"}
+                        </p>
+
+                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-slate-500">
                           <div>
                             <p className="font-bold text-slate-400 uppercase tracking-wider">
-                              Location
+                              Applied On
                             </p>
-
                             <p className="font-semibold text-slate-800 mt-0.5">
-                              {opportunity.location}
+                              {app.createdAt
+                                ? new Date(app.createdAt).toLocaleDateString("en-IN")
+                                : "N/A"}
                             </p>
                           </div>
+
+                          {opportunity?.location && (
+                            <div>
+                              <p className="font-bold text-slate-400 uppercase tracking-wider">
+                                Location
+                              </p>
+                              <p className="font-semibold text-slate-800 mt-0.5">
+                                {opportunity.location}
+                              </p>
+                            </div>
+                          )}
+
+                          {opportunity?.stipend && (
+                            <div>
+                              <p className="font-bold text-slate-400 uppercase tracking-wider">
+                                Stipend
+                              </p>
+                              <p className="font-semibold text-slate-800 mt-0.5">
+                                {opportunity.stipend}
+                              </p>
+                            </div>
+                          )}
+
+                          {!isWithdrawn && (
+                            <div>
+                              <p className="font-bold text-slate-400 uppercase tracking-wider">
+                                Current ATS Stage
+                              </p>
+                              <p className="font-semibold text-slate-800 mt-0.5">
+                                {app.currentStageName || app.stage || "Under Review"}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Top Action Buttons (Track Application button removed) */}
+                      <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setViewingAppModal(app)}
+                          className="px-4 py-2 border border-slate-200 text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <span>📄</span>
+                          <span>View Details</span>
+                        </button>
+
+                        {app.internshipId && (
+                          <Link
+                            to={`/internships/${
+                              app.internshipId._id || app.internshipId
+                            }`}
+                            className="px-4 py-2 border border-slate-200 text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-2xs"
+                          >
+                            Listing Info
+                          </Link>
                         )}
 
-                        {opportunity?.stipend && (
-                          <div>
-                            <p className="font-bold text-slate-400 uppercase tracking-wider">
-                              Stipend
-                            </p>
-
-                            <p className="font-semibold text-slate-800 mt-0.5">
-                              {opportunity.stipend}
-                            </p>
-                          </div>
-                        )}
-
-                        {app.stage && !isWithdrawn && (
-                          <div>
-                            <p className="font-bold text-slate-400 uppercase tracking-wider">
-                              ATS Stage
-                            </p>
-
-                            <p className="font-semibold text-slate-800 mt-0.5">
-                              {app.stage}
-                            </p>
-                          </div>
+                        {!cannotWithdraw && (
+                          <button
+                            type="button"
+                            onClick={() => handleWithdraw(app._id)}
+                            disabled={actionLoading}
+                            className="px-4 py-2 border border-transparent text-xs font-bold rounded-xl text-white bg-red-600 hover:bg-red-700 transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                          >
+                            Withdraw
+                          </button>
                         )}
                       </div>
                     </div>
 
-                    <div className="mt-6 md:mt-0 md:ml-6 flex items-center gap-3 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => setViewingAppModal(app)}
-                        className="px-4 py-2 border border-slate-200 text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-1.5"
-                      >
-                        <span>📄</span>
-                        <span>View Application</span>
-                      </button>
-
-                      {app.internshipId && (
-                        <Link
-                          to={`/internships/${
-                            app.internshipId._id ||
-                            app.internshipId
-                          }`}
-                          className="px-4 py-2 border border-slate-200 text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-sm"
-                        >
-                          Listing Info
-                        </Link>
-                      )}
-
-                      {!cannotWithdraw && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleWithdraw(app._id)
-                          }
-                          disabled={actionLoading}
-                          className="px-4 py-2 border border-transparent text-xs font-bold rounded-xl text-white bg-red-600 hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50"
-                        >
-                          Withdraw
-                        </button>
-                      )}
-                    </div>
+                    {/* Live Progress Stepper & Round-by-Round Evaluation Status (Matching Reference Photo) */}
+                    <ApplicationTrackingProgress application={app} />
                   </div>
                 );
               })}
@@ -658,6 +778,116 @@ export default function MyApplications({ embedded = false }) {
                   </p>
                 </div>
               )}
+
+              {/* Dynamic Recruitment Stages Breakdown */}
+              {(() => {
+                const stages = viewingAppModal.jobId?.recruitmentStages || [];
+                if (stages.length === 0) return null;
+
+                return (
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+                        Selection Stages & Recruitment Progress ({stages.length} Rounds)
+                      </h4>
+                      <span className="text-[11px] font-bold text-[#1e3a8a]">
+                        Overall: {viewingAppModal.overallStatus || viewingAppModal.status}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {stages.map((stg, idx) => {
+                        const info = getStageStatusInfo(viewingAppModal, idx);
+                        const testLink = stg.configuration?.testLink;
+                        const isCurrentActive = info.isCurrent && viewingAppModal.overallStatus !== "Rejected" && viewingAppModal.status !== "Rejected";
+
+                        return (
+                          <div
+                            key={stg._id || idx}
+                            className={`p-3 rounded-xl border transition ${
+                              info.isCurrent
+                                ? "bg-blue-50/70 border-blue-200 shadow-2xs"
+                                : info.icon === "✓"
+                                ? "bg-white border-slate-200"
+                                : "bg-white/60 border-slate-100 opacity-80"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${info.dotClass}`}>
+                                  {info.icon}
+                                </span>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] font-bold text-slate-900">
+                                      Round {stg.order || idx + 1}: {stg.name}
+                                    </span>
+                                    <span className="px-1.5 py-0.5 rounded text-[9.5px] font-medium bg-slate-100 text-slate-600">
+                                      {getStageTypeIcon(stg.type)} {stg.type}
+                                    </span>
+                                  </div>
+                                  {stg.description && (
+                                    <p className="text-[10.5px] text-slate-500 mt-0.5">{stg.description}</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${info.badgeClass}`}>
+                                {info.label}
+                              </span>
+                            </div>
+
+                            {/* If Test Link Available for this stage */}
+                            {testLink && isCurrentActive && (
+                              <div className="mt-2.5 pt-2 border-t border-blue-100 flex items-center justify-between">
+                                <span className="text-[10.5px] text-slate-600">
+                                  {stg.configuration?.durationMinutes && `⏱️ ${stg.configuration.durationMinutes}m | `}
+                                  {stg.configuration?.passingCriteria && `🎯 Passing: ${stg.configuration.passingCriteria}%`}
+                                </span>
+                                <a
+                                  href={testLink.startsWith("http") ? testLink : `https://${testLink}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold transition shadow-2xs"
+                                >
+                                  Take Assessment ↗
+                                </a>
+                              </div>
+                            )}
+
+                            {/* If Active Interview Scheduled on this application */}
+                            {viewingAppModal.activeInterview && isCurrentActive && (stg.type?.includes("Interview") || idx === (viewingAppModal.currentStageIndex || 0)) && (
+                              <div className="mt-2.5 pt-2 border-t border-blue-100 bg-white/80 p-2.5 rounded-lg">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div>
+                                    <span className="text-[11px] font-bold text-slate-900 block">
+                                      📅 {viewingAppModal.activeInterview.roundName || "Scheduled Interview"}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500">
+                                      {viewingAppModal.activeInterview.scheduledDate ? new Date(viewingAppModal.activeInterview.scheduledDate).toLocaleDateString("en-IN") : "Date TBA"}{" "}
+                                      at {viewingAppModal.activeInterview.scheduledTime || viewingAppModal.activeInterview.startTime || "TBA"} • {viewingAppModal.activeInterview.durationMinutes || 30} mins
+                                    </span>
+                                  </div>
+                                  {viewingAppModal.activeInterview.meetingLink && (
+                                    <a
+                                      href={viewingAppModal.activeInterview.meetingLink.startsWith("http") ? viewingAppModal.activeInterview.meetingLink : `https://${viewingAppModal.activeInterview.meetingLink}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3 py-1 rounded-lg bg-[#1e3a8a] hover:bg-blue-800 text-white text-[11px] font-bold transition shadow-2xs shrink-0"
+                                    >
+                                      Join Interview ↗
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">

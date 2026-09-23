@@ -19,6 +19,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
   const [error, setError] = useState("");
   const [applying, setApplying] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
+  const [appliedAppId, setAppliedAppId] = useState(null);
   const [standaloneApplied, setStandaloneApplied] = useState({ userId: null, internshipId: null });
   const hasStandaloneApplied = standaloneApplied.userId === user?._id &&
     standaloneApplied.internshipId === String(internshipId);
@@ -142,6 +143,8 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
 
       const res = await applyToInternship(internshipId, payload);
       if (res.success) {
+        const appId = res.application?._id || res.data?._id;
+        if (appId) setAppliedAppId(appId);
         setSuccessMsg(res.message || "Application submitted successfully!");
         setStandaloneApplied({ userId: user?._id, internshipId: String(internshipId) });
         onAppliedSuccess?.(res);
@@ -336,12 +339,24 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
               <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center mb-2">
                 <p className="text-sm font-bold text-emerald-800">{successMsg || "✓ Applied — your application has been submitted."}</p>
                 {!embedded && (
-                  <Link
-                    to="/applications"
-                    className="mt-2 inline-block text-xs font-bold text-[#1e3a8a] hover:underline"
-                  >
-                    View My Applications →
-                  </Link>
+                  <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
+                    {appliedAppId ? (
+                      <Link
+                        to={`/student/applications/${appliedAppId}`}
+                        className="px-4 py-2 bg-[#1e3a8a] hover:bg-[#1e40af] text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5"
+                      >
+                        <span>📍</span>
+                        <span>Track Application Live ➔</span>
+                      </Link>
+                    ) : (
+                      <Link
+                        to="/applications"
+                        className="px-4 py-2 bg-[#1e3a8a] hover:bg-[#1e40af] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                      >
+                        View My Applications →
+                      </Link>
+                    )}
+                  </div>
                 )}
               </div>
             )}

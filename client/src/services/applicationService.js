@@ -84,6 +84,54 @@ export const updateStage = async (id, stage, notes = "") => {
   return data;
 };
 
+/**
+ * Move candidate to next stage (Employer only)
+ */
+export const moveNextStage = async (id, payload = {}) => {
+  const { data } = await api.patch(`/applications/${id}/pipeline/move-next`, payload);
+  return data;
+};
+
+/**
+ * Final candidate selection (Employer only)
+ */
+export const selectCandidate = async (id, payload = {}) => {
+  const { data } = await api.patch(`/applications/${id}/pipeline/select`, payload);
+  return data;
+};
+
+/**
+ * Reject candidate (Employer only)
+ */
+export const rejectCandidate = async (id, payload = {}) => {
+  const { data } = await api.patch(`/applications/${id}/pipeline/reject`, payload);
+  return data;
+};
+
+/**
+ * Mark stage failed (Employer only)
+ */
+export const markStageFailed = async (id, payload = {}) => {
+  const { data } = await api.patch(`/applications/${id}/pipeline/mark-failed`, payload);
+  return data;
+};
+
+/**
+ * Update specific application round (Employer only)
+ */
+export const updateRound = async (id, payload = {}) => {
+  const { data } = await api.patch(`/applications/${id}/pipeline/round`, payload);
+  return data;
+};
+
+/**
+ * Add note to application (Employer only)
+ */
+export const addNote = async (id, text) => {
+  const { data } = await api.post(`/applications/${id}/notes`, { text });
+  return data;
+};
+
 export default {
   applyToJob,
   applyToInternship,
@@ -94,4 +142,10 @@ export default {
   getEmployerApplications,
   updateStatus,
   updateStage,
+  moveNextStage,
+  selectCandidate,
+  rejectCandidate,
+  markStageFailed,
+  updateRound,
+  addNote,
 };

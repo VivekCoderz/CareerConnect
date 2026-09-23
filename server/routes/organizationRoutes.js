@@ -24,4 +24,9 @@ router.post("/training/assign", organizationController.assignTraining);
 // Skill Gap Analysis
 router.get("/skill-gaps", organizationController.getSkillGapAnalysis);
 
+// Dynamic Team Roles
+router.get("/team-roles", organizationController.getTeamRoles);
+router.post("/team-roles", organizationController.createTeamRole);
+router.delete("/team-roles/:id", organizationController.deleteTeamRole);
+
 module.exports = router;

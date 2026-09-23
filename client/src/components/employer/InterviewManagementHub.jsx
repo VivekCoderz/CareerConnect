@@ -211,8 +211,12 @@ const InterviewManagementHub = ({
         // 1. Status Filter (activeTab and statusFilter in sync)
         const active = (statusFilter !== "All" ? statusFilter : activeTab).toLowerCase();
         if (active !== "all") {
-          const itemStatus = (item?.status || "").toLowerCase();
-          if (itemStatus !== active) return false;
+          const s = (item?.status || "").toLowerCase();
+          if (active === "upcoming") {
+            if (s !== "scheduled" && s !== "rescheduled") return false;
+          } else if (s !== active) {
+            return false;
+          }
         }
 
         // 2. Round Filter
