@@ -217,6 +217,26 @@ export const getEmployerAnalytics = async () => {
   return res.data;
 };
 
+export const downloadJobApplicantsPdf = async (jobId, stage = "All") => {
+  const res = await api.get(`/applications/job/${jobId}/export-pdf`, {
+    params: stage && stage !== "All" ? { stage } : {},
+    responseType: "blob",
+  });
+  return res.data;
+};
+
+export const triggerPdfDownload = (blobData, defaultFilename = "Applicants_Report.pdf") => {
+  const blob = new Blob([blobData], { type: "application/pdf" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = defaultFilename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
 export default {
   getEmployerApplications,
   updateApplicationStage,
@@ -260,6 +280,8 @@ export default {
   withdrawOffer,
   respondToOffer,
   getEmployerAnalytics,
+  downloadJobApplicantsPdf,
+  triggerPdfDownload,
 };
 
 

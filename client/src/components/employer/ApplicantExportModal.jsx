@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { downloadJobApplicantsPdf, triggerPdfDownload } from "../../services/recruitmentService";
 
 export default function ApplicantExportModal({
   isOpen,
@@ -12,8 +13,17 @@ export default function ApplicantExportModal({
   const [selectedJobId, setSelectedJobId] = useState(initialJobId || "All");
   const [selectedStage, setSelectedStage] = useState(initialStage || "All");
   const [activeTab, setActiveTab] = useState("preview"); // "preview" | "print"
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState(null);
 
-  if (!isOpen) return null;
+  // Sync selected job and stage when modal opens with new props
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedJobId(initialJobId || "All");
+      setSelectedStage(initialStage || "All");
+      setPdfError(null);
+    }
+  }, [isOpen, initialJobId, initialStage]);
 
   // Selected Job Object
   const currentJob = jobs.find(
@@ -202,10 +212,43 @@ export default function ApplicantExportModal({
     URL.revokeObjectURL(url);
   };
 
-  // Direct Browser Print (Save as PDF)
+  // Direct Download Official PDF from Backend
+  const handleDownloadOfficialPDF = async () => {
+    try {
+      setPdfError(null);
+      let targetJobId = selectedJobId;
+      if (targetJobId === "All") {
+        if (jobs.length === 1) {
+          targetJobId = jobs[0]._id || jobs[0].id;
+        } else if (jobs.length > 1) {
+          alert("Please select a specific Job Vacancy from the dropdown above to generate its official Round-wise Applicants PDF.");
+          return;
+        } else {
+          alert("No job selected to generate PDF.");
+          return;
+        }
+      }
+
+      setIsPdfLoading(true);
+      const blob = await downloadJobApplicantsPdf(targetJobId, selectedStage);
+      const safeJob = (currentJob?.title || "Job").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const safeStage = selectedStage.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      triggerPdfDownload(blob, `Applicants_${safeJob}_${safeStage}_${dateStr}.pdf`);
+    } catch (err) {
+      console.error("Failed to generate PDF:", err);
+      setPdfError("Could not generate PDF from server. Please try printing or download as CSV.");
+    } finally {
+      setIsPdfLoading(false);
+    }
+  };
+
+  // Direct Browser Print (Save as PDF fallback)
   const handlePrintPDF = () => {
     window.print();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
@@ -315,6 +358,35 @@ export default function ApplicantExportModal({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              disabled={isPdfLoading}
+              onClick={handleDownloadOfficialPDF}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-bold shadow-xs transition cursor-pointer ${
+                isPdfLoading
+                  ? "bg-indigo-400 cursor-not-allowed"
+                  : "bg-indigo-600 hover:bg-indigo-700"
+              }`}
+              title="Download official PDF with applicant profiles and round details"
+            >
+              {isPdfLoading ? (
+                <>
+                  <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  <span>Generating PDF...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Download PDF Report</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={handleDownloadCSV}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
             >
@@ -327,15 +399,23 @@ export default function ApplicantExportModal({
             <button
               type="button"
               onClick={handlePrintPDF}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition cursor-pointer"
+              title="Browser print preview"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
-              <span>Download / Save PDF</span>
+              <span>Print</span>
             </button>
           </div>
         </div>
+
+        {pdfError && (
+          <div className="px-6 py-2 bg-rose-50 border-b border-rose-100 text-rose-700 text-xs font-medium flex items-center justify-between">
+            <span>⚠️ {pdfError}</span>
+            <button onClick={() => setPdfError(null)} className="font-bold text-rose-800 ml-2">✕</button>
+          </div>
+        )}
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">

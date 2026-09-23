@@ -392,7 +392,7 @@ exports.getEligibleCandidates = async (req, res, next) => {
       status: { $in: ["Shortlisted", "Approved", "Interview", "Interview Scheduled", "Interview Completed"] },
     })
       .populate("candidateId", "fullName email phone profileImage userType location skills")
-      .populate("jobId", "title department location")
+      .populate("jobId", "title department location interviewRounds")
       .populate("internshipId", "title department location companyName")
       .sort({ appliedAt: -1 });
 
@@ -436,13 +436,24 @@ exports.getEligibleCandidates = async (req, res, next) => {
         }
 
         // Configured interview process rounds with real completion and lock status
-        const defaultRounds = [
+        const customRounds = app.jobId?.interviewRounds?.length > 0
+          ? app.jobId.interviewRounds.map((r, idx) => ({
+              roundNumber: r.order || idx + 1,
+              name: r.name,
+              type: r.type ? r.type.charAt(0).toUpperCase() + r.type.slice(1).replace(/_/g, " ") : "Technical",
+              description: r.description || "",
+              isMandatory: r.isMandatory !== false,
+              durationMinutes: String(r.type || "").toLowerCase().includes("hr") ? 30 : 45,
+            }))
+          : null;
+
+        const roundsList = customRounds || [
           { roundNumber: 1, name: "Round 1 - Technical Assessment", type: "Technical", durationMinutes: 45 },
           { roundNumber: 2, name: "Round 2 - Live Problem Solving & Coding", type: "Coding", durationMinutes: 45 },
           { roundNumber: 3, name: "Round 3 - HR & Culture Fit Discussion", type: "HR", durationMinutes: 30 },
         ];
 
-        const roundsPipeline = defaultRounds.map((r) => {
+        const roundsPipeline = roundsList.map((r) => {
           const matchingInterview = appInterviews.find((i) => i.roundNumber === r.roundNumber);
           if (matchingInterview) {
             const s = (matchingInterview.status || "").toLowerCase();

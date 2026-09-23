@@ -2,8 +2,9 @@ const mongoose = require("mongoose");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
-const Application = require("../models/Application");
 const Company = require("../models/Company");
+const Application = require("../models/Application");
+// const Company = require("../models/Company");
 const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
 const { getAggregatedOpportunities, clearSearchCache } = require("../services/jobScraperService");
 
@@ -354,13 +355,24 @@ exports.createJob = async (req, res, next) => {
 
     const {
       title,
+      category,
+      subCategory,
       department,
       employmentType,
       workMode,
       location,
+      city,
+      state,
+      country,
+      isPaid,
+      hasJobOffer,
+      isInternational,
       salaryRange,
+      stipend,
+      duration,
       experience,
       education,
+      eligibility,
       description,
       responsibilities,
       requiredSkills,
@@ -369,6 +381,7 @@ exports.createJob = async (req, res, next) => {
       openings,
       deadline,
       status,
+      interviewRounds,
       recruitmentStages,
     } = req.body;
 
@@ -391,19 +404,44 @@ exports.createJob = async (req, res, next) => {
     const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
     const initialStatus = status || (isSuperAdmin ? "Published" : "Pending Approval");
 
+    // Format and sanitize interview rounds if provided
+    let formattedRounds;
+    if (Array.isArray(interviewRounds) && interviewRounds.length > 0) {
+      formattedRounds = interviewRounds.map((r, idx) => ({
+        order: Number(r.order) || idx + 1,
+        name: String(r.name || "").trim() || `Round ${idx + 1}`,
+        type: ["online_assessment", "technical", "coding", "managerial", "hr", "behavioral", "final", "other"].includes(String(r.type || "").toLowerCase())
+          ? String(r.type).toLowerCase()
+          : "technical",
+        description: String(r.description || "").trim(),
+        isMandatory: r.isMandatory !== false,
+      }));
+    }
+
     const job = await Job.create({
       employerId,
       createdBy: req.user._id,
       companyId,
       companyName: companyName || "",
       title: title.trim(),
+      category: category?.trim() || "Web Development",
+      subCategory: subCategory?.trim() || "Frontend Development",
       department: department?.trim() || "General",
       employmentType: employmentType || "Full-time",
       workMode: workMode || "Hybrid",
       location: location.trim(),
+      city: city?.trim() || "Bangalore",
+      state: state?.trim() || "Karnataka",
+      country: country?.trim() || "India",
+      isPaid: isPaid !== false,
+      hasJobOffer: !!hasJobOffer,
+      isInternational: !!isInternational,
       salaryRange: salaryRange || { min: 0, max: 0, currency: "INR", isNegotiable: false },
+      stipend: stipend?.trim() || "",
+      duration: duration?.trim() || "",
       experience: experience || { minYears: 0, maxYears: 2, level: "Fresher / Entry-Level" },
       education: education || "Any Graduate",
+      eligibility: eligibility?.trim() || "",
       description: description.trim(),
       responsibilities: Array.isArray(responsibilities) ? responsibilities : [],
       requiredSkills: Array.isArray(requiredSkills) ? requiredSkills : [],
