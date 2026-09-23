@@ -1,880 +1,1268 @@
-import React, { useState, useMemo } from "react";
-import InterviewScorecardModal from "./InterviewScorecardModal";
-import InterviewScheduleModal from "./InterviewScheduleModal";
-import InterviewDetailsModal from "./InterviewDetailsModal";
-import CandidateInterviewHistoryModal from "./CandidateInterviewHistoryModal";
-import InterviewCancelModal from "./InterviewCancelModal";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import {
+  Calendar,
+  Clock,
+  User,
+  Briefcase,
+  Search,
+  X,
+  ChevronDown,
+  MoreVertical,
+  ExternalLink,
+  Eye,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Check,
+  RotateCcw,
+  FileText,
+  Star,
+  Plus,
+  Award,
+  XCircle,
+} from "lucide-react";
 import recruitmentService from "../../services/recruitmentService";
+import InterviewScheduleModal from "./InterviewScheduleModal";
+import InterviewCancelModal from "./InterviewCancelModal";
+
+const TABS = [
+  { id: "All", label: "All" },
+  { id: "Scheduled", label: "Scheduled" },
+  { id: "Completed", label: "Completed" },
+  { id: "Rescheduled", label: "Rescheduled" },
+  { id: "Cancelled", label: "Cancelled" },
+];
 
 const InterviewManagementHub = ({
-  interviews = [],
-  stats = null,
+  interviews: initialInterviews = [],
+  stats: initialStats = null,
   jobs = [],
   onRefresh,
-  showToast,
+  showToast = () => {},
   onOpenOfferModal = null,
 }) => {
-  const [searchQuery, setSearchQuery] = useState("");
+  // Data State
+  const [interviews, setInterviews] = useState(initialInterviews);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Filter States (synchronized activeTab & statusFilter)
+  const [activeTab, setActiveTab] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [roundFilter, setRoundFilter] = useState("All");
-  const [sortBy, setSortBy] = useState("upcoming");
-  const [viewMode, setViewMode] = useState("grid"); // "grid" | "table"
+  const [dateSort, setDateSort] = useState("desc"); // "desc" | "asc"
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Modals state
-  const [detailsInterview, setDetailsInterview] = useState(null);
-  const [scorecardInterview, setScorecardInterview] = useState(null);
-  const [historyCandidate, setHistoryCandidate] = useState(null);
-  const [rescheduleInterview, setRescheduleInterview] = useState(null);
-  const [cancelModalInterview, setCancelModalInterview] = useState(null);
+  // Modals & Drawer States
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [rescheduleItem, setRescheduleItem] = useState(null);
+  const [cancelModalItem, setCancelModalItem] = useState(null);
+  const [drawerInterview, setDrawerInterview] = useState(null);
+  const [actionMenuOpenId, setActionMenuOpenId] = useState(null);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  // Status badges
-  const getStatusBadge = (status) => {
-    const s = (status || "").toLowerCase();
-    switch (s) {
-      case "scheduled":
-        return { label: "Scheduled", bg: "bg-blue-50 text-blue-700 border-blue-200", icon: "📅" };
-      case "in progress":
-        return { label: "In Progress", bg: "bg-amber-50 text-amber-800 border-amber-300", icon: "⏳" };
-      case "completed":
-        return { label: "Completed", bg: "bg-emerald-50 text-emerald-800 border-emerald-300", icon: "✓" };
-      case "rescheduled":
-        return { label: "Rescheduled", bg: "bg-purple-50 text-purple-700 border-purple-200", icon: "🔄" };
-      case "cancelled":
-        return { label: "Cancelled", bg: "bg-rose-50 text-rose-700 border-rose-200", icon: "✕" };
-      default:
-        return { label: status || "Unknown", bg: "bg-slate-50 text-slate-700 border-slate-200", icon: "📌" };
+  // Drawer Scorecard Editing State
+  const [scorecardForm, setScorecardForm] = useState({
+    technicalSkills: 4,
+    problemSolving: 4,
+    communication: 4,
+    roleKnowledge: 4,
+    cultureFit: 4,
+    recommendation: "Hire",
+    feedback: "",
+    isFinalRound: false,
+  });
+  const [isSavingScorecard, setIsSavingScorecard] = useState(false);
+
+  const actionMenuRef = useRef(null);
+
+  // Dynamic Statistics and Tab Counts computed live from real MongoDB data
+  const { displayStats, displayTabCounts } = useMemo(() => {
+    let scheduled = 0;
+    let completed = 0;
+    let rescheduled = 0;
+    let cancelled = 0;
+    let pendingEvaluation = 0;
+
+    (interviews || []).forEach((item) => {
+      const s = (item?.status || "").toLowerCase();
+      if (s === "scheduled") {
+        scheduled++;
+      } else if (s === "rescheduled") {
+        rescheduled++;
+      } else if (s === "completed") {
+        completed++;
+        const hasScorecard =
+          (item.scorecard && item.scorecard.submittedAt) ||
+          (item.feedback && item.feedback.submittedAt) ||
+          (Number(item.scorecard?.overallScore) > 0);
+        if (!hasScorecard) {
+          pendingEvaluation++;
+        }
+      } else if (s === "cancelled") {
+        cancelled++;
+      }
+    });
+
+    const upcoming = scheduled + rescheduled;
+    const total = (interviews || []).length;
+
+    return {
+      displayStats: {
+        upcoming,
+        completed,
+        pendingEvaluation,
+        total,
+      },
+      displayTabCounts: {
+        All: total,
+        Scheduled: scheduled,
+        Completed: completed,
+        Rescheduled: rescheduled,
+        Cancelled: cancelled,
+      },
+    };
+  }, [interviews]);
+
+  // Debounce search input
+  const isFirstSearchRender = useRef(true);
+  useEffect(() => {
+    if (isFirstSearchRender.current) {
+      isFirstSearchRender.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Close action dropdown menu on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target)) {
+        setActionMenuOpenId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  // Fetch interviews dynamically from MongoDB backend
+  const loadData = useCallback(async (showSkeleton = true) => {
+    if (showSkeleton && (!interviews || interviews.length === 0)) setLoading(true);
+    setError(null);
+    try {
+      const res = await recruitmentService.getInterviews();
+      if (res?.interviews) {
+        setInterviews(res.interviews);
+      }
+    } catch (err) {
+      console.error("Failed to load interviews:", err);
+      setError("Unable to load interviews. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  }, [interviews?.length]);
+
+  useEffect(() => {
+    loadData(!interviews || interviews.length === 0);
+  }, []);
+
+  // Sync initialInterviews if parent passes them
+  useEffect(() => {
+    if (initialInterviews && initialInterviews.length > 0) {
+      setInterviews(initialInterviews);
+    }
+  }, [initialInterviews]);
+
+  // Close Drawer on Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        if (drawerInterview) setDrawerInterview(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [drawerInterview]);
+
+  // Two-way synchronization between Status Dropdown and Status Tabs
+  const handleStatusChange = (val) => {
+    setStatusFilter(val);
+    const matchedTab = TABS.find((t) => t.id.toLowerCase() === val.toLowerCase());
+    if (matchedTab) {
+      setActiveTab(matchedTab.id);
+    } else {
+      setActiveTab("All");
     }
   };
 
-  // Metrics computation
-  const calculatedStats = useMemo(() => {
-    if (stats) return stats;
-    const total = interviews.length;
-    const scheduled = interviews.filter((i) => (i.status || "").toLowerCase() === "scheduled").length;
-    const completed = interviews.filter((i) => (i.status || "").toLowerCase() === "completed").length;
-    const rescheduled = interviews.filter((i) => (i.status || "").toLowerCase() === "rescheduled").length;
-    const cancelled = interviews.filter((i) => (i.status || "").toLowerCase() === "cancelled").length;
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setStatusFilter(tabId === "All" ? "All" : tabId.toLowerCase());
+  };
 
-    const scored = interviews.filter(
-      (i) =>
-        (i.status || "").toLowerCase() === "completed" &&
-        ((i.feedback?.overallScore > 0) || (i.scorecard?.overallScore > 0))
-    );
-    const avgScore = scored.length > 0
-      ? (
-          scored.reduce(
-            (acc, curr) => acc + (curr.feedback?.overallScore || curr.scorecard?.overallScore || 0),
-            0
-          ) / scored.length
-        ).toFixed(1)
-      : "0.0";
-
-    const recommendedHire = interviews.filter(
-      (i) =>
-        ["Hire / Select", "Strong Hire"].includes(i.feedback?.recommendation || i.scorecard?.recommendation) ||
-        (i.result || "").toLowerCase() === "passed"
-    ).length;
-
-    return {
-      total,
-      scheduled,
-      completed,
-      rescheduled,
-      cancelled,
-      avgScore: Number(avgScore),
-      recommendedHire,
-    };
-  }, [interviews, stats]);
-
-  // Filtered & Sorted Interviews
+  // Dynamically filtered and sorted interviews list
   const filteredInterviews = useMemo(() => {
-    return interviews
+    return (interviews || [])
       .filter((item) => {
-        const s = (item.status || "").toLowerCase();
-        if (statusFilter === "Upcoming") {
-          if (s !== "scheduled" && s !== "rescheduled") return false;
-        } else if (statusFilter === "Completed") {
-          if (s !== "completed") return false;
-        } else if (statusFilter === "Cancelled") {
-          if (s !== "cancelled") return false;
-        } else if (statusFilter !== "All" && s !== statusFilter.toLowerCase()) {
-          return false;
+        // 1. Status Filter (activeTab and statusFilter in sync)
+        const active = (statusFilter !== "All" ? statusFilter : activeTab).toLowerCase();
+        if (active !== "all") {
+          const s = (item?.status || "").toLowerCase();
+          if (active === "upcoming") {
+            if (s !== "scheduled" && s !== "rescheduled") return false;
+          } else if (s !== active) {
+            return false;
+          }
         }
 
-        // Round filter
-        if (roundFilter !== "All" && String(item.roundNumber) !== String(roundFilter)) return false;
+        // 2. Round Filter
+        if (roundFilter !== "All") {
+          const rNum = Number(roundFilter);
+          const itemRound = Number(item?.roundNumber) || 1;
+          if (rNum === 3) {
+            if (itemRound < 3) return false;
+          } else {
+            if (itemRound !== rNum) return false;
+          }
+        }
 
-        // Search query
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const candName = item.candidateId?.fullName?.toLowerCase() || "";
-          const candEmail = item.candidateId?.email?.toLowerCase() || "";
-          const jobTitle = item.jobId?.title?.toLowerCase() || "";
-          const intName = item.interviewerName?.toLowerCase() || "";
-          const roundName = item.roundName?.toLowerCase() || "";
-          return candName.includes(q) || candEmail.includes(q) || jobTitle.includes(q) || intName.includes(q) || roundName.includes(q);
+        // 3. Search Query
+        const term = debouncedSearch || searchQuery.trim();
+        if (term) {
+          const q = term.toLowerCase();
+          const cName = (
+            item?.candidateId?.fullName ||
+            item?.candidateName ||
+            item?.applicationId?.studentName ||
+            ""
+          ).toLowerCase();
+          const cEmail = (
+            item?.candidateId?.email ||
+            item?.applicationId?.studentEmail ||
+            ""
+          ).toLowerCase();
+          const jTitle = (
+            item?.jobId?.title ||
+            item?.internshipId?.title ||
+            item?.applicationId?.opportunityTitle ||
+            ""
+          ).toLowerCase();
+          const roundName = (item?.roundName || "").toLowerCase();
+          const interviewer = (item?.interviewerName || "").toLowerCase();
+
+          const matches =
+            cName.includes(q) ||
+            cEmail.includes(q) ||
+            jTitle.includes(q) ||
+            roundName.includes(q) ||
+            interviewer.includes(q);
+
+          if (!matches) return false;
         }
 
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "upcoming") {
-          return new Date(a.scheduledDate || 0) - new Date(b.scheduledDate || 0);
-        } else if (sortBy === "newest") {
-          return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-        } else if (sortBy === "highestScore") {
-          const scoreA = a.feedback?.overallScore || a.scorecard?.overallScore || 0;
-          const scoreB = b.feedback?.overallScore || b.scorecard?.overallScore || 0;
-          return scoreB - scoreA;
-        }
-        return 0;
+        const dateA = new Date(a?.scheduledDate || a?.createdAt || 0).getTime();
+        const dateB = new Date(b?.scheduledDate || b?.createdAt || 0).getTime();
+        return dateSort === "asc" ? dateA - dateB : dateB - dateA;
       });
-  }, [interviews, statusFilter, roundFilter, searchQuery, sortBy]);
+  }, [interviews, statusFilter, activeTab, roundFilter, debouncedSearch, searchQuery, dateSort]);
 
-  // Actions
+  // Open Drawer and initialize scorecard form
+  const openDrawer = (interview) => {
+    setDrawerInterview(interview);
+    const sc = interview.scorecard || {};
+    const fb = interview.feedback || {};
+    setScorecardForm({
+      technicalSkills: sc.technicalSkills || fb.technicalScore || 4,
+      problemSolving: sc.problemSolving || 4,
+      communication: sc.communication || fb.communicationScore || 4,
+      roleKnowledge: sc.roleKnowledge || 4,
+      cultureFit: sc.cultureFit || 4,
+      recommendation: sc.recommendation || fb.recommendation || "Hire",
+      feedback: sc.feedback || fb.comments || interview.interviewerFeedback || "",
+      isFinalRound: interview.roundNumber >= 3,
+    });
+  };
+
+  // Status Badge Formatter
+  const getStatusBadge = (status) => {
+    const s = (status || "").toLowerCase();
+    switch (s) {
+      case "scheduled":
+        return { label: "Scheduled", classes: "bg-blue-50 text-blue-700 border-blue-200" };
+      case "completed":
+        return { label: "Completed", classes: "bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold" };
+      case "rescheduled":
+        return { label: "Rescheduled", classes: "bg-amber-50 text-amber-800 border-amber-200" };
+      case "cancelled":
+        return { label: "Cancelled", classes: "bg-rose-50 text-rose-700 border-rose-200" };
+      default:
+        return { label: status || "Pending", classes: "bg-slate-100 text-slate-700 border-slate-200" };
+    }
+  };
+
+  // Helper to get candidate and job display names
+  const getInterviewDisplay = (interview) => {
+    const cName =
+      interview.candidateId?.fullName ||
+      interview.candidateName ||
+      interview.applicationId?.studentName ||
+      "Candidate";
+
+    const jTitle =
+      interview.jobId?.title ||
+      interview.internshipId?.title ||
+      interview.applicationId?.opportunityTitle ||
+      "Position";
+
+    const roundName = interview.roundName || `Round ${interview.roundNumber || 1} - Technical`;
+    const date = interview.scheduledDate || "Date TBD";
+    const time = interview.scheduledTime || interview.startTime || "Time TBD";
+    const interviewer = interview.interviewerName || "Hiring Team Lead";
+    const status = interview.status || "scheduled";
+    const meetingLink = interview.meetingLink || "";
+
+    return {
+      cName,
+      jTitle,
+      roundName,
+      date,
+      time,
+      interviewer,
+      status,
+      meetingLink,
+    };
+  };
+
+  // Quick Action: Mark as Completed
   const handleMarkCompleted = async (interviewId) => {
+    setActionLoadingId(interviewId);
     try {
-      setActionLoading(true);
-      await recruitmentService.completeInterview(interviewId);
-      if (showToast) showToast("Interview marked as completed!");
-      if (onRefresh) onRefresh();
+      const res = await recruitmentService.completeInterview(interviewId);
+      if (res?.success) {
+        showToast("Interview marked as completed!");
+        setInterviews((prev) =>
+          prev.map((i) => (i._id === interviewId ? { ...i, status: "completed" } : i))
+        );
+        if (drawerInterview && drawerInterview._id === interviewId) {
+          setDrawerInterview((prev) => ({ ...prev, status: "completed" }));
+        }
+        loadData(false);
+      }
     } catch (err) {
-      if (showToast) showToast(err.message || "Failed to mark interview as completed", "error");
+      showToast(err?.response?.data?.message || "Failed to mark interview completed", "error");
     } finally {
-      setActionLoading(false);
+      setActionLoadingId(null);
+      setActionMenuOpenId(null);
     }
   };
 
-  const handleScorecardSubmit = async (interviewId, payload) => {
+  // Quick Action: Submit Scorecard
+  const handleSaveScorecard = async (e) => {
+    e?.preventDefault();
+    if (!drawerInterview) return;
+    setIsSavingScorecard(true);
     try {
-      setActionLoading(true);
-      await recruitmentService.submitInterviewFeedback(interviewId, payload);
-      if (showToast) showToast("Scorecard and feedback evaluation recorded!");
-      if (onRefresh) onRefresh();
+      const payload = {
+        scorecard: {
+          technicalSkills: Number(scorecardForm.technicalSkills),
+          problemSolving: Number(scorecardForm.problemSolving),
+          communication: Number(scorecardForm.communication),
+          roleKnowledge: Number(scorecardForm.roleKnowledge),
+          cultureFit: Number(scorecardForm.cultureFit),
+          recommendation: scorecardForm.recommendation,
+          feedback: scorecardForm.feedback,
+        },
+        feedback: scorecardForm.feedback,
+        recommendation: scorecardForm.recommendation,
+        isFinalRound: scorecardForm.isFinalRound,
+        markSelected: scorecardForm.recommendation === "Strong Hire" || scorecardForm.recommendation === "Hire",
+      };
+
+      const res = await recruitmentService.submitScorecard(drawerInterview._id, payload);
+      if (res?.success) {
+        showToast("Scorecard recorded successfully!");
+        setDrawerInterview(res.interview || { ...drawerInterview, scorecard: payload.scorecard, status: "completed" });
+        setInterviews((prev) =>
+          prev.map((i) =>
+            i._id === drawerInterview._id ? (res.interview ? res.interview : { ...i, scorecard: payload.scorecard, status: "completed" }) : i
+          )
+        );
+        loadData(false);
+      }
     } catch (err) {
-      if (showToast) showToast(err.message || "Failed to submit scorecard", "error");
+      showToast(err?.response?.data?.message || "Failed to save scorecard", "error");
     } finally {
-      setActionLoading(false);
+      setIsSavingScorecard(false);
     }
   };
 
-  const handleRescheduleSubmit = async (interviewId, payload) => {
+  // Handle Confirmed Cancellation
+  const handleConfirmCancel = async (cancellationData) => {
+    if (!cancelModalItem) return;
+    setActionLoadingId(cancelModalItem._id);
     try {
-      setActionLoading(true);
-      await recruitmentService.rescheduleInterview(interviewId, payload);
-      if (showToast) showToast("Interview slot successfully rescheduled!");
-      if (onRefresh) onRefresh();
+      const res = await recruitmentService.cancelInterview(cancelModalItem._id, cancellationData);
+      if (res?.success) {
+        showToast("Interview cancelled. Candidate remains Shortlisted.");
+        setInterviews((prev) =>
+          prev.map((i) =>
+            i._id === cancelModalItem._id ? { ...i, status: "cancelled", ...cancellationData } : i
+          )
+        );
+        if (drawerInterview && drawerInterview._id === cancelModalItem._id) {
+          setDrawerInterview((prev) => ({ ...prev, status: "cancelled", ...cancellationData }));
+        }
+        setCancelModalItem(null);
+        loadData(false);
+      }
     } catch (err) {
-      if (showToast) showToast(err.message || "Failed to reschedule", "error");
+      showToast(err?.response?.data?.message || "Failed to cancel interview", "error");
     } finally {
-      setActionLoading(false);
+      setActionLoadingId(null);
     }
   };
 
-  const handleCancelInterview = (interview) => {
-    setCancelModalInterview(interview);
+  // Reset Filters
+  const resetFilters = () => {
+    setSearchQuery("");
+    setDebouncedSearch("");
+    setStatusFilter("All");
+    setActiveTab("All");
+    setRoundFilter("All");
+    setDateSort("desc");
   };
 
-  const handleConfirmCancel = async (payload) => {
-    if (!cancelModalInterview) return;
-    try {
-      setActionLoading(true);
-      await recruitmentService.cancelInterview(cancelModalInterview._id, payload);
-      setCancelModalInterview(null);
-      if (showToast) showToast("Interview slot has been cancelled.");
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      if (showToast) showToast(err.message || "Failed to cancel interview", "error");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleScheduleNextRound = (candidate) => {
-    setIsScheduleModalOpen(true);
-  };
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    statusFilter !== "All" ||
+    activeTab !== "All" ||
+    roundFilter !== "All" ||
+    dateSort !== "desc";
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* SECTION HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* ======================================================== */}
+      {/* 1. COMPACT HEADER                                        */}
+      {/* ======================================================== */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-slate-100">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl">📅</span>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Interview Scheduling & Scorecards</h2>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Schedule multi-round interviews, assign evaluators, and record structured competency scorecards
-          </p>
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Interview Scheduling</h2>
+          <p className="text-xs text-slate-500">Schedule and manage candidate interviews.</p>
         </div>
 
         <button
           type="button"
-          onClick={() => setIsScheduleModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs transition"
+          onClick={() => {
+            setRescheduleItem(null);
+            setIsScheduleModalOpen(true);
+          }}
+          className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-2xs hover:shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer self-start sm:self-auto"
         >
-          <span className="text-sm font-black">+</span> Schedule New Interview
+          <Plus className="w-4 h-4" />
+          <span>Schedule Interview</span>
         </button>
       </div>
 
-      {/* SUMMARY METRIC CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {/* Total */}
-        <div
-          onClick={() => setStatusFilter("All")}
-          className={`p-4 rounded-3xl bg-white border cursor-pointer transition hover:shadow-sm ${
-            statusFilter === "All" ? "border-slate-800 ring-2 ring-slate-800/10" : "border-slate-200/80"
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total Slots</span>
-            <span className="text-sm">📁</span>
+      {/* ======================================================== */}
+      {/* 2. THREE COMPACT STATISTICS (Upcoming, Completed, Pending)*/}
+      {/* ======================================================== */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Card 1: Upcoming */}
+        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Upcoming</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Calendar className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-2xl font-black text-slate-900">{calculatedStats.total}</p>
-          <span className="text-[10px] text-slate-400 font-medium">All interview rounds</span>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-slate-900">{displayStats.upcoming}</span>
+            <span className="text-[11px] text-blue-600 font-semibold">Active slots</span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1">Scheduled & rescheduled</p>
         </div>
 
-        {/* Scheduled / Upcoming */}
-        <div
-          onClick={() => setStatusFilter("Scheduled")}
-          className={`p-4 rounded-3xl bg-white border cursor-pointer transition hover:shadow-sm ${
-            statusFilter === "Scheduled" ? "border-blue-500 ring-2 ring-blue-500/10" : "border-slate-200/80"
-          }`}
-        >
-          <div className="flex items-center justify-between text-blue-700 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Upcoming</span>
-            <span className="text-sm">🕒</span>
+        {/* Card 2: Completed */}
+        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Completed</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-2xl font-black text-blue-700">{calculatedStats.scheduled}</p>
-          <span className="text-[10px] text-blue-600 font-medium">Pending evaluation</span>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-slate-900">{displayStats.completed}</span>
+            <span className="text-[11px] text-emerald-600 font-semibold">Conducted</span>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1">Finished interview rounds</p>
         </div>
 
-        {/* Completed */}
-        <div
-          onClick={() => setStatusFilter("Completed")}
-          className={`p-4 rounded-3xl bg-white border cursor-pointer transition hover:shadow-sm ${
-            statusFilter === "Completed" ? "border-emerald-600 ring-2 ring-emerald-600/10" : "border-slate-200/80"
-          }`}
-        >
-          <div className="flex items-center justify-between text-emerald-700 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Completed</span>
-            <span className="text-sm">✓</span>
+        {/* Card 3: Pending Evaluation */}
+        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Pending Evaluation</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+              <Star className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-2xl font-black text-emerald-700">{calculatedStats.completed}</p>
-          <span className="text-[10px] text-emerald-600 font-medium">Scorecard recorded</span>
-        </div>
-
-        {/* Average Score */}
-        <div className="p-4 rounded-3xl bg-amber-500/5 border border-amber-300/80">
-          <div className="flex items-center justify-between text-amber-800 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Avg Score</span>
-            <span className="text-sm">★</span>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-slate-900">{displayStats.pendingEvaluation}</span>
+            <span className="text-[11px] text-purple-600 font-semibold">Needs scorecard</span>
           </div>
-          <div className="flex items-baseline gap-1">
-            <p className="text-2xl font-black text-amber-900 font-mono">{calculatedStats.avgScore}</p>
-            <span className="text-xs text-amber-700 font-bold">/ 5.0</span>
-          </div>
-          <span className="text-[10px] text-amber-700 font-medium">Across all candidates</span>
-        </div>
-
-        {/* Recommended for Hire */}
-        <div className="p-4 rounded-3xl bg-teal-500/5 border border-teal-300/80">
-          <div className="flex items-center justify-between text-teal-800 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Cleared & Hire</span>
-            <span className="text-sm">🎯</span>
-          </div>
-          <p className="text-2xl font-black text-teal-800">{calculatedStats.recommendedHire}</p>
-          <span className="text-[10px] text-teal-700 font-medium">Ready for offer letter</span>
-        </div>
-
-        {/* Rescheduled / Cancelled */}
-        <div
-          onClick={() => setStatusFilter("Rescheduled")}
-          className={`p-4 rounded-3xl bg-white border cursor-pointer transition hover:shadow-sm ${
-            statusFilter === "Rescheduled" ? "border-purple-500 ring-2 ring-purple-500/10" : "border-slate-200/80"
-          }`}
-        >
-          <div className="flex items-center justify-between text-purple-700 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Rescheduled</span>
-            <span className="text-sm">🔄</span>
-          </div>
-          <p className="text-2xl font-black text-purple-700">{calculatedStats.rescheduled}</p>
-          <span className="text-[10px] text-purple-600 font-medium">{calculatedStats.cancelled} cancelled</span>
+          <p className="text-[11px] text-slate-400 mt-1">Awaiting recruiter feedback</p>
         </div>
       </div>
 
-      {/* FILTER & TOOLBAR */}
-      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-2xs space-y-3.5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Search Box */}
+      {/* ======================================================== */}
+      {/* 3. SEARCH + COMPACT FILTERS                              */}
+      {/* ======================================================== */}
+      <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          {/* Search Input */}
           <div className="relative flex-1">
-            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-xs">
-              🔍
-            </span>
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search candidate name, interviewer, round name, or position..."
-              className="w-full h-10 pl-9 pr-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-[#1e3a8a] transition"
+              placeholder="Search candidate or job..."
+              className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            {/* Round Filter */}
+          {/* Status Filter Dropdown */}
+          <div className="relative min-w-[150px]">
+            <select
+              value={statusFilter}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              className="w-full appearance-none px-3 py-2 pr-8 rounded-xl bg-slate-50 border border-slate-200/80 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer"
+            >
+              <option value="All">All Statuses</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+              <option value="rescheduled">Rescheduled</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+
+          {/* Round Filter */}
+          <div className="relative min-w-[140px]">
             <select
               value={roundFilter}
               onChange={(e) => setRoundFilter(e.target.value)}
-              className="h-10 px-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 outline-none focus:border-[#1e3a8a]"
+              className="w-full appearance-none px-3 py-2 pr-8 rounded-xl bg-slate-50 border border-slate-200/80 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer"
             >
-              <option value="All">All Interview Rounds</option>
-              <option value="1">Round 1 (Technical)</option>
-              <option value="2">Round 2 (Coding)</option>
-              <option value="3">Round 3 (System Design)</option>
-              <option value="4">Round 4 (Managerial)</option>
+              <option value="All">All Rounds</option>
+              <option value="1">Round 1</option>
+              <option value="2">Round 2</option>
+              <option value="3">Round 3+</option>
             </select>
-
-            {/* Sort Selector */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="h-10 px-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 outline-none focus:border-[#1e3a8a]"
-            >
-              <option value="upcoming">Sort: Schedule Date (Soonest)</option>
-              <option value="newest">Sort: Newest First</option>
-              <option value="highestScore">Sort: Highest Score</option>
-            </select>
-
-            {/* View Mode */}
-            <div className="h-10 p-1 bg-slate-100 rounded-2xl flex items-center gap-1 border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition ${
-                  viewMode === "grid" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                ⊞ Cards
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("table")}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition ${
-                  viewMode === "table" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                ☰ Table
-              </button>
-            </div>
+            <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
-        </div>
 
-        {/* Dynamic Status Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin text-xs">
-          {[
-            { id: "All", label: "All Interviews" },
-            { id: "Upcoming", label: "🕒 Upcoming Interviews" },
-            { id: "Completed", label: "✓ Completed Interviews" },
-            { id: "Cancelled", label: "✕ Cancelled Interviews" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap cursor-pointer ${
-                statusFilter === tab.id
-                  ? "bg-slate-900 text-white shadow-2xs"
-                  : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/70"
-              }`}
+          {/* Date Sort */}
+          <div className="relative min-w-[130px]">
+            <select
+              value={dateSort}
+              onChange={(e) => setDateSort(e.target.value)}
+              className="w-full appearance-none px-3 py-2 pr-8 rounded-xl bg-slate-50 border border-slate-200/80 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer"
             >
-              {tab.label}
+              <option value="desc">Newest First</option>
+              <option value="asc">Oldest First</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+
+          {/* Reset Filters */}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              title="Reset all filters"
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium transition flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset</span>
             </button>
-          ))}
+          )}
         </div>
       </div>
 
-      {/* DISPLAY LIST */}
-      {filteredInterviews.length === 0 ? (
-        <div className="py-16 text-center bg-white rounded-3xl border border-dashed border-slate-300 p-8 space-y-3">
-          <div className="w-14 h-14 mx-auto rounded-3xl bg-blue-500/10 text-blue-600 flex items-center justify-center text-2xl font-bold">
-            📅
-          </div>
-          <h4 className="text-base font-bold text-slate-900">No Interviews Found</h4>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            {searchQuery || statusFilter !== "All"
-              ? "No interview slots match your search query or selected filters."
-              : "No interviews have been scheduled yet. Select shortlisted candidates from your ATS pipeline to schedule Round 1."}
-          </p>
+      {/* ======================================================== */}
+      {/* 4. INTERVIEW STATUS TABS (Dynamic Counts)                */}
+      {/* ======================================================== */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+        {TABS.map((tab) => {
+          const isActive = activeTab.toLowerCase() === tab.id.toLowerCase();
+          const count = displayTabCounts[tab.id] ?? 0;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => handleTabChange(tab.id)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 cursor-pointer flex-shrink-0 ${
+                isActive
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ======================================================== */}
+      {/* 5. INTERVIEW LIST (Compact Cards)                        */}
+      {/* ======================================================== */}
+      {loading ? (
+        // Skeleton Loaders
+        <div className="space-y-3">
+          {[1, 2, 3].map((n) => (
+            <div
+              key={n}
+              className="p-4 rounded-2xl bg-white border border-slate-200/60 animate-pulse flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3 w-1/2">
+                <div className="w-10 h-10 rounded-full bg-slate-200" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 bg-slate-200 rounded w-1/3" />
+                  <div className="h-3 bg-slate-100 rounded w-2/3" />
+                </div>
+              </div>
+              <div className="w-24 h-8 bg-slate-100 rounded-xl" />
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="p-10 rounded-3xl bg-white border border-rose-100 text-center space-y-3">
+          <AlertCircle className="w-8 h-8 text-rose-500 mx-auto" />
+          <h4 className="text-sm font-bold text-slate-900">Unable to load interviews</h4>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">{error}</p>
           <button
             type="button"
-            onClick={() => setIsScheduleModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-xs transition inline-block mt-2"
+            onClick={() => loadData(true)}
+            className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition cursor-pointer"
           >
-            + Schedule First Interview
+            Retry
           </button>
         </div>
-      ) : viewMode === "grid" ? (
-        /* GRID VIEW */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      ) : filteredInterviews.length === 0 ? (
+        <div className="p-12 text-center bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-2">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2 text-xl">
+            <Calendar className="w-6 h-6" />
+          </div>
+          <h4 className="text-sm font-bold text-slate-900">
+            {hasActiveFilters
+              ? statusFilter !== "All"
+                ? `No ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Interviews`
+                : "No matching interviews found"
+              : "No interviews scheduled yet."}
+          </h4>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            {hasActiveFilters
+              ? `There are currently no interviews matching your criteria (${
+                  statusFilter !== "All" ? `Status: ${statusFilter}` : ""
+                }${roundFilter !== "All" ? ` | Round: ${roundFilter}` : ""}${
+                  searchQuery ? ` | Search: "${searchQuery}"` : ""
+                }). Try changing filters or reset.`
+              : "Click '+ Schedule Interview' above to schedule an interview with any shortlisted candidate."}
+          </p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="mt-3 px-4 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
           {filteredInterviews.map((item) => {
-            const badge = getStatusBadge(item.status);
-            const cand = item.candidateId || {};
-            const statusLower = (item.status || "").toLowerCase();
-            const isCompleted = statusLower === "completed";
-            const isCancelled = statusLower === "cancelled";
-            const feedback = item.feedback || item.scorecard || {};
-            const ratings = feedback.ratings || {};
+            const { cName, jTitle, roundName, date, time, interviewer, status, meetingLink } =
+              getInterviewDisplay(item);
+            const badge = getStatusBadge(status);
+            const isMenuOpen = actionMenuOpenId === item._id;
+            const isActionLoading = actionLoadingId === item._id;
+            const isScheduledOrRescheduled =
+              status.toLowerCase() === "scheduled" || status.toLowerCase() === "rescheduled";
+            const isCompleted = status.toLowerCase() === "completed";
 
             return (
               <div
                 key={item._id}
-                className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs hover:shadow-md transition p-5 flex flex-col justify-between space-y-4"
+                className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-slate-300 hover:shadow-2xs transition flex flex-col md:flex-row md:items-center justify-between gap-4"
               >
-                {/* Header & Candidate Info */}
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 text-blue-800 font-black text-sm flex items-center justify-center">
-                        {cand.fullName ? cand.fullName.charAt(0) : "C"}
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 leading-tight">
-                          {cand.fullName || "Candidate"}
-                        </h4>
-                        <p className="text-[11px] text-slate-500">
-                          {item.jobId?.title || item.internshipId?.title || "Position"} • {item.jobId?.department || "Dept"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border inline-flex items-center gap-1 ${badge.bg}`}>
-                      <span>{badge.icon}</span>
-                      <span>{badge.label}</span>
-                    </span>
+                {/* Left: Compact Info */}
+                <div className="flex items-start gap-3.5 min-w-0">
+                  {/* Candidate Avatar */}
+                  <div className="w-10 h-10 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 shadow-2xs">
+                    {cName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .substring(0, 2)
+                      .toUpperCase()}
                   </div>
 
-                  {/* Round & Mode Info */}
-                  <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-200/60 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold text-slate-900">
-                        {item.roundName || `Round ${item.roundNumber}`}
-                      </span>
-                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                        {item.interviewType}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-slate-600">
-                      <span>📅 {item.scheduledDate}</span>
-                      <span className="font-bold text-slate-800">{item.scheduledTime || item.startTime}</span>
-                    </div>
-                  </div>
-
-                  {/* Assigned Interviewer */}
-                  <div className="text-[11px] text-slate-600 flex items-center justify-between">
-                    <span>Interviewer: <strong className="text-slate-800">{item.interviewerName}</strong></span>
-                    <span className="text-[10.5px] text-slate-400 font-medium">{item.durationMinutes || item.duration || 45} mins</span>
-                  </div>
-
-                  {/* If Cancelled, Display cancellation notice */}
-                  {isCancelled && (
-                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-[11px] text-rose-800 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-rose-900 flex items-center gap-1">
-                          <span>✕</span>
-                          <span>Slot Cancelled</span>
-                        </span>
-                        {item.cancelledAt && (
-                          <span className="text-[10px] text-rose-600 font-mono">
-                            {new Date(item.cancelledAt).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                      {item.cancellationReason && (
-                        <p><strong className="text-rose-900">Reason:</strong> {item.cancellationReason}</p>
-                      )}
-                      {item.cancellationMessage && (
-                        <p className="text-slate-600"><strong className="text-slate-800">Note:</strong> {item.cancellationMessage}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* If Completed, Scorecard Summary */}
-                  {isCompleted && (
-                    <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-emerald-900">Scorecard Verdict:</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-black text-amber-700 font-mono">
-                            ★ {feedback.overallScore || "0"}/5.0
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900 text-white">
-                            {feedback.recommendation || "Completed"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Criteria Mini Bar */}
-                      <div className="grid grid-cols-3 gap-1 text-[10px] text-slate-600 font-medium">
-                        <span>Tech: {ratings.technicalSkills || feedback.technicalSkills || "-"}/5</span>
-                        <span>Coding: {ratings.problemSolving || feedback.problemSolving || "-"}/5</span>
-                        <span>Comm: {ratings.communication || feedback.communication || "-"}/5</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Video Call Link (ONLY if not cancelled) */}
-                  {!isCancelled && item.meetingLink && (
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-blue-50/60 border border-blue-100 text-xs">
-                      <span className="text-slate-600 font-medium">{item.meetingMode || "Online"}</span>
-                      <a
-                        href={item.meetingLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-bold text-[#1e3a8a] hover:underline inline-flex items-center gap-1"
+                  <div className="min-w-0 space-y-1">
+                    {/* Candidate Name + Status Pill */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4
+                        className="text-sm font-bold text-slate-900 hover:text-blue-600 transition cursor-pointer truncate"
+                        onClick={() => openDrawer(item)}
                       >
-                        Join Call →
-                      </a>
+                        {cName}
+                      </h4>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badge.classes}`}>
+                        {badge.label}
+                      </span>
                     </div>
-                  )}
+
+                    {/* Job Title & Round Name */}
+                    <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                      <span className="font-semibold text-slate-800">{jTitle}</span>
+                      <span>•</span>
+                      <span className="text-slate-600 font-medium">{roundName}</span>
+                    </div>
+
+                    {/* Date • Time • Interviewer */}
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap pt-0.5">
+                      <span className="flex items-center gap-1 text-slate-600 font-medium">
+                        <Calendar className="w-3 h-3 text-slate-400" />
+                        {date}
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1 text-slate-600 font-medium">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        {time}
+                      </span>
+                      <span>•</span>
+                      <span className="truncate">Interviewer: {interviewer}</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Card Action Buttons */}
-                {/* Card Action Buttons */}
-                <div className="pt-3 border-t border-slate-100 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
+                {/* Right: Actions [View Interview] + [⋮] */}
+                <div className="flex items-center gap-2 self-end md:self-center flex-shrink-0">
+                  {/* Primary Action Button */}
+                  <button
+                    type="button"
+                    onClick={() => openDrawer(item)}
+                    className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-2xs hover:shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View Interview</span>
+                  </button>
+
+                  {/* [⋮] Dropdown Menu */}
+                  <div className="relative">
                     <button
                       type="button"
-                      onClick={() => setDetailsInterview(item)}
-                      className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
-                      title="View Details"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActionMenuOpenId(isMenuOpen ? null : item._id);
+                      }}
+                      className="w-8 h-8 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 flex items-center justify-center transition cursor-pointer"
                     >
-                      <span>👁️</span>
-                      <span>View</span>
+                      <MoreVertical className="w-4 h-4" />
                     </button>
 
-                    {!isCancelled && !isCompleted ? (
-                      <button
-                        type="button"
-                        disabled={actionLoading}
-                        onClick={() => handleMarkCompleted(item._id)}
-                        className="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50"
-                        title="Mark Completed"
+                    {isMenuOpen && (
+                      <div
+                        ref={actionMenuRef}
+                        className="absolute right-0 top-full mt-1.5 w-44 rounded-2xl bg-white border border-slate-200 shadow-xl z-20 py-1.5 animate-scale-in text-xs"
                       >
-                        <span>✓</span>
-                        <span>Mark Completed</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setScorecardInterview(item)}
-                        className="py-2 px-3 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold transition flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
-                        title="Scorecard / Feedback"
-                      >
-                        <span>📝</span>
-                        <span>{isCompleted ? "View Feedback" : "Give Feedback"}</span>
-                      </button>
+                        {/* Join Meeting link if online and scheduled */}
+                        {isScheduledOrRescheduled && meetingLink && (
+                          <a
+                            href={meetingLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full text-left px-3 py-1.5 hover:bg-blue-50 text-blue-700 font-medium flex items-center gap-2 transition"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>Join Interview</span>
+                          </a>
+                        )}
+
+                        {/* Mark Completed (for active interviews) */}
+                        {isScheduledOrRescheduled && (
+                          <button
+                            type="button"
+                            disabled={isActionLoading}
+                            onClick={() => handleMarkCompleted(item._id)}
+                            className="w-full text-left px-3 py-1.5 hover:bg-emerald-50 text-emerald-700 font-medium flex items-center gap-2 cursor-pointer transition disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Mark Completed</span>
+                          </button>
+                        )}
+
+                        {/* Reschedule */}
+                        {isScheduledOrRescheduled && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActionMenuOpenId(null);
+                              setRescheduleItem(item);
+                              setIsScheduleModalOpen(true);
+                            }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-amber-50 text-amber-800 font-medium flex items-center gap-2 cursor-pointer transition"
+                          >
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>Reschedule</span>
+                          </button>
+                        )}
+
+                        {/* Cancel Interview */}
+                        {isScheduledOrRescheduled && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActionMenuOpenId(null);
+                              setCancelModalItem(item);
+                            }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-rose-50 text-rose-700 font-medium flex items-center gap-2 cursor-pointer transition"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Cancel Interview</span>
+                          </button>
+                        )}
+
+                        {/* Record Scorecard (if completed) */}
+                        {isCompleted && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActionMenuOpenId(null);
+                              openDrawer(item);
+                            }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-purple-50 text-purple-700 font-medium flex items-center gap-2 cursor-pointer transition"
+                          >
+                            <Star className="w-3.5 h-3.5" />
+                            <span>Record Scorecard</span>
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
-
-                  {/* Secondary actions: Give Feedback, Reschedule, Cancel */}
-                  {!isCancelled && !isCompleted && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => setScorecardInterview(item)}
-                        className="flex-1 py-1.5 px-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-bold transition text-center cursor-pointer"
-                      >
-                        📝 Give Feedback
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setRescheduleInterview(item)}
-                        className="flex-1 py-1.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition text-center cursor-pointer"
-                      >
-                        🔄 Reschedule
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={actionLoading}
-                        onClick={() => handleCancelInterview(item)}
-                        className="flex-1 py-1.5 px-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold transition text-center cursor-pointer disabled:opacity-50"
-                      >
-                        ✕ Cancel
-                      </button>
-                    </div>
-                  )}
-
-                  {isCompleted && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => setScorecardInterview(item)}
-                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-bold transition text-center cursor-pointer"
-                      >
-                        📝 Feedback
-                      </button>
-
-                      {(feedback.recommendation === "Move to Next Round" || item.result === "passed" || item.result === "next_round") && (
-                        <button
-                          type="button"
-                          onClick={() => handleScheduleNextRound(cand)}
-                          className="flex-1 py-1.5 px-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold transition text-center cursor-pointer"
-                        >
-                          + Next Round
-                        </button>
-                      )}
-
-                      {(item.result === "passed" || item.result === "selected" || feedback.recommendation === "Strong Hire" || feedback.recommendation === "Hire / Select") && onOpenOfferModal && (
-                        <button
-                          type="button"
-                          onClick={() => onOpenOfferModal(item.applicationId || item)}
-                          className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition text-center"
-                        >
-                          🎉 Make Offer
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {isCancelled && (
-                    <button
-                      type="button"
-                      onClick={() => handleScheduleNextRound(cand)}
-                      className="w-full py-1.5 px-3 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-[11px] font-bold transition text-center shadow-xs cursor-pointer"
-                    >
-                      📅 Schedule New Interview
-                    </button>
-                  )}
                 </div>
               </div>
             );
           })}
         </div>
-      ) : (
-        /* TABLE VIEW */
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11.5px] font-bold text-slate-700">
-                  <th className="py-3 px-4">Candidate</th>
-                  <th className="py-3 px-4">Round & Type</th>
-                  <th className="py-3 px-4">Interviewer</th>
-                  <th className="py-3 px-4">Date & Time</th>
-                  <th className="py-3 px-4">Score</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
-                {filteredInterviews.map((item) => {
-                  const badge = getStatusBadge(item.status);
-                  const cand = item.candidateId || {};
-                  const statusLower = (item.status || "").toLowerCase();
-                  const isCompleted = statusLower === "completed";
-                  const isCancelled = statusLower === "cancelled";
+      )}
 
-                  return (
-                    <tr key={item._id} className="hover:bg-slate-50/60 transition">
-                      <td className="py-3 px-4">
-                        <button
-                          type="button"
-                          onClick={() => setDetailsInterview(item)}
-                          className="text-left font-bold text-slate-900 hover:text-[#1e3a8a] transition block"
-                        >
-                          {cand.fullName || "Candidate"}
-                        </button>
-                        <span className="text-[11px] text-slate-500 block">
-                          {item.jobId?.title || item.internshipId?.title || "Role"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="font-semibold text-slate-800 block">
-                          {item.roundName || `Round ${item.roundNumber}`}
-                        </span>
-                        <span className="text-[10.5px] text-indigo-600 font-medium">
-                          {item.interviewType}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-medium text-slate-700">
-                        {item.interviewerName || "Hiring Lead"}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="font-semibold text-slate-800 block">{item.scheduledDate}</span>
-                        <span className="text-[10.5px] text-slate-500 font-mono">{item.scheduledTime || item.startTime}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        {isCompleted ? (
-                          <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 text-xs font-mono">
-                            ★ {item.feedback?.overallScore || item.scorecard?.overallScore || "0"}/5
+      {/* ======================================================== */}
+      {/* 6. SLIDE-OVER INTERVIEW DETAILS & SCORECARD DRAWER        */}
+      {/* ======================================================== */}
+      {drawerInterview && (
+        <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setDrawerInterview(null)}
+          />
+
+          {/* Drawer Container */}
+          <div className="fixed inset-y-0 right-0 max-w-xl w-full bg-white shadow-2xl flex flex-col z-10 animate-slide-left">
+            {/* Drawer Header */}
+            {(() => {
+              const { cName, jTitle, roundName, date, time, interviewer, status, meetingLink } =
+                getInterviewDisplay(drawerInterview);
+              const badge = getStatusBadge(status);
+              const isScheduled =
+                status.toLowerCase() === "scheduled" || status.toLowerCase() === "rescheduled";
+              const isCompleted = status.toLowerCase() === "completed";
+
+              return (
+                <div className="flex-1 flex flex-col h-full overflow-hidden">
+                  <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 bg-slate-50/70">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-2xl bg-slate-900 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 shadow-xs">
+                        {cName
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .substring(0, 2)
+                          .toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-base font-bold text-slate-900 truncate">{cName}</h3>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${badge.classes}`}>
+                            {badge.label}
                           </span>
-                        ) : isCancelled ? (
-                          <span className="text-rose-500 text-[11px] font-bold">Cancelled</span>
-                        ) : (
-                          <span className="text-slate-400 text-xs italic">Pending</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border inline-flex items-center gap-1 ${badge.bg}`}>
-                          <span>{badge.icon}</span>
-                          <span>{badge.label}</span>
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="inline-flex items-center gap-1.5">
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 truncate">
+                          Applied for <strong className="text-slate-700">{jTitle}</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setDrawerInterview(null)}
+                      className="w-8 h-8 rounded-full border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer flex-shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Drawer Scrollable Body */}
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Schedule Overview Card */}
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900 text-sm">{roundName}</span>
+                        <span className="text-slate-500 font-medium">Round {drawerInterview.roundNumber || 1}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-slate-600 pt-1">
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400">Date:</span>
+                          <p className="font-semibold text-slate-800">{date}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400">Time:</span>
+                          <p className="font-semibold text-slate-800">{time}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400">Interviewer:</span>
+                          <p className="font-semibold text-slate-800 truncate">{interviewer}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400">Mode:</span>
+                          <p className="font-semibold text-slate-800">{drawerInterview.interviewType || "Online"}</p>
+                        </div>
+                      </div>
+
+                      {meetingLink && (
+                        <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                          <span className="text-[11px] text-slate-500 truncate max-w-[200px]">
+                            {meetingLink}
+                          </span>
+                          <a
+                            href={meetingLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1 transition"
+                          >
+                            <span>Join Meeting</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Multi-Round Progress Indicator */}
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                        Interview Round Progress
+                      </h4>
+                      <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold">
+                            ✓
+                          </span>
+                          <span className="font-semibold text-slate-800">Round 1 Technical</span>
+                        </div>
+                        <span className="text-slate-300">→</span>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                              (drawerInterview.roundNumber || 1) >= 2
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {(drawerInterview.roundNumber || 1) >= 2 ? "✓" : "●"}
+                          </span>
+                          <span className="font-semibold text-slate-700">Round 2 Coding</span>
+                        </div>
+                        <span className="text-slate-300">→</span>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                              (drawerInterview.roundNumber || 1) >= 3
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {(drawerInterview.roundNumber || 1) >= 3 ? "✓" : "○"}
+                          </span>
+                          <span className="font-semibold text-slate-700">Round 3 HR</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Stage Progression Actions for Active Interviews */}
+                    {isScheduled && (
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                          Interview Actions
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
-                            onClick={() => setDetailsInterview(item)}
-                            className="p-1 px-2 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold hover:bg-slate-200 transition cursor-pointer"
-                            title="View Interview Details"
+                            onClick={() => handleMarkCompleted(drawerInterview._id)}
+                            className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
                           >
-                            👁️ View
+                            <Check className="w-4 h-4" />
+                            <span>Mark Completed</span>
                           </button>
-                          {!isCompleted && !isCancelled && (
-                            <button
-                              type="button"
-                              disabled={actionLoading}
-                              onClick={() => handleMarkCompleted(item._id)}
-                              className="px-2 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 transition cursor-pointer disabled:opacity-50"
-                              title="Mark Interview as Completed"
-                            >
-                              ✓ Complete
-                            </button>
-                          )}
-                          {!isCancelled ? (
-                            <button
-                              type="button"
-                              onClick={() => setScorecardInterview(item)}
-                              className="px-2 py-1 rounded-lg bg-[#f59e0b] text-white text-[11px] font-bold hover:bg-[#d97706] transition cursor-pointer"
-                              title={isCompleted ? "View/Edit Scorecard" : "Give Feedback"}
-                            >
-                              {isCompleted ? "Feedback" : "Evaluate"}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleScheduleNextRound(cand)}
-                              className="px-2 py-1 rounded-lg bg-blue-50 text-[#1e3a8a] border border-blue-200 text-[11px] font-bold hover:bg-blue-100 transition cursor-pointer"
-                            >
-                              + Schedule
-                            </button>
-                          )}
-                          {!isCompleted && !isCancelled && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => setRescheduleInterview(item)}
-                                className="p-1 px-2 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold hover:bg-slate-200 transition cursor-pointer"
-                                title="Reschedule Interview"
-                              >
-                                🔄
-                              </button>
-                              <button
-                                type="button"
-                                disabled={actionLoading}
-                                onClick={() => handleCancelInterview(item)}
-                                className="p-1 px-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold hover:bg-rose-100 transition cursor-pointer disabled:opacity-50"
-                                title="Cancel Interview"
-                              >
-                                ✕
-                              </button>
-                            </>
-                          )}
                           <button
                             type="button"
-                            onClick={() => setHistoryCandidate(cand)}
-                            className="p-1 px-2 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold hover:bg-slate-200 transition cursor-pointer"
-                            title="Candidate History"
+                            onClick={() => {
+                              setRescheduleItem(drawerInterview);
+                              setIsScheduleModalOpen(true);
+                            }}
+                            className="p-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                           >
-                            📊
+                            <Calendar className="w-4 h-4 text-amber-600" />
+                            <span>Reschedule</span>
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        <button
+                          type="button"
+                          onClick={() => setCancelModalItem(drawerInterview)}
+                          className="w-full py-2 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-semibold transition cursor-pointer"
+                        >
+                          Cancel This Interview Slot
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Scorecard Form (Always available or when completed) */}
+                    <div className="space-y-4 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                          <Star className="w-4 h-4 text-amber-500" />
+                          Candidate Scorecard
+                        </h4>
+                        {drawerInterview.scorecard?.overallScore > 0 && (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            Score: {drawerInterview.scorecard.overallScore} / 5.0
+                          </span>
+                        )}
+                      </div>
+
+                      <form onSubmit={handleSaveScorecard} className="space-y-3.5">
+                        {/* Technical Skills */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-700">Technical Skills</span>
+                            <span className="font-mono font-bold text-amber-700">
+                              {scorecardForm.technicalSkills} / 5
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="5"
+                            step="1"
+                            value={scorecardForm.technicalSkills}
+                            onChange={(e) =>
+                              setScorecardForm({ ...scorecardForm, technicalSkills: Number(e.target.value) })
+                            }
+                            className="w-full accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Problem Solving */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-700">Problem Solving</span>
+                            <span className="font-mono font-bold text-amber-700">
+                              {scorecardForm.problemSolving} / 5
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="5"
+                            step="1"
+                            value={scorecardForm.problemSolving}
+                            onChange={(e) =>
+                              setScorecardForm({ ...scorecardForm, problemSolving: Number(e.target.value) })
+                            }
+                            className="w-full accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Communication */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-700">Communication</span>
+                            <span className="font-mono font-bold text-amber-700">
+                              {scorecardForm.communication} / 5
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="5"
+                            step="1"
+                            value={scorecardForm.communication}
+                            onChange={(e) =>
+                              setScorecardForm({ ...scorecardForm, communication: Number(e.target.value) })
+                            }
+                            className="w-full accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Overall Calculated Score */}
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-700">Overall Rating:</span>
+                          <span className="text-sm font-extrabold text-slate-900 font-mono">
+                            {(
+                              (Number(scorecardForm.technicalSkills) +
+                                Number(scorecardForm.problemSolving) +
+                                Number(scorecardForm.communication)) /
+                              3
+                            ).toFixed(1)}{" "}
+                            / 5.0
+                          </span>
+                        </div>
+
+                        {/* Recommendation */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-700">
+                            Hiring Recommendation
+                          </label>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
+                            {["Next Round", "Hire", "Hold", "Reject"].map((rec) => {
+                              const isSel = scorecardForm.recommendation === rec;
+                              return (
+                                <button
+                                  key={rec}
+                                  type="button"
+                                  onClick={() => setScorecardForm({ ...scorecardForm, recommendation: rec })}
+                                  className={`py-1.5 rounded-xl border font-semibold transition cursor-pointer ${
+                                    isSel
+                                      ? rec === "Reject"
+                                        ? "bg-rose-50 border-rose-300 text-rose-700 shadow-2xs"
+                                        : "bg-slate-900 border-slate-900 text-white shadow-2xs"
+                                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  {rec}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Feedback / Comments */}
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-700">
+                            Evaluator Notes & Feedback
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={scorecardForm.feedback}
+                            onChange={(e) =>
+                              setScorecardForm({ ...scorecardForm, feedback: e.target.value })
+                            }
+                            placeholder="Add evaluation summary, key strengths, or concerns..."
+                            className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition"
+                          />
+                        </div>
+
+                        {/* Save Scorecard Button */}
+                        <button
+                          type="submit"
+                          disabled={isSavingScorecard}
+                          className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {isSavingScorecard ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Award className="w-4 h-4" />
+                          )}
+                          <span>Save Scorecard</span>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
 
-      {/* MODALS */}
-      {/* 0. Comprehensive Interview Details Dossier Modal */}
-      <InterviewDetailsModal
-        isOpen={Boolean(detailsInterview)}
-        onClose={() => setDetailsInterview(null)}
-        interview={detailsInterview}
-        onOpenScorecard={(item) => {
-          setDetailsInterview(null);
-          setScorecardInterview(item);
-        }}
-        onReschedule={(item) => {
-          setDetailsInterview(null);
-          setRescheduleInterview(item);
-        }}
-        onCancel={(item) => {
-          setDetailsInterview(null);
-          handleCancelInterview(item);
-        }}
-        onMakeOffer={(item) => {
-          setDetailsInterview(null);
-          if (onOpenOfferModal) {
-            onOpenOfferModal(item.applicationId || item);
-          }
-        }}
-      />
+      {/* ======================================================== */}
+      {/* 7. SCHEDULE / RESCHEDULE MODAL                           */}
+      {/* ======================================================== */}
+      {isScheduleModalOpen && (
+        <InterviewScheduleModal
+          isOpen={isScheduleModalOpen}
+          onClose={() => {
+            setIsScheduleModalOpen(false);
+            setRescheduleItem(null);
+          }}
+          onSchedule={async (payload) => {
+            const res = await recruitmentService.scheduleInterview(payload);
+            if (res?.success) {
+              showToast("Interview scheduled successfully!");
+              setIsScheduleModalOpen(false);
+              loadData(false);
+            }
+          }}
+          onReschedule={async (id, payload) => {
+            const res = await recruitmentService.rescheduleInterview(id, payload);
+            if (res?.success) {
+              showToast("Interview rescheduled successfully!");
+              setIsScheduleModalOpen(false);
+              setRescheduleItem(null);
+              loadData(false);
+            }
+          }}
+          interviewToReschedule={rescheduleItem}
+          jobs={jobs}
+        />
+      )}
 
-      {/* 1. Scorecard Modal */}
-      <InterviewScorecardModal
-        isOpen={Boolean(scorecardInterview)}
-        onClose={() => setScorecardInterview(null)}
-        interview={scorecardInterview}
-        onSubmitScorecard={handleScorecardSubmit}
-      />
-
-      {/* 2. Schedule New Interview Modal */}
-      <InterviewScheduleModal
-        isOpen={isScheduleModalOpen}
-        onClose={() => setIsScheduleModalOpen(false)}
-        onSchedule={async (payload) => {
-          await recruitmentService.scheduleInterview(payload);
-          if (showToast) showToast("Interview scheduled successfully!");
-          if (onRefresh) onRefresh();
-        }}
-        jobs={jobs}
-      />
-
-      {/* 3. Reschedule Slot Modal */}
-      <InterviewScheduleModal
-        isOpen={Boolean(rescheduleInterview)}
-        onClose={() => setRescheduleInterview(null)}
-        interviewToReschedule={rescheduleInterview}
-        onReschedule={handleRescheduleSubmit}
-        jobs={jobs}
-      />
-
-      {/* 4. Candidate Multi-Round History Modal */}
-      <CandidateInterviewHistoryModal
-        isOpen={Boolean(historyCandidate)}
-        onClose={() => setHistoryCandidate(null)}
-        candidate={historyCandidate}
-        onScheduleNextRound={handleScheduleNextRound}
-      />
-
-      {/* 5. Cancel Interview Modal */}
-      <InterviewCancelModal
-        isOpen={Boolean(cancelModalInterview)}
-        onClose={() => setCancelModalInterview(null)}
-        interview={cancelModalInterview}
-        onConfirmCancel={handleConfirmCancel}
-        loading={actionLoading}
-      />
+      {/* ======================================================== */}
+      {/* 8. CANCEL INTERVIEW MODAL                                */}
+      {/* ======================================================== */}
+      {cancelModalItem && (
+        <InterviewCancelModal
+          isOpen={Boolean(cancelModalItem)}
+          onClose={() => setCancelModalItem(null)}
+          interview={cancelModalItem}
+          onConfirmCancel={handleConfirmCancel}
+          loading={actionLoadingId === cancelModalItem?._id}
+        />
+      )}
     </div>
   );
 };

@@ -33,6 +33,7 @@ const getEmployerProfileId = async (user) => {
 exports.getEmployees = async (req, res, next) => {
   try {
     const employerId = await getEmployerProfileId(req.user);
+    const companyId = req.user.companyId || null;
     const { department, status, search } = req.query;
 
     if ((department && typeof department !== "string") ||
@@ -41,15 +42,24 @@ exports.getEmployees = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Invalid employee filter" });
     }
 
-    const query = { employerId };
+    const scopeConditions = [{ employerId }];
+    if (companyId) scopeConditions.push({ companyId });
+
+    const query = {
+      $or: scopeConditions,
+    };
     if (department && department !== "All") query.department = department;
     if (status && status !== "All") query.status = status;
     if (typeof search === "string" && search.trim()) {
       const term = escapeRegex(search.trim());
-      query.$or = [
-        { fullName: { $regex: term, $options: "i" } },
-        { email: { $regex: term, $options: "i" } },
-        { designation: { $regex: term, $options: "i" } },
+      query.$and = [
+        {
+          $or: [
+            { fullName: { $regex: term, $options: "i" } },
+            { email: { $regex: term, $options: "i" } },
+            { designation: { $regex: term, $options: "i" } },
+          ],
+        },
       ];
     }
 
@@ -74,6 +84,7 @@ exports.getEmployees = async (req, res, next) => {
 exports.addEmployee = async (req, res, next) => {
   try {
     const employerId = await getEmployerProfileId(req.user);
+    const companyId = req.user.companyId || null;
     const { fullName, email, phone, designation, department, team, roleInCompany, skills } = req.body;
 
     if (!fullName || !email || !designation) {
@@ -83,7 +94,12 @@ exports.addEmployee = async (req, res, next) => {
       });
     }
 
-    const existing = await Employee.findOne({ employerId, email: email.toLowerCase().trim() });
+    const existing = await Employee.findOne({
+      $or: [
+        { employerId, email: email.toLowerCase().trim() },
+        ...(companyId ? [{ companyId, email: email.toLowerCase().trim() }] : []),
+      ],
+    });
     if (existing) {
       return res.status(409).json({
         success: false,
@@ -93,6 +109,7 @@ exports.addEmployee = async (req, res, next) => {
 
     const employee = await Employee.create({
       employerId,
+      companyId: companyId || undefined,
       fullName: fullName.trim(),
       email: email.toLowerCase().trim(),
       phone: phone || "",
@@ -332,7 +349,13 @@ exports.assignTraining = async (req, res, next) => {
 exports.getSkillGapAnalysis = async (req, res, next) => {
   try {
     const employerId = await getEmployerProfileId(req.user);
-    const employees = await Employee.find({ employerId }).lean();
+    const companyId = req.user.companyId || null;
+    const employees = await Employee.find({
+      $or: [
+        { employerId },
+        ...(companyId ? [{ companyId }] : []),
+      ],
+    }).lean();
     const courses = await Course.find({ status: "Published" }).lean();
 
     // Standard benchmark required competencies by department
@@ -372,7 +395,7 @@ exports.getSkillGapAnalysis = async (req, res, next) => {
 
       departmentSkillGaps.push({
         department: dept,
-        totalEmployees: deptEmployees.length || 4,
+        totalEmployees: deptEmployees.length,
         requiredSkills: required,
         strongSkills,
         missingSkills,

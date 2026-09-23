@@ -72,9 +72,35 @@ const internshipSchema = new mongoose.Schema(
     deadline: { type: Date, default: null },
     status: {
       type: String,
-      enum: ["Draft", "Pending Approval", "Published", "Paused", "Closed"],
+      enum: ["Draft", "Pending Approval", "Published", "Paused", "Closed", "Rejected"],
       default: "Published",
       index: true,
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    rejectedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      default: null,
+    },
+    adminNote: {
+      type: String,
+      default: null,
     },
     viewsCount: { type: Number, default: 0 },
     applicantsCount: { type: Number, default: 0 },

@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getStudentProfile } from "../../services/studentProfileService";
@@ -41,8 +42,8 @@ const StudentProfile = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-semibold text-slate-600">Loading student profile...</p>
+        <JourneyLoader variant="profile" size="hero" className="mb-4" />
+        <p className="text-sm font-semibold text-slate-600">Putting your profile in place...</p>
       </div>
     );
   }

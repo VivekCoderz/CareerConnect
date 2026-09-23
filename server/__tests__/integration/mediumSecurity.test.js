@@ -24,6 +24,27 @@ const setup = async () => {
 };
 
 describe("medium security regression", () => {
+  it("lets candidates browse published courses without opening employer learning routes", async () => {
+    const { owner, candidate } = await setup();
+    const published = await Course.create({
+      title: "Published Career Track", description: "A published course for candidates",
+      domain: "Technology", category: "Engineering", duration: 2,
+      status: "Published", createdBy: owner.user._id,
+    });
+    await Course.create({
+      title: "Draft Career Track", description: "A private course in progress",
+      domain: "Technology", category: "Engineering", duration: 2,
+      status: "Draft", createdBy: owner.user._id,
+    });
+
+    expect((await request(app).get("/api/courses/catalog")).statusCode).toBe(401);
+    const catalog = await as(candidate.token, "get", "/api/courses/catalog");
+    expect(catalog.statusCode).toBe(200);
+    expect(catalog.body.courses.map((course) => String(course._id))).toContain(String(published._id));
+    expect(catalog.body.courses.every((course) => course.status === "Published")).toBe(true);
+    expect((await as(candidate.token, "get", "/api/employer/learning/courses")).statusCode).toBe(403);
+  });
+
   it("returns only the signed-in candidate's applied opportunity IDs", async () => {
     const { owner, ownerProfile, candidate } = await setup();
     const otherCandidate = await createUserWithToken({ email: `medium-other-candidate-${Date.now()}@example.com` });

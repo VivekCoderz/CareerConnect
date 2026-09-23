@@ -1,8 +1,12 @@
 const { publicError } = require("../utils/publicError");
 const Course = require("../models/Course");
 const StudentProfile = require("../models/StudentProfile");
-const CourseApplication=require("../models/CourseApplication");
+const FresherProfile = require("../models/FresherProfile");
+const ProfessionalProfile = require("../models/ProfessionalProfile");
+const CourseApplication = require("../models/CourseApplication");
 const CourseProgress = require("../models/CourseProgress");
+const CourseContent = require("../models/CourseContent");
+const Enrollment = require("../models/Enrollment");
 
 // ==========================================
 // CREATE COURSE
@@ -253,6 +257,9 @@ const deleteCourse = async (req, res) => {
     }
 
     await Course.findByIdAndDelete(req.params.id);
+    await CourseContent.deleteMany({ course: req.params.id });
+    await CourseApplication.deleteMany({ course: req.params.id });
+    await CourseProgress.deleteMany({ course: req.params.id });
 
     return res.status(200).json({
       success: true,
@@ -360,38 +367,48 @@ const getRecommendedCourses = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students can access recommendations
+    // Only candidates/learners can access recommendations
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
       return res.status(403).json({
         success: false,
-        message: "Only students can access recommended courses",
+        message: "Only candidates can access recommended courses",
       });
     }
 
     // ------------------------------------------
-    // Find student's profile
+    // Find candidate's profile
     // ------------------------------------------
 
-    const studentProfile = await StudentProfile.findOne({
+    let studentProfile = await StudentProfile.findOne({
       userId: user._id,
     });
 
     if (!studentProfile) {
-      return res.status(404).json({
-        success: false,
-        message: "Student profile not found",
-      });
+      studentProfile =
+        (await FresherProfile.findOne({ userId: user._id })) ||
+        (await ProfessionalProfile.findOne({ userId: user._id }));
     }
 
-    // ------------------------------------------
     // Get all published courses
-    // ------------------------------------------
-
     const courses = await Course.find({
       status: "Published",
     }).lean();
+
+    if (!studentProfile) {
+      // If profile not yet created, return published courses catalog directly
+      return res.status(200).json({
+        success: true,
+        count: courses.length,
+        courses,
+      });
+    }
 
     // ------------------------------------------
     // Student profile data
@@ -623,10 +640,8 @@ const courseSkillContains = (skills, searchText) => {
 
 const getCourseDetails = async (req, res) => {
   try {
-    const course = await Course.findOne({
-      _id: req.params.id,
-      status: "Published",
-    }).populate(
+    const user = req.user;
+    const course = await Course.findById(req.params.id).populate(
       "createdBy",
       "fullName username email profileImage"
     );
@@ -635,6 +650,20 @@ const getCourseDetails = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Course not found",
+      });
+    }
+
+    // If course is Draft or Archived, only the creator or an admin can access it
+    if (
+      course.status !== "Published" &&
+      (!user ||
+        (course.createdBy?._id?.toString() !== user._id.toString() &&
+          user.role !== "admin" &&
+          user.role !== "SUPER_ADMIN"))
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found or is not published",
       });
     }
 
@@ -669,11 +698,16 @@ const applyCourse = async (req, res) => {
       });
     }
 
-    // Only students can apply
-    if (user.role !== "user" || user.userType !== "student") {
+    // Only candidates can apply
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
       return res.status(403).json({
         success: false,
-        message: "Only students can apply for courses",
+        message: "Only candidates can apply for courses",
       });
     }
 
@@ -723,6 +757,136 @@ const applyCourse = async (req, res) => {
       success: false,
       message: "Failed to apply for course",
       error: publicError(error),
+    });
+  }
+};
+
+// ==========================================
+// ENROLL IN FREE COURSE
+// POST /api/courses/:id/enroll
+// Only free courses can be directly enrolled
+// ==========================================
+
+const enrollFreeCourse = async (req, res) => {
+  try {
+    const user = req.user;
+
+    // ------------------------------------------
+    // Authentication check
+    // ------------------------------------------
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    // ------------------------------------------
+    // Only candidates can enroll
+    // ------------------------------------------
+
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
+      return res.status(403).json({
+        success: false,
+        message: "Only candidates can enroll in courses",
+      });
+    }
+
+    // ------------------------------------------
+    // Find published course
+    // ------------------------------------------
+
+    const course = await Course.findOne({
+      _id: req.params.id,
+      status: "Published",
+    });
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found or is not published",
+      });
+    }
+
+    // ------------------------------------------
+    // Only FREE courses can use direct enrollment
+    // ------------------------------------------
+
+    if (course.price > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "This is a paid course. Please purchase the course first.",
+      });
+    }
+
+    // ------------------------------------------
+    // Check existing application/enrollment
+    // ------------------------------------------
+
+    let existingApplication = await CourseApplication.findOne({
+      student: user._id,
+      course: course._id,
+    });
+
+    if (existingApplication) {
+      if (existingApplication.status !== "Enrolled" && existingApplication.status !== "Completed") {
+        existingApplication.status = "Enrolled";
+        await existingApplication.save();
+      }
+      return res.status(200).json({
+        success: true,
+        message: "Successfully enrolled in free course",
+        application: existingApplication,
+      });
+    }
+
+    // ------------------------------------------
+    // Direct enrollment
+    // ------------------------------------------
+
+    const application = await CourseApplication.create({
+      student: user._id,
+      course: course._id,
+      status: "Enrolled",
+      progress: 0,
+    });
+
+    // Sync to Enrollment model
+    await Enrollment.findOneAndUpdate(
+      { userId: user._id, courseId: course._id },
+      {
+        userId: user._id,
+        courseId: course._id,
+        enrolledRole: user.userType || "student",
+        status: "Enrolled",
+        progressPercentage: 0,
+        lastAccessedAt: new Date(),
+      },
+      { upsert: true, new: true }
+    ).catch(() => {});
+
+    // ------------------------------------------
+    // Response
+    // ------------------------------------------
+
+    return res.status(201).json({
+      success: true,
+      message: "Successfully enrolled in free course",
+      application,
+    });
+  } catch (error) {
+    console.error("Enroll Free Course Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to enroll in course",
+      error: error.message,
     });
   }
 };
@@ -948,6 +1112,168 @@ const updateCourseApplicationStatus = async (req, res) => {
 };
 
 // ==========================================
+// GET ALL EMPLOYER COURSE APPLICATIONS
+// GET /api/courses/my-applications
+// Returns applications for ALL courses created by the logged-in employer,
+// grouped by course, with student profile data populated.
+// SECURITY: Only returns applications where course.createdBy === req.user._id
+// ==========================================
+
+const getEmployerAllApplications = async (req, res) => {
+  try {
+    const user = req.user;
+
+    // ------------------------------------------
+    // Authentication check
+    // ------------------------------------------
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    // ------------------------------------------
+    // Only employers
+    // ------------------------------------------
+
+    if (user.role !== "employer") {
+      return res.status(403).json({
+        success: false,
+        message: "Only employers can view course applications",
+      });
+    }
+
+    // ------------------------------------------
+    // Step 1: Find all courses created by this employer
+    // The backend (not frontend) determines ownership.
+    // ------------------------------------------
+
+    const myCourses = await Course.find({
+      createdBy: user._id,
+    }).select("_id title domain status").lean();
+
+    if (myCourses.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        courseGroups: [],
+      });
+    }
+
+    const myCourseIds = myCourses.map((c) => c._id);
+
+    // ------------------------------------------
+    // Step 2: Find all applications for those courses
+    // This inherently enforces ownership — we only
+    // look up applications for the employer's own courseIds.
+    // ------------------------------------------
+
+    const applications = await CourseApplication.find({
+      course: { $in: myCourseIds },
+    })
+      .populate("student", "fullName username email profileImage")
+      .populate("course", "_id title domain status")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // ------------------------------------------
+    // Step 3: Enrich applications with StudentProfile data
+    // StudentProfile is stored in a separate collection keyed by userId.
+    // ------------------------------------------
+
+    const studentIds = [
+      ...new Set(
+        applications
+          .map((app) => app.student?._id?.toString())
+          .filter(Boolean)
+      ),
+    ];
+
+    const studentProfiles = await StudentProfile.find({
+      userId: { $in: studentIds },
+    })
+      .select(
+        "userId bio technicalSkills softSkills education experience careerGoal interests location"
+      )
+      .lean();
+
+    // Build a lookup map: userId string → profile
+    const profileMap = {};
+    studentProfiles.forEach((profile) => {
+      profileMap[profile.userId.toString()] = profile;
+    });
+
+    // ------------------------------------------
+    // Step 4: Group applications by course
+    // ------------------------------------------
+
+    // Build a map of courseId → course metadata
+    const courseMap = {};
+    myCourses.forEach((course) => {
+      courseMap[course._id.toString()] = {
+        ...course,
+        applications: [],
+      };
+    });
+
+    // Attach each application (with enriched student profile) to its course
+    applications.forEach((app) => {
+      const courseId = app.course?._id?.toString();
+      if (!courseId || !courseMap[courseId]) return;
+
+      const studentId = app.student?._id?.toString();
+      const profile = studentId ? profileMap[studentId] : null;
+
+      courseMap[courseId].applications.push({
+        _id: app._id,
+        status: app.status,
+        createdAt: app.createdAt,
+        updatedAt: app.updatedAt,
+        student: {
+          _id: app.student?._id,
+          fullName: app.student?.fullName || "",
+          username: app.student?.username || "",
+          email: app.student?.email || "",
+          profileImage: app.student?.profileImage || "",
+          // From StudentProfile (only fields that actually exist in schema)
+          bio: profile?.bio || "",
+          technicalSkills: profile?.technicalSkills || [],
+          softSkills: profile?.softSkills || [],
+          education: profile?.education || [],
+          experience: profile?.experience || [],
+          careerGoal: profile?.careerGoal || "",
+          interests: profile?.interests || [],
+          location: profile?.location || {},
+        },
+      });
+    });
+
+    // Convert map to an ordered array (preserving sort order)
+    const courseGroups = myCourses
+      .map((course) => courseMap[course._id.toString()])
+      .filter((group) => group); // safety filter
+
+    const totalApplications = applications.length;
+
+    return res.status(200).json({
+      success: true,
+      count: totalApplications,
+      courseGroups,
+    });
+  } catch (error) {
+    console.error("Get Employer All Applications Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch course applications",
+      error: error.message,
+    });
+  }
+};
+
+// ==========================================
 // GET STUDENT MY COURSES
 // GET /api/student/courses
 // ==========================================
@@ -968,13 +1294,18 @@ const getStudentMyCourses = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Only students
+    // Only candidates
     // ------------------------------------------
 
-    if (user.role !== "user" || user.userType !== "student") {
+    const isLearner =
+      user &&
+      (user.role === "user" ||
+        ["student", "fresher", "professional"].includes(user.userType));
+
+    if (!isLearner) {
       return res.status(403).json({
         success: false,
-        message: "Only students can access My Courses",
+        message: "Only candidates can access My Courses",
       });
     }
 
@@ -984,7 +1315,8 @@ const getStudentMyCourses = async (req, res) => {
 
     const applications = await CourseApplication.find({
       student: user._id,
-      status: { $in: ["Enrolled", "Completed"] },
+      // Include Applied so frontend can hydrate pending status on page refresh
+      status: { $in: ["Applied", "Enrolled", "Completed", "Rejected"] },
     })
       .populate("course")
       .sort({ createdAt: -1 });
@@ -1032,6 +1364,35 @@ const getStudentMyCourses = async (req, res) => {
 };
 
 
+// ==========================================
+// GET ALL PUBLISHED COURSES (Student Catalog)
+// GET /api/courses
+// Returns every Published course — no recommendation logic,
+// no domain/employer restrictions. Used by the "All Courses" tab.
+// ==========================================
+
+const getAllPublishedCourses = async (req, res) => {
+  try {
+    const courses = await Course.find({ status: "Published" })
+      .populate("createdBy", "fullName username")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: courses.length,
+      courses,
+    });
+  } catch (error) {
+    console.error("Get All Published Courses Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch published courses",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createCourse,
   getMyCourses,
@@ -1041,7 +1402,10 @@ module.exports = {
   getRecommendedCourses,
   getCourseDetails,
   applyCourse,
+  enrollFreeCourse,
   getCourseApplications,
   updateCourseApplicationStatus,
+  getEmployerAllApplications,
   getStudentMyCourses,
+  getAllPublishedCourses,
 };

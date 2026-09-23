@@ -7,7 +7,7 @@ const axios = require("axios");
 const User = require("../models/User");
 const Company = require("../models/Company");
 
-const BASE_URL = "http://localhost:5000/api";
+const BASE_URL = `http://localhost:${process.env.PORT || 5001}/api`;
 
 async function runAcceptanceTests() {
   console.log("\n========================================================");
@@ -22,7 +22,7 @@ async function runAcceptanceTests() {
   const innovate = await Company.findOne({ name: "Innovate Labs" });
 
   if (!techCorp || !innovate) {
-    throw new Error("Companies not found in database. Run seed-admin-portal.js first!");
+    throw new Error("Companies not found in database. Ensure tenant companies exist before running this test.");
   }
 
   const techCorpId = techCorp._id.toString();
@@ -32,7 +32,9 @@ async function runAcceptanceTests() {
   let total = 15;
 
   // Helper for login
-  const login = async (email, password) => {
+  const adminPassword = process.env.ADMIN_PASSWORD || "";
+
+  const login = async (email, password = adminPassword) => {
     return await axios.post(`${BASE_URL}/admin/login`, {
       email,
       password,
@@ -41,7 +43,7 @@ async function runAcceptanceTests() {
 
   // TEST 1: SUPER_ADMIN logs in -> Global Admin Dashboard
   try {
-    const res = await login("superadmin@careerconnect.com", "Admin@CareerConnect2026");
+    const res = await login("superadmin@careerconnect.com");
     const token = res.data.token;
     const dash = await axios.get(`${BASE_URL}/admin/dashboard`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -59,7 +61,7 @@ async function runAcceptanceTests() {
   // TEST 2: COMPANY_ADMIN logs in -> Company-specific Admin Dashboard
   let techCorpToken = "";
   try {
-    const res = await login("techcorp.admin@careerconnect.com", "Admin@CareerConnect2026");
+    const res = await login("techcorp.admin@careerconnect.com");
     techCorpToken = res.data.token;
     const dash = await axios.get(`${BASE_URL}/admin/dashboard`, {
       headers: { Authorization: `Bearer ${techCorpToken}` },
@@ -173,7 +175,7 @@ async function runAcceptanceTests() {
   }
 
   // SUPER_ADMIN token for tests 9 and 10
-  const superRes = await login("superadmin@careerconnect.com", "Admin@CareerConnect2026");
+  const superRes = await login("superadmin@careerconnect.com");
   const superToken = superRes.data.token;
 
   // TEST 9: SUPER_ADMIN accesses Company A -> SUCCESS

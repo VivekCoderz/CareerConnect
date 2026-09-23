@@ -8,6 +8,12 @@ const interviewSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
+      index: true,
+    },
     candidateId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -76,6 +82,11 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       required: [true, "Interview date is required"],
     },
+    scheduledAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     startTime: {
       type: String,
       default: "",
@@ -112,6 +123,14 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    preparationGuidelines: {
+      type: String,
+      default: "",
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
     notes: {
       type: String,
       default: "",
@@ -125,14 +144,20 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       enum: [
         "scheduled",
+        "confirmed",
+        "ongoing",
         "completed",
         "rescheduled",
         "cancelled",
+        "missed",
         "no_show",
         "draft",
         "Scheduled",
+        "Confirmed",
+        "Ongoing",
         "Completed",
         "Cancelled",
+        "Missed",
         "Rescheduled",
         "Draft",
       ],
@@ -219,6 +244,10 @@ const interviewSchema = new mongoose.Schema(
       default: "",
     },
     // Rescheduling tracking
+    rescheduleCount: {
+      type: Number,
+      default: 0,
+    },
     rescheduledAt: {
       type: Date,
       default: null,
@@ -248,12 +277,26 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    previousSchedule: {
+      scheduledDate: { type: String, default: "" },
+      startTime: { type: String, default: "" },
+      endTime: { type: String, default: "" },
+      duration: { type: Number, default: 45 },
+      meetingMode: { type: String, default: "" },
+      meetingLink: { type: String, default: "" },
+    },
     rescheduleHistory: [
       {
         previousDate: String,
         previousStartTime: String,
+        previousEndTime: String,
+        previousDuration: Number,
         newDate: String,
         newStartTime: String,
+        newEndTime: String,
+        newDuration: Number,
+        meetingMode: String,
+        meetingLink: String,
         reason: String,
         rescheduledAt: { type: Date, default: Date.now },
         rescheduledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -268,5 +311,29 @@ const interviewSchema = new mongoose.Schema(
 interviewSchema.index({ applicationId: 1, roundNumber: 1 });
 interviewSchema.index({ employerId: 1, status: 1 });
 interviewSchema.index({ candidateId: 1, status: 1 });
+interviewSchema.index({ companyId: 1, status: 1, scheduledAt: 1 });
+
+// Ensure scheduledAt is populated from scheduledDate + startTime if not explicitly provided
+interviewSchema.pre("save", function () {
+  if (!this.scheduledAt && this.scheduledDate) {
+    try {
+      const { getInterviewDateTimes } = require("../utils/interviewTimeUtils");
+      const times = getInterviewDateTimes(this);
+      if (times?.startDateTime) {
+        this.scheduledAt = times.startDateTime;
+      } else {
+        const parsed = new Date(this.scheduledDate);
+        if (!isNaN(parsed.getTime())) {
+          this.scheduledAt = parsed;
+        }
+      }
+    } catch {
+      const parsed = new Date(this.scheduledDate);
+      if (!isNaN(parsed.getTime())) {
+        this.scheduledAt = parsed;
+      }
+    }
+  }
+});
 
 module.exports = mongoose.model("Interview", interviewSchema);

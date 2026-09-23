@@ -1,5 +1,7 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import BrandLogo from "../../components/common/BrandLogo";
 import { useSelector } from "react-redux";
 import { getInternships } from "../../services/internshipService";
 import { getMyAppliedIds } from "../../services/applicationService";
@@ -165,8 +167,8 @@ export default function Internships({
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16">
-          <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-sm font-medium text-slate-500">Loading internships...</p>
+          <JourneyLoader size="md" className="mb-3" />
+          <p className="text-sm font-medium text-slate-500">Bringing open internships into view...</p>
         </div>
       ) : list.length === 0 ? (
         <div className="text-center py-14 rounded-2xl bg-white border border-slate-200">
@@ -333,15 +335,7 @@ export default function Internships({
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/home" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white flex items-center justify-center text-xs font-bold">
-              CC
-            </div>
-            <div className="leading-tight">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                CareerConnect
-              </p>
-              <p className="text-sm font-bold text-slate-900">CareerConnect</p>
-            </div>
+            <BrandLogo className="h-9 w-44" />
           </Link>
           <Link
             to="/applications"

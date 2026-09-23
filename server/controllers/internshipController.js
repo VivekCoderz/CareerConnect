@@ -58,16 +58,27 @@ exports.createInternship = async (req, res, next) => {
     }
 
     const stages = sanitizeRecruitmentStages(req.body.recruitmentStages);
+    const companyId = req.user.companyId || null;
+    let companyName = profile.companyName;
+    if (companyId) {
+      const Company = require("../models/Company");
+      const comp = await Company.findById(companyId);
+      if (comp) companyName = comp.name;
+    }
+
+    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
+    const initialStatus = req.body.status || (isSuperAdmin ? "Published" : "Pending Approval");
 
     const internship = await Internship.create({
       ...req.body,
       recruitmentStages: stages,
       employerId: profile._id,
       createdBy: req.user._id,
-      companyName: profile.companyName,
+      companyId,
+      companyName,
       source: "CareerConnect",
       isExternal: false,
-      status: req.body.status || "Published",
+      status: initialStatus,
     });
 
     // Real-time Mail Notification trigger

@@ -84,6 +84,11 @@ export const getEligibleCandidates = async () => {
   return res.data;
 };
 
+export const getInterviewAvailability = async (params = {}) => {
+  const res = await api.get("/interviews/availability", { params });
+  return res.data;
+};
+
 export const getInterviewById = async (id) => {
   const res = await api.get(`/interviews/${id}`);
   return res.data;
@@ -229,6 +234,7 @@ export default {
   getInterviews,
   getInterviewStats,
   getEligibleCandidates,
+  getInterviewAvailability,
   getInterviewById,
   getCandidateInterviewHistory,
   scheduleInterview,

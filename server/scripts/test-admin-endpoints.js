@@ -1,7 +1,7 @@
 require("dotenv").config();
 const axios = require("axios");
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = `http://localhost:${process.env.PORT || 5001}`;
 
 async function testAdmin() {
   console.log("=== TESTING ADMIN ENDPOINTS ===");
@@ -21,10 +21,12 @@ async function testAdmin() {
   // 2. Log in as admin
   let adminToken = null;
   let adminCookie = null;
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@careerconnect.com";
+  const adminPassword = process.env.ADMIN_PASSWORD || "";
   try {
     const loginRes = await axios.post(`${BASE_URL}/api/auth/login`, {
-      email: "admin@careerconnect.com",
-      password: "Admin@CareerConnect2026",
+      email: adminEmail,
+      password: adminPassword,
     });
     console.log("PASS: Admin login successful. Role:", loginRes.data.user?.role);
     adminToken = loginRes.data.token;

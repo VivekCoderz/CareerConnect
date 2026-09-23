@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
+import BrandLogo from "../common/BrandLogo";
 
 const EmployerSidebar = ({ activeTab, onSelectTab, mobileOpen, onCloseMobile, stats = {} }) => {
   useEffect(() => {
@@ -32,14 +33,10 @@ const EmployerSidebar = ({ activeTab, onSelectTab, mobileOpen, onCloseMobile, st
       ],
     },
     {
-      group: "COURSES & UPSKILLING",
+      group: "LEARNING & ORGANIZATION",
       items: [
         { id: "courses", label: "Courses & Learning Hub", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
-      ],
-    },
-    {
-      group: "ORGANIZATION & TRAINING",
-      items: [
+        { id: "organization", label: "Organization & Approval", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4", badge: stats.orgBadge },
         { id: "employees", label: "Employee Directory", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" },
         { id: "training", label: "Assign Training", icon: "M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" },
         { id: "skill-gaps", label: "Skill Gap Analysis", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
@@ -74,9 +71,7 @@ const EmployerSidebar = ({ activeTab, onSelectTab, mobileOpen, onCloseMobile, st
         {/* Mobile Header with Close Button */}
         <div className="lg:hidden h-16 px-4 flex items-center justify-between border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#92400e] to-[#b45309] text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              CC
-            </div>
+            <BrandLogo markOnly className="w-8 h-8" />
             <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
               Employer Hub
             </span>
@@ -148,11 +143,17 @@ const EmployerSidebar = ({ activeTab, onSelectTab, mobileOpen, onCloseMobile, st
                         </svg>
                         {item.label}
                       </span>
-                      {item.badge !== undefined && item.badge > 0 && (
+                      {item.badge !== undefined && item.badge !== null && (typeof item.badge === "number" ? item.badge > 0 : Boolean(item.badge)) && (
                         <span
-                          className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-bold ${
+                          className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold ${
                             isActive
                               ? "bg-[#b45309] text-white"
+                              : typeof item.badge === "string" && item.badge.toLowerCase().includes("pending")
+                              ? "bg-amber-100 text-amber-800 border border-amber-300"
+                              : typeof item.badge === "string" && item.badge.toLowerCase().includes("verif")
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                              : typeof item.badge === "string" && (item.badge.toLowerCase().includes("action") || item.badge.toLowerCase().includes("reject"))
+                              ? "bg-red-100 text-red-800 border border-red-300"
                               : "bg-slate-100 text-slate-600"
                           }`}
                         >

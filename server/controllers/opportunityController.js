@@ -7,6 +7,9 @@ const {
   CAMPUS_DRIVES
 } = require("../services/jobScraperService");
 
+const inFlightFeeds = new Map();
+const MAX_CONCURRENT_FEEDS = 24;
+
 /**
  * GET /api/opportunities
  * Fetches multi-source aggregated opportunities (MongoDB Jobs, Internships, LinkedIn, Internshala, Remotive, Arbeitnow, GU Campus Drives)
@@ -18,7 +21,27 @@ exports.getOpportunities = async (req, res, next) => {
     const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
     const skip = (pageNum - 1) * pageSize;
 
-    const results = await getAggregatedOpportunities(req.query);
+    const feedKey = JSON.stringify({
+      program: req.query.program,
+      specialization: req.query.specialization,
+      opportunityType: req.query.opportunityType,
+      source: req.query.source,
+      scope: req.query.scope,
+      region: req.query.region,
+      workMode: req.query.workMode,
+      search: req.query.search,
+      q: req.query.q,
+    });
+    let feedPromise = inFlightFeeds.get(feedKey);
+    if (!feedPromise) {
+      if (inFlightFeeds.size >= MAX_CONCURRENT_FEEDS) {
+        return res.status(503).json({ success: false, message: "Feed is busy. Please retry shortly." });
+      }
+      feedPromise = getAggregatedOpportunities(req.query);
+      inFlightFeeds.set(feedKey, feedPromise);
+      feedPromise.finally(() => inFlightFeeds.delete(feedKey)).catch(() => {});
+    }
+    const results = await feedPromise;
     const allList = [...(results.data || [])];
 
     const getTimestamp = (item) => {

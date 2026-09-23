@@ -1,8 +1,11 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { getMyApplications, withdraw } from "../../services/applicationService";
 import recruitmentService from "../../services/recruitmentService";
 import CandidateOfferResponseModal from "../../components/student/CandidateOfferResponseModal";
+import ApplicationTrackingProgress from "../../components/student/ApplicationTrackingProgress";
+import { getResumeHref } from "../../utils/resumeAccess";
 
 export default function MyApplications({ embedded = false }) {
   const [applications, setApplications] = useState([]);
@@ -336,22 +339,53 @@ export default function MyApplications({ embedded = false }) {
           </div>
         )}
 
-        {/* Status Filters */}
-        <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
-          {statusTabs.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setFilter(tab)}
-              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition ${
-                filter === tab
-                  ? "bg-[#1e3a8a] text-white shadow-sm"
-                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        {/* Status Filter Dropdown */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 sm:px-4 rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 shrink-0">
+              Filter by Status:
+            </span>
+            <div className="relative min-w-[200px] sm:min-w-[240px]">
+              <select
+                id="application-status-filter"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-full appearance-none bg-slate-50 hover:bg-slate-100/70 border border-slate-200 focus:border-[#1e3a8a] focus:bg-white focus:ring-2 focus:ring-blue-100 rounded-xl px-3.5 py-2 pr-9 text-xs sm:text-sm font-semibold text-slate-800 transition cursor-pointer outline-none shadow-2xs"
+              >
+                {statusTabs.map((tab) => {
+                  const count =
+                    tab === "All"
+                      ? applications.length
+                      : applications.filter((a) => a.status === tab).length;
+                  return (
+                    <option key={tab} value={tab}>
+                      {tab} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-medium text-slate-500">
+              Showing <span className="font-bold text-slate-900">{filtered.length}</span> of {applications.length}
+            </span>
+            {filter !== "All" && (
+              <button
+                type="button"
+                onClick={() => setFilter("All")}
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Error */}
@@ -484,10 +518,10 @@ export default function MyApplications({ embedded = false }) {
 
           {loading ? (
             <div className="flex flex-col items-center py-16">
-              <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mb-3" />
+              <JourneyLoader size="md" className="mb-3" />
 
               <p className="text-sm text-slate-500">
-                Loading applications...
+                Bringing your applications together...
               </p>
             </div>
           ) : filtered.length === 0 ? (
@@ -529,302 +563,121 @@ export default function MyApplications({ embedded = false }) {
                 return (
                   <div
                     key={app._id}
-                    className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col md:flex-row md:items-center md:justify-between hover:shadow-sm transition-shadow shadow-sm"
+                    className="bg-white border border-slate-200/90 rounded-3xl p-6 hover:shadow-md transition-shadow shadow-xs"
                   >
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(
-                            app.status
-                          )}`}
-                        >
-                          {app.status}
-                        </span>
+                    {/* Top Row: Opportunity Info and Actions */}
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(
+                              app.status
+                            )}`}
+                          >
+                            {app.status}
+                          </span>
 
-                        <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                          {app.opportunityType ||
-                            "Internship"}
-                        </span>
-                      </div>
-
-                      <h3 className="text-lg font-bold text-slate-900">
-                        {app.opportunityTitle ||
-                          opportunity?.title ||
-                          "Opportunity"}
-                      </h3>
-
-                      <p className="text-sm font-semibold text-slate-600">
-                        {app.companyName ||
-                          opportunity?.companyName ||
-                          "Company"}
-                      </p>
-
-                      <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-slate-500">
-                        <div>
-                          <p className="font-bold text-slate-400 uppercase tracking-wider">
-                            Applied On
-                          </p>
-
-                          <p className="font-semibold text-slate-800 mt-0.5">
-                            {app.createdAt
-                              ? new Date(
-                                  app.createdAt
-                                ).toLocaleDateString(
-                                  "en-IN"
-                                )
-                              : "N/A"}
-                          </p>
+                          <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                            {app.opportunityType || "Internship"}
+                          </span>
                         </div>
 
-                        {opportunity?.location && (
+                        <h3 className="text-lg font-bold text-slate-900">
+                          {app.opportunityTitle ||
+                            opportunity?.title ||
+                            "Opportunity"}
+                        </h3>
+
+                        <p className="text-sm font-semibold text-slate-600">
+                          {app.companyName ||
+                            opportunity?.companyName ||
+                            "Company"}
+                        </p>
+
+                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-slate-500">
                           <div>
                             <p className="font-bold text-slate-400 uppercase tracking-wider">
-                              Location
+                              Applied On
                             </p>
-
                             <p className="font-semibold text-slate-800 mt-0.5">
-                              {opportunity.location}
+                              {app.createdAt
+                                ? new Date(app.createdAt).toLocaleDateString("en-IN")
+                                : "N/A"}
                             </p>
                           </div>
-                        )}
 
-                        {opportunity?.stipend && (
-                          <div>
-                            <p className="font-bold text-slate-400 uppercase tracking-wider">
-                              Stipend
-                            </p>
-
-                            <p className="font-semibold text-slate-800 mt-0.5">
-                              {opportunity.stipend}
-                            </p>
-                          </div>
-                        )}
-
-                        {!isWithdrawn && (
-                          <div>
-                            <p className="font-bold text-slate-400 uppercase tracking-wider">
-                              Current ATS Stage
-                            </p>
-
-                            <p className="font-semibold text-slate-800 mt-0.5">
-                              {app.currentStageName || app.stage || "Under Review"}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Recruitment Pipeline Progress Stepper */}
-                      {(() => {
-                        const stages = app.jobId?.recruitmentStages || [];
-                        if (stages.length === 0 || isWithdrawn) return null;
-
-                        return (
-                          <div className="mt-5 pt-4 border-t border-slate-100">
-                            <div className="flex items-center justify-between mb-2.5">
-                              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                                <span>🔄</span>
-                                <span>Recruitment Pipeline ({stages.length} Stages)</span>
-                              </span>
-                              <span className="text-xs font-semibold text-slate-700">
-                                Current Stage:{" "}
-                                <span className="font-bold text-[#1e3a8a]">
-                                  {app.currentStageName || stages[app.currentStageIndex || 0]?.name || "Active"}
-                                </span>
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                              {stages.map((stg, idx) => {
-                                const info = getStageStatusInfo(app, idx);
-                                return (
-                                  <div key={stg._id || idx} className="flex items-center shrink-0">
-                                    <div
-                                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs transition ${
-                                        info.isCurrent
-                                          ? "bg-blue-50/90 border-blue-300 shadow-2xs font-semibold"
-                                          : info.icon === "✓"
-                                          ? "bg-emerald-50/60 border-emerald-200"
-                                          : "bg-slate-50 border-slate-200 opacity-75"
-                                      }`}
-                                    >
-                                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${info.dotClass}`}>
-                                        {info.icon}
-                                      </span>
-                                      <div>
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-[10px] text-slate-400">R{stg.order || idx + 1}</span>
-                                          <span className="font-bold text-slate-800 whitespace-nowrap">
-                                            {stg.name}
-                                          </span>
-                                        </div>
-                                        <span className="text-[9.5px] text-slate-500 block leading-tight">
-                                          {info.label}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    {idx < stages.length - 1 && (
-                                      <span className="text-slate-300 mx-1">→</span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Scheduled Interview Action Card */}
-                      {app.activeInterview && app.activeInterview.status !== "Cancelled" && (
-                        <div className="mt-4 p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-600 text-white uppercase tracking-wider">
-                                Interview Scheduled
-                              </span>
-                              <span className="font-bold text-slate-900 text-xs">
-                                {app.activeInterview.roundName || "Round " + (app.activeInterview.roundNumber || 1)}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-600">
-                              📅 <span className="font-semibold text-slate-800">
-                                {app.activeInterview.scheduledDate
-                                  ? new Date(app.activeInterview.scheduledDate).toLocaleDateString("en-IN", {
-                                      weekday: "short",
-                                      month: "short",
-                                      day: "numeric",
-                                      year: "numeric",
-                                    })
-                                  : "Date TBA"}
-                              </span>
-                              {" • "}
-                              🕒 <span className="font-semibold text-slate-800">
-                                {app.activeInterview.scheduledTime || app.activeInterview.startTime || "Time TBA"}
-                              </span>
-                              {" • "}
-                              ⏱️ <span className="font-semibold text-slate-800">
-                                {app.activeInterview.durationMinutes || app.activeInterview.duration || 30} mins
-                              </span>
-                              {" • "}
-                              <span>Mode: <b>{app.activeInterview.meetingMode || "Online"}</b></span>
-                            </p>
-                            {app.activeInterview.instructions && (
-                              <p className="text-[11px] text-slate-500 italic">
-                                "{app.activeInterview.instructions}"
+                          {opportunity?.location && (
+                            <div>
+                              <p className="font-bold text-slate-400 uppercase tracking-wider">
+                                Location
                               </p>
-                            )}
-                          </div>
-                          <div className="shrink-0 flex items-center gap-2">
-                            {app.activeInterview.meetingLink ? (
-                              <a
-                                href={app.activeInterview.meetingLink.startsWith("http") ? app.activeInterview.meetingLink : `https://${app.activeInterview.meetingLink}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-4 py-2 rounded-xl bg-[#1e3a8a] hover:bg-blue-800 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-                              >
-                                <span>🎥</span>
-                                <span>Join Meeting Room ↗</span>
-                              </a>
-                            ) : (
-                              <span className="text-xs font-semibold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
-                                Link will be shared
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Active Test / Assessment Stage Card */}
-                      {(() => {
-                        const stages = app.jobId?.recruitmentStages || [];
-                        const currentStage = stages[app.currentStageIndex || 0];
-                        const testLink = currentStage?.configuration?.testLink;
-                        const isTestType = ["Coding Test", "Aptitude Test", "Assessment"].includes(currentStage?.type) || Boolean(testLink);
-                        const isPending = !isWithdrawn && app.overallStatus !== "Rejected" && app.overallStatus !== "Selected" && app.status !== "Rejected";
-
-                        if (isTestType && testLink && isPending) {
-                          return (
-                            <div className="mt-4 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-600 text-white uppercase tracking-wider">
-                                    Assessment Stage
-                                  </span>
-                                  <span className="font-bold text-slate-900 text-xs">
-                                    {currentStage.name}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-slate-600">
-                                  {currentStage.configuration?.durationMinutes && `⏱️ ${currentStage.configuration.durationMinutes} mins • `}
-                                  {currentStage.configuration?.passingCriteria && `🎯 Passing: ${currentStage.configuration.passingCriteria}% • `}
-                                  {currentStage.configuration?.deadlineDays && `⏳ Complete within ${currentStage.configuration.deadlineDays} days`}
-                                </p>
-                                {currentStage.configuration?.instructions && (
-                                  <p className="text-[11px] text-slate-500 italic">
-                                    "{currentStage.configuration.instructions}"
-                                  </p>
-                                )}
-                              </div>
-                              <div className="shrink-0">
-                                <a
-                                  href={testLink.startsWith("http") ? testLink : `https://${testLink}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-                                >
-                                  <span>🚀</span>
-                                  <span>Start Assessment ↗</span>
-                                </a>
-                              </div>
+                              <p className="font-semibold text-slate-800 mt-0.5">
+                                {opportunity.location}
+                              </p>
                             </div>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </div>
+                          )}
 
-                    <div className="mt-6 md:mt-0 md:ml-6 flex items-center gap-3 flex-wrap">
-                      <Link
-                        to={`/student/applications/${app._id}`}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-xs font-bold rounded-xl text-white transition-colors shadow-sm flex items-center gap-1.5"
-                      >
-                        <span>📍</span>
-                        <span>Track Application ➔</span>
-                      </Link>
+                          {opportunity?.stipend && (
+                            <div>
+                              <p className="font-bold text-slate-400 uppercase tracking-wider">
+                                Stipend
+                              </p>
+                              <p className="font-semibold text-slate-800 mt-0.5">
+                                {opportunity.stipend}
+                              </p>
+                            </div>
+                          )}
 
-                      <button
-                        type="button"
-                        onClick={() => setViewingAppModal(app)}
-                        className="px-4 py-2 border border-slate-200 text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-1.5"
-                      >
-                        <span>📄</span>
-                        <span>View Details</span>
-                      </button>
+                          {!isWithdrawn && (
+                            <div>
+                              <p className="font-bold text-slate-400 uppercase tracking-wider">
+                                Current ATS Stage
+                              </p>
+                              <p className="font-semibold text-slate-800 mt-0.5">
+                                {app.currentStageName || app.stage || "Under Review"}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
-                      {app.internshipId && (
-                        <Link
-                          to={`/internships/${
-                            app.internshipId._id ||
-                            app.internshipId
-                          }`}
-                          className="px-4 py-2 border border-slate-200 text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-sm"
-                        >
-                          Listing Info
-                        </Link>
-                      )}
-
-                      {!cannotWithdraw && (
+                      {/* Top Action Buttons (Track Application button removed) */}
+                      <div className="flex items-center gap-2.5 flex-wrap shrink-0">
                         <button
                           type="button"
-                          onClick={() =>
-                            handleWithdraw(app._id)
-                          }
-                          disabled={actionLoading}
-                          className="px-4 py-2 border border-transparent text-xs font-bold rounded-xl text-white bg-red-600 hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50"
+                          onClick={() => setViewingAppModal(app)}
+                          className="px-4 py-2 border border-slate-200 text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
                         >
-                          Withdraw
+                          <span>📄</span>
+                          <span>View Details</span>
                         </button>
-                      )}
+
+                        {app.internshipId && (
+                          <Link
+                            to={`/internships/${
+                              app.internshipId._id || app.internshipId
+                            }`}
+                            className="px-4 py-2 border border-slate-200 text-xs font-bold rounded-xl text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-2xs"
+                          >
+                            Listing Info
+                          </Link>
+                        )}
+
+                        {!cannotWithdraw && (
+                          <button
+                            type="button"
+                            onClick={() => handleWithdraw(app._id)}
+                            disabled={actionLoading}
+                            className="px-4 py-2 border border-transparent text-xs font-bold rounded-xl text-white bg-red-600 hover:bg-red-700 transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                          >
+                            Withdraw
+                          </button>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Live Progress Stepper & Round-by-Round Evaluation Status (Matching Reference Photo) */}
+                    <ApplicationTrackingProgress application={app} />
                   </div>
                 );
               })}
@@ -907,7 +760,7 @@ export default function MyApplications({ embedded = false }) {
                     <p className="text-slate-500 text-[11px]">Your linked document</p>
                   </div>
                   <a
-                    href={viewingAppModal.resumeUrl}
+                    href={getResumeHref(viewingAppModal.resumeUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3.5 py-1.5 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold hover:bg-blue-800 transition"

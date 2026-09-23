@@ -1,5 +1,15 @@
 import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import ApplicantExportModal from "./ApplicantExportModal";
+
+// Helper for professional role casing
+const formatRoleTitle = (str) => {
+  if (!str) return "Candidate Role";
+  return str
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
 
 const DEFAULT_STAGES = [
   { name: "Resume Screening", type: "Resume Screening", order: 0 },
@@ -27,6 +37,7 @@ const ATSPipelineView = ({
   const [selectedApp, setSelectedApp] = useState(null);
   const [viewingApp, setViewingApp] = useState(null);
   const [viewingHistoryApp, setViewingHistoryApp] = useState(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [actionModal, setActionModal] = useState(null); // { type: 'move'|'select'|'reject'|'fail', app: Object, targetStage: Object }
   const [actionRemarks, setActionRemarks] = useState("");
   const [noteText, setNoteText] = useState("");
@@ -250,89 +261,127 @@ const ATSPipelineView = ({
   return (
     <div className="space-y-4">
       {/* ======================================================== */}
-      {/* 1. TOP CONTROLS: JOB SELECTOR & VIEW MODE TOGGLE         */}
+      {/* 1. TOP CONTROLS: JOB SELECTOR, SEARCH, EXPORT & VIEW     */}
       {/* ======================================================== */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3.5">
         {/* Left: Job Filter */}
-        <div className="flex items-center gap-2.5 flex-1">
-          <span className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1.5">
-            <span>🎯</span> Job Vacancy:
-          </span>
-          <select
-            value={selectedJobId}
-            onChange={(e) => {
-              setSelectedJobId(e.target.value);
-              setActiveStageFilter("All");
-            }}
-            className="h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-800 outline-none focus:border-[#f59e0b] focus:bg-white transition max-w-xs"
-          >
-            <option value="All">All Jobs & Opportunities ({applications.length})</option>
-            {jobs.map((j) => (
-              <option key={j._id} value={j._id}>
-                {j.title} ({j.employmentType || "Job"})
-              </option>
-            ))}
-          </select>
+        <div className="flex items-center gap-2.5 flex-1 flex-wrap">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 shrink-0">
+            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <span>Job Vacancy:</span>
+          </div>
+
+          <div className="relative">
+            <select
+              value={selectedJobId}
+              onChange={(e) => {
+                setSelectedJobId(e.target.value);
+                setActiveStageFilter("All");
+              }}
+              className="appearance-none bg-slate-50 hover:bg-slate-100/80 border border-slate-200 focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 rounded-xl px-3 py-1.5 pr-8 text-xs font-bold text-slate-800 transition cursor-pointer outline-none shadow-2xs"
+            >
+              <option value="All">All Jobs & Vacancies ({applications.length})</option>
+              {jobs.map((j) => (
+                <option key={j._id} value={j._id}>
+                  {j.title} ({j.employmentType || "Job"})
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
 
           {currentJob && (
-            <span className="px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-50 text-[#92400e] border border-amber-200/60 hidden sm:inline-block">
-              {activeStages.length} Pipeline Stages Configured
+            <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100 hidden sm:inline-block">
+              {activeStages.length} Pipeline Stages
             </span>
           )}
         </div>
 
-        {/* Right: Search & View Mode Switcher */}
-        <div className="flex items-center gap-2">
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search candidate name, skill, college..."
-            className="h-9 w-48 sm:w-60 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-medium outline-none focus:border-[#f59e0b] focus:bg-white transition"
-          />
+        {/* Right: Search, Export & View Mode Switcher */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="relative">
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search candidate, skill, college..."
+              className="h-9 w-44 sm:w-56 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs font-medium outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition shadow-2xs"
+            />
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
 
-          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/60">
+          {/* Export Applicants Button */}
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="h-9 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            title="Download Excel / CSV spreadsheet or PDF report"
+          >
+            <svg className="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Export Roster</span>
+          </button>
+
+          {/* View Mode */}
+          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/80">
             <button
               type="button"
               onClick={() => setViewMode("list")}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 viewMode === "list"
-                  ? "bg-white text-slate-900 shadow-xs"
+                  ? "bg-white text-slate-900 shadow-2xs"
                   : "text-slate-500 hover:text-slate-800"
               }`}
             >
-              <span>📋</span> List
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+              <span>List</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode("kanban")}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 viewMode === "kanban"
-                  ? "bg-white text-slate-900 shadow-xs"
+                  ? "bg-white text-slate-900 shadow-2xs"
                   : "text-slate-500 hover:text-slate-800"
               }`}
             >
-              <span>📊</span> Kanban
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+              </svg>
+              <span>Kanban</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* 2. DYNAMIC PIPELINE STAGES BAR / METRICS                 */}
+      {/* 2. CLEAN DYNAMIC PIPELINE STAGES BAR / METRICS           */}
       {/* ======================================================== */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
         <button
           type="button"
           onClick={() => setActiveStageFilter("All")}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-2 cursor-pointer ${
             activeStageFilter === "All"
               ? "bg-slate-900 text-white shadow-xs"
-              : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
           }`}
         >
           <span>All Applicants</span>
           <span
-            className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+            className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
               activeStageFilter === "All" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
             }`}
           >
@@ -348,17 +397,17 @@ const ATSPipelineView = ({
               key={sIdx}
               type="button"
               onClick={() => setActiveStageFilter(stage.name)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-2 cursor-pointer ${
                 isActive
-                  ? "bg-[#b45309] text-white shadow-xs"
-                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
               }`}
             >
-              <span className="opacity-75">{sIdx + 1}.</span>
+              <span className="opacity-70 text-[10px]">{sIdx + 1}.</span>
               <span>{stage.name}</span>
               <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  isActive ? "bg-white/20 text-white" : "bg-amber-50 text-[#92400e] border border-amber-200/50"
+                className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                  isActive ? "bg-white/20 text-white" : "bg-indigo-50 text-indigo-700"
                 }`}
               >
                 {count}
@@ -370,16 +419,16 @@ const ATSPipelineView = ({
         <button
           type="button"
           onClick={() => setActiveStageFilter("Selected")}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-2 cursor-pointer ${
             activeStageFilter === "Selected"
               ? "bg-emerald-600 text-white shadow-xs"
-              : "bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+              : "bg-white border border-emerald-200 text-emerald-800 hover:bg-emerald-50"
           }`}
         >
-          <span>★ Selected</span>
+          <span>Selected</span>
           <span
-            className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-              activeStageFilter === "Selected" ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-800"
+            className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+              activeStageFilter === "Selected" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
             }`}
           >
             {stageCounts.Selected || 0}
@@ -389,16 +438,16 @@ const ATSPipelineView = ({
         <button
           type="button"
           onClick={() => setActiveStageFilter("Rejected")}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex-shrink-0 flex items-center gap-2 cursor-pointer ${
             activeStageFilter === "Rejected"
               ? "bg-rose-600 text-white shadow-xs"
-              : "bg-white border border-rose-200 text-rose-700 hover:bg-rose-50"
+              : "bg-white border border-rose-200 text-rose-800 hover:bg-rose-50"
           }`}
         >
-          <span>✕ Rejected</span>
+          <span>Rejected</span>
           <span
-            className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-              activeStageFilter === "Rejected" ? "bg-white/20 text-white" : "bg-rose-50 text-rose-800"
+            className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+              activeStageFilter === "Rejected" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-800"
             }`}
           >
             {stageCounts.Rejected || 0}
@@ -662,18 +711,20 @@ const ATSPipelineView = ({
                 <div
                   key={app._id}
                   onClick={() => setSelectedApp(app)}
-                  className={`p-5 rounded-3xl border transition cursor-pointer bg-white space-y-4 ${
+                  className={`p-5 rounded-2xl border transition-all cursor-pointer bg-white space-y-4 ${
                     isSelectedCard
-                      ? "border-amber-400 ring-2 ring-amber-400/20 shadow-md"
-                      : "border-slate-200/80 hover:border-amber-300 shadow-2xs"
+                      ? "border-indigo-500 ring-4 ring-indigo-50 shadow-sm"
+                      : "border-slate-200/90 hover:border-slate-300 shadow-2xs hover:shadow-xs"
                   }`}
                 >
                   {/* Candidate Header Row */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 text-white font-bold flex items-center justify-center text-sm flex-shrink-0 shadow-xs">
-                        {info.name[0] || "C"}
+                      {/* Sleek Initial Avatar */}
+                      <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-sm flex-shrink-0 border border-indigo-100 shadow-2xs">
+                        {info.name[0]?.toUpperCase() || "C"}
                       </div>
+
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <Link
@@ -683,113 +734,145 @@ const ATSPipelineView = ({
                           >
                             {info.name}
                           </Link>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-slate-100 text-slate-600">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200/60 uppercase tracking-wide">
                             {info.positionType}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 mt-0.5">
-                          Position: <strong className="text-slate-900">{info.positionTitle}</strong>
+
+                        <p className="text-xs text-slate-600 mt-1">
+                          Applied for: <span className="font-semibold text-slate-900">{formatRoleTitle(info.positionTitle)}</span>
                         </p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          📧 {info.email} · 📱 {info.phone}
-                        </p>
+
+                        {/* Contact Info with SVG icons */}
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1.5">
+                          <span className="flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-slate-700">{info.email}</span>
+                          </span>
+
+                          <span className="flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                            <span className="text-slate-700">{info.phone}</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
 
+                    {/* Stage Status Badge */}
                     <div className="text-right flex-shrink-0">
                       <span
-                        className={`px-3 py-1 rounded-full text-[11px] font-bold border inline-block ${
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border inline-flex items-center gap-1.5 ${
                           stageData.isSelected
-                            ? "bg-emerald-100 text-emerald-800 border-emerald-300 font-extrabold"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : stageData.isRejected
-                            ? "bg-rose-100 text-rose-800 border-rose-300"
-                            : "bg-amber-50 text-[#92400e] border-amber-300 font-bold"
+                            ? "bg-rose-50 text-rose-700 border-rose-200"
+                            : "bg-blue-50 text-blue-700 border-blue-200"
                         }`}
                       >
-                        {stageData.isSelected
-                          ? "Selected"
-                          : stageData.isRejected
-                          ? "Rejected"
-                          : `Stage: ${stageData.currentStage?.name || app.stage}`}
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            stageData.isSelected
+                              ? "bg-emerald-500"
+                              : stageData.isRejected
+                              ? "bg-rose-500"
+                              : "bg-blue-500 animate-pulse"
+                          }`}
+                        />
+                        <span>
+                          {stageData.isSelected
+                            ? "Selected"
+                            : stageData.isRejected
+                            ? "Rejected"
+                            : `Round: ${stageData.currentStage?.name || app.stage}`}
+                        </span>
                       </span>
-                      <p className="text-[10px] text-slate-400 mt-1">Applied: {info.appliedDate}</p>
+                      <p className="text-[10.5px] text-slate-400 mt-1.5 font-medium">Applied: {info.appliedDate}</p>
                     </div>
                   </div>
 
                   {/* Visual Dynamic Recruitment Pipeline Stepper */}
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                    <div className="flex items-center justify-between text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
-                      <span>Recruitment Pipeline Progress</span>
-                      <span className="text-[#92400e]">
+                  <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+                      <span className="uppercase tracking-wider text-[10px] font-bold text-slate-400">
+                        Pipeline Evaluation Flow
+                      </span>
+                      <span className="text-indigo-600 font-bold">
                         {stageData.isSelected
-                          ? "Completed All Rounds (Selected)"
+                          ? "Cleared All Stages"
                           : stageData.isRejected
-                          ? "Pipeline Closed"
-                          : `Round ${stageData.currentIndex + 1} of ${stageData.stages.length}`}
+                          ? "Pipeline Concluded"
+                          : `Stage ${stageData.currentIndex + 1} of ${stageData.stages.length}`}
                       </span>
                     </div>
 
                     {/* Stepper bar */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-thin">
+                    <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
                       {stageData.stages.map((stg, idx) => {
                         const isCompleted = idx < stageData.currentIndex || stageData.isSelected;
                         const isCurrent = idx === stageData.currentIndex && !stageData.isSelected && !stageData.isRejected;
-                        const isUpcoming = idx > stageData.currentIndex && !stageData.isSelected;
 
                         return (
                           <React.Fragment key={idx}>
                             <div
-                              className={`flex-shrink-0 px-2.5 py-1 rounded-xl text-[10.5px] font-bold flex items-center gap-1.5 border transition ${
+                              className={`flex-shrink-0 px-3 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition ${
                                 isCompleted
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                   : isCurrent
-                                  ? "bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/20"
+                                  ? "bg-blue-600 text-white border-blue-600 shadow-2xs ring-2 ring-blue-100"
                                   : "bg-white text-slate-400 border-slate-200"
                               }`}
                             >
-                              <span>
-                                {isCompleted ? "✓" : isCurrent ? "●" : "○"}
-                              </span>
+                              <span>{isCompleted ? "✓" : isCurrent ? "●" : "○"}</span>
                               <span>{stg.name}</span>
                             </div>
                             {idx < stageData.stages.length - 1 && (
                               <span
-                                className={`text-[10px] font-bold ${
+                                className={`text-xs font-bold ${
                                   isCompleted ? "text-emerald-500" : "text-slate-300"
                                 }`}
                               >
-                                ➔
+                                →
                               </span>
                             )}
                           </React.Fragment>
                         );
                       })}
 
-                      <span className="text-slate-300 font-bold text-[10px]">➔</span>
+                      <span className="text-slate-300 font-bold text-xs">→</span>
 
                       <div
-                        className={`flex-shrink-0 px-2.5 py-1 rounded-xl text-[10.5px] font-bold border ${
+                        className={`flex-shrink-0 px-3 py-1 rounded-xl text-xs font-semibold border ${
                           stageData.isSelected
-                            ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
+                            ? "bg-emerald-600 text-white border-emerald-700 shadow-2xs"
                             : stageData.isRejected
-                            ? "bg-rose-100 text-rose-700 border-rose-200"
+                            ? "bg-rose-50 text-rose-700 border-rose-200"
                             : "bg-white text-slate-400 border-slate-200"
                         }`}
                       >
-                        {stageData.isSelected ? "★ Selected" : stageData.isRejected ? "✕ Rejected" : "Final Selection"}
+                        {stageData.isSelected ? "Selected" : stageData.isRejected ? "Rejected" : "Decision"}
                       </div>
                     </div>
                   </div>
 
                   {/* Candidate background info */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase font-bold block">Education</span>
-                      <span className="font-semibold text-slate-800">{info.education} · {info.college}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                    <div className="flex items-start gap-2">
+                      <span className="text-slate-400 text-sm">🎓</span>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Education</span>
+                        <span className="font-semibold text-slate-800">{info.education} · {info.college}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase font-bold block">Experience</span>
-                      <span className="font-semibold text-slate-800">{info.experience}</span>
+                    <div className="flex items-start gap-2">
+                      <span className="text-slate-400 text-sm">💼</span>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Experience</span>
+                        <span className="font-semibold text-slate-800">{info.experience}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -800,7 +883,7 @@ const ATSPipelineView = ({
                       {info.skillsList.slice(0, 6).map((s, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10.5px] font-semibold border border-blue-100"
+                          className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10.5px] font-semibold border border-slate-200/60"
                         >
                           {s}
                         </span>
@@ -810,8 +893,8 @@ const ATSPipelineView = ({
 
                   {/* Active Interview Notice if scheduled */}
                   {app.latestInterview && (
-                    <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
+                    <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2.5">
                         <span className="text-base">📅</span>
                         <div>
                           <p className="font-bold text-blue-950">
@@ -828,7 +911,7 @@ const ATSPipelineView = ({
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold shadow-2xs"
+                          className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-2xs"
                         >
                           Join Meeting ↗
                         </a>
@@ -844,9 +927,10 @@ const ATSPipelineView = ({
                       <Link
                         to={`/employer/applications/${app._id}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1.5"
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
                       >
-                        <span>👁️</span> Manage Application ↗
+                        <span>Manage Application</span>
+                        <span className="text-[10px]">↗</span>
                       </Link>
 
                       <button
@@ -855,13 +939,13 @@ const ATSPipelineView = ({
                           e.stopPropagation();
                           setViewingHistoryApp(app);
                         }}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs flex items-center gap-1.5"
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
                       >
-                        <span>📜</span> Round History
+                        <span>Round History</span>
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {!stageData.isSelected && !stageData.isRejected && (
                         <>
                           {/* Interview Specific Action */}
@@ -872,42 +956,11 @@ const ATSPipelineView = ({
                                 e.stopPropagation();
                                 onScheduleInterview && onScheduleInterview(app);
                               }}
-                              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                              className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
                             >
                               <span>📅</span>
-                              <span>{app.latestInterview ? "Reschedule / Schedule" : "Schedule Interview"}</span>
+                              <span>{app.latestInterview ? "Reschedule" : "Schedule Interview"}</span>
                             </button>
-                          )}
-
-                          {/* Test Specific Action */}
-                          {stageData.currentStage?.type.includes("Test") && (
-                            <>
-                              {stageData.currentStage.configuration?.testLink && (
-                                <a
-                                  href={stageData.currentStage.configuration.testLink}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 text-[#92400e] text-xs font-bold transition flex items-center gap-1"
-                                >
-                                  <span>🔗</span> Open Test
-                                </a>
-                              )}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActionModal({
-                                    type: "fail",
-                                    app,
-                                    targetStage: stageData.currentStage,
-                                  });
-                                }}
-                                className="px-2.5 py-1.5 rounded-xl border border-amber-200 text-amber-800 hover:bg-amber-50 text-xs font-bold transition"
-                              >
-                                Mark Failed
-                              </button>
-                            </>
                           )}
 
                           {/* Move to Next Stage (Unless at Final Stage) */}
@@ -922,13 +975,13 @@ const ATSPipelineView = ({
                                   targetStage: stageData.nextStage,
                                 });
                               }}
-                              className="px-3.5 py-1.5 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white text-xs font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                              className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                             >
-                              <span>✓</span>
-                              <span>Pass ➔ {stageData.nextStage?.name || "Next Stage"}</span>
+                              <span>Advance ➔</span>
+                              <span>{stageData.nextStage?.name || "Next Stage"}</span>
                             </button>
                           ) : (
-                            /* Final Stage Actions: Select or Reject Candidate */
+                            /* Final Stage Actions: Select Candidate */
                             <button
                               type="button"
                               onClick={(e) => {
@@ -938,9 +991,8 @@ const ATSPipelineView = ({
                                   app,
                                 });
                               }}
-                              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                             >
-                              <span>★</span>
                               <span>Select Candidate</span>
                             </button>
                           )}
@@ -955,10 +1007,9 @@ const ATSPipelineView = ({
                                 app,
                               });
                             }}
-                            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 text-xs font-semibold transition cursor-pointer"
                           >
-                            <span>✕</span>
-                            <span>Reject</span>
+                            Reject
                           </button>
                         </>
                       )}
@@ -970,9 +1021,9 @@ const ATSPipelineView = ({
                             e.stopPropagation();
                             onCreateOffer(app);
                           }}
-                          className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-2xs"
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
                         >
-                          📜 Generate Offer Letter
+                          Generate Offer Letter
                         </button>
                       )}
                     </div>
@@ -1004,9 +1055,9 @@ const ATSPipelineView = ({
               </div>
 
               {/* Status Banner */}
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <span className="text-xs text-slate-500 font-semibold">Active Stage</span>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-[#92400e]">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                   {getCandidateStageData(selectedApp).currentStage?.name || selectedApp.stage}
                 </span>
               </div>
@@ -1016,14 +1067,14 @@ const ATSPipelineView = ({
                   to={`/employer/applications/${selectedApp._id}`}
                   className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
                 >
-                  <span>📄 Open Full Application Page ↗</span>
+                  <span>Open Full Application Page ↗</span>
                 </Link>
                 <button
                   type="button"
                   onClick={() => setViewingHistoryApp(selectedApp)}
-                  className="w-full py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5"
+                  className="w-full py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <span>📜 Full Round History & Notes</span>
+                  <span>Full Round History & Notes</span>
                 </button>
               </div>
 
@@ -1046,11 +1097,11 @@ const ATSPipelineView = ({
                     value={noteText}
                     onChange={(e) => setNoteText(e.target.value)}
                     placeholder="Add private note..."
-                    className="flex-1 h-8 rounded-xl border border-slate-200 bg-white px-2.5 text-xs outline-none focus:border-[#f59e0b]"
+                    className="flex-1 h-8 rounded-xl border border-slate-200 bg-white px-2.5 text-xs outline-none focus:border-indigo-500"
                   />
                   <button
                     type="submit"
-                    className="px-3 h-8 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition"
+                    className="px-3 h-8 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition cursor-pointer"
                   >
                     Save
                   </button>
@@ -1077,7 +1128,7 @@ const ATSPipelineView = ({
               <button
                 type="button"
                 onClick={() => setActionModal(null)}
-                className="text-slate-400 hover:text-slate-700 text-sm font-bold"
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -1088,8 +1139,8 @@ const ATSPipelineView = ({
                 Candidate: <strong className="text-slate-900">{getStudentInfo(actionModal.app).name}</strong>
               </p>
               {actionModal.type === "move" && (
-                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/70 text-amber-900">
-                  Advancing to: <strong className="text-[#92400e]">{actionModal.targetStage?.name || "Next Stage"}</strong>
+                <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 font-semibold">
+                  Advancing to: <strong className="text-indigo-700">{actionModal.targetStage?.name || "Next Stage"}</strong>
                 </div>
               )}
               {actionModal.type === "select" && (
@@ -1112,7 +1163,7 @@ const ATSPipelineView = ({
                   value={actionRemarks}
                   onChange={(e) => setActionRemarks(e.target.value)}
                   placeholder="e.g. Cleared problem solving with distinction; good communication..."
-                  className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none focus:border-[#f59e0b] resize-none"
+                  className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs outline-none focus:border-indigo-500 resize-none"
                 />
               </div>
             </div>
@@ -1121,7 +1172,7 @@ const ATSPipelineView = ({
               <button
                 type="button"
                 onClick={() => setActionModal(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -1129,12 +1180,12 @@ const ATSPipelineView = ({
                 type="button"
                 disabled={actionLoading}
                 onClick={handleConfirmAction}
-                className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition cursor-pointer ${
                   actionModal.type === "select"
                     ? "bg-emerald-600 hover:bg-emerald-700"
                     : actionModal.type === "reject"
                     ? "bg-rose-600 hover:bg-rose-700"
-                    : "bg-[#b45309] hover:bg-[#92400e]"
+                    : "bg-indigo-600 hover:bg-indigo-700"
                 }`}
               >
                 {actionLoading ? "Processing..." : "Confirm Action"}
@@ -1376,6 +1427,18 @@ const ATSPipelineView = ({
           </div>
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* 8. APPLICANT EXPORT MODAL (EXCEL/CSV & PDF)              */}
+      {/* ======================================================== */}
+      <ApplicantExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        jobs={jobs}
+        applications={jobFilteredApps}
+        initialJobId={selectedJobId}
+        initialStage={activeStageFilter}
+      />
     </div>
   );
 };

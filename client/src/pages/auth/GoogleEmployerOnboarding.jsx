@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate ,Link} from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import BrandLogo from "../../components/common/BrandLogo";
 import { useDispatch, useSelector } from "react-redux";
 import { signOut } from "firebase/auth";
 import { auth } from "../../config/firebase";
@@ -7,7 +8,6 @@ import api from "../../api/api";
 import { updateUserProfile, logout } from "../../redux/features/authSlice";
 import PhoneInput from "../../components/common/PhoneInput";
 import GoogleAccountAvatar from "../../components/common/GoogleAccountAvatar";
-
 const inputCls = (err) =>
   `w-full h-11 rounded-xl border bg-white px-4 text-sm outline-none transition focus:ring-4 ${
     err
@@ -35,10 +35,12 @@ const GoogleEmployerOnboarding = () => {
   const handleCancelAndGoHome = async () => {
     setCancelling(true);
     try {
-      try {
-        await signOut(auth);
-      } catch (err) {
-        console.warn("Sign out warning:", err.message);
+      if (auth) {
+        try {
+          await signOut(auth);
+        } catch (err) {
+          console.warn("Sign out warning:", err.message);
+        }
       }
     } finally {
       dispatch(logout());
@@ -115,24 +117,6 @@ const GoogleEmployerOnboarding = () => {
     setSubmitError("");
 
     try {
-      // Check duplicate phone
-      try {
-        const checkRes = await api.post("/auth/check-phone", {
-          phone: formData.phone.trim(),
-          countryCode: formData.countryCode || "+91",
-        });
-        if (checkRes.data?.exists) {
-          setFieldErrors((prev) => ({
-            ...prev,
-            phone: "This mobile number is already registered with another account",
-          }));
-          setLoading(false);
-          return;
-        }
-      } catch (err) {
-        console.warn("Phone check warning:", err.message);
-      }
-
       const res = await api.post("/auth/complete-employer-google-onboarding", {
         countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
@@ -172,11 +156,9 @@ const GoogleEmployerOnboarding = () => {
 
         <div className="relative z-10">
           <Link to="/" className="inline-block">
-            <img
-              src="/careerconnect-logo.png"
-              alt="CareerConnect"
-              className="h-12 w-auto bg-white/95 rounded-2xl px-3 py-2 shadow-sm"
-            />
+            <span className="flex h-14 items-center rounded-2xl bg-white/95 px-3 shadow-sm">
+              <BrandLogo className="h-10 w-48" />
+            </span>
           </Link>
         </div>
 
@@ -212,11 +194,7 @@ const GoogleEmployerOnboarding = () => {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center mb-6">
             <Link to="/">
-              <img
-                src="/careerconnect-logo.png"
-                alt="CareerConnect"
-                className="h-11 w-auto"
-              />
+              <BrandLogo className="h-11 w-52" />
             </Link>
           </div>
 

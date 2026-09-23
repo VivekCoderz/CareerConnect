@@ -11,7 +11,13 @@ const requireEmployer = (req, res, next) => {
     });
   }
 
-  if (req.user.role !== "employer" && req.user.userType !== "employer") {
+  const isEmployer =
+    req.user.role === "employer" ||
+    req.user.userType === "employer" ||
+    req.user.role === "COMPANY_ADMIN" ||
+    req.user.adminLevel === "COMPANY_ADMIN";
+
+  if (!isEmployer) {
     return res.status(403).json({
       success: false,
       message: "Access restricted: Employer account required",

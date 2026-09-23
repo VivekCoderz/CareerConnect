@@ -1,3 +1,4 @@
+import JourneyLoader from "./common/JourneyLoader";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getDashboardPath } from "../utils/dashboardRedirect";
@@ -26,8 +27,8 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
   if (!isInitialized) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <div className="w-10 h-10 border-4 border-[#f59e0b] border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-medium text-slate-600">Loading your workspace...</p>
+        <JourneyLoader variant="access" size="hero" className="mb-4" />
+        <p className="text-sm font-medium text-slate-600">Setting up your workspace...</p>
       </div>
     );
   }
@@ -42,8 +43,8 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
     user.role === "COMPANY_ADMIN" ||
     user.role === "admin";
 
-  // 1b. Profile information not collected yet (phone empty) → redirect to onboarding
-  if (!isAdminRole && !user.phone?.trim()) {
+  // 1c. Incomplete profiles finish onboarding before entering a dashboard.
+  if (!isAdminRole && (!user.phone?.trim() || (user.role !== "employer" && !user.isProfileComplete))) {
     if (user.role === "employer") {
       return <Navigate to="/onboarding/employer" replace />;
     }

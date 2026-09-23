@@ -122,16 +122,32 @@ const applicationSchema = new mongoose.Schema(
         "Approved",
         "Under Review",
         "Shortlisted",
+        "Assessment",
         "Interview",
         "Interview Scheduled",
         "Interview Completed",
         "In Progress",
         "Selected",
+        "Offer",
         "Offered",
         "Offer",
         "Hired",
         "Rejected",
         "Withdrawn",
+        "applied",
+        "approved",
+        "under_review",
+        "shortlisted",
+        "assessment",
+        "interview",
+        "interview_scheduled",
+        "interview_completed",
+        "selected",
+        "offer",
+        "offered",
+        "hired",
+        "rejected",
+        "withdrawn",
       ],
       default: "Applied",
       index: true,
@@ -324,6 +340,8 @@ applicationSchema.index(
     partialFilterExpression: { opportunityType: "Job" },
   }
 );
+
+applicationSchema.index({ employerId: 1, candidateId: 1 });
 
 applicationSchema.pre("validate", function () {
   if (this.opportunityType === "Internship" && !this.internshipId) {

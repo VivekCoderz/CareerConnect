@@ -1,3 +1,4 @@
+import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -108,7 +109,7 @@ const CourseContentPage = ({ id: propId, onBack }) => {
 
         {loading ? (
           <div className="p-16 text-center bg-white rounded-3xl border border-slate-200">
-            <div className="w-10 h-10 border-4 border-[#1e3a8a] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <JourneyLoader variant="learning" size="md" className="mx-auto mb-3" />
             <p className="text-xs font-semibold text-slate-600">Loading course curriculum & player...</p>
           </div>
         ) : error ? (

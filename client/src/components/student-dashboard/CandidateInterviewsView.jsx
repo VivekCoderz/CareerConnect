@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import JourneyLoader from "../common/JourneyLoader";
 import recruitmentService from "../../services/recruitmentService";
 
 const parseInterviewDateTime = (dateStr, timeStr) => {
@@ -473,7 +474,7 @@ const CandidateInterviewsView = () => {
       {/* Main Content Body */}
       {loading ? (
         <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-2xs space-y-3">
-          <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <JourneyLoader size="md" className="mx-auto" />
           <p className="text-xs font-semibold text-slate-600">Loading interview details...</p>
         </div>
       ) : error ? (

@@ -3,6 +3,7 @@ const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
+const Company = require("../models/Company");
 const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
 const { getAggregatedOpportunities, clearSearchCache } = require("../services/jobScraperService");
 
@@ -101,6 +102,10 @@ exports.getJobs = async (req, res, next) => {
     } = req.query;
 
     const isMyJobs = myJobs === "true" || myJobs === true || myJobs === "1";
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const defaultPageSize = isMyJobs ? 100 : 10;
+    const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || defaultPageSize));
+    const windowSize = pageNum * pageSize;
     const query = {};
 
     if (isMyJobs) {
@@ -289,9 +294,6 @@ exports.getJobs = async (req, res, next) => {
       allJobs.sort((a, b) => getTimestamp(b) - getTimestamp(a));
     }
 
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const defaultPageSize = isMyJobs ? 100 : 10;
-    const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || defaultPageSize));
     const total = allJobs.length;
     const paginatedJobs = allJobs.slice((pageNum - 1) * pageSize, pageNum * pageSize);
 
@@ -378,10 +380,22 @@ exports.createJob = async (req, res, next) => {
     }
 
     const stages = sanitizeRecruitmentStages(recruitmentStages);
+    const companyId = req.user.companyId || null;
+    let companyName = "";
+    if (companyId) {
+      const comp = await Company.findById(companyId);
+      if (comp) companyName = comp.name;
+    }
+
+    // Determine initial moderation status
+    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
+    const initialStatus = status || (isSuperAdmin ? "Published" : "Pending Approval");
 
     const job = await Job.create({
       employerId,
       createdBy: req.user._id,
+      companyId,
+      companyName: companyName || "",
       title: title.trim(),
       department: department?.trim() || "General",
       employmentType: employmentType || "Full-time",

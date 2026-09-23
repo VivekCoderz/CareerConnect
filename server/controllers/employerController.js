@@ -10,12 +10,17 @@ const sanitizeEmployerUpdate = (body) => {
 // server/controllers/employerController.js
 const EmployerProfile = require("../models/EmployerProfile");
 const User = require("../models/User");
+const Company = require("../models/Company");
+const OrganizationRequest = require("../models/OrganizationRequest");
+const AuditLog = require("../models/AuditLog");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const Application = require("../models/Application");
 const Interview = require("../models/Interview");
 const Employee = require("../models/Employee");
+const TeamMember = require("../models/TeamMember");
 const Course = require("../models/Course");
+const { getEmployerDashboardData } = require("../services/employerDashboardService");
 
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
@@ -322,13 +327,27 @@ exports.unpublishEmployerProfile = async (req, res, next) => {
 
 /**
  * GET /api/employer/dashboard
- * Employer metrics, opportunities overview, recent applications
+ * Server-authoritative aggregated employer dashboard
+ * Strictly scoped by authenticated user's companyId
  */
 exports.getEmployerDashboard = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    let profile = await EmployerProfile.findOne({ userId });
 
+    // Security: Check for spoofed companyId
+    const requestedCompanyId = req.query.companyId || req.body?.companyId;
+    if (requestedCompanyId && req.user.companyId && requestedCompanyId.toString() !== req.user.companyId.toString()) {
+      return res.status(403).json({
+        success: false,
+        code: "FORBIDDEN_COMPANY_ACCESS",
+        message: "Access denied: You cannot access data belonging to another company",
+      });
+    }
+
+    // Resolve effective companyId
+    let effectiveCompanyId = req.user.companyId || null;
+
+    let profile = await EmployerProfile.findOne({ userId });
     if (!profile) {
       profile = await EmployerProfile.create({
         userId,
@@ -339,6 +358,21 @@ exports.getEmployerDashboard = async (req, res, next) => {
         companyType: "Private",
         profileCompletion: 20,
       });
+    }
+
+    if (!effectiveCompanyId) {
+      // Check if Company exists matching profile or user
+      const matchedCompany = await Company.findOne({
+        $or: [
+          { email: profile.officialEmail || req.user.email },
+          { name: profile.companyName },
+        ],
+      });
+      if (matchedCompany) {
+        effectiveCompanyId = matchedCompany._id;
+        req.user.companyId = matchedCompany._id;
+        await User.findByIdAndUpdate(userId, { companyId: matchedCompany._id });
+      }
     }
 
     const completion = calculateEmployerCompletion(profile, req.user);
@@ -442,13 +476,12 @@ exports.getEmployerDashboard = async (req, res, next) => {
         status: i.status,
       })),
     ].slice(0, 6);
+    const data = await getEmployerDashboardData(effectiveCompanyId, req.user);
 
     return res.status(200).json({
       success: true,
+      ...data,
       profile,
-      stats,
-      recentApplications,
-      activeListings,
       profileCompletion: completion,
     });
   } catch (error) {
@@ -541,6 +574,305 @@ exports.deleteEmployerProfile = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Employer profile deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/employer/organization-status
+ * Fetch current organization verification / Super Admin approval status for this employer
+ */
+exports.getOrganizationStatus = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).populate("companyId");
+    let company = user?.companyId || null;
+
+    // 1. If user is already linked to a company in the database
+    if (company) {
+      return res.status(200).json({
+        success: true,
+        status: company.status === "active" ? "APPROVED" : (company.status?.toUpperCase() || "PENDING"),
+        hasCompany: true,
+        company: {
+          _id: company._id,
+          name: company.name,
+          status: company.status,
+          officialEmail: company.officialEmail || company.email,
+          website: company.website,
+          industry: company.industry,
+          location: company.location || company.address,
+          description: company.description,
+        },
+        organizationRequest: null,
+      });
+    }
+
+    // 2. Check if an OrganizationRequest exists for this user
+    const profile = await EmployerProfile.findOne({ userId: req.user._id });
+    const searchEmails = [req.user.email, profile?.officialEmail].filter(Boolean);
+    const searchName = profile?.companyName;
+
+    const queryConditions = [
+      { requestedBy: req.user._id },
+      { officialEmail: { $in: searchEmails } },
+      { officialEmployeeEmail: { $in: searchEmails } },
+    ];
+    if (searchName && searchName !== "My Company") {
+      queryConditions.push({ organizationName: { $regex: `^${searchName.trim()}$`, $options: "i" } });
+    }
+
+    const orgRequest = await OrganizationRequest.findOne({ $or: queryConditions }).sort({ createdAt: -1 });
+
+    const prefillData = {
+      companyName: profile?.companyName || user?.companyName || "",
+      officialCompanyEmail: profile?.officialEmail || "",
+      companyWebsite: profile?.website || "",
+      industry: profile?.industry || "Information Technology",
+      companySize: profile?.companySize || profile?.employeesCount || "11-50",
+      requestingEmployeeName: req.user.fullName || profile?.contactPerson || "",
+      employeeDesignation: req.user.designation || profile?.designation || "Talent Acquisition / HR",
+      officialEmployeeEmail: req.user.email || "",
+      verificationDocument: profile?.verificationDocument || "",
+    };
+
+    if (orgRequest) {
+      return res.status(200).json({
+        success: true,
+        status: orgRequest.status, // "PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED"
+        hasCompany: false,
+        company: null,
+        prefill: prefillData,
+        organizationRequest: {
+          _id: orgRequest._id,
+          companyName: orgRequest.organizationName,
+          organizationName: orgRequest.organizationName,
+          officialCompanyEmail: orgRequest.officialEmail,
+          officialEmail: orgRequest.officialEmail,
+          companyWebsite: orgRequest.website,
+          website: orgRequest.website,
+          industry: orgRequest.industry || "Information Technology",
+          companySize: orgRequest.companySize || "11-50",
+          verificationDocument: orgRequest.verificationDocument || "",
+          requestingEmployeeName: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
+          contactPerson: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
+          employeeDesignation: orgRequest.employeeDesignation || orgRequest.designation,
+          designation: orgRequest.employeeDesignation || orgRequest.designation,
+          officialEmployeeEmail: orgRequest.officialEmployeeEmail || req.user.email,
+          status: orgRequest.status,
+          rejectionReason: orgRequest.rejectionReason,
+          createdAt: orgRequest.createdAt,
+        },
+      });
+    }
+
+    // 3. Not requested yet
+    return res.status(200).json({
+      success: true,
+      status: "NOT_REQUESTED",
+      hasCompany: false,
+      company: null,
+      prefill: prefillData,
+      organizationRequest: null,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/employer/request-company-approval
+ * Submits minimal 9-field company connection request to Super Admin for verification & approval
+ */
+exports.requestCompanyApproval = async (req, res, next) => {
+  try {
+    const {
+      companyName,
+      organizationName,
+      officialCompanyEmail,
+      officialEmail,
+      companyWebsite,
+      website,
+      industry,
+      companySize,
+      verificationDocument,
+      requestingEmployeeName,
+      contactPerson,
+      employeeDesignation,
+      designation,
+      officialEmployeeEmail,
+    } = req.body;
+
+    const trimmedCompanyName = (companyName || organizationName || "").trim();
+    const cleanCompanyEmail = (officialCompanyEmail || officialEmail || "").trim().toLowerCase();
+    const cleanWebsite = (companyWebsite || website || "").trim();
+    const cleanIndustry = (industry || "Information Technology").trim();
+    const cleanCompanySize = (companySize || "11-50").trim();
+    const cleanVerificationDoc = (verificationDocument || "").trim();
+    const cleanEmployeeName = (requestingEmployeeName || contactPerson || req.user.fullName || "").trim();
+    const cleanDesignation = (employeeDesignation || designation || req.user.designation || "").trim();
+    const cleanEmployeeEmail = (officialEmployeeEmail || req.user.email || "").trim().toLowerCase();
+
+    // 1. Mandatory Field Validations
+    if (!trimmedCompanyName) {
+      return res.status(400).json({ success: false, message: "Company name is required." });
+    }
+    if (!cleanCompanyEmail) {
+      return res.status(400).json({ success: false, message: "Official company email is required." });
+    }
+    if (!cleanWebsite) {
+      return res.status(400).json({ success: false, message: "Company website is required." });
+    }
+    if (!cleanIndustry) {
+      return res.status(400).json({ success: false, message: "Industry is required." });
+    }
+    if (!cleanCompanySize) {
+      return res.status(400).json({ success: false, message: "Company size is required." });
+    }
+    if (!cleanVerificationDoc) {
+      return res.status(400).json({
+        success: false,
+        message: "Company registration or verification document is required.",
+      });
+    }
+    if (!cleanEmployeeName) {
+      return res.status(400).json({ success: false, message: "Requesting employee name is required." });
+    }
+    if (!cleanDesignation) {
+      return res.status(400).json({ success: false, message: "Employee designation is required." });
+    }
+    if (!cleanEmployeeEmail) {
+      return res.status(400).json({ success: false, message: "Official employee email is required." });
+    }
+
+    // Email format checks
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanCompanyEmail)) {
+      return res.status(400).json({ success: false, message: "Invalid official company email address." });
+    }
+    if (!emailRegex.test(cleanEmployeeEmail)) {
+      return res.status(400).json({ success: false, message: "Invalid official employee email address." });
+    }
+
+    // 2. Check if Company is already registered and active
+    const existingActiveCompany = await Company.findOne({
+      $or: [
+        { email: cleanCompanyEmail },
+        { name: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+      ],
+      status: "active",
+    });
+
+    if (existingActiveCompany) {
+      req.user.companyId = existingActiveCompany._id;
+      await req.user.save();
+      return res.status(200).json({
+        success: true,
+        status: "APPROVED",
+        message: `Your company "${existingActiveCompany.name}" is already verified on CareerConnect! Your account is connected.`,
+        company: existingActiveCompany,
+      });
+    }
+
+    // 3. Prevent duplicate connection requests (same company or email pending/under review)
+    const existingPending = await OrganizationRequest.findOne({
+      $or: [
+        { officialEmail: cleanCompanyEmail },
+        { organizationName: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+        { requestedBy: req.user._id },
+      ],
+      status: { $in: ["PENDING", "UNDER_REVIEW"] },
+    });
+
+    if (existingPending) {
+      return res.status(409).json({
+        success: false,
+        message: "A connection request for this company is already pending review by the Super Admin.",
+        organizationRequest: existingPending,
+      });
+    }
+
+    // 4. Create or update OrganizationRequest document
+    // If a rejected request existed for this user/company, re-submit back to PENDING
+    let connectionRequest = await OrganizationRequest.findOne({
+      $or: [
+        { officialEmail: cleanCompanyEmail },
+        { organizationName: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+        { requestedBy: req.user._id },
+      ],
+      status: "REJECTED",
+    });
+
+    if (connectionRequest) {
+      connectionRequest.organizationName = trimmedCompanyName;
+      connectionRequest.officialEmail = cleanCompanyEmail;
+      connectionRequest.website = cleanWebsite;
+      connectionRequest.industry = cleanIndustry;
+      connectionRequest.companySize = cleanCompanySize;
+      connectionRequest.verificationDocument = cleanVerificationDoc;
+      connectionRequest.requestingEmployeeName = cleanEmployeeName;
+      connectionRequest.contactPerson = cleanEmployeeName;
+      connectionRequest.employeeDesignation = cleanDesignation;
+      connectionRequest.designation = cleanDesignation;
+      connectionRequest.officialEmployeeEmail = cleanEmployeeEmail;
+      connectionRequest.requestedBy = req.user._id;
+      connectionRequest.status = "PENDING";
+      connectionRequest.rejectionReason = "";
+      await connectionRequest.save();
+    } else {
+      connectionRequest = await OrganizationRequest.create({
+        organizationName: trimmedCompanyName,
+        officialEmail: cleanCompanyEmail,
+        website: cleanWebsite,
+        industry: cleanIndustry,
+        companySize: cleanCompanySize,
+        verificationDocument: cleanVerificationDoc,
+        requestingEmployeeName: cleanEmployeeName,
+        contactPerson: cleanEmployeeName,
+        employeeDesignation: cleanDesignation,
+        designation: cleanDesignation,
+        officialEmployeeEmail: cleanEmployeeEmail,
+        requestedBy: req.user._id,
+        status: "PENDING",
+      });
+    }
+
+    // 5. Update EmployerProfile with latest company information
+    await EmployerProfile.findOneAndUpdate(
+      { userId: req.user._id },
+      {
+        companyName: trimmedCompanyName,
+        officialEmail: cleanCompanyEmail,
+        website: cleanWebsite,
+        industry: cleanIndustry,
+        companySize: cleanCompanySize,
+        contactPerson: cleanEmployeeName,
+        designation: cleanDesignation,
+      },
+      { upsert: true }
+    );
+
+    // 6. Audit Log
+    try {
+      await AuditLog.create({
+        actorId: req.user._id,
+        actorName: cleanEmployeeName,
+        action: "EMPLOYER_REQUESTED_COMPANY_CONNECTION",
+        module: "Settings",
+        target: trimmedCompanyName,
+        details: `Employee ${cleanEmployeeName} (${cleanEmployeeEmail}) submitted connection request for "${trimmedCompanyName}" (${cleanCompanyEmail}).`,
+        ipAddress: req.ip || req.headers["x-forwarded-for"] || "127.0.0.1",
+      });
+    } catch (auditErr) {
+      console.warn("AuditLog warning:", auditErr.message);
+    }
+
+    return res.status(201).json({
+      success: true,
+      status: "PENDING",
+      message: "Company connection request submitted successfully! Super Admin review is now Pending Approval.",
+      organizationRequest: connectionRequest,
     });
   } catch (error) {
     next(error);

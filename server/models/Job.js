@@ -184,9 +184,35 @@ const jobSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Draft", "Pending Approval", "Published", "Paused", "Closed"],
+      enum: ["Draft", "Pending Approval", "Published", "Paused", "Closed", "Rejected"],
       default: "Published",
       index: true,
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    rejectedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      default: null,
+    },
+    adminNote: {
+      type: String,
+      default: null,
     },
     viewsCount: {
       type: Number,

@@ -195,6 +195,11 @@ exports.searchCandidates = async (req, res, next) => {
           ...extractProfileSkills(pProf),
         ])
       );
+      // const candidateSkills = [
+      //   ...(Array.isArray(sProf?.skills) ? sProf.skills.map((s) => (typeof s === "string" ? s : s?.name || "")) : []),
+      //   ...(Array.isArray(fProf?.skills) ? fProf.skills : []),
+      //   ...(Array.isArray(pProf?.skills) ? pProf.skills : []),
+      // ].filter(Boolean);
 
       // Match scoring
       let matchInfo = { matchPercentage: 80, strongSkills: candidateSkills.slice(0, 4), missingSkills: [] };
