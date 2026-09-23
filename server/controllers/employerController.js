@@ -19,6 +19,7 @@ const Application = require("../models/Application");
 const Interview = require("../models/Interview");
 const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
+const Course = require("../models/Course");
 const { getEmployerDashboardData } = require("../services/employerDashboardService");
 
 /**
@@ -375,6 +376,106 @@ exports.getEmployerDashboard = async (req, res, next) => {
     }
 
     const completion = calculateEmployerCompletion(profile, req.user);
+
+    const ownerConditions = {
+      $or: [{ createdBy: userId }, { employerId: profile._id }],
+    };
+
+    const [
+      jobs,
+      internships,
+      employeesCount,
+      coursesCount,
+    ] = await Promise.all([
+      Job.find(ownerConditions).sort({ createdAt: -1 }).lean(),
+      Internship.find(ownerConditions).sort({ createdAt: -1 }).lean(),
+      Employee.countDocuments({ employerId: profile._id }),
+      Course.countDocuments({ createdBy: userId }),
+    ]);
+
+    const activeJobs = jobs.filter((j) => j.status === "Published");
+    const activeInternships = internships.filter((i) => i.status === "Published");
+
+    const jobIds = jobs.map((j) => j._id);
+    const internshipIds = internships.map((i) => i._id);
+
+    const appOrConditions = [];
+    if (jobIds.length > 0) appOrConditions.push({ jobId: { $in: jobIds } });
+    if (internshipIds.length > 0) appOrConditions.push({ internshipId: { $in: internshipIds } });
+
+    let applications = [];
+    let interviewsCount = 0;
+    let totalApplicationsCount = 0;
+    let shortlistedCount = 0;
+
+    if (appOrConditions.length > 0) {
+      const interviewConditions = [
+        { employerId: userId },
+        ...(jobIds.length > 0 ? [{ jobId: { $in: jobIds } }] : []),
+      ];
+
+      const [apps, inters, totalApps, shortApps] = await Promise.all([
+        Application.find({ $or: appOrConditions })
+          .populate("candidateId", "fullName email phone profileImage userType")
+          .populate("jobId", "title employmentType")
+          .populate("internshipId", "title")
+          .sort({ createdAt: -1 })
+          .limit(8)
+          .lean(),
+        Interview.countDocuments({ $or: interviewConditions }),
+        Application.countDocuments({ $or: appOrConditions }),
+        Application.countDocuments({ $or: appOrConditions, status: "Shortlisted" }),
+      ]);
+      applications = apps;
+      interviewsCount = inters;
+      totalApplicationsCount = totalApps;
+      shortlistedCount = shortApps;
+    }
+
+    const stats = {
+      activeJobs: activeJobs.length,
+      internships: activeInternships.length,
+      totalOpportunities: activeJobs.length + activeInternships.length,
+      applications: totalApplicationsCount,
+      shortlisted: shortlistedCount,
+      interviews: interviewsCount,
+      employees: employeesCount,
+      coursesCount,
+      profileViews: profile?.profileViews || 0,
+    };
+
+    const recentApplications = applications.map((app) => ({
+      id: app._id,
+      candidateName: app.candidateId?.fullName || app.studentName || "Applicant",
+      roleApplied: app.jobId?.title || app.internshipId?.title || app.opportunityTitle || "Position",
+      type: app.opportunityType || (app.internshipId ? "Internship" : "Full-time"),
+      status: app.status || "Reviewing",
+      appliedDate: app.createdAt ? new Date(app.createdAt).toISOString().split("T")[0] : "Recent",
+      matchScore: app.matchScore || 85,
+      cgpa: app.cgpa || "8.5",
+      degree: app.degree || "Geeta University Student",
+    }));
+
+    const activeListings = [
+      ...activeJobs.slice(0, 3).map((j) => ({
+        id: j._id,
+        title: j.title,
+        type: j.employmentType || "Full-time",
+        location: j.location || profile?.headquarters?.city || "On-site",
+        applicantsCount: j.applicantsCount || 0,
+        postedDate: j.createdAt ? new Date(j.createdAt).toLocaleDateString() : "Recent",
+        status: j.status,
+      })),
+      ...activeInternships.slice(0, 3).map((i) => ({
+        id: i._id,
+        title: i.title,
+        type: "Internship",
+        location: i.location || "Remote",
+        applicantsCount: i.applicantsCount || 0,
+        postedDate: i.createdAt ? new Date(i.createdAt).toLocaleDateString() : "Recent",
+        status: i.status,
+      })),
+    ].slice(0, 6);
     const data = await getEmployerDashboardData(effectiveCompanyId, req.user);
 
     return res.status(200).json({

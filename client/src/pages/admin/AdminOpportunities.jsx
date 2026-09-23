@@ -1,5 +1,5 @@
-import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { Link, useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/admin/AdminLayout";
 import {
@@ -375,7 +375,7 @@ const AdminOpportunities = () => {
             <p className="text-2xl font-black text-slate-900 mt-2">{stats.total || 0}</p>
             <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
               <span>{stats.totalJobs || 0} Jobs</span>
-              <span>•</span>
+              <span>ΓÇó</span>
               <span>{stats.totalInternships || 0} Internships</span>
             </div>
           </div>
@@ -624,7 +624,7 @@ const AdminOpportunities = () => {
                               </span>
                               {opp.department && (
                                 <>
-                                  <span>•</span>
+                                  <span>ΓÇó</span>
                                   <span>{opp.department}</span>
                                 </>
                               )}

@@ -244,6 +244,71 @@ const jobSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+
+    // ---------- Dynamic Recruitment Pipeline Stages ----------
+    recruitmentStages: [
+      {
+        name: {
+          type: String,
+          required: [true, "Stage name is required"],
+          trim: true,
+        },
+        type: {
+          type: String,
+          enum: [
+            "Resume Screening",
+            "Online Test",
+            "Coding Test",
+            "Aptitude Test",
+            "Technical Interview",
+            "HR Interview",
+            "Group Discussion",
+            "Final Interview",
+            "Custom",
+          ],
+          default: "Resume Screening",
+        },
+        order: {
+          type: Number,
+          default: 0,
+        },
+        description: {
+          type: String,
+          default: "",
+          trim: true,
+        },
+        configuration: {
+          interviewType: {
+            type: String,
+            enum: ["Online", "Offline", ""],
+            default: "Online",
+          },
+          durationMinutes: {
+            type: Number,
+            default: 45,
+          },
+          instructions: {
+            type: String,
+            default: "",
+            trim: true,
+          },
+          testLink: {
+            type: String,
+            default: "",
+            trim: true,
+          },
+          passingCriteria: {
+            type: String,
+            default: "",
+            trim: true,
+          },
+          deadlineDays: {
+            type: Number,
+            default: 0,
+          },
+        },
+      },
+    ],
   },
   {
     timestamps: true,

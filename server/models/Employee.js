@@ -43,8 +43,8 @@ const employeeSchema = new mongoose.Schema(
     },
     roleInCompany: {
       type: String,
-      enum: ["Employee", "Team Lead", "Manager", "HR Admin", "Trainer"],
       default: "Employee",
+      trim: true,
     },
     skills: {
       type: [String],

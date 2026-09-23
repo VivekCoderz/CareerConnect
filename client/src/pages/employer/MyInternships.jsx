@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { getMyPosts, updateStatus, remove, syncExternal } from "../../services/internshipService";
 
 export default function MyInternships() {
+  const { user } = useSelector((state) => state.auth);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -13,7 +15,12 @@ export default function MyInternships() {
     try {
       setLoading(true);
       const res = await getMyPosts();
-      setList(res.internships || []);
+      const raw = res.internships || res.data || [];
+      const myUserId = (user?._id || user?.id || "").toString();
+      const filtered = myUserId
+        ? raw.filter((i) => (i.createdBy?._id || i.createdBy)?.toString() === myUserId)
+        : raw;
+      setList(filtered);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load");
     } finally {

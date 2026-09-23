@@ -111,11 +111,7 @@ class MongooseStore extends session.Store {
 
 const isProduction =
   process.env.NODE_ENV === "production" || process.env.RENDER === "true";
-if (!process.env.SESSION_SECRET) {
-  throw new Error("SESSION_SECRET is required before enabling session authentication");
-}
-
-const SESSION_SECRET = process.env.SESSION_SECRET;
+const SESSION_SECRET = process.env.SESSION_SECRET || (isProduction ? null : "dev_session_secret_key_career_connect_local");
 
 if (!SESSION_SECRET) {
   throw new Error(
@@ -137,6 +133,7 @@ if (process.env.NODE_ENV === "production" && SESSION_SECRET.length < 32) {
  */
 const sessionMiddleware = session({
   store: new MongooseStore({ ttl: IDLE_TIMEOUT_SECONDS }),
+  name: "sid",
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
