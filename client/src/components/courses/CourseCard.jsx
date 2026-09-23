@@ -183,7 +183,7 @@ const CourseCard = ({
 
         {/* Footer Actions */}
         <div className="pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
-          {/* Price */}
+          {/* Price / Fee */}
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Course Fee
@@ -191,6 +191,15 @@ const CourseCard = ({
             <span className="text-sm font-extrabold text-slate-900">
               {price > 0 ? `₹${Number(price).toLocaleString("en-IN")}` : "Free"}
             </span>
+            {price > 0 ? (
+              <span className="text-sm font-extrabold text-slate-900">
+                ₹{price}
+              </span>
+            ) : (
+              <span className="text-xs font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 w-fit">
+                Free
+              </span>
+            )}
           </div>
 
           {/* CTAs */}

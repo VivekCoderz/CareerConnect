@@ -4,34 +4,39 @@ if (dns.setDefaultResultOrder) {
 }
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, ".env") });
-// Startup validation for JWT_SECRET
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  console.error("FATAL: JWT_SECRET environment variable is not set.");
-  process.exit(1);
-}
+const http = require("http");
 
-if (process.env.NODE_ENV === "production" && JWT_SECRET.length < 32) {
+// Startup validation for JWT_SECRET
+const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (isProduction) {
+    console.error("FATAL: JWT_SECRET environment variable is not set.");
+    process.exit(1);
+  } else {
+    JWT_SECRET = "dev_jwt_secret_key_career_connect_local_32chars_long";
+    process.env.JWT_SECRET = JWT_SECRET;
+  }
+} else if (isProduction && JWT_SECRET.length < 32) {
   console.error("FATAL: JWT_SECRET must be set and at least 32 characters long in production.");
   process.exit(1);
-} else if (JWT_SECRET.length < 32) {
-  console.warn("WARNING: JWT_SECRET is shorter than 32 characters. Ensure a secret of at least 32 characters is used in production.");
 }
 
 // Startup validation for SESSION_SECRET
-const SESSION_SECRET = process.env.SESSION_SECRET;
+let SESSION_SECRET = process.env.SESSION_SECRET;
 if (!SESSION_SECRET) {
-  console.error("FATAL: SESSION_SECRET environment variable is not set. A secure secret is required for sessions.");
+  if (isProduction) {
+    console.error("FATAL: SESSION_SECRET environment variable is not set. A secure secret is required for sessions.");
+    process.exit(1);
+  } else {
+    SESSION_SECRET = "dev_session_secret_key_career_connect_local_32chars_long";
+    process.env.SESSION_SECRET = SESSION_SECRET;
+  }
+} else if (isProduction && SESSION_SECRET.length < 32) {
+  console.error("FATAL: SESSION_SECRET must be set and at least 32 characters long in production.");
   process.exit(1);
 }
 
-if (process.env.NODE_ENV === "production" && SESSION_SECRET.length < 32) {
-  console.error("FATAL: SESSION_SECRET must be set and at least 32 characters long in production.");
-  process.exit(1);
-} else if (SESSION_SECRET.length < 32) {
-  console.warn("WARNING: SESSION_SECRET is shorter than 32 characters. Ensure a secret of at least 32 characters is used in production.");
-}
-const http = require("http");
 const app = require("./app.js");
 const connectDB = require("./config/db");
 const socketService = require("./services/socketService");
@@ -73,4 +78,3 @@ setInterval(async () => {
 server.listen(PORT, () => {
   console.log(`CareerConnect server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
 });
-
