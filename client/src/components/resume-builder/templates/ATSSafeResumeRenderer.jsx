@@ -4,7 +4,7 @@ import { extractSkillsList, sortEducation } from "../../../utils/resumeHelpers";
 /**
  * ATSSafeResumeRenderer
  *
- * A 100% single-column, strictly ATS-compliant resume renderer.
+ * A professional single-column resume renderer designed for ATS compatibility.
  * Built with professional typography, generous section spacing (20–28px),
  * clear visual hierarchy, and readable 11–11.5pt body font sizing.
  *
@@ -29,9 +29,14 @@ const ATSSafeResumeRenderer = ({ data, templateId = "classic" }) => {
     skills = {},
     projects = [],
     experience = [],
+    workExperience = [],
+    internships = [],
     certifications = [],
     achievements = [],
   } = data;
+  const displayedExperience = Array.isArray(experience) && experience.length > 0
+    ? experience
+    : [...(Array.isArray(workExperience) ? workExperience : []), ...(Array.isArray(internships) ? internships : [])];
 
   const activeTemplate = (templateId || "classic").toLowerCase().replace(/[^a-z0-9]/g, "");
   const isModern = activeTemplate === "modern" || activeTemplate === "bold";
@@ -262,16 +267,17 @@ const ATSSafeResumeRenderer = ({ data, templateId = "classic" }) => {
       {/* ─────────────────────────────────────────────────────────────
           4. WORK EXPERIENCE / INTERNSHIPS
           ───────────────────────────────────────────────────────────── */}
-      {experience?.length > 0 && (
+      {displayedExperience.length > 0 && (
         <section className={`resume-section ${sectionSpacing} break-inside-avoid`}>
           <h2 className={headingStyle}>Experience</h2>
 
           <div className="space-y-4 pt-0.5">
-            {experience.map((exp, i) => {
-              const bullets = Array.isArray(exp.description)
-                ? exp.description
-                : exp.description
-                ? String(exp.description).split(/[\n•\-]+/).map((s) => s.trim()).filter(Boolean)
+            {displayedExperience.map((exp, i) => {
+              const description = exp.description || exp.bullets || exp.responsibilities || exp.highlights;
+              const bullets = Array.isArray(description)
+                ? description
+                : description
+                ? String(description).split(/[\n•]+/).map((s) => s.replace(/^[-–*]\s*/, "").trim()).filter(Boolean)
                 : [];
 
               return (
@@ -297,9 +303,11 @@ const ATSSafeResumeRenderer = ({ data, templateId = "classic" }) => {
                   </div>
 
                   {/* Line 2: Role / Position Title */}
-                  <div className="text-[13.5px] print:text-[10.5pt] text-slate-700 italic font-medium mt-0.5">
-                    {exp.role || exp.title || "Software Engineer"}
-                  </div>
+                  {(exp.role || exp.jobTitle || exp.title || exp.position) && (
+                    <div className="text-[13.5px] print:text-[10.5pt] text-slate-700 italic font-medium mt-0.5">
+                      {exp.role || exp.jobTitle || exp.title || exp.position}
+                    </div>
+                  )}
 
                   {/* Bullet points: 11pt font, 1.5 line-height, consistent indentation */}
                   {bullets.length > 0 && (
@@ -327,10 +335,11 @@ const ATSSafeResumeRenderer = ({ data, templateId = "classic" }) => {
 
           <div className="space-y-4 pt-0.5">
             {projects.map((proj, i) => {
-              const bullets = Array.isArray(proj.description)
-                ? proj.description
-                : proj.description
-                ? String(proj.description).split(/[\n•\-]+/).map((s) => s.trim()).filter(Boolean)
+              const description = proj.description || proj.bullets || proj.details || proj.highlights;
+              const bullets = Array.isArray(description)
+                ? description
+                : description
+                ? String(description).split(/[\n•]+/).map((s) => s.replace(/^[-–*]\s*/, "").trim()).filter(Boolean)
                 : [];
 
               return (
@@ -342,9 +351,13 @@ const ATSSafeResumeRenderer = ({ data, templateId = "classic" }) => {
                       <strong className="font-bold text-slate-900">
                         {proj.name || proj.title}
                       </strong>
-                      {proj.technologies && (
+                      {(proj.technologies || proj.techStack || proj.skills) && (
                         <span className="text-slate-600 font-normal text-[13.5px] print:text-[10.5pt]">
-                          {" "}| <span className="italic">{proj.technologies}</span>
+                          {" "}| <span className="italic">{
+                            Array.isArray(proj.technologies || proj.techStack || proj.skills)
+                              ? (proj.technologies || proj.techStack || proj.skills).join(", ")
+                              : (proj.technologies || proj.techStack || proj.skills)
+                          }</span>
                         </span>
                       )}
                     </div>
@@ -475,9 +488,9 @@ const ATSSafeResumeRenderer = ({ data, templateId = "classic" }) => {
             <ul className="list-disc list-outside pl-5 text-[14px] print:text-[11pt] text-slate-800 space-y-1.5 leading-[1.5]">
               {certifications.map((c, i) => (
                 <li key={i} className="pl-0.5">
-                  <strong className="font-semibold text-slate-900">{c.name || c.title}</strong>
-                  {c.issuer && <span className="text-slate-600"> — {c.issuer}</span>}
-                  {c.year && <span className="text-slate-500 font-normal"> ({c.year})</span>}
+                  <strong className="font-semibold text-slate-900">{typeof c === "string" ? c : c.name || c.title}</strong>
+                  {typeof c === "object" && c.issuer && <span className="text-slate-600"> — {c.issuer}</span>}
+                  {typeof c === "object" && c.year && <span className="text-slate-500 font-normal"> ({c.year})</span>}
                 </li>
               ))}
             </ul>
@@ -495,8 +508,8 @@ const ATSSafeResumeRenderer = ({ data, templateId = "classic" }) => {
             <ul className="list-disc list-outside pl-5 text-[14px] print:text-[11pt] text-slate-800 space-y-1.5 leading-[1.5]">
               {achievements.map((a, i) => (
                 <li key={i} className="pl-0.5">
-                  <strong className="font-semibold text-slate-900">{a.title}</strong>
-                  {a.description ? ` — ${a.description}` : ""}
+                  <strong className="font-semibold text-slate-900">{typeof a === "string" ? a : a.title || a.name}</strong>
+                  {typeof a === "object" && a.description ? ` — ${a.description}` : ""}
                 </li>
               ))}
             </ul>
@@ -570,4 +583,3 @@ const ATSSafeResumeRenderer = ({ data, templateId = "classic" }) => {
 };
 
 export default ATSSafeResumeRenderer;
-

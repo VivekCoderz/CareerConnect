@@ -2,16 +2,26 @@ const SKILL_ALIASES = {
   javascript: ["javascript", "js", "es6"],
   typescript: ["typescript", "ts"],
   react: ["react", "reactjs", "react.js"],
+  "next.js": ["next.js", "nextjs"],
   angular: ["angular", "angularjs"],
   vue: ["vue", "vuejs", "vue.js"],
   "node.js": ["node", "nodejs", "node.js"],
   express: ["express", "expressjs", "express.js"],
   python: ["python"],
+  django: ["django"],
+  flask: ["flask"],
+  pandas: ["pandas"],
+  numpy: ["numpy"],
+  "scikit-learn": ["scikit-learn", "sklearn"],
+  tensorflow: ["tensorflow"],
+  pytorch: ["pytorch", "torch"],
   java: ["java"],
   "c++": ["c++", "cpp"],
   "c#": ["c#", "csharp"],
   php: ["php"],
   sql: ["sql"],
+  "data structures": ["data structures", "dsa"],
+  algorithms: ["algorithms"],
   mongodb: ["mongodb", "mongo db"],
   mysql: ["mysql"],
   postgresql: ["postgresql", "postgres"],
@@ -20,6 +30,7 @@ const SKILL_ALIASES = {
   azure: ["azure"],
   gcp: ["gcp", "google cloud"],
   docker: ["docker"],
+  linux: ["linux"],
   kubernetes: ["kubernetes", "k8s"],
   git: ["git", "github", "gitlab"],
   html: ["html", "html5"],
@@ -35,6 +46,11 @@ const SKILL_ALIASES = {
   powerbi: ["power bi", "powerbi"],
   tableau: ["tableau"],
   figma: ["figma"],
+  flutter: ["flutter"],
+  kotlin: ["kotlin"],
+  swift: ["swift"],
+  communication: ["communication", "communicating"],
+  "problem solving": ["problem solving", "problem-solving"],
   "ui/ux": ["ui/ux", "ui ux", "user experience", "user interface"],
   agile: ["agile", "scrum"],
   testing: ["testing", "unit testing", "integration testing"],
@@ -132,8 +148,94 @@ const hasItems = (value) => Array.isArray(value)
   ? value.length > 0
   : Boolean(value && (typeof value !== "object" || Object.keys(value).length));
 
+const assessATSResumeFormat = (resumeData = {}) => {
+  const issues = [];
+  const personal = resumeData.personal || {};
+  const summary = String(resumeData.summary || resumeData.objective || "").trim();
+  const evidence = [
+    ...(Array.isArray(resumeData.experience) ? resumeData.experience : []),
+    ...(Array.isArray(resumeData.workExperience) ? resumeData.workExperience : []),
+    ...(Array.isArray(resumeData.internships) ? resumeData.internships : []),
+    ...(Array.isArray(resumeData.projects) ? resumeData.projects : []),
+  ];
+
+  if (!String(personal.fullName || "").trim()) issues.push("Add the candidate's full name to the header.");
+  if (!String(personal.email || "").trim()) issues.push("Add a professional email address to the header.");
+  if (summary.length < 30) issues.push("Add a concise professional summary of at least 30 characters.");
+  if (!hasItems(resumeData.skills)) issues.push("Add a clearly labelled skills section.");
+  if (!hasItems(resumeData.education)) issues.push("Add a clearly labelled education section.");
+  if (!evidence.length) issues.push("Add at least one relevant project, internship, or work experience entry.");
+
+  const entriesWithoutDetails = evidence.filter((entry) => {
+    const description = entry?.description || entry?.bullets || entry?.responsibilities;
+    return !hasItems(description);
+  }).length;
+  if (entriesWithoutDetails) {
+    issues.push(`${entriesWithoutDetails} experience or project entr${entriesWithoutDetails === 1 ? "y needs" : "ies need"} achievement details.`);
+  }
+
+  return {
+    isProperFormat: issues.length === 0,
+    issues,
+    checkedRules: [
+      "Contact header",
+      "Professional summary",
+      "Skills section",
+      "Education section",
+      "Relevant evidence",
+      "Detailed experience and project entries",
+    ],
+    note: "This assessment checks the structured resume content. The generated preview uses a single-column ATS-safe layout.",
+  };
+};
+
+const countEntries = (resumeData = {}, keys = []) => keys.reduce((total, key) => (
+  total + (Array.isArray(resumeData[key]) ? resumeData[key].length : 0)
+), 0);
+
+const countSkills = (resumeData = {}) => {
+  const skills = resumeData.skills;
+  if (Array.isArray(skills)) return skills.filter(Boolean).length;
+  if (typeof skills === "string") return skills.split(/[,\n]/).filter((item) => item.trim()).length;
+  if (!skills || typeof skills !== "object") return 0;
+  return Object.values(skills).reduce((total, value) => {
+    if (Array.isArray(value)) return total + value.filter(Boolean).length;
+    if (typeof value === "string") return total + value.split(/[,\n]/).filter((item) => item.trim()).length;
+    return total;
+  }, 0);
+};
+
+const assessContentPreservation = (source = {}, candidate = {}) => {
+  const sourcePersonal = source.personal || {};
+  const candidatePersonal = candidate.personal || {};
+  const checks = [
+    ["experience and internships", countEntries(source, ["experience", "workExperience", "internships"]), countEntries(candidate, ["experience", "workExperience", "internships"])],
+    ["projects", countEntries(source, ["projects"]), countEntries(candidate, ["projects"])],
+    ["education", countEntries(source, ["education"]), countEntries(candidate, ["education"])],
+    ["certifications", countEntries(source, ["certifications"]), countEntries(candidate, ["certifications"])],
+    ["achievements", countEntries(source, ["achievements"]), countEntries(candidate, ["achievements"])],
+    ["skills", countSkills(source), countSkills(candidate)],
+  ];
+  const missing = checks
+    .filter(([, sourceCount, candidateCount]) => sourceCount > candidateCount)
+    .map(([label, sourceCount, candidateCount]) => `${label}: retained ${candidateCount} of ${sourceCount}`);
+
+  ["fullName", "email", "phone"].forEach((field) => {
+    if (String(sourcePersonal[field] || "").trim() && !String(candidatePersonal[field] || "").trim()) {
+      missing.push(`contact field: ${field}`);
+    }
+  });
+
+  return {
+    passed: missing.length === 0,
+    missing,
+    checks: checks.map(([label, sourceCount, candidateCount]) => ({ label, sourceCount, candidateCount })),
+  };
+};
+
 const analyzeATSMatch = (resumeData, opportunity) => {
-  const resumeText = normalize(flattenValues(resumeData).join(" "));
+  const { tailoredMeta: _tailoredMeta, template: _template, ...scorableResume } = resumeData || {};
+  const resumeText = normalize(flattenValues(scorableResume).join(" "));
   const jobText = normalize(flattenValues(opportunity).join(" "));
 
   const explicitSkills = [
@@ -153,23 +255,28 @@ const analyzeATSMatch = (resumeData, opportunity) => {
 
   const skillRatio = targetSkills.length ? matchedSkills.length / targetSkills.length : 0.5;
   const keywordRatio = keywords.length ? matchedKeywords.length / keywords.length : 0.5;
-  const experienceText = normalize(flattenValues(resumeData.experience || resumeData.workExperience || resumeData.internships || []).join(" "));
+  const experienceText = normalize(flattenValues([
+    scorableResume.experience || [],
+    scorableResume.workExperience || [],
+    scorableResume.internships || [],
+    scorableResume.projects || [],
+  ]).join(" "));
   const experienceMatches = keywords.filter((keyword) => phraseExists(experienceText, keyword)).length;
   const experienceRatio = experienceText ? Math.min(1, 0.35 + experienceMatches / Math.max(1, keywords.length)) : 0;
 
   const contentChecks = [
-    resumeData.summary || resumeData.objective,
-    resumeData.skills,
-    resumeData.education,
-    resumeData.experience || resumeData.workExperience || resumeData.internships,
-    resumeData.projects,
+    scorableResume.summary || scorableResume.objective,
+    scorableResume.skills,
+    scorableResume.education,
+    scorableResume.experience || scorableResume.workExperience || scorableResume.internships,
+    scorableResume.projects,
   ];
   const contentRatio = contentChecks.filter(hasItems).length / contentChecks.length;
   const actionVerbCount = ACTION_VERBS.filter((verb) => phraseExists(resumeText, verb)).length;
   const quantifiedEvidence = (resumeText.match(/\b\d+(?:\.\d+)?%?\b/g) || []).length;
   const impactRatio = Math.min(1, (actionVerbCount + Math.min(quantifiedEvidence, 5)) / 8);
-  const personal = resumeData.personal || {};
-  const readabilityRatio = [personal.fullName, personal.email, resumeData.summary, resumeData.skills]
+  const personal = scorableResume.personal || {};
+  const readabilityRatio = [personal.fullName, personal.email, scorableResume.summary, scorableResume.skills]
     .filter(hasItems).length / 4;
 
   const sections = {
@@ -193,10 +300,10 @@ const analyzeATSMatch = (resumeData, opportunity) => {
     section: "Keywords",
     message: `Use relevant job language naturally where it is truthful: ${missingKeywords.slice(0, 6).join(", ")}.`,
   });
-  if (!resumeData.summary) suggestions.push({
+  if (!scorableResume.summary) suggestions.push({
     priority: "high", section: "Summary", message: "Add a concise role-specific professional summary.",
   });
-  if (!experienceText && !hasItems(resumeData.projects)) suggestions.push({
+  if (!experienceText && !hasItems(scorableResume.projects)) suggestions.push({
     priority: "high", section: "Experience", message: "Add relevant projects, internships, or work evidence.",
   });
   if (impactRatio < 0.5) suggestions.push({
@@ -220,9 +327,74 @@ const analyzeATSMatch = (resumeData, opportunity) => {
   };
 };
 
+const MINIMUM_SCORE_IMPROVEMENT = 5;
+
+const selectBestATSResume = (
+  originalResume,
+  tailoredCandidates,
+  opportunity,
+  targetScore = 80,
+  minimumScoreImprovement = MINIMUM_SCORE_IMPROVEMENT
+) => {
+  const originalAnalysis = analyzeATSMatch(originalResume, opportunity);
+  const originalFormat = assessATSResumeFormat(originalResume);
+  const evaluated = (tailoredCandidates || [])
+    .filter((candidate) => candidate?.data && typeof candidate.data === "object")
+    .map((candidate) => ({
+      ...candidate,
+      analysis: analyzeATSMatch(candidate.data, opportunity),
+      formatAssessment: assessATSResumeFormat(candidate.data),
+      preservation: assessContentPreservation(originalResume, candidate.data),
+    }));
+
+  let best = {
+    source: "original",
+    data: originalResume,
+    analysis: originalAnalysis,
+    formatAssessment: originalFormat,
+    preservation: { passed: true, missing: [], checks: [] },
+  };
+  evaluated.forEach((candidate) => {
+    if (!candidate.preservation.passed || !candidate.formatAssessment.isProperFormat) return;
+    const improvementFromOriginal = candidate.analysis.overallScore - originalAnalysis.overallScore;
+    const scoreImproved = improvementFromOriginal >= minimumScoreImprovement
+      && candidate.analysis.overallScore > best.analysis.overallScore;
+    const formatImproved = candidate.analysis.overallScore >= originalAnalysis.overallScore
+      && !originalFormat.isProperFormat
+      && candidate.formatAssessment.isProperFormat;
+    if (scoreImproved || formatImproved) best = candidate;
+  });
+
+  return {
+    ...best,
+    originalAnalysis,
+    evaluatedCandidates: evaluated.map(({ source, analysis, formatAssessment, preservation }) => ({
+      source,
+      score: analysis.overallScore,
+      formatAssessment,
+      preservation,
+    })),
+    comparison: {
+      originalScore: originalAnalysis.overallScore,
+      tailoredScore: best.analysis.overallScore,
+      targetScore,
+      targetReached: best.analysis.overallScore >= targetScore,
+      minimumScoreImprovement,
+      scoreImprovement: best.analysis.overallScore - originalAnalysis.overallScore,
+    },
+  };
+};
+
 module.exports = {
   analyzeATSMatch,
+  assessATSResumeFormat,
+  assessContentPreservation,
   normalize,
   canonicalSkill,
   parseJobDescriptionText,
+  selectBestATSResume,
+  MINIMUM_SCORE_IMPROVEMENT,
+  extractKnownSkills,
+  extractKeywords,
+  phraseExists,
 };

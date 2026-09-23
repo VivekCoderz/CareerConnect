@@ -560,11 +560,11 @@ const ResumeBuilder = () => {
                 }`}
               >
                 <span>⚡</span>
-                <span>ATS Check & Fix</span>
+                <span>ATS Review &amp; Optimization</span>
                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                   activeTab === "ats-checker" ? "bg-indigo-600 text-white" : "bg-indigo-100 text-indigo-700"
                 }`}>
-                  AI Fixer
+                  Optimizer
                 </span>
               </button>
 

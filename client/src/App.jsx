@@ -76,7 +76,6 @@ const EditInternship = lazy(() => import("./pages/employer/EditInternship"));
 
 // Lazy-loaded Pages: Resume Builder
 const ResumeBuilder = lazy(() => import("./pages/resume/ResumeBuilder"));
-const ATSChecker = lazy(() => import("./pages/resume/ATSChecker"));
 
 // Lightweight Page Fallback Loader
 const PageFallback = () => (
@@ -282,7 +281,7 @@ function App() {
             <Route path="/courses" element={<StudentCoursesPage />} />
             <Route path="/courses/:id" element={<CourseDetailsPage />} />
             <Route path="/my-courses" element={<StudentMyCoursesPage />} />
-            <Route path="/ats-resume" element={<ATSChecker />} />
+            <Route path="/ats-resume" element={<Navigate to="/resume-builder?mode=ats-checker" replace />} />
           </Route>
 
           {/* =================================================

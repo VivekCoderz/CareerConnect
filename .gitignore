@@ -56,3 +56,4 @@ id_ed25519
 *.bak
 *.backup
 uploads/
+tmp/

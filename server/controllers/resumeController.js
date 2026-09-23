@@ -6,7 +6,8 @@ const {
   tailorResumeForOpportunity,
   generateATSResume,
   analyzeResumeAgainstJD,
-  fixAndOptimizeResumeWithAI,
+  mockTailor,
+  enforceGrounding,
 } = require("../services/aiResumeservice.js");
 const Resume = require("../models/Resume.js");
 const User = require("../models/User.js");
@@ -20,8 +21,15 @@ const { uploadResumeToCloudinary } = require("../config/cloudinary.js");
 const { generateResumePdfBuffer } = require("../utils/generateResumePdf.js");
 const { PDFParse } = require("pdf-parse");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { analyzeATSMatch, parseJobDescriptionText } = require("../services/atsScoringService.js");
+const {
+  analyzeATSMatch,
+  assessATSResumeFormat,
+  MINIMUM_SCORE_IMPROVEMENT,
+  parseJobDescriptionText,
+  selectBestATSResume,
+} = require("../services/atsScoringService.js");
 const mongoose = require("mongoose");
+const atsPdfWorkflow = require("../services/atsPdfWorkflow");
 
 /**
  * POST /api/resume/generate
@@ -1557,6 +1565,34 @@ const parseResumeHandler = async (req, res) => {
       }
     }
 
+    // ATS Lab uploads should become independent, selectable library entries.
+    // Other resume-import flows keep their existing review-before-save behavior.
+    let savedResume = null;
+    if (req.user?._id && String(req.body?.saveToLibrary || "").toLowerCase() === "true") {
+      const baseTitle = String(resumeName || "Uploaded resume")
+        .replace(/\.pdf$/i, "")
+        .trim()
+        .slice(0, 120) || "Uploaded resume";
+      const escapedTitle = baseTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const existingCopies = await Resume.countDocuments({
+        user: req.user._id,
+        isTailored: { $ne: true },
+        title: new RegExp(`^${escapedTitle}(?: \\(\\d+\\))?$`, "i"),
+      });
+      const title = existingCopies ? `${baseTitle} (${existingCopies + 1})` : baseTitle;
+      const existingCount = await Resume.countDocuments({ user: req.user._id });
+
+      savedResume = await Resume.create({
+        user: req.user._id,
+        title,
+        rawData: parsedData,
+        generatedData: parsedData,
+        selectedTemplate: "classic",
+        isPrimary: existingCount === 0,
+        resumeUrl,
+      });
+    }
+
     // 4. Fetch existing profile data for immediate diff comparison in the frontend review modal
     let existingProfile = null;
     if (req.user?._id) {
@@ -1661,6 +1697,7 @@ const parseResumeHandler = async (req, res) => {
       existingProfile,
       resumeUrl,
       resumeName,
+      savedResume,
     });
   } catch (error) {
     console.error("parseResumeHandler error:", error);
@@ -2404,11 +2441,35 @@ const tailorResumeHandler = async (req, res) => {
 
     // 2. Call tailored resume generator with strict NO-INVENTION rules
     const selectedTemplate = template || primaryResume?.selectedTemplate || "classic";
-    const tailoredGeneratedData = await tailorResumeForOpportunity(
+    const aiTailoredData = await tailorResumeForOpportunity(
       userData,
       targetOpportunity,
       selectedTemplate
     );
+
+    // Never save a tailored version that scores below its source. Compare the
+    // AI output with a deterministic grounded pass and the original, then keep
+    // the strongest truthful candidate. Missing user evidence is never invented.
+    const groundedTailoredData = enforceGrounding(
+      mockTailor(userData, targetOpportunity, selectedTemplate),
+      userData
+    );
+    const bestCandidate = selectBestATSResume(userData, [
+      { source: "ai", data: aiTailoredData },
+      { source: "grounded", data: groundedTailoredData },
+    ], targetOpportunity, 80);
+    const originalAnalysis = bestCandidate.originalAnalysis;
+    const tailoredGeneratedData = bestCandidate.data;
+    const tailoredAnalysis = bestCandidate.analysis;
+
+    tailoredGeneratedData.tailoredMeta = {
+      ...(tailoredGeneratedData.tailoredMeta || {}),
+      originalScore: originalAnalysis.overallScore,
+      tailoredScore: tailoredAnalysis.overallScore,
+      targetScore: 80,
+      targetReached: tailoredAnalysis.overallScore >= 80,
+      optimizationSource: bestCandidate.source,
+    };
 
     const oppCleanName = (targetOpportunity.title || "Role").replace(/[^a-zA-Z0-9_-]/g, "_");
     const resumeTitle = `Tailored - ${targetOpportunity.title} (${targetOpportunity.companyName || "Opportunity"})`;
@@ -2482,6 +2543,7 @@ const tailorResumeHandler = async (req, res) => {
       resumeUrl: tailoredRecord.resumeUrl,
       generatedData: tailoredGeneratedData,
       tailoredMeta: tailoredGeneratedData.tailoredMeta || {},
+      scoreComparison: bestCandidate.comparison,
     });
   } catch (error) {
     console.error("tailorResumeHandler error:", error);
@@ -2578,10 +2640,69 @@ const generateATSResumeHandler = async (req, res) => {
   }
 };
 
-/**
- * POST /api/resume/ats-check
- * Accepts multipart file (req.file) OR resumeText / resumeData + jobDescription
- */
+const buildATSOpportunity = (jobDescription, targetRole = "") => {
+  const parsed = parseJobDescriptionText(jobDescription);
+  return {
+    title: String(targetRole || parsed.title || "Target role").trim().slice(0, 150),
+    description: parsed.description,
+    requiredSkills: parsed.requiredSkills,
+    preferredSkills: [],
+    responsibilities: [],
+  };
+};
+
+const percentageOf = (value, maximum) => Math.round((Number(value || 0) / maximum) * 100);
+
+const mergeVerifiedATSReport = (richReport, deterministic, candidateData, targetRole, companyName) => {
+  const formatAssessment = assessATSResumeFormat(candidateData);
+  const scoreParameters = [
+    { key: "skills", label: "Verified skill match", earned: deterministic.sections.skills, maximum: 40, explanation: "JD skills supported by the resume" },
+    { key: "keywords", label: "Job-description keywords", earned: deterministic.sections.keywords, maximum: 25, explanation: "Relevant JD language found naturally" },
+    { key: "experience", label: "Relevant evidence", earned: deterministic.sections.experience, maximum: 15, explanation: "Projects, internships, and work evidence" },
+    { key: "completeness", label: "Section completeness", earned: deterministic.sections.completeness, maximum: 10, explanation: "Summary, skills, education, and evidence" },
+    { key: "impact", label: "Achievement impact", earned: deterministic.sections.impact, maximum: 5, explanation: "Action verbs and verified measurable outcomes" },
+    { key: "readability", label: "ATS readability", earned: deterministic.sections.readability, maximum: 5, explanation: "Contact details and machine-readable sections" },
+  ];
+
+  return ({
+  ...(richReport || {}),
+  atsScore: deterministic.overallScore,
+  matchGrade: deterministic.rating,
+  targetRole: targetRole || richReport?.targetRole || "Target Opportunity",
+  companyName: companyName || richReport?.companyName || "",
+  scoreBreakdown: {
+    keywordMatch: percentageOf(deterministic.sections.keywords, 25),
+    experienceImpact: percentageOf(
+      deterministic.sections.experience + deterministic.sections.impact,
+      20
+    ),
+    formattingAndClarity: percentageOf(
+      deterministic.sections.completeness + deterministic.sections.readability,
+      15
+    ),
+    skillsCoverage: percentageOf(deterministic.sections.skills, 40),
+  },
+  skillGapAnalysis: {
+    ...(richReport?.skillGapAnalysis || {}),
+    matchingSkills: deterministic.matchedSkills.map((name) => ({ name, foundIn: "Verified resume" })),
+    missingCriticalSkills: deterministic.missingSkills.map((name) => ({
+      name,
+      importance: "High",
+      whereToAdd: "Add only if you genuinely have this skill, with evidence in a project or experience bullet.",
+    })),
+    missingPreferredSkills: [],
+    totalJdSkillsCount: deterministic.matchedSkills.length + deterministic.missingSkills.length,
+    matchedCount: deterministic.matchedSkills.length,
+  },
+  scoreMethod: "CareerConnect deterministic ATS matcher",
+  scoreDisclaimer: deterministic.disclaimer,
+  scoreParameters,
+  formatAssessment,
+  requiresFix: deterministic.overallScore < 80 || !formatAssessment.isProperFormat,
+  candidateData,
+  });
+};
+
 /**
  * POST /api/resume/ats-check
  * Accepts multipart file (req.file) OR resumeText / resumeData + jobDescription
@@ -2602,6 +2723,14 @@ const atsCheckHandler = async (req, res) => {
     let parsedCandidate = null;
 
     if (req.file) {
+      const isPdfName = req.file.originalname?.toLowerCase().endsWith(".pdf");
+      const isPdfSignature = req.file.buffer?.subarray(0, 5).toString("ascii") === "%PDF-";
+      if (!isPdfName || !isPdfSignature) {
+        return res.status(400).json({
+          success: false,
+          message: "ATS scanning currently supports valid PDF resume files only.",
+        });
+      }
       const extractedText = await extractTextFromPdfBuffer(req.file.buffer);
       if (!extractedText || !extractedText.trim()) {
         return res.status(400).json({
@@ -2709,11 +2838,18 @@ const atsCheckHandler = async (req, res) => {
       targetRole.trim(),
       companyName.trim()
     );
+    const opportunity = buildATSOpportunity(jobDescription.trim(), targetRole.trim());
+    const deterministic = analyzeATSMatch(parsedCandidate, opportunity);
 
     return res.status(200).json({
       success: true,
-      ...auditReport,
-      candidateData: parsedCandidate,
+      ...mergeVerifiedATSReport(
+        auditReport,
+        deterministic,
+        parsedCandidate,
+        opportunity.title,
+        companyName.trim()
+      ),
     });
   } catch (error) {
     console.error("atsCheckHandler error:", error);
@@ -2754,12 +2890,77 @@ const atsFixHandler = async (req, res) => {
       enriched.personal.phone = req.user?.phone || "";
     }
 
-    const fixedResult = await fixAndOptimizeResumeWithAI(
-      enriched,
+    const opportunity = buildATSOpportunity(
       jobDescription.trim(),
-      gapAnalysis,
-      template || "classic"
+      String(gapAnalysis?.targetRole || "").trim()
     );
+    opportunity.companyName = String(gapAnalysis?.companyName || "").trim();
+
+    const originalAnalysis = analyzeATSMatch(enriched, opportunity);
+    const originalFormat = assessATSResumeFormat(enriched);
+    if (originalAnalysis.overallScore >= 80 && originalFormat.isProperFormat) {
+      return res.status(200).json({
+        success: true,
+        fixedResume: enriched,
+        previousAtsScore: originalAnalysis.overallScore,
+        improvedAtsScore: originalAnalysis.overallScore,
+        scoreImprovement: 0,
+        minimumScoreImprovement: MINIMUM_SCORE_IMPROVEMENT,
+        targetScore: 80,
+        targetReached: true,
+        scoreAnalysis: originalAnalysis,
+        formatAssessment: originalFormat,
+        remainingGaps: originalAnalysis.missingSkills,
+        selectedSource: "original",
+        fixesAppliedCount: 0,
+        wasModified: false,
+        template: template || "classic",
+        message: "No changes were required. The resume already meets the ATS score and format checks.",
+      });
+    }
+
+    // Reorder and rewrite only verified candidate data. This path never adds a
+    // missing skill, company, credential, or made-up metric to chase a score.
+    const groundedTailored = enforceGrounding(
+      mockTailor(enriched, opportunity, template || "classic"),
+      enriched
+    );
+    const selected = selectBestATSResume(
+      enriched,
+      [{ source: "grounded-tailoring", data: groundedTailored }],
+      opportunity,
+      80
+    );
+    const candidateEvaluation = selected.evaluatedCandidates?.[0];
+    const wasModified = selected.source !== "original";
+    const selectionMessage = !wasModified
+      ? candidateEvaluation?.preservation?.passed === false
+        ? "No regenerated resume was produced because the candidate version did not preserve every verified section from the source resume."
+        : candidateEvaluation?.formatAssessment?.isProperFormat === false
+          ? "No regenerated resume was produced because the candidate version did not pass the professional format checks. The uploaded resume remains unchanged."
+        : `The source resume was preserved because the candidate version improved the match score by fewer than ${selected.comparison.minimumScoreImprovement} points. Review the evidence-based recommendations instead of replacing a stronger resume.`
+      : selected.comparison.targetReached
+        ? "The verified resume reached the 80+ match target. Review it before applying."
+        : "The resume improved without removing verified content. Add genuine evidence for the remaining gaps to reach 80+.";
+    const fixedResult = {
+      fixedResume: selected.data,
+      previousAtsScore: selected.comparison.originalScore,
+      improvedAtsScore: selected.comparison.tailoredScore,
+      scoreImprovement: selected.comparison.tailoredScore - selected.comparison.originalScore,
+      minimumScoreImprovement: selected.comparison.minimumScoreImprovement,
+      targetScore: selected.comparison.targetScore,
+      targetReached: selected.comparison.targetReached,
+      scoreAnalysis: selected.analysis,
+      formatAssessment: assessATSResumeFormat(selected.data),
+      remainingGaps: selected.analysis.missingSkills,
+      selectedSource: selected.source,
+      wasModified,
+      preservation: selected.preservation,
+      candidateEvaluation,
+      fixesAppliedCount: wasModified ? Math.max(1, (gapAnalysis?.mistakesAndIssues || []).length) : 0,
+      template: template || "classic",
+      message: selectionMessage,
+    };
 
     return res.status(200).json({
       success: true,
@@ -2771,6 +2972,99 @@ const atsFixHandler = async (req, res) => {
       success: false,
       message: "Failed to fix and optimize resume",
       error: publicError(error),
+    });
+  }
+};
+
+const readAtsPdfPair = async (req) => {
+  const resume = req.files?.resume?.[0];
+  const jobDescription = req.files?.jobDescription?.[0];
+  if (!resume || !jobDescription) {
+    const error = new Error("Upload both a resume PDF and a job description PDF.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const [resumeText, jdText] = await Promise.all([
+    atsPdfWorkflow.extractPdfText(resume.buffer),
+    atsPdfWorkflow.extractPdfText(jobDescription.buffer),
+  ]);
+  return { resumeText, jdText };
+};
+
+const atsPdfCheckHandler = async (req, res) => {
+  try {
+    const { resumeText, jdText } = await readAtsPdfPair(req);
+    return res.json({ success: true, ...atsPdfWorkflow.scorePdfText(resumeText, jdText) });
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({ success: false, message: error.message });
+  }
+};
+
+const atsPdfOptimizeHandler = async (req, res) => {
+  try {
+    const { resumeText, jdText } = await readAtsPdfPair(req);
+    const additionalEvidence = String(req.body?.additionalEvidence || "").trim();
+    if (additionalEvidence.length > 2500) {
+      return res.status(400).json({ success: false, message: "Project, coursework or experience details must be 2,500 characters or fewer." });
+    }
+    const original = atsPdfWorkflow.scorePdfText(resumeText, jdText);
+    let confirmedSkills;
+    try {
+      confirmedSkills = req.body?.confirmedSkills ? JSON.parse(req.body.confirmedSkills) : [];
+    } catch {
+      return res.status(400).json({ success: false, message: "Choose valid skills from the job requirements." });
+    }
+    if (!Array.isArray(confirmedSkills) || confirmedSkills.length > 30 ||
+      confirmedSkills.some((skill) => typeof skill !== "string" || !original.missingSkills.includes(skill)) ||
+      ((confirmedSkills.length > 0 || Boolean(additionalEvidence)) && req.body?.claimsConfirmed !== "true")) {
+      return res.status(400).json({ success: false, message: "Confirm only skills and details you can truthfully support." });
+    }
+    confirmedSkills = [...new Set(confirmedSkills)];
+    if (original.atsScore >= 70) {
+      return res.status(409).json({ success: false, message: "This resume already meets the 70-point threshold. No replacement was generated.", original });
+    }
+    const sourceWithEvidence = [
+      resumeText,
+      confirmedSkills.length ? `Skills\n${confirmedSkills.join(", ")}` : "",
+      additionalEvidence ? `Projects and Coursework\n${additionalEvidence}` : "",
+    ].filter(Boolean).join("\n");
+    const latex = atsPdfWorkflow.createLatexResume(sourceWithEvidence, jdText);
+    const pdf = await atsPdfWorkflow.compileLatex(latex, { fallbackText: sourceWithEvidence, jdText });
+    const generatedText = await atsPdfWorkflow.extractPdfText(pdf);
+    const preservation = atsPdfWorkflow.preservedSourceText(resumeText, generatedText);
+    const optimized = atsPdfWorkflow.scorePdfText(generatedText, jdText);
+    const improvement = optimized.atsScore - original.atsScore;
+    if (preservation.ratio < 0.95) {
+      return res.status(422).json({ success: false, message: "The generated PDF did not retain enough source content. Please review the uploaded resume PDF.", original, optimized });
+    }
+    const targetScore = Math.max(70, original.atsScore + 15);
+    if (optimized.atsScore < targetScore) {
+      return res.status(409).json({
+        success: false,
+        code: "INSUFFICIENT_EVIDENCE",
+        message: "The available resume details do not yet meet the improvement target. Confirm skills you genuinely have or add specific project, coursework or work details.",
+        original,
+        optimized,
+        improvement,
+        targetScore,
+      });
+    }
+    return res.json({
+      success: true,
+      original,
+      optimized,
+      improvement,
+      targetScore,
+      metTarget: true,
+      latex,
+      pdfBase64: pdf.toString("base64"),
+      fileName: "CareerConnect_ATS_Resume.pdf",
+    });
+  } catch (error) {
+    console.error("atsPdfOptimizeHandler failed:", error.code || error.name || "unknown error");
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.statusCode ? error.message : "Could not generate the resume PDF. Please try again.",
     });
   }
 };
@@ -2797,4 +3091,6 @@ module.exports = {
   generateATSResumeHandler,
   atsCheckHandler,
   atsFixHandler,
+  atsPdfCheckHandler,
+  atsPdfOptimizeHandler,
 };

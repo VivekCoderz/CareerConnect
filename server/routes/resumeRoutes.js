@@ -23,8 +23,8 @@ const {
   tailorResumeHandler,
   getTailoredResumeHandler,
   generateATSResumeHandler,
-  atsCheckHandler,
-  atsFixHandler,
+  atsPdfCheckHandler,
+  atsPdfOptimizeHandler,
 } = require("../controllers/resumeController.js");
 
 const router = express.Router();
@@ -68,6 +68,20 @@ const jobDescriptionUpload = multer({
   },
 });
 
+const atsPdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 2, fields: 3, parts: 5 },
+  fileFilter: (_req, file, cb) => {
+    const validField = file.fieldname === "resume" || file.fieldname === "jobDescription";
+    const validName = (file.originalname || "").toLowerCase().endsWith(".pdf");
+    const validMime = ["application/pdf", "application/octet-stream"].includes(file.mimetype);
+    if (validField && validName && validMime) return cb(null, true);
+    const error = new Error("Upload PDF files for the resume and job description.");
+    error.statusCode = 400;
+    return cb(error);
+  },
+});
+
 // All resume routes require authentication
 router.use(protect);
 
@@ -84,8 +98,8 @@ router.post("/tailor", tailorResumeHandler);
 router.get("/tailored/:opportunityType/:id", getTailoredResumeHandler);
 router.post("/generate", generateResumeHandler);
 router.post("/ats-generate", generateATSResumeHandler);
-router.post("/ats-check", upload.single("resume"), validateResumeUpload, atsCheckHandler);
-router.post("/ats-fix", atsFixHandler);
+router.post("/ats-pdf/check", atsPdfUpload.fields([{ name: "resume", maxCount: 1 }, { name: "jobDescription", maxCount: 1 }]), atsPdfCheckHandler);
+router.post("/ats-pdf/optimize", atsPdfUpload.fields([{ name: "resume", maxCount: 1 }, { name: "jobDescription", maxCount: 1 }]), atsPdfOptimizeHandler);
 router.post("/update", updateResumeHandler);
 router.get("/me", getMyResume);
 router.put("/manual", saveManualEdit);
@@ -95,4 +109,3 @@ router.patch("/:id/primary", setPrimaryResume);
 router.delete("/:id", deleteResume);
 
 module.exports = router;
-
