@@ -18,10 +18,11 @@ export const getRecommendedCourses = async () => {
     return res.data;
   } catch (error) {
     try {
-      const fallbackRes = await api.get("/courses/my-courses");
+      const fallbackRes = await api.get("/employer/learning/courses");
+
       if (fallbackRes.data?.success) {
         const published = (fallbackRes.data.courses || []).filter(
-          (c) => c.status === "Published"
+          (c) => c.status === "Published",
         );
         return { success: true, count: published.length, courses: published };
       }
@@ -34,7 +35,7 @@ export const getRecommendedCourses = async () => {
 
 /**
  * Get detailed information for a single published course.
- * @param {string} courseId 
+ * @param {string} courseId
  */
 export const getCourseDetails = async (courseId) => {
   const res = await api.get(`/courses/${courseId}`);
@@ -43,7 +44,7 @@ export const getCourseDetails = async (courseId) => {
 
 /**
  * Apply / Enroll in a course as a student.
- * @param {string} courseId 
+ * @param {string} courseId
  */
 export const applyForCourse = async (courseId) => {
   const res = await api.post(`/courses/${courseId}/apply`);
@@ -60,7 +61,7 @@ export const getStudentMyCourses = async () => {
 
 /**
  * Fetch course lessons/content for an enrolled student.
- * @param {string} courseId 
+ * @param {string} courseId
  */
 export const getStudentCourseContent = async (courseId) => {
   const res = await api.get(`/student/courses/${courseId}/content`);
@@ -69,12 +70,12 @@ export const getStudentCourseContent = async (courseId) => {
 
 /**
  * Mark a specific course lesson / content as completed and update progress percentage.
- * @param {string} courseId 
- * @param {string} contentId 
+ * @param {string} courseId
+ * @param {string} contentId
  */
 export const markContentComplete = async (courseId, contentId) => {
   const res = await api.patch(
-    `/student/courses/${courseId}/content/${contentId}/complete`
+    `/student/courses/${courseId}/content/${contentId}/complete`,
   );
   return res.data;
 };
@@ -94,7 +95,7 @@ export const getEmployerCourseCatalog = async (params = {}) => {
 
 /**
  * Enroll in a course as an employee / employer.
- * @param {string} courseId 
+ * @param {string} courseId
  */
 export const enrollInEmployerCourse = async (courseId) => {
   const res = await api.post("/employer/learning/enroll", { courseId });
@@ -111,12 +112,16 @@ export const getMyLearning = async () => {
 
 /**
  * Update employee course progress percentage and completed lessons.
- * @param {string} enrollmentId 
+ * @param {string} enrollmentId
  * @param {Object|number} data - { progressPercentage, completedLessonId } or progressPercentage
  */
 export const updateEnrollmentProgress = async (enrollmentId, data) => {
-  const payload = typeof data === "number" ? { progressPercentage: data } : data;
-  const res = await api.patch(`/employer/learning/progress/${enrollmentId}`, payload);
+  const payload =
+    typeof data === "number" ? { progressPercentage: data } : data;
+  const res = await api.patch(
+    `/employer/learning/progress/${enrollmentId}`,
+    payload,
+  );
   return res.data;
 };
 
@@ -142,7 +147,7 @@ export const getEmployerCourses = async () => {
 
 /**
  * Create a new course (Draft state).
- * @param {Object} courseData 
+ * @param {Object} courseData
  */
 export const createCourse = async (courseData) => {
   const res = await api.post("/courses", courseData);
@@ -151,8 +156,8 @@ export const createCourse = async (courseData) => {
 
 /**
  * Update course details.
- * @param {string} courseId 
- * @param {Object} courseData 
+ * @param {string} courseId
+ * @param {Object} courseData
  */
 export const updateCourse = async (courseId, courseData) => {
   const res = await api.put(`/courses/${courseId}`, courseData);
@@ -161,7 +166,7 @@ export const updateCourse = async (courseId, courseData) => {
 
 /**
  * Delete a course.
- * @param {string} courseId 
+ * @param {string} courseId
  */
 export const deleteCourse = async (courseId) => {
   const res = await api.delete(`/courses/${courseId}`);
@@ -170,8 +175,8 @@ export const deleteCourse = async (courseId) => {
 
 /**
  * Update course publication status (Draft, Published, Archived).
- * @param {string} courseId 
- * @param {string} status 
+ * @param {string} courseId
+ * @param {string} status
  */
 export const updateCourseStatus = async (courseId, status) => {
   const res = await api.patch(`/courses/${courseId}/status`, { status });
@@ -180,7 +185,7 @@ export const updateCourseStatus = async (courseId, status) => {
 
 /**
  * Fetch course contents / curriculum (for employer manager).
- * @param {string} courseId 
+ * @param {string} courseId
  */
 export const getCourseContent = async (courseId) => {
   const res = await api.get(`/course-content/${courseId}`);
@@ -189,12 +194,12 @@ export const getCourseContent = async (courseId) => {
 
 /**
  * Upload & add course content / lecture.
- * @param {string} courseId 
- * @param {FormData|Object} formData 
+ * @param {string} courseId
+ * @param {FormData|Object} formData
  */
 export const addCourseContent = async (courseId, formData) => {
   const isFormData = formData instanceof FormData;
-  const res = await api.post(`/courses/${courseId}/content`, formData, {
+  const res = await api.post(`/course-content/${courseId}`, formData, {
     headers: isFormData ? { "Content-Type": "multipart/form-data" } : {},
   });
   return res.data;
@@ -202,8 +207,8 @@ export const addCourseContent = async (courseId, formData) => {
 
 /**
  * Update existing course content.
- * @param {string} contentId 
- * @param {Object} data 
+ * @param {string} contentId
+ * @param {Object} data
  */
 export const updateCourseContent = async (contentId, data) => {
   const res = await api.put(`/course-content/${contentId}`, data);
@@ -212,7 +217,7 @@ export const updateCourseContent = async (contentId, data) => {
 
 /**
  * Delete course content.
- * @param {string} contentId 
+ * @param {string} contentId
  */
 export const deleteCourseContent = async (contentId) => {
   const res = await api.delete(`/course-content/${contentId}`);
@@ -221,7 +226,7 @@ export const deleteCourseContent = async (contentId) => {
 
 /**
  * Get student applications for an employer's course.
- * @param {string} courseId 
+ * @param {string} courseId
  */
 export const getCourseApplications = async (courseId) => {
   const res = await api.get(`/courses/${courseId}/applications`);
@@ -230,18 +235,18 @@ export const getCourseApplications = async (courseId) => {
 
 /**
  * Update student application status (Enrolled, Rejected).
- * @param {string} courseId 
- * @param {string} applicationId 
- * @param {string} status 
+ * @param {string} courseId
+ * @param {string} applicationId
+ * @param {string} status
  */
 export const updateCourseApplicationStatus = async (
   courseId,
   applicationId,
-  status
+  status,
 ) => {
   const res = await api.patch(
     `/courses/${courseId}/applications/${applicationId}/status`,
-    { status }
+    { status },
   );
   return res.data;
 };

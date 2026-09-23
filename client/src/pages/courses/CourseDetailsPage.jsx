@@ -20,6 +20,7 @@ import {
   FileText,
   Video,
   DollarSign,
+  CreditCard,
   Share2,
   Clock3,
   Lock,
@@ -38,12 +39,7 @@ import PaymentReceiptModal from "../../components/courses/PaymentReceiptModal";
  * CourseDetailsPage
  * Comprehensive course details view for Employers (management) & Students (discovery/apply).
  */
-const CourseDetailsPage = ({
-  id: propId,
-  onBack,
-  onEdit,
-  onManageContent,
-}) => {
+const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
   const navigate = useNavigate();
   const params = useParams();
   const courseId = propId || params.id || params.courseId;
@@ -78,41 +74,59 @@ const CourseDetailsPage = ({
       setLoading(true);
       setError(null);
 
-      // Fetch course info
+      // 1. Fetch course details & syllabus preview
+      const detailRes = await api.get(`/courses/${courseId}`).catch(() => null);
+      let activeCourse = null;
+      if (detailRes?.data?.success && detailRes.data.course) {
+        activeCourse = detailRes.data.course;
+        setCourse(activeCourse);
+        if (detailRes.data.syllabus) {
+          setContentList(detailRes.data.syllabus);
+        }
+      }
+
+      // 2. Fetch based on role
       if (isEmployer) {
-        const myRes = await api.get("/courses/my-courses").catch(() => null);
-        if (myRes?.data?.success && myRes.data.courses) {
-          const found = myRes.data.courses.find((c) => c._id === courseId);
-          if (found) setCourse(found);
+        const contentRes = await api
+          .get(`/course-content/${courseId}`)
+          .catch(() => null);
+        if (contentRes?.data?.success) {
+          setContentList(contentRes.data.content || []);
+          if (contentRes.data.course && !activeCourse) {
+            setCourse(contentRes.data.course);
+          }
         }
-      }
-
-      if (!course) {
-        const detailRes = await api.get(`/courses/${courseId}`).catch(() => null);
-        if (detailRes?.data?.success) {
-          setCourse(detailRes.data.course);
-        }
-      }
-
-      // Check student's application status for this course
-      if (!isEmployer) {
-        const myCoursesRes = await api.get("/student/courses").catch(() => null);
+      } else {
+        // Check student's application / enrollment status for this course
+        const myCoursesRes = await api
+          .get("/student/courses")
+          .catch(() => null);
+        let foundApp = null;
         if (myCoursesRes?.data?.courses) {
-          const foundApp = myCoursesRes.data.courses.find(
-            (item) => item.course?._id === courseId
+          foundApp = myCoursesRes.data.courses.find(
+            (item) => item.course?._id === courseId || item.course === courseId
           );
           if (foundApp) {
             setStudentApplication(foundApp);
           }
         }
-      }
 
-      // Fetch course content list
-      const contentRes = await api.get(`/course-content/${courseId}`).catch(() => null);
-      if (contentRes?.data?.success) {
-        setContentList(contentRes.data.content || []);
-        if (contentRes.data.course && !course) {
-          setCourse(contentRes.data.course);
+        // If student is actively enrolled or completed, fetch full unlocked content
+        if (
+          foundApp &&
+          (foundApp.status === "Enrolled" ||
+            foundApp.status === "In Progress" ||
+            foundApp.status === "Completed")
+        ) {
+          const studentContentRes = await api
+            .get(`/student/courses/${courseId}/content`)
+            .catch(() => null);
+          if (
+            studentContentRes?.data?.success &&
+            studentContentRes.data.content?.length > 0
+          ) {
+            setContentList(studentContentRes.data.content);
+          }
         }
       }
     } catch (err) {
@@ -151,7 +165,11 @@ const CourseDetailsPage = ({
 
   // Delete Course
   const handleDeleteCourse = async () => {
-    if (!window.confirm("Are you sure you want to permanently delete this course?"))
+    if (
+      !window.confirm(
+        "Are you sure you want to permanently delete this course?"
+      )
+    )
       return;
 
     try {
@@ -166,25 +184,49 @@ const CourseDetailsPage = ({
     }
   };
 
-  // Submit Student Application
+  // Submit Student Application / Free Enrollment
   const handleSubmitApplication = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     try {
       setIsSubmittingApp(true);
       setApplySuccess(null);
 
-      const res = await api.post(`/courses/${course._id}/apply`, { motivation });
+      const isFree = !course?.price || course.price === 0;
+
+      const res = await api.post(`/courses/${course._id}/apply`, {
+        motivation: motivation.trim() || (isFree ? "Enrolling in free course" : "Applied for course enrollment"),
+      });
+
       if (res.data?.success) {
-        setApplySuccess("Application submitted successfully!");
+        const newStatus = isFree ? "Enrolled" : "Applied";
+        setApplySuccess(
+          res.data.message ||
+            (isFree
+              ? "Enrolled successfully! All lectures unlocked."
+              : "Application submitted successfully!")
+        );
         setStudentApplication({
-          status: "Applied",
+          status: newStatus,
           progress: 0,
         });
         setShowApplyModal(false);
+
+        // If enrolled immediately, load unlocked content
+        if (isFree) {
+          const studentContentRes = await api
+            .get(`/student/courses/${course._id}/content`)
+            .catch(() => null);
+          if (
+            studentContentRes?.data?.success &&
+            studentContentRes.data.content?.length > 0
+          ) {
+            setContentList(studentContentRes.data.content);
+          }
+        }
       }
     } catch (err) {
       console.error("Apply Course Error:", err);
-      alert(err.response?.data?.message || "Failed to apply for course.");
+      alert(err.response?.data?.message || "Failed to apply/enroll in course.");
     } finally {
       setIsSubmittingApp(false);
     }
@@ -437,7 +479,10 @@ const CourseDetailsPage = ({
 
                 <span className="flex items-center gap-1.5">
                   <Layers size={15} className="text-[#1e3a8a]" />
-                  Level: <span className="capitalize font-bold text-slate-700">{course.level || "Beginner"}</span>
+                  Level:{" "}
+                  <span className="capitalize font-bold text-slate-700">
+                    {course.level || "Beginner"}
+                  </span>
                 </span>
 
                 <span className="flex items-center gap-1.5">
@@ -445,15 +490,25 @@ const CourseDetailsPage = ({
                   {contentList.length} Lessons
                 </span>
 
-                <span className="flex items-center gap-1.5 text-emerald-700 font-bold">
-                  {course.price > 0 ? `₹${course.price}` : "Free Access"}
+                <span className="flex items-center gap-1.5 font-bold">
+                  {course.price > 0 ? (
+                    <span className="text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200 text-xs">
+                      Course Fee: ₹{course.price}
+                    </span>
+                  ) : (
+                    <span className="text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 text-xs">
+                      100% Free Access
+                    </span>
+                  )}
                 </span>
               </div>
 
               {/* Skills Tags */}
               {course.skills && course.skills.length > 0 && (
                 <div className="flex items-center gap-1.5 pt-2 flex-wrap">
-                  <span className="text-[11px] font-bold text-slate-400">Skills Covered:</span>
+                  <span className="text-[11px] font-bold text-slate-400">
+                    Skills Covered:
+                  </span>
                   {course.skills.map((skill, idx) => (
                     <span
                       key={idx}
@@ -479,7 +534,9 @@ const CourseDetailsPage = ({
               <div className="w-full md:w-56 h-36 rounded-2xl border border-slate-200 flex-shrink-0 bg-gradient-to-br from-[#1e3a8a] to-[#1e40af] text-white p-4 flex flex-col justify-between">
                 <BookOpen size={28} />
                 <div>
-                  <p className="text-xs font-bold opacity-80 uppercase tracking-wider">{course.category}</p>
+                  <p className="text-xs font-bold opacity-80 uppercase tracking-wider">
+                    {course.category}
+                  </p>
                   <p className="text-sm font-bold truncate">{course.title}</p>
                 </div>
               </div>
@@ -492,7 +549,11 @@ const CourseDetailsPage = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => onEdit ? onEdit(course._id) : navigate(`/employer/courses/${course._id}/edit`)}
+                  onClick={() =>
+                    onEdit
+                      ? onEdit(course._id)
+                      : navigate(`/employer/courses/${course._id}/edit`)
+                  }
                   className="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all"
                 >
                   <Pencil size={14} /> Edit Course
@@ -500,7 +561,11 @@ const CourseDetailsPage = ({
 
                 <button
                   type="button"
-                  onClick={() => onManageContent ? onManageContent(course._id) : navigate(`/employer/courses/${course._id}/content`)}
+                  onClick={() =>
+                    onManageContent
+                      ? onManageContent(course._id)
+                      : navigate(`/employer/courses/${course._id}/content`)
+                  }
                   className="px-4 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all"
                 >
                   <BookOpen size={14} /> Manage Content ({contentList.length})
@@ -564,7 +629,10 @@ const CourseDetailsPage = ({
               ) : isPending ? (
                 <div className="flex items-center gap-2 text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-2xl w-full text-xs font-semibold">
                   <Clock3 size={16} />
-                  <span>Application Submitted! Waiting for employer approval. Course curriculum will unlock upon acceptance.</span>
+                  <span>
+                    Application Submitted! Waiting for employer approval. Course
+                    curriculum will unlock upon acceptance.
+                  </span>
                 </div>
               ) : applySuccess ? (
                 <div className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
@@ -645,14 +713,23 @@ const CourseDetailsPage = ({
               <div className="space-y-3">
                 {contentList.length === 0 ? (
                   <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl">
-                    <BookOpen size={32} className="mx-auto text-slate-300 mb-2" />
-                    <p className="text-xs font-bold text-slate-700">No lectures uploaded yet</p>
+                    <BookOpen
+                      size={32}
+                      className="mx-auto text-slate-300 mb-2"
+                    />
+                    <p className="text-xs font-bold text-slate-700">
+                      No lectures uploaded yet
+                    </p>
                     <p className="text-[11.5px] text-slate-500 mt-0.5 mb-3">
                       Add video lectures, PDF guides, or notes to this course.
                     </p>
                     <button
                       type="button"
-                      onClick={() => onManageContent ? onManageContent(course._id) : navigate(`/employer/courses/${course._id}/content`)}
+                      onClick={() =>
+                        onManageContent
+                          ? onManageContent(course._id)
+                          : navigate(`/employer/courses/${course._id}/content`)
+                      }
                       className="px-4 py-2 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold"
                     >
                       + Add Content
@@ -660,14 +737,22 @@ const CourseDetailsPage = ({
                   </div>
                 ) : (
                   contentList.map((item, idx) => (
-                    <ContentCard key={item._id} item={item} index={idx} isEmployee={true} />
+                    <ContentCard
+                      key={item._id}
+                      item={item}
+                      index={idx}
+                      isEmployee={true}
+                    />
                   ))
                 )}
               </div>
             )}
 
             {activeTab === "applications" && (
-              <ApplicationList courseId={course._id} courseTitle={course.title} />
+              <ApplicationList
+                courseId={course._id}
+                courseTitle={course.title}
+              />
             )}
           </div>
         )}
@@ -687,7 +772,9 @@ const CourseDetailsPage = ({
             </div>
 
             {contentList.length === 0 ? (
-              <p className="text-xs text-slate-500">Syllabus content will be available upon enrollment.</p>
+              <p className="text-xs text-slate-500">
+                No syllabus lectures uploaded yet. Check back soon.
+              </p>
             ) : (
               <div className="space-y-3">
                 {contentList.map((item, idx) => (
@@ -711,7 +798,9 @@ const CourseDetailsPage = ({
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-4 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-extrabold text-slate-900">
-                Apply for Course
+                {!course.price || course.price === 0
+                  ? "Enroll in Free Course"
+                  : "Apply for Paid Course"}
               </h3>
               <button
                 type="button"
@@ -722,9 +811,15 @@ const CourseDetailsPage = ({
               </button>
             </div>
 
-            <form onSubmit={handleSubmitApplication} className="space-y-3 text-xs">
+            <form
+              onSubmit={handleSubmitApplication}
+              className="space-y-3 text-xs"
+            >
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-blue-900 font-semibold">
-                Applying for: <span className="font-extrabold text-[#1e3a8a]">{course.title}</span>
+                Course:{" "}
+                <span className="font-extrabold text-[#1e3a8a]">
+                  {course.title}
+                </span>
               </div>
 
               <div>
@@ -757,9 +852,20 @@ const CourseDetailsPage = ({
                 <button
                   type="submit"
                   disabled={isSubmittingApp}
-                  className="px-5 py-2 rounded-xl bg-[#1e3a8a] text-white font-bold shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white font-bold shadow-xs flex items-center gap-1.5"
                 >
-                  {isSubmittingApp ? "Submitting..." : "Submit Application"}
+                  {isSubmittingApp ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <span>
+                      {!course.price || course.price === 0
+                        ? "Enroll for Free"
+                        : "Submit Application"}
+                    </span>
+                  )}
                 </button>
               </div>
             </form>

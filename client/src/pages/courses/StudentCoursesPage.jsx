@@ -345,16 +345,20 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
 
       if (res.data?.success) {
         const createdApp = res.data.application || {};
+        const isFreeCourse = !selectedCourseForApply.price || selectedCourseForApply.price === 0;
+        const appStatus = createdApp.status || (isFreeCourse ? "Enrolled" : "Applied");
 
         showToast(
-          "Application submitted successfully.",
+          appStatus === "Enrolled"
+            ? "Enrolled in course successfully! Full access unlocked."
+            : "Application submitted successfully.",
           "success"
         );
 
         // Update application status map
         setApplicationStatusMap((prev) => ({
           ...prev,
-          [courseId]: "Applied",
+          [courseId]: appStatus,
         }));
 
         // Update My Applications state
@@ -363,7 +367,7 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
             applicationId:
               createdApp._id || `temp-${Date.now()}`,
             course: selectedCourseForApply,
-            status: "Applied",
+            status: appStatus,
             progress: 0,
           },
           ...prev.filter(
@@ -861,7 +865,9 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
               <div>
 
                 <span className="text-[10.5px] font-extrabold text-amber-300 uppercase tracking-widest">
-                  Course Application Form
+                  {!selectedCourseForApply.price || selectedCourseForApply.price === 0
+                    ? "Free Enrollment"
+                    : "Course Application"}
                 </span>
 
                 <h3 className="text-base font-bold text-white line-clamp-1">
@@ -1021,7 +1027,7 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
       />
       </div>
     </div>
-   
+
   );
 };
 

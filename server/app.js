@@ -1,7 +1,8 @@
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const path = require("path");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
 
 const authRoutes = require("./routes/authRoutes.js");
@@ -26,10 +27,9 @@ const offerRoutes = require("./routes/offerRoutes.js");
 const organizationRoutes = require("./routes/organizationRoutes.js");
 const employerLearningRoutes = require("./routes/employerLearningRoutes.js");
 const employerAnalyticsRoutes = require("./routes/employerAnalyticsRoutes.js");
-
+const recommendationRoutes = require("./routes/recommendationRoutes.js");
 const resumeRoutes = require("./routes/resumeRoutes.js");
 const opportunityRoutes = require("./routes/opportunityRoutes.js");
-const recommendationRoutes = require("./routes/recommendationRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
 const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
@@ -104,6 +104,7 @@ app.options("/{*path}", cors(corsOptions));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use(cookieOriginMiddleware(allowedOrigins, isProduction));
 
