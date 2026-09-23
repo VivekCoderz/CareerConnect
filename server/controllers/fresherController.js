@@ -1174,7 +1174,6 @@ module.exports.getPublicFresherProfile = async (req, res, next) => {
 
     let user = null;
     if (usernameOrId.match(/^[0-9a-fA-F]{24}$/)) {
-<<<<<<< HEAD
       user = await User.findById(usernameOrId).select(
         "fullName username email phone profileImage socialLinks userType",
       );
@@ -1184,13 +1183,6 @@ module.exports.getPublicFresherProfile = async (req, res, next) => {
         username: usernameOrId.toLowerCase(),
       }).select(
         "fullName username email phone profileImage socialLinks userType",
-=======
-      user = await User.findById(usernameOrId).select("fullName username profileImage socialLinks userType");
-    }
-    if (!user) {
-      user = await User.findOne({ username: usernameOrId.toLowerCase() }).select(
-        "fullName username profileImage socialLinks userType"
->>>>>>> origin/develop
       );
     }
 

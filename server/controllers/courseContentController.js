@@ -1,9 +1,4 @@
-<<<<<<< HEAD
-const fs = require("fs");
-const path = require("path");
-=======
 const { publicError } = require("../utils/publicError");
->>>>>>> origin/develop
 const Course = require("../models/Course");
 const CourseContent = require("../models/CourseContent");
 const CourseApplication = require("../models/CourseApplication");
@@ -272,16 +267,6 @@ const addCourseContent = async (req, res) => {
       resourceType: req.body.resourceType || (type === "video" ? "video" : "raw"),
     };
 
-<<<<<<< HEAD
-    if (req.file && req.file.buffer && (type === "video" || type === "pdf")) {
-      uploadData = await uploadCourseFile(
-        req.file.buffer,
-        req.file.originalname,
-        type,
-        course._id,
-        title
-      );
-=======
     if (type === "video" || type === "pdf") {
       const resourceType = type === "video" ? "video" : "raw";
 
@@ -310,7 +295,6 @@ const addCourseContent = async (req, res) => {
         publicId: result.public_id,
         resourceType: result.resource_type,
       };
->>>>>>> origin/develop
     }
 
     // ------------------------------------------
@@ -1139,11 +1123,7 @@ module.exports = {
   updateCourseContent,
   deleteCourseContent,
   getStudentCourseContent,
-<<<<<<< HEAD
   streamPdfContent,
   streamVideoContent,
-  markContentComplete,
-=======
   markContentComplete
->>>>>>> origin/develop
 };

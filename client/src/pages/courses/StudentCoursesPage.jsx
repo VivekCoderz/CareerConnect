@@ -953,27 +953,12 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
 
               </div>
 
-<<<<<<< HEAD
-              {!selectedCourseForApply.price || selectedCourseForApply.price === 0 ? (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 leading-snug flex items-center gap-2">
-                  <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
-                  <span>
-                    🎉 <strong>100% Free Course:</strong> You will be enrolled instantly with full access to video lessons and study materials.
-                  </span>
-                </div>
-              ) : (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 leading-snug">
-                  💳 <strong>Course Fee: ₹{selectedCourseForApply.price}</strong> — Payment verification & employer approval will be required to unlock course modules.
-                </div>
-              )}
-=======
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 leading-snug">
                 💳 <strong>Payment Notice:</strong>{" "}
                 Payment integration will be available
                 after application approval by the
                 course administrator.
               </div>
->>>>>>> origin/develop
 
               <div className="pt-2 flex items-center justify-end gap-3">
 
@@ -995,16 +980,9 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
                   <span>
                     {isSubmittingApp
                       ? "Submitting..."
-<<<<<<< HEAD
-                      : !selectedCourseForApply.price || selectedCourseForApply.price === 0
-                      ? "Enroll for Free"
-                      : `Apply Now (₹${selectedCourseForApply.price})`}
-                  </span>
-=======
                       : "Submit Application"}
                   </span>
 
->>>>>>> origin/develop
                   <ArrowRight size={14} />
                 </button>
 
@@ -1049,7 +1027,7 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
       />
       </div>
     </div>
-   
+
   );
 };
 
