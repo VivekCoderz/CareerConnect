@@ -6,7 +6,16 @@ import { getDashboardPath } from "../utils/dashboardRedirect";
 /**
  * RoleProtectedRoute — guards routes based on user role/type.
  *
- * Trusts the global AuthInitializer in App.jsx for the initial session check.
+ * Now trusts the global AuthInitializer in App.jsx for the initial session check.
+ * By the time any protected route renders, isInitialized is already true (the
+ * loading spinner in AuthInitializer has completed).
+ *
+ * Behavior:
+ *  - isInitialized = false → show loading (shouldn't happen since AuthInitializer runs first)
+ *  - user = null → redirect to /login
+ *  - user has no valid role → redirect to /select-role
+ *  - user accessing wrong role's route → redirect to their own dashboard
+ *  - everything OK → render the protected page (Outlet or children)
  *
  * @param {Array<string>} allowedRoles - e.g. ["student"], ["employer"]
  */
@@ -29,15 +38,10 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 1b. Password not set yet (first-time Google users) → redirect to set-password
-  if (user.hasPassword === false) {
-    return <Navigate to="/set-password" replace />;
-  }
-
   const isAdminRole =
-    user.role === "admin" ||
     user.role === "SUPER_ADMIN" ||
-    user.role === "COMPANY_ADMIN";
+    user.role === "COMPANY_ADMIN" ||
+    user.role === "admin";
 
   // 1c. Incomplete profiles finish onboarding before entering a dashboard.
   if (!isAdminRole && (!user.phone?.trim() || (user.role !== "employer" && !user.isProfileComplete))) {

@@ -14,6 +14,8 @@ import candidateService from "../../services/candidateService";
 import recruitmentService from "../../services/recruitmentService";
 import organizationService from "../../services/organizationService";
 import learningService from "../../services/learningService";
+import internshipService from "../../services/internshipService";
+import * as courseService from "../../services/courseService";
 
 // Employer Components
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
@@ -34,6 +36,7 @@ import HiringAnalyticsChart from "../../components/employer/HiringAnalyticsChart
 import MyInternships from "./MyInternships";
 import LearningAnalyticsChart from "../../components/employer/LearningAnalyticsChart";
 import DashboardPage from "../../features/employer/dashboard/DashboardPage";
+import ApplicantExportModal from "../../components/employer/ApplicantExportModal";
 
 // Courses & Learning modules (embedded)
 import EmployeeCoursesPage from "../courses/EmployeeCoursesPage";
@@ -56,6 +59,7 @@ const EmployerDashboard = () => {
   // Data States
   const [dashboardData, setDashboardData] = useState(null);
   const [jobs, setJobs] = useState([]);
+  const [internships, setInternships] = useState([]);
   const [applications, setApplications] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [assessments, setAssessments] = useState([]);
@@ -66,6 +70,7 @@ const EmployerDashboard = () => {
   const [trainingAssignments, setTrainingAssignments] = useState([]);
   const [skillGaps, setSkillGaps] = useState([]);
   const [courseCatalog, setCourseCatalog] = useState([]);
+  const [myCourses, setMyCourses] = useState([]);
   const [myLearning, setMyLearning] = useState({ enrollments: [] });
   const [analyticsData, setAnalyticsData] = useState(null);
   const [orgStatusData, setOrgStatusData] = useState(null);
@@ -93,7 +98,7 @@ const EmployerDashboard = () => {
   const [selectedCatalogCourseDetailId, setSelectedCatalogCourseDetailId] = useState(null);
 
   // Course Management View States
-  const [coursesHubSubTab, setCoursesHubSubTab] = useState("catalog"); // "catalog", "my-learning", "manage-courses"
+  const [coursesHubSubTab, setCoursesHubSubTab] = useState("manage-courses"); // "manage-courses", "catalog", "my-learning"
   const [courseMgmtView, setCourseMgmtView] = useState("list"); // "list", "create", "edit", "content", "detail"
   const [selectedCourseId, setSelectedCourseId] = useState(null);
 
@@ -108,6 +113,25 @@ const EmployerDashboard = () => {
   const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
   const [isAssignTrainingModalOpen, setIsAssignTrainingModalOpen] = useState(false);
   const [preselectedCourseForTraining, setPreselectedCourseForTraining] = useState(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportJobId, setExportJobId] = useState("All");
+  const [downloadingPdfJobId, setDownloadingPdfJobId] = useState(null);
+
+  const handleDownloadJobPdf = async (job) => {
+    try {
+      setDownloadingPdfJobId(job._id);
+      const blob = await recruitmentService.downloadJobApplicantsPdf(job._id, "All");
+      const safeTitle = (job.title || "Job").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const safeDate = new Date().toISOString().slice(0, 10);
+      recruitmentService.triggerPdfDownload(blob, `Applicants_${safeTitle}_${safeDate}.pdf`);
+      showToast("Applicants PDF downloaded successfully!");
+    } catch (err) {
+      console.error("PDF download failed:", err);
+      showToast("Failed to download PDF. Please try again.", "error");
+    } finally {
+      setDownloadingPdfJobId(null);
+    }
+  };
 
   // Internship View States
   const [internshipView, setInternshipView] = useState("list"); // "list", "new", "edit"
@@ -128,6 +152,7 @@ const EmployerDashboard = () => {
         const [
           dashRes,
           jobsRes,
+          internshipsRes,
           appsRes,
           candsRes,
           assessRes,
@@ -138,12 +163,14 @@ const EmployerDashboard = () => {
           trainRes,
           gapsRes,
           coursesRes,
+          myCoursesRes,
           learningRes,
           analyticsRes,
           orgStatusRes,
         ] = await Promise.all([
           getEmployerDashboard().catch(() => ({})),
           jobService.getJobs({ myJobs: "true" }).catch(() => ({ jobs: [] })),
+          internshipService.getMyPosts().catch(() => ({ internships: [] })),
           recruitmentService.getEmployerApplications().catch(() => ({ applications: [] })),
           candidateService.searchCandidates().catch(() => ({ candidates: [] })),
           recruitmentService.getAssessments().catch(() => ({ assessments: [] })),
@@ -154,23 +181,109 @@ const EmployerDashboard = () => {
           organizationService.getTrainingAssignments().catch(() => ({ assignments: [] })),
           organizationService.getSkillGapAnalysis().catch(() => ({ skillGaps: [] })),
           learningService.getCourseCatalog().catch(() => ({ courses: [] })),
+          courseService.getEmployerCourses().catch(() => ({ courses: [] })),
           learningService.getMyLearning().catch(() => ({ enrollments: [] })),
           recruitmentService.getEmployerAnalytics().catch(() => null),
           getOrganizationStatus().catch(() => null),
         ]);
 
         if (dashRes?.success) setDashboardData(dashRes);
-        setJobs(jobsRes?.jobs || []);
-        setApplications(appsRes?.applications || []);
+
+        const myUserId = (user?._id || user?.id || dashRes?.user?._id || "").toString();
+
+        const rawJobs = jobsRes?.jobs || jobsRes?.data || [];
+        const filteredJobs = myUserId
+          ? rawJobs.filter((j) => {
+              const cid = (j.createdBy?._id || j.createdBy)?.toString();
+              return !cid || cid === myUserId;
+            })
+          : rawJobs;
+        setJobs(filteredJobs);
+
+        const rawInternships = internshipsRes?.internships || internshipsRes?.data || [];
+        const filteredInternships = myUserId
+          ? rawInternships.filter((i) => {
+              const cid = (i.createdBy?._id || i.createdBy)?.toString();
+              return !cid || cid === myUserId;
+            })
+          : rawInternships;
+        setInternships(filteredInternships);
+
+        const rawMyCourses = myCoursesRes?.courses || [];
+        const filteredMyCourses = myUserId
+          ? rawMyCourses.filter((c) => {
+              const cid = (c.createdBy?._id || c.createdBy)?.toString();
+              return !cid || cid === myUserId;
+            })
+          : rawMyCourses;
+        setMyCourses(filteredMyCourses);
+
+        const rawCatalog = coursesRes?.courses || [];
+        const filteredCatalog = myUserId
+          ? rawCatalog.filter((c) => {
+              const cid = (c.createdBy?._id || c.createdBy)?.toString();
+              return !cid || cid === myUserId;
+            })
+          : rawCatalog;
+        setCourseCatalog(filteredCatalog);
+
+        const myJobIds = new Set(filteredJobs.map((j) => (j._id || j.id)?.toString()));
+        const myIntIds = new Set(filteredInternships.map((i) => (i._id || i.id)?.toString()));
+
+        const rawApps = appsRes?.applications || appsRes?.data || [];
+        const filteredApps = myUserId
+          ? rawApps.filter((a) => {
+              const jId = (a.jobId?._id || a.jobId)?.toString();
+              const iId = (a.internshipId?._id || a.internshipId)?.toString();
+              const eId = (a.employerId?._id || a.employerId)?.toString();
+              return (jId && myJobIds.has(jId)) || (iId && myIntIds.has(iId)) || eId === myUserId;
+            })
+          : rawApps;
+        setApplications(filteredApps);
+
         setCandidates(candsRes?.candidates || []);
-        setAssessments(assessRes?.assessments || []);
-        setInterviews(interRes?.interviews || []);
-        setOffers(offersRes?.offers || []);
+
+        const rawAssessments = assessRes?.assessments || [];
+        const filteredAssessments = myUserId
+          ? rawAssessments.filter((ass) => {
+              const cid = (ass.createdBy?._id || ass.createdBy)?.toString();
+              const jId = (ass.jobId?._id || ass.jobId)?.toString();
+              return !cid || cid === myUserId || (jId && myJobIds.has(jId));
+            })
+          : rawAssessments;
+        setAssessments(filteredAssessments);
+
+        const rawInterviews = interRes?.interviews || [];
+        const filteredInterviews = myUserId
+          ? rawInterviews.filter((iv) => {
+              const jId = (iv.jobId?._id || iv.jobId)?.toString();
+              const iId = (iv.internshipId?._id || iv.internshipId)?.toString();
+              const interviewerId = (iv.interviewerId?._id || iv.interviewerId)?.toString();
+              const empId = (iv.employerId?._id || iv.employerId)?.toString();
+              return (
+                (jId && myJobIds.has(jId)) ||
+                (iId && myIntIds.has(iId)) ||
+                interviewerId === myUserId ||
+                empId === myUserId
+              );
+            })
+          : rawInterviews;
+        setInterviews(filteredInterviews);
+
+        const rawOffers = offersRes?.offers || [];
+        const filteredOffers = myUserId
+          ? rawOffers.filter((o) => {
+              const cid = (o.createdBy?._id || o.createdBy)?.toString();
+              const jId = (o.jobId?._id || o.jobId)?.toString();
+              return !cid || cid === myUserId || (jId && myJobIds.has(jId));
+            })
+          : rawOffers;
+        setOffers(filteredOffers);
+
         setEmployees(empsRes?.employees || []);
         setDepartments(deptsRes?.departments || []);
         setTrainingAssignments(trainRes?.assignments || []);
         setSkillGaps(gapsRes?.skillGaps || []);
-        setCourseCatalog(coursesRes?.courses || []);
         setMyLearning(learningRes || { enrollments: [] });
         if (analyticsRes?.success) setAnalyticsData(analyticsRes);
         if (orgStatusRes?.success) setOrgStatusData(orgStatusRes);
@@ -273,6 +386,70 @@ const EmployerDashboard = () => {
       }
     } catch (err) {
       showToast(err.response?.data?.message || "Failed to update application", "error");
+    }
+  };
+
+  const handleMoveNextStage = async (appId, remarks, metadata) => {
+    try {
+      const res = await recruitmentService.moveToNextStage(appId, remarks, metadata);
+      if (res?.success) {
+        setApplications((prev) =>
+          prev.map((a) => (a._id === appId ? { ...a, ...res.application } : a))
+        );
+        showToast(res.message || "Candidate advanced to next stage!");
+      } else {
+        showToast(res?.message || "Failed to advance candidate", "error");
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to advance candidate", "error");
+    }
+  };
+
+  const handleSelectCandidate = async (appId, remarks) => {
+    try {
+      const res = await recruitmentService.selectCandidate(appId, remarks);
+      if (res?.success) {
+        setApplications((prev) =>
+          prev.map((a) => (a._id === appId ? { ...a, ...res.application } : a))
+        );
+        showToast("Candidate marked as Selected! 🎉");
+      } else {
+        showToast(res?.message || "Failed to select candidate", "error");
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to select candidate", "error");
+    }
+  };
+
+  const handleRejectCandidate = async (appId, remarks) => {
+    try {
+      const res = await recruitmentService.rejectCandidate(appId, remarks);
+      if (res?.success) {
+        setApplications((prev) =>
+          prev.map((a) => (a._id === appId ? { ...a, ...res.application } : a))
+        );
+        showToast("Application marked as rejected");
+      } else {
+        showToast(res?.message || "Failed to reject application", "error");
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to reject application", "error");
+    }
+  };
+
+  const handleMarkStageFailed = async (appId, remarks, shouldReject) => {
+    try {
+      const res = await recruitmentService.markStageFailed(appId, remarks, shouldReject);
+      if (res?.success) {
+        setApplications((prev) =>
+          prev.map((a) => (a._id === appId ? { ...a, ...res.application } : a))
+        );
+        showToast("Stage marked as failed");
+      } else {
+        showToast(res?.message || "Failed to mark stage failed", "error");
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to mark stage failed", "error");
     }
   };
 
@@ -544,24 +721,33 @@ const EmployerDashboard = () => {
   };
 
   const filteredCourseCatalog = useMemo(() => {
-    return courseCatalog.filter((course) => {
-      const q = courseSearchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !q ||
-        course.title?.toLowerCase().includes(q) ||
-        course.description?.toLowerCase().includes(q) ||
-        (course.skills || []).some((s) => s.toLowerCase().includes(q));
+    return courseCatalog
+      .filter((course) => {
+        const creatorId = course.createdBy?._id || course.createdBy;
+        const currentUserId = user?._id || user?.id;
+        if (creatorId && currentUserId && creatorId.toString() !== currentUserId.toString()) {
+          return false;
+        }
+        return true;
+      })
+      .filter((course) => {
+        const q = courseSearchQuery.toLowerCase().trim();
+        const matchesSearch =
+          !q ||
+          course.title?.toLowerCase().includes(q) ||
+          course.description?.toLowerCase().includes(q) ||
+          (course.skills || []).some((s) => s.toLowerCase().includes(q));
 
-      const matchesDomain =
-        courseDomainFilter === "All" || course.domain === courseDomainFilter;
+        const matchesDomain =
+          courseDomainFilter === "All" || course.domain === courseDomainFilter;
 
-      const matchesLevel =
-        courseLevelFilter === "All" ||
-        course.level?.toLowerCase() === courseLevelFilter.toLowerCase();
+        const matchesLevel =
+          courseLevelFilter === "All" ||
+          course.level?.toLowerCase() === courseLevelFilter.toLowerCase();
 
-      return matchesSearch && matchesDomain && matchesLevel;
-    });
-  }, [courseCatalog, courseSearchQuery, courseDomainFilter, courseLevelFilter]);
+        return matchesSearch && matchesDomain && matchesLevel;
+      });
+  }, [courseCatalog, courseSearchQuery, courseDomainFilter, courseLevelFilter, user]);
 
   const orgStatus = orgStatusData?.status || "NOT_REQUESTED";
   let orgBadge = null;
@@ -689,16 +875,21 @@ const EmployerDashboard = () => {
 
   // True dynamic statistics from database data with zero hardcoded mock fallbacks
   const stats = useMemo(() => {
+    const publishedJobsCount = jobs.filter((j) => j.status === "Published").length;
+    const publishedInternshipsCount = internships.filter((i) => i.status === "Published").length;
     return {
-      activeJobs: activeJobsList.length || (dashboardData?.stats?.activeJobs ?? 0),
+      activeJobs: activeJobsList.length || (dashboardData?.stats?.activeJobs ?? publishedJobsCount),
+      internships: publishedInternshipsCount,
+      totalOpportunities: publishedJobsCount + publishedInternshipsCount,
       applications: applications.length || (dashboardData?.stats?.applications ?? 0),
-      interviews: upcomingInterviewsList.length || (dashboardData?.stats?.upcomingInterviews ?? dashboardData?.stats?.interviews ?? 0),
+      shortlisted: applications.filter((a) => a.status === "Shortlisted").length,
+      interviews: upcomingInterviewsList.length || (dashboardData?.stats?.upcomingInterviews ?? dashboardData?.stats?.interviews ?? interviews.length),
       teamStaff: employees.length || (dashboardData?.stats?.teamStaff ?? 0),
       employees: employees.length || (dashboardData?.stats?.teamStaff ?? 0),
-      coursesCount: courseCatalog.length,
+      coursesCount: courseCatalog.length || myCourses.length,
       orgBadge,
     };
-  }, [activeJobsList, applications, upcomingInterviewsList, employees, dashboardData, courseCatalog, orgBadge]);
+  }, [activeJobsList, applications, upcomingInterviewsList, employees, dashboardData, courseCatalog, orgBadge, jobs, internships, interviews, myCourses]);
 
   if (loading) {
     return (
@@ -834,7 +1025,7 @@ const EmployerDashboard = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate("/employer/jobs/new")}
+                  onClick={() => navigate("/employer/jobs/create?type=job")}
                   className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5"
                 >
                   <span>+</span> Post Opportunity
@@ -904,7 +1095,47 @@ const EmployerDashboard = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`/employer/jobs/${job._id}/edit`)}
+                        disabled={downloadingPdfJobId === job._id}
+                        onClick={() => handleDownloadJobPdf(job)}
+                        className={`px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 text-xs font-bold text-indigo-700 flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${
+                          downloadingPdfJobId === job._id ? "opacity-60 cursor-not-allowed" : ""
+                        }`}
+                        title="Download official PDF of student applicants and selection rounds"
+                      >
+                        {downloadingPdfJobId === job._id ? (
+                          <>
+                            <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                            </svg>
+                            <span>Generating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>Applicants PDF</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExportJobId(job._id);
+                          setIsExportModalOpen(true);
+                        }}
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition cursor-pointer"
+                        title="Export Applicants to Excel/CSV or PDF"
+                      >
+                        <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span>Export</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/employer/jobs/create?edit=${job._id}`)}
                         className="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-xs hover:bg-slate-800"
                       >
                         Edit
@@ -937,7 +1168,12 @@ const EmployerDashboard = () => {
               <ATSPipelineView
                 jobs={jobs}
                 applications={applications}
+                jobs={jobs}
                 onUpdateStage={handleUpdateAppStage}
+                onMoveNextStage={handleMoveNextStage}
+                onSelectCandidate={handleSelectCandidate}
+                onRejectCandidate={handleRejectCandidate}
+                onMarkStageFailed={handleMarkStageFailed}
                 onScheduleInterview={(app) => {
                   setInterviewCandidate(app);
                   setIsInterviewModalOpen(true);
@@ -1092,6 +1328,23 @@ const EmployerDashboard = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    setCoursesHubSubTab("manage-courses");
+                    setCourseMgmtView("list");
+                    setSelectedCatalogCourseDetailId(null);
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                    coursesHubSubTab === "manage-courses"
+                      ? "bg-[#1e3a8a] text-white shadow-xs"
+                      : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>🛠️</span>
+                  <span>Created Courses Studio</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
                     setCoursesHubSubTab("catalog");
                     setSelectedCatalogCourseDetailId(null);
                   }}
@@ -1126,23 +1379,6 @@ const EmployerDashboard = () => {
                       {myLearning.enrollments.length}
                     </span>
                   )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCoursesHubSubTab("manage-courses");
-                    setCourseMgmtView("list");
-                    setSelectedCatalogCourseDetailId(null);
-                  }}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                    coursesHubSubTab === "manage-courses"
-                      ? "bg-[#1e3a8a] text-white shadow-xs"
-                      : "text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  <span>🛠️</span>
-                  <span>Created Courses Studio</span>
                 </button>
               </div>
 
@@ -2012,8 +2248,13 @@ const EmployerDashboard = () => {
                         {emp.fullName?.[0]}
                       </div>
                       <div>
-                        <h4 className="text-xs font-bold text-slate-900">{emp.fullName}</h4>
-                        <p className="text-[11px] text-[#b45309] font-semibold">{emp.designation} · {emp.department}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-xs font-bold text-slate-900">{emp.fullName}</h4>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                            {emp.roleInCompany || "Employee"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#b45309] font-semibold mt-0.5">{emp.designation} · {emp.department}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">{emp.email}</p>
                         {emp.skills?.length > 0 && (
                           <div className="flex items-center gap-1 mt-2 flex-wrap">
@@ -2195,6 +2436,15 @@ const EmployerDashboard = () => {
         courses={courseCatalog}
         employees={employees}
         preselectedCourse={preselectedCourseForTraining}
+      />
+
+      <ApplicantExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        jobs={jobs}
+        applications={applications}
+        initialJobId={exportJobId}
+        companyName={user?.companyName || dashboardData?.company?.name || user?.name || "CareerConnect Partner"}
       />
     </div>
   );

@@ -1,8 +1,8 @@
 const Assessment = require("../models/Assessment");
 const AssessmentSubmission = require("../models/AssessmentSubmission");
+const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
-const Job = require("../models/Job");
 
 const getEmployerProfileId = async (user) => {
   let profile = await EmployerProfile.findOne({ userId: user._id });
@@ -18,8 +18,22 @@ const getEmployerProfileId = async (user) => {
 // GET /api/assessments (List assessments created by employer)
 exports.getAssessments = async (req, res, next) => {
   try {
-    const employerId = await getEmployerProfileId(req.user);
-    const assessments = await Assessment.find({ employerId })
+    const employerProfile = await EmployerProfile.findOne({ userId: req.user._id });
+    const myJobs = await Job.find(
+      {
+        $or: [
+          { createdBy: req.user._id },
+          ...(employerProfile ? [{ employerId: employerProfile._id }] : []),
+        ],
+      },
+      "_id"
+    );
+    const jobIds = myJobs.map((j) => j._id);
+    const orCond = [{ createdBy: req.user._id }];
+    if (jobIds.length > 0) orCond.push({ jobId: { $in: jobIds } });
+    if (employerProfile) orCond.push({ employerId: employerProfile._id });
+
+    const assessments = await Assessment.find({ $or: orCond })
       .populate("jobId", "title")
       .sort({ createdAt: -1 });
 
@@ -54,6 +68,7 @@ exports.createAssessment = async (req, res, next) => {
 
     const assessment = await Assessment.create({
       employerId,
+      createdBy: req.user._id,
       jobId: jobId || null,
       title: title.trim(),
       description: description || "",

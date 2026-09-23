@@ -84,6 +84,80 @@ export const updateStage = async (id, stage, notes = "") => {
   return data;
 };
 
+/**
+ * Move candidate to next stage (Employer only)
+ */
+export const moveNextStage = async (id, payload = {}) => {
+  const { data } = await api.patch(`/applications/${id}/pipeline/move-next`, payload);
+  return data;
+};
+
+/**
+ * Final candidate selection (Employer only)
+ */
+export const selectCandidate = async (id, payload = {}) => {
+  const { data } = await api.patch(`/applications/${id}/pipeline/select`, payload);
+  return data;
+};
+
+/**
+ * Reject candidate (Employer only)
+ */
+export const rejectCandidate = async (id, payload = {}) => {
+  const { data } = await api.patch(`/applications/${id}/pipeline/reject`, payload);
+  return data;
+};
+
+/**
+ * Mark stage failed (Employer only)
+ */
+export const markStageFailed = async (id, payload = {}) => {
+  const { data } = await api.patch(`/applications/${id}/pipeline/mark-failed`, payload);
+  return data;
+};
+
+/**
+ * Update specific application round (Employer only)
+ */
+export const updateRound = async (id, payload = {}) => {
+  const { data } = await api.patch(`/applications/${id}/pipeline/round`, payload);
+  return data;
+};
+
+/**
+ * Add note to application (Employer only)
+ */
+export const addNote = async (id, text) => {
+  const { data } = await api.post(`/applications/${id}/notes`, { text });
+  return data;
+};
+
+/**
+ * Download Job Applicants PDF (with rounds details)
+ */
+export const downloadJobApplicantsPdf = async (jobId, stage = "All") => {
+  const response = await api.get(`/applications/job/${jobId}/export-pdf`, {
+    params: stage && stage !== "All" ? { stage } : {},
+    responseType: "blob",
+  });
+  return response.data;
+};
+
+/**
+ * Helper to trigger browser download of a PDF blob
+ */
+export const triggerPdfDownload = (blobData, defaultFilename = "Applicants_Report.pdf") => {
+  const blob = new Blob([blobData], { type: "application/pdf" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = defaultFilename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
 export default {
   applyToJob,
   applyToInternship,
@@ -94,4 +168,12 @@ export default {
   getEmployerApplications,
   updateStatus,
   updateStage,
+  moveNextStage,
+  selectCandidate,
+  rejectCandidate,
+  markStageFailed,
+  updateRound,
+  addNote,
+  downloadJobApplicantsPdf,
+  triggerPdfDownload,
 };

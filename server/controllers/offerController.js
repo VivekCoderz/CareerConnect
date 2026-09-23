@@ -1,7 +1,7 @@
 const JobOffer = require("../models/JobOffer");
+const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
-const Job = require("../models/Job");
 
 const getEmployerProfileId = async (user) => {
   let profile = await EmployerProfile.findOne({ userId: user._id });
@@ -19,8 +19,21 @@ exports.getOffers = async (req, res, next) => {
   try {
     let query = {};
     if (req.user.role === "employer" || req.user.userType === "employer") {
-      const employerId = await getEmployerProfileId(req.user);
-      query.employerId = employerId;
+      const employerProfile = await EmployerProfile.findOne({ userId: req.user._id });
+      const myJobs = await Job.find(
+        {
+          $or: [
+            { createdBy: req.user._id },
+            ...(employerProfile ? [{ employerId: employerProfile._id }] : []),
+          ],
+        },
+        "_id"
+      );
+      const jobIds = myJobs.map((j) => j._id);
+      const orCond = [{ createdBy: req.user._id }];
+      if (jobIds.length > 0) orCond.push({ jobId: { $in: jobIds } });
+      if (employerProfile) orCond.push({ employerId: employerProfile._id });
+      query.$or = orCond;
     } else {
       query.candidateId = req.user._id;
     }
@@ -59,13 +72,14 @@ exports.createOffer = async (req, res, next) => {
       location,
       benefits,
       expiryDate,
+      notes,
       additionalTerms,
     } = req.body;
 
     if (!candidateId || !jobId || !applicationId || !salary || !joiningDate || !expiryDate) {
       return res.status(400).json({
         success: false,
-        message: "Application, candidate, job, salary and dates are required",
+        message: "Application, candidate, job, salary, and dates are required",
       });
     }
 
@@ -90,6 +104,7 @@ exports.createOffer = async (req, res, next) => {
 
     const offer = await JobOffer.create({
       employerId,
+      createdBy: req.user._id,
       candidateId,
       jobId,
       applicationId: application._id,

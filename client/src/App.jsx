@@ -97,6 +97,9 @@ const CompanyPublicProfile = lazy(
   () => import("./pages/employer/CompanyPublicProfile"),
 );
 const PostInternship = lazy(() => import("./pages/employer/PostInternship"));
+const CreateOpportunityPage = lazy(() => import("./pages/employer/CreateOpportunityPage"));
+const EmployerApplicationDetailPage = lazy(() => import("./pages/employer/EmployerApplicationDetailPage"));
+const StudentApplicationTrackingPage = lazy(() => import("./pages/student/StudentApplicationTrackingPage"));
 const MyInternships = lazy(() => import("./pages/employer/MyInternships"));
 const EditInternship = lazy(() => import("./pages/employer/EditInternship"));
 const JobPostingFlow = lazy(() => import("./pages/employer/JobPostingFlow"));
@@ -365,8 +368,16 @@ function App() {
                 path="/courses/:id/learn"
                 element={<CourseContentPage />}
               />
-              <Route path="/my-courses" element={<StudentMyCoursesPage />} />
-            </Route>
+           
+            <Route path="/internships/:id" element={<InternshipDetail />} />
+            <Route path="/student/jobs/:id" element={<InternshipDetail />} />
+            <Route path="/applications" element={<MyApplications />} />
+            <Route path="/student/applications" element={<MyApplications />} />
+            <Route path="/student/applications/:applicationId" element={<StudentApplicationTrackingPage />} />
+            <Route path="/courses" element={<StudentCoursesPage />} />
+            <Route path="/courses/:id" element={<CourseDetailsPage />} />
+            <Route path="/my-courses" element={<StudentMyCoursesPage />} />
+          </Route>
 
             {/* =================================================
               STUDENT ONLY
@@ -416,39 +427,25 @@ function App() {
                 path="/employer/dashboard"
                 element={<EmployerDashboard />}
               />
-              <Route path="/employer/profile" element={<EmployerProfile />} />
-              <Route
-                path="/employer/company"
-                element={<CompanyPublicProfile />}
-              />
-              <Route path="/employer/internships" element={<MyInternships />} />
-              <Route
-                path="/employer/internships/new"
-                element={<PostInternship />}
-              />
-              <Route
-                path="/employer/internships/:id/edit"
-                element={<EditInternship />}
-              />
+           
+            <Route path="/employer/dashboard" element={<EmployerDashboard />} />
+            <Route path="/employer/jobs/create" element={<CreateOpportunityPage />} />
+            <Route path="/employer/jobs/:id" element={<CreateOpportunityPage />} />
+            <Route path="/employer/applications/:applicationId" element={<EmployerApplicationDetailPage />} />
+            <Route path="/employer/profile" element={<EmployerProfile />} />
+            <Route path="/employer/company" element={<CompanyPublicProfile />} />
+            <Route path="/employer/internships" element={<MyInternships />} />
+            <Route path="/employer/internships/new" element={<CreateOpportunityPage />} />
 
-              {/* EMPLOYER COURSES */}
-              <Route
-                path="/employer/courses"
-                element={<EmployeeCoursesPage />}
-              />
-              <Route
-                path="/employer/courses/create"
-                element={<CreateCoursePage />}
-              />
-              <Route
-                path="/employer/courses/:id/edit"
-                element={<EditCoursePage />}
-              />
-              <Route
-                path="/employer/courses/:id/content"
-                element={<CourseContentPage />}
-              />
-            </Route>
+            
+            <Route path="/employer/internships/:id/edit" element={<CreateOpportunityPage />} />
+
+            {/* EMPLOYER COURSES */}
+            <Route path="/employer/courses" element={<EmployeeCoursesPage />} />
+            <Route path="/employer/courses/create" element={<CreateCoursePage />} />
+            <Route path="/employer/courses/:id/edit" element={<EditCoursePage />} />
+            <Route path="/employer/courses/:id/content" element={<CourseContentPage />} />
+          </Route>
 
           {/* =================================================
               ADMIN AUTHENTICATION & DASHBOARD

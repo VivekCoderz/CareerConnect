@@ -1,5 +1,5 @@
-import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
+import JourneyLoader from "../../components/common/JourneyLoader";
 import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import AdminLayout from "../../components/admin/AdminLayout";
@@ -542,7 +542,7 @@ const AdminReports = () => {
                       onClick={() => openReportModal(item._id)}
                       className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 rounded-lg transition"
                     >
-                      Review Now →
+                      Review Now ΓåÆ
                     </button>
                   </div>
                 </div>
@@ -1038,7 +1038,7 @@ const AdminReports = () => {
                             </div>
                             <div className="text-xs text-slate-600">{detailReport.reportedUserId.email}</div>
                             <div className="text-[11px] text-slate-500">
-                              Role: {detailReport.reportedUserId.role} • Status: {detailReport.reportedUserId.status || "Active"}
+                              Role: {detailReport.reportedUserId.role} ΓÇó Status: {detailReport.reportedUserId.status || "Active"}
                             </div>
                           </div>
                         ) : detailReport.companyId ? (
