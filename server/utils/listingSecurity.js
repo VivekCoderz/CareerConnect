@@ -5,6 +5,7 @@ const editableListingFields = new Set([
   "description", "responsibilities", "requiredSkills", "preferredSkills",
   "bonusSkills", "education", "eligibility", "deadline", "salaryRange",
   "experience", "benefits", "applicationDeadline", "applyUrl", "status",
+  "interviewRounds",
 ]);
 
 const pickListingUpdate = (body) => Object.fromEntries(

@@ -102,6 +102,7 @@ const EmployerApplicationDetailPage = lazy(() => import("./pages/employer/Employ
 const StudentApplicationTrackingPage = lazy(() => import("./pages/student/StudentApplicationTrackingPage"));
 const MyInternships = lazy(() => import("./pages/employer/MyInternships"));
 const EditInternship = lazy(() => import("./pages/employer/EditInternship"));
+const JobPostingFlow = lazy(() => import("./pages/employer/JobPostingFlow"));
 
 // Lazy-loaded Pages: Resume Builder
 const ResumeBuilder = lazy(() => import("./pages/resume/ResumeBuilder"));

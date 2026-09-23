@@ -536,17 +536,17 @@ export default function ATSCheckerAndFixer({ onSwitchToManualEdit }) {
                   {isFixing ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Repairing All Mistakes with AI…</span>
+                      <span>Repairing All Mistakes with LaTeX Format…</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 text-amber-300" />
-                      <span>Fix Your Resume with AI (1-Click) ✨</span>
+                      <span>Fix My Resume ✨</span>
                     </>
                   )}
                 </button>
                 <p className="text-[11px] text-slate-400 text-center sm:text-right">
-                  Automatically rewrites weak bullets, adds metrics &amp; formats for 90%+ score
+                  Automatically rewrites weak bullets, fixes all mistakes &amp; applies LaTeX ATS layout
                 </p>
               </div>
             </div>
@@ -919,7 +919,7 @@ export default function ATSCheckerAndFixer({ onSwitchToManualEdit }) {
               </div>
             </div>
 
-            {/* Actions: Save & Print */}
+            {/* Actions: Save Resume & Download Resume ONLY */}
             <div className="flex flex-wrap items-center gap-2">
               {saveMessage && (
                 <span
@@ -937,10 +937,10 @@ export default function ATSCheckerAndFixer({ onSwitchToManualEdit }) {
                 type="button"
                 onClick={handleSaveFixedResume}
                 disabled={isSaving}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5"
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <Save className="w-4 h-4" />
-                <span>{isSaving ? "Saving…" : "💾 Save to My Resumes"}</span>
+                <span>{isSaving ? "Saving…" : "💾 Save Resume"}</span>
               </button>
 
               <button
@@ -953,67 +953,11 @@ export default function ATSCheckerAndFixer({ onSwitchToManualEdit }) {
                     window.print();
                   }
                 }}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
-                <span>📥 Download as PDF</span>
+                <span>📥 Download Resume</span>
               </button>
-            </div>
-          </div>
-
-          {/* ATS Safe Layout Theme Selector */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm no-print">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <span>🎨</span> Choose ATS Theme Style:
-                </span>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  All styles maintain 100% single-column layout, ATS font hierarchy, and 0% risk of parser errors.
-                </p>
-              </div>
-
-              {/* 3 ATS Theme Pills */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTemplate("classic")}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer border ${
-                    selectedTemplate === "classic"
-                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                  <span>Classic ATS</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedTemplate("modern")}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer border ${
-                    selectedTemplate === "modern"
-                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span>Modern ATS</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedTemplate("minimal")}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer border ${
-                    selectedTemplate === "minimal"
-                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                  <span>Minimal ATS</span>
-                </button>
-              </div>
             </div>
           </div>
 
@@ -1183,6 +1127,7 @@ export default function ATSCheckerAndFixer({ onSwitchToManualEdit }) {
           }
         }
       `}</style>
+
     </div>
   );
 }

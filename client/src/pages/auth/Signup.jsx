@@ -177,11 +177,16 @@ const Signup = () => {
     return list;
   }, [currentYear]);
 
+  // End year must not be earlier than Start year
   const endYears = useMemo(() => {
     const list = [];
-    for (let y = currentYear + 7; y >= currentYear - 4; y--) list.push(y);
+    const minEndYear = formData.startYear ? Number(formData.startYear) : currentYear - 8;
+    const maxEndYear = Math.max(currentYear + 8, minEndYear + 6);
+    for (let y = maxEndYear; y >= minEndYear; y--) {
+      list.push(y);
+    }
     return list;
-  }, [currentYear]);
+  }, [currentYear, formData.startYear]);
 
   const handleGeneratePassword = () => {
     const generated = generateStrongPassword();
@@ -216,6 +221,9 @@ const Signup = () => {
         const first = name === "firstName" ? value : prev.firstName;
         const last = name === "lastName" ? value : prev.lastName;
         updated.fullName = `${first || ""} ${last || ""}`.trim();
+      }
+      if (name === "startYear" && prev.endYear && Number(prev.endYear) < Number(value)) {
+        updated.endYear = "";
       }
       return updated;
     });
@@ -463,8 +471,14 @@ const Signup = () => {
     if (!formData.type) errors.type = "Please select your type";
     if (!formData.course?.trim()) errors.course = "Please select or enter your course";
     if (!formData.college?.trim()) errors.college = "College name is required";
-    if (!formData.startYear) errors.startYear = "Choose year";
-    if (!formData.endYear) errors.endYear = "Choose year";
+    if (!formData.startYear) {
+      errors.startYear = "Choose year";
+    }
+    if (!formData.endYear) {
+      errors.endYear = "Choose year";
+    } else if (formData.startYear && Number(formData.endYear) < Number(formData.startYear)) {
+      errors.endYear = "End year cannot be earlier than start year";
+    }
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -1156,7 +1170,7 @@ const Signup = () => {
                       name="firstName"
                       value={formData.firstName}
                       onChange={handleChange}
-                      placeholder="Vivek"
+                      placeholder="Enter your first name"
                       className={`w-full h-11 rounded-lg border bg-white px-3.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#008bdc] ${
                         fieldErrors.firstName ? "border-red-400 ring-2 ring-red-400/10" : "border-slate-200"
                       }`}
@@ -1175,7 +1189,7 @@ const Signup = () => {
                       name="lastName"
                       value={formData.lastName}
                       onChange={handleChange}
-                      placeholder="Garg"
+                      placeholder="Enter your last name"
                       className="w-full h-11 rounded-lg border border-slate-200 bg-white px-3.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#008bdc]"
                     />
                   </div>
@@ -1207,7 +1221,7 @@ const Signup = () => {
                       name="phone"
                       value={formData.phone}
                       onChange={handleChange}
-                      placeholder="9306810726"
+                      placeholder="Enter 10-digit number"
                       className={`flex-1 h-11 rounded-lg border bg-white px-3.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#008bdc] ${
                         fieldErrors.phone ? "border-red-400 ring-2 ring-red-400/10" : "border-slate-200"
                       }`}

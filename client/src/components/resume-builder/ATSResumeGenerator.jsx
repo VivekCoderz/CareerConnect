@@ -7,6 +7,7 @@ import ResumePreview from "./ResumePreview";
 import TemplateSelector from "./TemplateSelector";
 import { RESUME_TEMPLATES } from "../../data/templates";
 import { saveFinalResume, fetchAllSavedResumes } from "../../redux/features/resumeSlice";
+import LatexExportModal from "./LatexExportModal";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -203,6 +204,7 @@ const ATSResumeGenerator = () => {
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isLatexModalOpen, setIsLatexModalOpen] = useState(false);
   const previewRef = useRef(null);
 
   // Accordion open/collapse state for organized clean UI
@@ -960,6 +962,15 @@ const ATSResumeGenerator = () => {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setIsLatexModalOpen(true)}
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5"
+                    title="Export ATS-optimized LaTeX source code (.tex) or compile with Overleaf"
+                  >
+                    <span className="font-mono font-bold text-[11px] bg-white/20 px-1 py-0.2 rounded">TEX</span>
+                    <span>Export LaTeX</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => window.print()}
                     className="px-5 py-2.5 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5"
                   >
@@ -1114,6 +1125,14 @@ const ATSResumeGenerator = () => {
           )}
         </div>
       )}
+
+      {/* LaTeX Export Modal */}
+      <LatexExportModal
+        isOpen={isLatexModalOpen}
+        onClose={() => setIsLatexModalOpen(false)}
+        resumeData={generatedResume || rawData}
+        resumeTitle={jobDetails.jobTitle ? `${jobDetails.jobTitle}_Resume` : "ATS_Resume"}
+      />
     </div>
   );
 };

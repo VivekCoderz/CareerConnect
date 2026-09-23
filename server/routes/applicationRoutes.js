@@ -35,6 +35,7 @@ const {
   rejectCandidate,
   markStageFailed,
   updateApplicationRound,
+  exportJobApplicantsPdf,
 } = applicationController;
 
 // ========== CANDIDATE ==========
@@ -135,6 +136,14 @@ router.patch(
   protect,
   employerOnly,
   ensureFn(updateApplicationRound, "updateApplicationRound")
+);
+
+// ========== EXPORT APPLICANTS PDF (WITH ROUNDS) ==========
+router.get(
+  "/job/:jobId/export-pdf",
+  protect,
+  employerOnly,
+  ensureFn(exportJobApplicantsPdf, "exportJobApplicantsPdf")
 );
 
 // ========== DETAIL ==========

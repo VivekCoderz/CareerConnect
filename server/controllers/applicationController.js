@@ -1550,3 +1550,69 @@ exports.updateApplicationRound = async (req, res, next) => {
   }
 };
 
+// ==========================================
+// EXPORT JOB APPLICANTS PDF (With Rounds Info)
+// GET /api/applications/job/:jobId/export-pdf
+// ==========================================
+exports.exportJobApplicantsPdf = async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const { stage } = req.query;
+
+    const job = await Job.findById(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: "Job opportunity not found",
+      });
+    }
+
+    // Verify employer access
+    const isOwner =
+      (job.createdBy && job.createdBy.toString() === req.user._id.toString()) ||
+      (job.employerId && job.employerId.toString() === req.user._id.toString());
+
+    let isAuthorized = isOwner || req.user.role === "admin";
+    if (!isAuthorized) {
+      const empProf = await EmployerProfile.findOne({ userId: req.user._id });
+      if (empProf && job.employerId && empProf._id.toString() === job.employerId.toString()) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to export applicants for this job",
+      });
+    }
+
+    // Fetch applications
+    const applications = await Application.find({
+      $or: [{ jobId: job._id }, { internshipId: job._id }],
+    })
+      .populate("candidateId", "fullName email phone college degree skills education experience")
+      .sort({ createdAt: -1 });
+
+    const { generateJobApplicantsPdf } = require("../utils/generateJobApplicantsPdf");
+
+    const pdfBuffer = await generateJobApplicantsPdf(job, applications, {
+      stageFilter: stage || "All",
+      generatedBy: req.user.fullName || req.user.name || "Employer",
+      companyName: job.companyName || req.user.companyName || "CareerConnect Partner",
+    });
+
+    const safeTitle = (job.title || "Job").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeDate = new Date().toISOString().slice(0, 10);
+    const filename = `Applicants_${safeTitle}_${safeDate}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    return res.end(pdfBuffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
+

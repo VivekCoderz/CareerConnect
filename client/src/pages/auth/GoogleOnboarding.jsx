@@ -151,15 +151,12 @@ const GoogleOnboarding = () => {
       navigate("/login", { replace: true });
       return;
     }
-    const nameParts = (user.fullName || "").trim().split(" ");
-    const fName = user.firstName || nameParts[0] || "";
-    const lName = user.lastName || nameParts.slice(1).join(" ") || "";
-
+    // Keep name empty by default so user can enter their name
     setFormData((prev) => ({
       ...prev,
-      firstName: fName,
-      lastName: lName,
-      fullName: user.fullName || "",
+      firstName: "",
+      lastName: "",
+      fullName: "",
       email: user.email || "",
       phone: user.phone || "",
       city: user.city || "",
@@ -183,11 +180,16 @@ const GoogleOnboarding = () => {
     return list;
   }, [currentYear]);
 
+  // End year must not be earlier than Start year
   const endYears = useMemo(() => {
     const list = [];
-    for (let y = currentYear + 7; y >= currentYear - 4; y--) list.push(y);
+    const minEndYear = formData.startYear ? Number(formData.startYear) : currentYear - 8;
+    const maxEndYear = Math.max(currentYear + 8, minEndYear + 6);
+    for (let y = maxEndYear; y >= minEndYear; y--) {
+      list.push(y);
+    }
     return list;
-  }, [currentYear]);
+  }, [currentYear, formData.startYear]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -197,6 +199,9 @@ const GoogleOnboarding = () => {
         const first = name === "firstName" ? value : prev.firstName;
         const last = name === "lastName" ? value : prev.lastName;
         updated.fullName = `${first || ""} ${last || ""}`.trim();
+      }
+      if (name === "startYear" && prev.endYear && Number(prev.endYear) < Number(value)) {
+        updated.endYear = "";
       }
       return updated;
     });
@@ -275,8 +280,14 @@ const GoogleOnboarding = () => {
     if (!formData.type) errors.type = "Please select your type";
     if (!formData.course?.trim()) errors.course = "Please select or enter your course";
     if (!formData.college?.trim()) errors.college = "College name is required";
-    if (!formData.startYear) errors.startYear = "Choose year";
-    if (!formData.endYear) errors.endYear = "Choose year";
+    if (!formData.startYear) {
+      errors.startYear = "Choose year";
+    }
+    if (!formData.endYear) {
+      errors.endYear = "Choose year";
+    } else if (formData.startYear && Number(formData.endYear) < Number(formData.startYear)) {
+      errors.endYear = "End year cannot be earlier than start year";
+    }
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -493,7 +504,7 @@ const GoogleOnboarding = () => {
                       name="firstName"
                       value={formData.firstName}
                       onChange={handleChange}
-                      placeholder="Vivek"
+                      placeholder="Enter your first name"
                       className={`w-full h-11 rounded-lg border bg-white px-3.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#008bdc] ${
                         fieldErrors.firstName ? "border-red-400 ring-2 ring-red-400/10" : "border-slate-200"
                       }`}
@@ -512,7 +523,7 @@ const GoogleOnboarding = () => {
                       name="lastName"
                       value={formData.lastName}
                       onChange={handleChange}
-                      placeholder="Garg"
+                      placeholder="Enter your last name"
                       className="w-full h-11 rounded-lg border border-slate-200 bg-white px-3.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#008bdc]"
                     />
                   </div>
@@ -544,7 +555,7 @@ const GoogleOnboarding = () => {
                       name="phone"
                       value={formData.phone}
                       onChange={handleChange}
-                      placeholder="9306810726"
+                      placeholder="Enter 10-digit number"
                       className={`flex-1 h-11 rounded-lg border bg-white px-3.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#008bdc] ${
                         fieldErrors.phone ? "border-red-400 ring-2 ring-red-400/10" : "border-slate-200"
                       }`}

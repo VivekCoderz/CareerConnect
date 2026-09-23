@@ -132,6 +132,32 @@ export const addNote = async (id, text) => {
   return data;
 };
 
+/**
+ * Download Job Applicants PDF (with rounds details)
+ */
+export const downloadJobApplicantsPdf = async (jobId, stage = "All") => {
+  const response = await api.get(`/applications/job/${jobId}/export-pdf`, {
+    params: stage && stage !== "All" ? { stage } : {},
+    responseType: "blob",
+  });
+  return response.data;
+};
+
+/**
+ * Helper to trigger browser download of a PDF blob
+ */
+export const triggerPdfDownload = (blobData, defaultFilename = "Applicants_Report.pdf") => {
+  const blob = new Blob([blobData], { type: "application/pdf" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = defaultFilename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
 export default {
   applyToJob,
   applyToInternship,
@@ -148,4 +174,6 @@ export default {
   markStageFailed,
   updateRound,
   addNote,
+  downloadJobApplicantsPdf,
+  triggerPdfDownload,
 };
