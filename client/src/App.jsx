@@ -435,6 +435,8 @@ function App() {
             <Route path="/employer/company" element={<CompanyPublicProfile />} />
             <Route path="/employer/internships" element={<MyInternships />} />
             <Route path="/employer/internships/new" element={<CreateOpportunityPage />} />
+
+            
             <Route path="/employer/internships/:id/edit" element={<CreateOpportunityPage />} />
 
             {/* EMPLOYER COURSES */}
