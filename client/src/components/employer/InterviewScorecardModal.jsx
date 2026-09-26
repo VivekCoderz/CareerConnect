@@ -165,6 +165,7 @@ const InterviewScorecardModal = ({
         feedback: feedbackNotes,
         recommendation,
         result: calculatedResult,
+        isFinalRound: Number(interview.roundNumber || 1) >= 3,
         markSelected: markSelected || recommendation === "Hire / Select",
         ratings: {
           ...ratings,

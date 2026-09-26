@@ -1,4 +1,37 @@
 const SibApiV3Sdk = require("sib-api-v3-sdk");
+const nodemailer = require("nodemailer");
+
+const sendWithSmtp = async ({ to, subject, html, text, senderEmail }) => {
+  const password = process.env.EMAIL_PASS;
+  if (!senderEmail || !password) {
+    return { error: "Missing BREVO_API_KEY or EMAIL_USER/EMAIL_PASS configuration" };
+  }
+
+  const smtpHost = process.env.SMTP_HOST;
+  const transporter = nodemailer.createTransport(
+    smtpHost
+      ? {
+          host: smtpHost,
+          port: Number(process.env.SMTP_PORT || 587),
+          secure: String(process.env.SMTP_SECURE || "false") === "true",
+          auth: { user: senderEmail, pass: password },
+        }
+      : {
+          service: process.env.EMAIL_SERVICE || "gmail",
+          auth: { user: senderEmail, pass: password },
+        }
+  );
+
+  const info = await transporter.sendMail({
+    from: { name: "CareerConnect", address: senderEmail.trim() },
+    to,
+    subject,
+    html,
+    text,
+  });
+  console.log("--> [SMTP sendEmail] Email sent successfully:", info.messageId);
+  return { messageId: info.messageId || "smtp-sent" };
+};
 
 /**
  * Send email utility via Brevo (Sendinblue) HTTP API
@@ -18,14 +51,16 @@ const sendEmail = async ({ to, subject, html, text }) => {
     const apiKey = process.env.BREVO_API_KEY;
     const senderEmail = process.env.EMAIL_USER;
 
-    if (!apiKey) {
-      console.error("⚠️ [Brevo sendEmail] Missing BREVO_API_KEY in environment variables!");
-      return { error: "Missing Brevo API Key" };
+    if (!senderEmail) {
+      console.error("⚠️ [sendEmail] Missing EMAIL_USER in environment variables!");
+      return { error: "Missing Sender Email (EMAIL_USER)" };
     }
 
-    if (!senderEmail) {
-      console.error("⚠️ [Brevo sendEmail] Missing EMAIL_USER in environment variables!");
-      return { error: "Missing Sender Email (EMAIL_USER)" };
+    // Local/dev deployments may use an app-password SMTP account. Production
+    // should prefer Brevo because many hosts block outbound SMTP ports.
+    if (!apiKey) {
+      console.warn("[sendEmail] BREVO_API_KEY is absent; using SMTP fallback.");
+      return await sendWithSmtp({ to, subject, html, text, senderEmail });
     }
 
     // Configure Brevo API Client

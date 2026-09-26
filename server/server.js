@@ -39,16 +39,13 @@ const { getInterviewTimeDetails } = require("./utils/interviewTimeUtils");
 
 const PORT = process.env.PORT || 5001;
 
-// Connect Database
-connectDB();
-
 const server = http.createServer(app);
 
 // Initialize Socket.IO
 socketService.init(server);
 
 // Background job: Automatically sync expired interviews every 60s
-setInterval(async () => {
+const interviewSyncTimer = setInterval(async () => {
   try {
     const Interview = require("./models/Interview");
     const activeInterviews = await Interview.find({
@@ -69,8 +66,15 @@ setInterval(async () => {
     // Silent catch for background job
   }
 }, 60000);
+interviewSyncTimer.unref();
 
-server.listen(PORT, () => {
-  console.log(`CareerConnect server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
-});
-
+connectDB()
+  .then(() => {
+    server.listen(PORT, () => {
+      console.log(`CareerConnect server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
+    });
+  })
+  .catch((error) => {
+    console.error("FATAL: Server was not started because MongoDB is unavailable:", error.message);
+    process.exitCode = 1;
+  });

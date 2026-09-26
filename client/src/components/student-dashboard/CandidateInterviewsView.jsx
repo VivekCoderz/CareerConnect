@@ -1,6 +1,7 @@
 import JourneyLoader from "../common/JourneyLoader";
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import recruitmentService from "../../services/recruitmentService";
+import AIInterviewRoom from "./AIInterviewRoom";
 
 const CandidateInterviewsView = () => {
   const [interviews, setInterviews] = useState([]);
@@ -9,6 +10,7 @@ const CandidateInterviewsView = () => {
   const [activeTab, setActiveTab] = useState("upcoming"); // "upcoming" | "history"
   const [historyFilter, setHistoryFilter] = useState("all"); // "all" | "completed" | "cancelled"
   const [selectedInterview, setSelectedInterview] = useState(null);
+  const [aiInterview, setAiInterview] = useState(null);
 
   const fetchCandidateInterviews = async () => {
     try {
@@ -361,7 +363,15 @@ const CandidateInterviewsView = () => {
 
                   {/* Footer Action Buttons */}
                   <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
-                    {item.meetingLink ? (
+                    {item.interviewFormat === "ai" ? (
+                      <button
+                        type="button"
+                        onClick={() => setAiInterview(item)}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-violet-700 hover:bg-violet-800 text-white text-xs font-bold text-center shadow-xs hover:shadow-md transition"
+                      >
+                        ✨ Start AI Interview
+                      </button>
+                    ) : item.meetingLink ? (
                       <a
                         href={item.meetingLink}
                         target="_blank"
@@ -635,6 +645,13 @@ const CandidateInterviewsView = () => {
             </div>
           </div>
         </div>
+      )}
+      {aiInterview && (
+        <AIInterviewRoom
+          interview={aiInterview}
+          onClose={() => setAiInterview(null)}
+          onCompleted={fetchCandidateInterviews}
+        />
       )}
     </div>
   );

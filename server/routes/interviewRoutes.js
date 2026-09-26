@@ -1,11 +1,27 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const interviewController = require("../controllers/interviewController");
 const protect = require("../middleware/authMiddleware");
 const { requireEmployer } = require("../middleware/roleMiddleware");
+const { aiInterviewLimiter } = require("../middleware/rateLimitMiddleware");
 
 // All interview endpoints require authenticated session
 router.use(protect);
+
+router.param("id", (req, res, next, id) => {
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ success: false, message: "Invalid interview ID" });
+  }
+  next();
+});
+
+router.param("candidateId", (req, res, next, id) => {
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ success: false, message: "Invalid candidate ID" });
+  }
+  next();
+});
 
 // 1. Statistics (Must precede /:id)
 router.get("/statistics", interviewController.getInterviewStats);
@@ -17,11 +33,19 @@ router.get("/eligible-candidates", requireEmployer, interviewController.getEligi
 // 2.1 Interview Availability (Must precede /:id)
 router.get("/availability", interviewController.getInterviewAvailability);
 
+// 2.2 Employer-scoped candidate history (must precede /:id)
+router.get("/candidate/:candidateId", requireEmployer, interviewController.getCandidateInterviewHistory);
+
 // 3. List Interviews (Role-adaptive: Employer owns company interviews; Candidate sees their own)
 router.get("/", interviewController.getInterviews);
 
 // 4. Detailed Interview by ID
 router.get("/:id", interviewController.getInterviewById);
+
+// Candidate AI interview lifecycle
+router.post("/:id/ai/start", aiInterviewLimiter, interviewController.startAiInterview);
+router.post("/:id/ai/answer", interviewController.saveAiInterviewAnswer);
+router.post("/:id/ai/complete", aiInterviewLimiter, interviewController.completeAiInterview);
 
 // 5. Schedule Interview
 router.post("/", requireEmployer, interviewController.scheduleInterview);

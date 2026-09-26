@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require("express");
+const mongoose = require("mongoose");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
@@ -160,7 +161,12 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  return res.status(200).json({ status: "active", node: "GU Gateway Matrix Engine" });
+  const databaseConnected = mongoose.connection.readyState === 1;
+  return res.status(databaseConnected ? 200 : 503).json({
+    status: databaseConnected ? "active" : "degraded",
+    database: databaseConnected ? "connected" : "unavailable",
+    node: "GU Gateway Matrix Engine",
+  });
 });
 
 // Global error handling middleware
@@ -181,10 +187,22 @@ app.use((err, req, res, next) => {
     return res.status(409).json({ success: false, field, message });
   }
   console.error("Server Global Error:", err);
-  const status = err.code === "LIMIT_FILE_SIZE" ? 413 : err.statusCode || err.status || 500;
+  const isDatabaseUnavailable =
+    ["MongoServerSelectionError", "MongooseServerSelectionError"].includes(err.name) ||
+    /buffering timed out|connection.+timed out/i.test(err.message || "");
+  const status = isDatabaseUnavailable
+    ? 503
+    : err.code === "LIMIT_FILE_SIZE"
+      ? 413
+      : err.statusCode || err.status || 500;
   return res.status(status).json({
     success: false,
-    message: status >= 500 && isProduction ? "Internal server error" : err.message || "Internal server error",
+    code: isDatabaseUnavailable ? "DATABASE_UNAVAILABLE" : undefined,
+    message: isDatabaseUnavailable
+      ? "Database is temporarily unavailable. Please retry shortly."
+      : status >= 500 && isProduction
+        ? "Internal server error"
+        : err.message || "Internal server error",
   });
 });
 

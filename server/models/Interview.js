@@ -58,6 +58,12 @@ const interviewSchema = new mongoose.Schema(
       default: "Online",
       trim: true,
     },
+    interviewFormat: {
+      type: String,
+      enum: ["manual", "ai"],
+      default: "manual",
+      index: true,
+    },
     interviewerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -187,6 +193,46 @@ const interviewSchema = new mongoose.Schema(
       },
       submittedAt: { type: Date, default: null },
       submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      source: {
+        type: String,
+        enum: ["manual", "ai"],
+        default: "manual",
+      },
+    },
+    aiInterview: {
+      status: {
+        type: String,
+        enum: ["not_started", "in_progress", "evaluating", "completed", "failed"],
+        default: "not_started",
+      },
+      consentAcceptedAt: { type: Date, default: null },
+      startedAt: { type: Date, default: null },
+      completedAt: { type: Date, default: null },
+      lastActivityAt: { type: Date, default: null },
+      generationModel: { type: String, default: "" },
+      evaluationModel: { type: String, default: "" },
+      questions: [
+        {
+          prompt: { type: String, required: true, trim: true },
+          competency: { type: String, default: "Role Knowledge", trim: true },
+          difficulty: {
+            type: String,
+            enum: ["easy", "medium", "hard"],
+            default: "medium",
+          },
+          timeLimitSeconds: { type: Number, min: 30, max: 900, default: 180 },
+        },
+      ],
+      answers: [
+        {
+          questionId: { type: mongoose.Schema.Types.ObjectId, required: true },
+          answer: { type: String, required: true, trim: true, maxlength: 6000 },
+          answeredAt: { type: Date, default: Date.now },
+        },
+      ],
+      evaluationSummary: { type: String, default: "" },
+      integrityFlags: [{ type: String, trim: true }],
+      failureReason: { type: String, default: "" },
     },
     feedback: {
       rating: { type: Number, min: 0, max: 5, default: 0 },

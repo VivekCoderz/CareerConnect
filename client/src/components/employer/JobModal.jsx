@@ -414,6 +414,20 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                 required
               />
             </div>
+            {/* Hiring Assessment Pipeline Information Banner */}
+            <div className="sm:col-span-2 p-4 rounded-2xl bg-gradient-to-r from-indigo-50/80 to-blue-50/60 border border-indigo-100 flex items-start gap-3.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 text-xs font-extrabold shadow-2xs">
+                ✦
+              </div>
+              <div>
+                <h4 className="text-xs font-extrabold text-slate-900">
+                  Hiring Assessment Pipeline (MCQ, Coding & Communication Rounds)
+                </h4>
+                <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                  You can attach multi-round evaluations (Round 1: Screening MCQ, Round 2: Algorithmic Coding Challenge, Round 3: Video Communication) directly to this job. Candidate scores and automated pass/fail cutoffs are tracked in real-time.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Footer Actions */}

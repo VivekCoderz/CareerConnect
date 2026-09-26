@@ -52,6 +52,19 @@ const passwordResetLimiter = rateLimit({
   },
 });
 
+const aiInterviewLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?._id?.toString() || getClientIp(req),
+  handler: (_req, res) => res.status(429).json({
+    success: false,
+    code: "AI_INTERVIEW_RATE_LIMIT",
+    message: "Too many AI interview requests. Please wait before trying again.",
+  }),
+});
+
 // No-op middleware for backwards compatibility or disabled rate limiters
 const noopMiddleware = (req, res, next) => next();
 
@@ -67,5 +80,6 @@ module.exports = {
   globalLimiter: noopMiddleware,
   otpLimiter: noopMiddleware,
   aiResumeLimiter: noopMiddleware,
+  aiInterviewLimiter,
   getClientIp,
 };

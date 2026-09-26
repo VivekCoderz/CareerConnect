@@ -21,7 +21,7 @@ import EmployerSidebar from "../../components/employer/EmployerSidebar";
 import JobModal from "../../components/employer/JobModal";
 import ATSPipelineView from "../../components/employer/ATSPipelineView";
 import CandidateCard from "../../components/employer/CandidateCard";
-import AssessmentModal from "../../components/employer/AssessmentModal";
+import AssessmentHub from "../../components/employer/AssessmentHub";
 import InterviewScheduleModal from "../../components/employer/InterviewScheduleModal";
 import InterviewManagementHub from "../../components/employer/InterviewManagementHub";
 import OfferModal from "../../components/employer/OfferModal";
@@ -42,6 +42,7 @@ import EditCoursePage from "../courses/EditCoursePage";
 import CourseContentPage from "../courses/CourseContentPage";
 import CourseDetailsPage from "../courses/CourseDetailsPage";
 import CourseCard from "../../components/courses/CourseCard";
+import { Sparkles, Layers, FileText, Code2, Mic, Plus } from "lucide-react";
 
 const EmployerDashboard = () => {
   const navigate = useNavigate();
@@ -105,6 +106,7 @@ const EmployerDashboard = () => {
   const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
   const [offerApplication, setOfferApplication] = useState(null);
   const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
+  const [assessmentJobId, setAssessmentJobId] = useState("all");
   const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
   const [isAssignTrainingModalOpen, setIsAssignTrainingModalOpen] = useState(false);
   const [preselectedCourseForTraining, setPreselectedCourseForTraining] = useState(null);
@@ -848,81 +850,157 @@ const EmployerDashboard = () => {
               </div>
 
               <div className="space-y-3">
-                {jobs.map((job) => (
-                  <div
-                    key={job._id}
-                    className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-bold text-slate-900">{job.title}</h3>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
-                          job.status === "Published"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : job.status === "Draft"
-                            ? "bg-slate-100 text-slate-600"
-                            : "bg-amber-50 text-amber-700"
-                        }`}>
-                          {job.status}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10.5px] font-semibold">
-                          {job.employmentType}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10.5px] font-semibold">
-                          {job.workMode}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">
-                        📍 {job.location} · Department: <span className="font-semibold text-slate-700">{job.department}</span> · Openings: {job.openings}
-                      </p>
-                      {job.requiredSkills?.length > 0 && (
-                        <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-                          <span className="text-[10px] font-bold text-slate-400">Skills:</span>
-                          {job.requiredSkills.map((s, idx) => (
-                            <span key={idx} className="px-2 py-0.5 rounded-md bg-amber-50 text-[#92400e] text-[10px] font-semibold border border-amber-200/60">
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                {jobs.map((job) => {
+                  const jobAssessments = (assessments || [])
+                    .filter((a) => a.jobId?._id === job._id || a.jobId === job._id)
+                    .sort((a, b) => (a.round || 1) - (b.round || 1));
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleJobStatus(job._id, job.status === "Published" ? "Paused" : "Published")}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
-                      >
-                        {job.status === "Published" ? "Pause" : "Publish"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDuplicateJob(job._id)}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
-                      >
-                        Duplicate
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setJobToEdit(job);
-                          setIsJobModalOpen(true);
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-xs hover:bg-slate-800"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteJob(job._id)}
-                        className="p-1.5 rounded-xl text-rose-500 hover:bg-rose-50 text-xs font-bold"
-                        title="Delete"
-                      >
-                        🗑️
-                      </button>
+                  return (
+                    <div
+                      key={job._id}
+                      className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-xs transition duration-200 flex flex-col justify-between gap-4"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-base font-extrabold text-slate-900">{job.title}</h3>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                              job.status === "Published"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : job.status === "Draft"
+                                ? "bg-slate-100 text-slate-600"
+                                : "bg-amber-50 text-amber-700"
+                            }`}>
+                              {job.status}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10.5px] font-bold">
+                              {job.employmentType}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10.5px] font-bold">
+                              {job.workMode}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1.5">
+                            📍 {job.location} · Department: <span className="font-semibold text-slate-700">{job.department}</span> · Openings: <span className="font-semibold text-slate-700">{job.openings}</span>
+                          </p>
+                          {job.requiredSkills?.length > 0 && (
+                            <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Required Skills:</span>
+                              {job.requiredSkills.map((s, idx) => (
+                                <span key={idx} className="px-2 py-0.5 rounded-md bg-amber-50 text-[#92400e] text-[10.5px] font-semibold border border-amber-200/60">
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAssessmentJobId(job._id);
+                              setActiveTab("assessments");
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 text-xs font-bold text-indigo-700 flex items-center gap-1.5 shadow-2xs transition"
+                            title="Manage assessment rounds for this job"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Assessments ({jobAssessments.length})</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleJobStatus(job._id, job.status === "Published" ? "Paused" : "Published")}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition"
+                          >
+                            {job.status === "Published" ? "Pause" : "Publish"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicateJob(job._id)}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition"
+                          >
+                            Duplicate
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setJobToEdit(job);
+                              setIsJobModalOpen(true);
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-xs hover:bg-slate-800 transition"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteJob(job._id)}
+                            className="p-1.5 rounded-xl text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-200 text-xs font-bold transition"
+                            title="Delete Opportunity"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* ── Hiring Assessment Pipeline Strip ───────────────── */}
+                      <div className="mt-2 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            <Layers className="w-3.5 h-3.5 text-indigo-500" /> Assessment Rounds ({jobAssessments.length}):
+                          </span>
+                          {jobAssessments.length > 0 ? (
+                            jobAssessments.map((a) => (
+                              <button
+                                key={a._id}
+                                type="button"
+                                onClick={() => {
+                                  setAssessmentJobId(job._id);
+                                  setActiveTab("assessments");
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition ${
+                                  a.assessmentType === "MCQ"
+                                    ? "bg-indigo-50/70 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                                    : a.assessmentType === "Coding"
+                                    ? "bg-emerald-50/70 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                                    : "bg-amber-50/70 border-amber-200 text-amber-700 hover:bg-amber-100"
+                                }`}
+                              >
+                                {a.assessmentType === "MCQ" ? (
+                                  <FileText className="w-3 h-3 text-indigo-600" />
+                                ) : a.assessmentType === "Coding" ? (
+                                  <Code2 className="w-3 h-3 text-emerald-600" />
+                                ) : (
+                                  <Mic className="w-3 h-3 text-amber-600" />
+                                )}
+                                <span>Round {a.round}: {a.title || a.assessmentType}</span>
+                                <span className="text-[10px] opacity-75 font-normal">
+                                  ({a.timeLimitMinutes || 30}m)
+                                </span>
+                              </button>
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">
+                              No assessment rounds configured yet
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAssessmentJobId(job._id);
+                            setActiveTab("assessments");
+                          }}
+                          className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition flex-shrink-0"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Round for this Job</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1013,40 +1091,12 @@ const EmployerDashboard = () => {
           {/* TAB 5: RECRUITMENT ASSESSMENTS                            */}
           {/* ======================================================== */}
           {activeTab === "assessments" && (
-            <div className="space-y-5 animate-fade-in">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">Recruitment Assessments</h2>
-                  <p className="text-xs text-slate-500">Create timed tests, auto-evaluate candidate skills</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAssessmentModalOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition"
-                >
-                  + Create Assessment
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {assessments.map((test) => (
-                  <div key={test._id} className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900">{test.title}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">{test.skillCategory} · {test.timeLimitMinutes} Mins</p>
-                      </div>
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
-                        {test.passingScorePercentage}% Pass Threshold
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600">{test.description}</p>
-                    <p className="text-xs font-semibold text-slate-400">
-                      📝 {test.questions?.length || 3} Multiple Choice Questions
-                    </p>
-                  </div>
-                ))}
-              </div>
+            <div className="animate-fade-in">
+              <AssessmentHub
+                jobs={jobs}
+                initialJobId={assessmentJobId}
+                onToast={(msg, type) => console.log(`[${type}] ${msg}`)}
+              />
             </div>
           )}
 
@@ -2177,12 +2227,7 @@ const EmployerDashboard = () => {
         jobs={jobs}
       />
 
-      <AssessmentModal
-        isOpen={isAssessmentModalOpen}
-        onClose={() => setIsAssessmentModalOpen(false)}
-        onCreateAssessment={handleCreateAssessment}
-        jobs={jobs}
-      />
+      {/* AssessmentHub is now rendered inline in the assessments tab */}
 
       <AddEmployeeModal
         isOpen={isAddEmployeeModalOpen}

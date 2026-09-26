@@ -47,6 +47,8 @@ const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
 const Internships = lazy(() => import("./pages/student/Internships"));
 const InternshipDetail = lazy(() => import("./pages/student/InternshipDetail"));
 const MyApplications = lazy(() => import("./pages/student/MyApplications"));
+const CandidateAssessmentCenter = lazy(() => import("./pages/assessments/CandidateAssessmentCenter"));
+const CandidateAssessmentRoom = lazy(() => import("./pages/assessments/CandidateAssessmentRoom"));
 
 // Lazy-loaded Pages: Courses
 const StudentCoursesPage = lazy(() => import("./pages/courses/StudentCoursesPage"));
@@ -278,6 +280,8 @@ function App() {
           >
             <Route path="/internships/:id" element={<InternshipDetail />} />
             <Route path="/applications" element={<MyApplications />} />
+            <Route path="/assessments" element={<CandidateAssessmentCenter />} />
+            <Route path="/assessments/:id" element={<CandidateAssessmentRoom />} />
             <Route path="/courses" element={<StudentCoursesPage />} />
             <Route path="/courses/:id" element={<CourseDetailsPage />} />
             <Route path="/my-courses" element={<StudentMyCoursesPage />} />

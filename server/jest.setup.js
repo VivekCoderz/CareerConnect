@@ -43,9 +43,11 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-  // Clean all collections after each test for isolation
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    await collections[key].deleteMany({});
+  // Safety guard: only clean in-memory database
+  if (mongod && mongoose.connection && mongoose.connection.name && mongod.getUri().includes(mongoose.connection.host)) {
+    const collections = mongoose.connection.collections;
+    for (const key in collections) {
+      await collections[key].deleteMany({});
+    }
   }
 });

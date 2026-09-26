@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Calendar,
   Clock,
@@ -378,7 +378,9 @@ const InterviewManagementHub = ({
         feedback: scorecardForm.feedback,
         recommendation: scorecardForm.recommendation,
         isFinalRound: scorecardForm.isFinalRound,
-        markSelected: scorecardForm.recommendation === "Strong Hire" || scorecardForm.recommendation === "Hire",
+        markSelected:
+          scorecardForm.isFinalRound &&
+          (scorecardForm.recommendation === "Strong Hire" || scorecardForm.recommendation === "Hire"),
       };
 
       const res = await recruitmentService.submitScorecard(drawerInterview._id, payload);
@@ -739,6 +741,11 @@ const InterviewManagementHub = ({
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badge.classes}`}>
                         {badge.label}
                       </span>
+                      {item.interviewFormat === "ai" && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-violet-50 text-violet-700 border-violet-200">
+                          ✨ AI Interview
+                        </span>
+                      )}
                     </div>
 
                     {/* Job Title & Round Name */}
@@ -1063,6 +1070,11 @@ const InterviewManagementHub = ({
                           <Star className="w-4 h-4 text-amber-500" />
                           Candidate Scorecard
                         </h4>
+                        {drawerInterview.scorecard?.source === "ai" && (
+                          <span className="px-2 py-1 rounded-lg bg-violet-50 text-violet-700 border border-violet-200 text-[10px] font-bold">
+                            AI-generated • HR reviewable
+                          </span>
+                        )}
                         {drawerInterview.scorecard?.overallScore > 0 && (
                           <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                             Score: {drawerInterview.scorecard.overallScore} / 5.0
@@ -1134,6 +1146,40 @@ const InterviewManagementHub = ({
                           />
                         </div>
 
+                        {/* Role Knowledge */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-700">Role Knowledge</span>
+                            <span className="font-mono font-bold text-amber-700">{scorecardForm.roleKnowledge} / 5</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="5"
+                            step="1"
+                            value={scorecardForm.roleKnowledge}
+                            onChange={(e) => setScorecardForm({ ...scorecardForm, roleKnowledge: Number(e.target.value) })}
+                            className="w-full accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Culture Fit */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-700">Culture Fit</span>
+                            <span className="font-mono font-bold text-amber-700">{scorecardForm.cultureFit} / 5</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="5"
+                            step="1"
+                            value={scorecardForm.cultureFit}
+                            onChange={(e) => setScorecardForm({ ...scorecardForm, cultureFit: Number(e.target.value) })}
+                            className="w-full accent-amber-500 cursor-pointer"
+                          />
+                        </div>
+
                         {/* Overall Calculated Score */}
                         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
                           <span className="font-semibold text-slate-700">Overall Rating:</span>
@@ -1141,8 +1187,10 @@ const InterviewManagementHub = ({
                             {(
                               (Number(scorecardForm.technicalSkills) +
                                 Number(scorecardForm.problemSolving) +
-                                Number(scorecardForm.communication)) /
-                              3
+                                Number(scorecardForm.communication) +
+                                Number(scorecardForm.roleKnowledge) +
+                                Number(scorecardForm.cultureFit)) /
+                              5
                             ).toFixed(1)}{" "}
                             / 5.0
                           </span>
@@ -1154,7 +1202,7 @@ const InterviewManagementHub = ({
                             Hiring Recommendation
                           </label>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
-                            {["Next Round", "Hire", "Hold", "Reject"].map((rec) => {
+                            {["Strong Hire", "Hire", "Hold", "No Hire"].map((rec) => {
                               const isSel = scorecardForm.recommendation === rec;
                               return (
                                 <button
@@ -1163,7 +1211,7 @@ const InterviewManagementHub = ({
                                   onClick={() => setScorecardForm({ ...scorecardForm, recommendation: rec })}
                                   className={`py-1.5 rounded-xl border font-semibold transition cursor-pointer ${
                                     isSel
-                                      ? rec === "Reject"
+                                      ? rec === "No Hire"
                                         ? "bg-rose-50 border-rose-300 text-rose-700 shadow-2xs"
                                         : "bg-slate-900 border-slate-900 text-white shadow-2xs"
                                       : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -1175,6 +1223,20 @@ const InterviewManagementHub = ({
                             })}
                           </div>
                         </div>
+
+                        {drawerInterview.scorecard?.source === "ai" &&
+                          (drawerInterview.scorecard.strengths || drawerInterview.scorecard.areasForImprovement) && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                                <p className="font-bold text-emerald-800 mb-1">AI-identified strengths</p>
+                                <p className="text-slate-700 whitespace-pre-wrap">{drawerInterview.scorecard.strengths || "Not provided"}</p>
+                              </div>
+                              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                                <p className="font-bold text-amber-800 mb-1">Areas for improvement</p>
+                                <p className="text-slate-700 whitespace-pre-wrap">{drawerInterview.scorecard.areasForImprovement || "Not provided"}</p>
+                              </div>
+                            </div>
+                          )}
 
                         {/* Feedback / Comments */}
                         <div className="space-y-1">

@@ -27,8 +27,8 @@ export const rateApplication = async (id, rating) => {
 };
 
 // Assessments
-export const getAssessments = async () => {
-  const res = await api.get("/assessments");
+export const getAssessments = async (params = {}) => {
+  const res = await api.get("/assessments", { params });
   return res.data;
 };
 
@@ -37,13 +37,48 @@ export const createAssessment = async (data) => {
   return res.data;
 };
 
-export const getAssessmentResults = async (id) => {
-  const res = await api.get(`/assessments/${id}/results`);
+export const getAssessmentResults = async (id, params = {}) => {
+  const res = await api.get(`/assessments/${id}/results`, { params: { limit: 100, ...params } });
+  return res.data;
+};
+
+export const getCandidateAssessments = async () => {
+  const res = await api.get("/assessments/candidate/list");
+  return res.data;
+};
+
+export const startCandidateAssessment = async (id) => {
+  const res = await api.post(`/assessments/${id}/start`);
+  return res.data;
+};
+
+export const submitCandidateAssessment = async (id, data) => {
+  const res = await api.post(`/assessments/${id}/submit`, data);
+  return res.data;
+};
+
+export const reviewAssessmentSubmission = async (submissionId, data) => {
+  const res = await api.patch(`/assessments/submissions/${submissionId}/review`, data);
   return res.data;
 };
 
 export const deleteAssessment = async (id) => {
   const res = await api.delete(`/assessments/${id}`);
+  return res.data;
+};
+
+export const updateAssessment = async (id, data) => {
+  const res = await api.put(`/assessments/${id}`, data);
+  return res.data;
+};
+
+export const scheduleAssessmentRound = async (id, data) => {
+  const res = await api.patch(`/assessments/${id}/schedule`, data);
+  return res.data;
+};
+
+export const getResultsByJob = async (jobId, params = {}) => {
+  const res = await api.get(`/assessments/job/${jobId}/results`, { params });
   return res.data;
 };
 
@@ -110,6 +145,21 @@ export const deleteInterview = async (id) => {
 
 export const completeInterview = async (id) => {
   const res = await api.put(`/interviews/${id}/complete`);
+  return res.data;
+};
+
+export const startAiInterview = async (id, consentAccepted = true) => {
+  const res = await api.post(`/interviews/${id}/ai/start`, { consentAccepted });
+  return res.data;
+};
+
+export const saveAiInterviewAnswer = async (id, questionId, answer) => {
+  const res = await api.post(`/interviews/${id}/ai/answer`, { questionId, answer });
+  return res.data;
+};
+
+export const completeAiInterview = async (id) => {
+  const res = await api.post(`/interviews/${id}/ai/complete`);
   return res.data;
 };
 
@@ -198,11 +248,18 @@ export const getEmployerAnalytics = async () => {
 
 export default {
   getEmployerApplications,
+  updateAssessment,
+  scheduleAssessmentRound,
+  getResultsByJob,
   updateApplicationStage,
   updateApplicationStatus,
   addApplicationNote,
   rateApplication,
   getAssessments,
+  getCandidateAssessments,
+  startCandidateAssessment,
+  submitCandidateAssessment,
+  reviewAssessmentSubmission,
   createAssessment,
   getAssessmentResults,
   deleteAssessment,
@@ -219,6 +276,9 @@ export default {
   cancelInterview,
   deleteInterview,
   completeInterview,
+  startAiInterview,
+  saveAiInterviewAnswer,
+  completeAiInterview,
   updateInterviewResult,
   updateInterviewStatus,
   getNotifications,
@@ -236,5 +296,3 @@ export default {
   respondToOffer,
   getEmployerAnalytics,
 };
-
-

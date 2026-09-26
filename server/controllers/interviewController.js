@@ -6,6 +6,7 @@ const Internship = require("../models/Internship");
 const User = require("../models/User");
 const notificationService = require("../services/notificationService");
 const socketService = require("../services/socketService");
+const aiInterviewService = require("../services/aiInterviewService");
 
 // Helper to get or create EmployerProfile for the authenticated user
 const getEmployerProfileId = async (user) => {
@@ -51,13 +52,44 @@ const verifyEmployerApplicationAccess = async (employerProfileId, userId, applic
   });
 };
 
+const isCandidateOwner = (interview, user) =>
+  Boolean(interview?.candidateId && String(interview.candidateId) === String(user?._id));
+
+const buildAiContext = async (interview) => {
+  const [job, internship, application] = await Promise.all([
+    interview.jobId ? Job.findById(interview.jobId).select("title description requirements requiredSkills skills") : null,
+    interview.internshipId ? Internship.findById(interview.internshipId).select("title description requirements requiredSkills skills") : null,
+    Application.findById(interview.applicationId).select("skills experience opportunityTitle"),
+  ]);
+  const opportunity = job || internship;
+  const requirements = opportunity?.requirements;
+  return {
+    title: opportunity?.title || application?.opportunityTitle || interview.title,
+    description: opportunity?.description || "",
+    requirements: Array.isArray(requirements) ? requirements.join(", ") : requirements || "",
+    skills: application?.skills || opportunity?.requiredSkills || opportunity?.skills || [],
+    roundName: interview.roundName,
+  };
+};
+
+const isEmployerUser = (user) =>
+  user?.role === "employer" ||
+  user?.userType === "employer" ||
+  user?.role === "COMPANY_ADMIN" ||
+  user?.adminLevel === "COMPANY_ADMIN";
+
+const employerInterviewQuery = (interviewId, employerProfileId, userId) => ({
+  _id: interviewId,
+  $or: [{ employerId: employerProfileId }, { employerId: userId }],
+});
+
 /**
  * GET /api/interviews
  * List interviews for employer or candidate with search & dynamic filters
  */
 exports.getInterviews = async (req, res, next) => {
   try {
-    const isEmployer = req.user.role === "employer" || req.user.userType === "employer";
+    const isEmployer = isEmployerUser(req.user);
     let query = {};
 
     if (isEmployer) {
@@ -156,6 +188,15 @@ exports.getInterviews = async (req, res, next) => {
         delete obj.feedback;
         delete obj.interviewerFeedback;
         delete obj.notes;
+        if (obj.aiInterview) {
+          delete obj.aiInterview.questions;
+          delete obj.aiInterview.answers;
+          delete obj.aiInterview.evaluationSummary;
+          delete obj.aiInterview.integrityFlags;
+          delete obj.aiInterview.failureReason;
+          delete obj.aiInterview.generationModel;
+          delete obj.aiInterview.evaluationModel;
+        }
         return obj;
       });
     }
@@ -220,7 +261,7 @@ exports.getInterviews = async (req, res, next) => {
  */
 exports.getInterviewStats = async (req, res, next) => {
   try {
-    const isEmployer = req.user.role === "employer" || req.user.userType === "employer";
+    const isEmployer = isEmployerUser(req.user);
     let baseQuery = {};
 
     if (isEmployer) {
@@ -498,6 +539,23 @@ exports.getEligibleCandidates = async (req, res, next) => {
   }
 };
 
+/** GET /api/interviews/candidate/:candidateId - employer-scoped interview history */
+exports.getCandidateInterviewHistory = async (req, res, next) => {
+  try {
+    const employerProfileId = await getEmployerProfileId(req.user);
+    const interviews = await Interview.find({
+      candidateId: req.params.candidateId,
+      $or: [{ employerId: employerProfileId }, { employerId: req.user._id }],
+    })
+      .populate("jobId", "title department")
+      .populate("internshipId", "title department")
+      .sort({ createdAt: -1 });
+    return res.status(200).json({ success: true, count: interviews.length, interviews });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * GET /api/interviews/availability
  * Returns available time slots for a given date, checking interviewer & candidate conflicts
@@ -611,7 +669,7 @@ exports.getInterviewAvailability = async (req, res, next) => {
  */
 exports.getInterviewById = async (req, res, next) => {
   try {
-    const isEmployer = req.user.role === "employer" || req.user.userType === "employer";
+    const isEmployer = isEmployerUser(req.user);
     const interview = await Interview.findById(req.params.id)
       .populate("candidateId", "fullName email phone profileImage userType location skills experience")
       .populate("jobId", "title department location type description requirements")
@@ -652,6 +710,14 @@ exports.getInterviewById = async (req, res, next) => {
       delete interviewData.feedback;
       delete interviewData.interviewerFeedback;
       delete interviewData.notes;
+      if (interviewData.aiInterview) {
+        delete interviewData.aiInterview.answers;
+        delete interviewData.aiInterview.evaluationSummary;
+        delete interviewData.aiInterview.integrityFlags;
+        delete interviewData.aiInterview.failureReason;
+        delete interviewData.aiInterview.generationModel;
+        delete interviewData.aiInterview.evaluationModel;
+      }
     }
 
     return res.status(200).json({
@@ -680,6 +746,7 @@ exports.scheduleInterview = async (req, res, next) => {
       roundName,
       title,
       interviewType = "Online",
+      interviewFormat = "manual",
       interviewerId,
       interviewerName,
       interviewerEmail,
@@ -690,9 +757,11 @@ exports.scheduleInterview = async (req, res, next) => {
       endTime,
       duration = 45,
       durationMinutes = 45,
+      meetingMode = "Online",
       meetingLink,
       location,
       instructions,
+      preparationGuidelines,
       notes,
     } = req.body;
 
@@ -773,15 +842,20 @@ exports.scheduleInterview = async (req, res, next) => {
       });
     }
 
-    // 5. Validate mode specifics
+    // 5. Validate interview format and manual meeting specifics
+    const finalFormat = String(interviewFormat || "manual").toLowerCase();
+    if (!["manual", "ai"].includes(finalFormat)) {
+      return res.status(400).json({ success: false, message: "Interview format must be manual or ai." });
+    }
     const finalType = interviewType || "Online";
-    if (finalType === "Online" && !meetingLink) {
+    const finalMeetingMode = meetingMode || (["Online", "Offline"].includes(finalType) ? finalType : "Online");
+    if (finalFormat === "manual" && finalMeetingMode === "Online" && !meetingLink) {
       return res.status(400).json({
         success: false,
         message: "Meeting link is required for Online interviews.",
       });
     }
-    if (finalType === "Offline" && !location) {
+    if (finalFormat === "manual" && finalMeetingMode === "Offline" && !location) {
       return res.status(400).json({
         success: false,
         message: "Physical location is required for Offline/In-Person interviews.",
@@ -809,10 +883,6 @@ exports.scheduleInterview = async (req, res, next) => {
     const conflictQuery = {
       scheduledDate,
       status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
-      $or: [
-        { scheduledTime: finalTime },
-        { startTime: finalTime },
-      ],
     };
 
     const conflictOr = [];
@@ -822,7 +892,10 @@ exports.scheduleInterview = async (req, res, next) => {
 
     const conflictingInterview = await Interview.findOne({
       ...conflictQuery,
-      $or: conflictOr,
+      $and: [
+        { $or: [{ scheduledTime: finalTime }, { startTime: finalTime }] },
+        { $or: conflictOr },
+      ],
     });
 
     if (conflictingInterview) {
@@ -847,6 +920,7 @@ exports.scheduleInterview = async (req, res, next) => {
       roundNumber: roundNum,
       roundName: roundName || `Round ${roundNum} - ${finalType}`,
       interviewType: finalType,
+      interviewFormat: finalFormat,
       interviewerId: interviewerId || null,
       interviewerName: interviewerName || req.user.fullName || "Hiring Lead",
       interviewerEmail: interviewerEmail || req.user.email || "",
@@ -857,10 +931,11 @@ exports.scheduleInterview = async (req, res, next) => {
       endTime: endTime || "",
       duration: finalDuration,
       durationMinutes: finalDuration,
-      meetingMode: finalType,
-      meetingLink: meetingLink || "",
-      location: location || "",
+      meetingMode: finalFormat === "ai" ? "AI Interview" : finalMeetingMode,
+      meetingLink: finalFormat === "manual" ? meetingLink || "" : "",
+      location: finalFormat === "manual" ? location || "" : "",
       instructions: instructions || notes || "",
+      preparationGuidelines: preparationGuidelines || "",
       notes: notes || "",
       status: "scheduled",
       result: "pending",
@@ -889,7 +964,7 @@ exports.scheduleInterview = async (req, res, next) => {
         recipientId: application.candidateId,
         senderId: req.user._id,
         title: "Interview Scheduled 📅",
-        message: `Your ${interview.roundName || `Round ${roundNum}`} for ${oppTitle} at ${compName} has been scheduled for ${scheduledDate} at ${finalTime}.`,
+        message: `Your ${finalFormat === "ai" ? "AI " : ""}${interview.roundName || `Round ${roundNum}`} for ${oppTitle} at ${compName} has been scheduled for ${scheduledDate} at ${finalTime}.`,
         notificationType: "INTERVIEW_SCHEDULED",
         relatedInterviewId: interview._id,
         relatedApplicationId: application._id,
@@ -898,7 +973,8 @@ exports.scheduleInterview = async (req, res, next) => {
           roundNumber: roundNum,
           scheduledDate,
           scheduledTime: finalTime,
-          meetingMode: finalType,
+          meetingMode: finalFormat === "ai" ? "AI Interview" : finalMeetingMode,
+          interviewFormat: finalFormat,
           meetingLink: interview.meetingLink,
         },
       });
@@ -931,27 +1007,28 @@ exports.rescheduleInterview = async (req, res, next) => {
       scheduledDate,
       startTime,
       scheduledTime,
+      endTime,
       duration,
       durationMinutes,
       meetingMode,
       meetingLink,
       location,
       rescheduledReason,
+      preparationGuidelines,
     } = req.body;
 
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await Interview.findOne(
+      employerInterviewQuery(req.params.id, employerProfileId, req.user._id)
+    );
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview not found" });
     }
 
-    if (interview.status === "cancelled" || interview.status === "Cancelled") {
+    if (!["scheduled", "rescheduled", "confirmed"].includes(String(interview.status).toLowerCase())) {
       return res.status(400).json({
         success: false,
-        message: "Cannot reschedule a cancelled interview. Please schedule a new interview instead.",
+        message: "Only an active scheduled interview can be rescheduled.",
       });
     }
 
@@ -968,6 +1045,27 @@ exports.rescheduleInterview = async (req, res, next) => {
     const prevTime = interview.scheduledTime || interview.startTime || "";
     const newTime = startTime || scheduledTime || prevTime || "11:00 AM";
     const finalReason = rescheduledReason || "Rescheduled by employer";
+
+    const conflictTargets = [{ candidateId: interview.candidateId }];
+    if (interview.interviewFormat !== "ai") {
+      if (interview.interviewerId) conflictTargets.push({ interviewerId: interview.interviewerId });
+      else if (interview.interviewerName) conflictTargets.push({ interviewerName: interview.interviewerName });
+    }
+    const conflictingInterview = await Interview.findOne({
+      _id: { $ne: interview._id },
+      scheduledDate,
+      status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
+      $and: [
+        { $or: [{ scheduledTime: newTime }, { startTime: newTime }] },
+        { $or: conflictTargets },
+      ],
+    });
+    if (conflictingInterview) {
+      return res.status(409).json({
+        success: false,
+        message: "The candidate or interviewer is already booked for this time slot.",
+      });
+    }
 
     // Archive previous schedule into history
     if (!interview.rescheduleHistory) {
@@ -990,14 +1088,19 @@ exports.rescheduleInterview = async (req, res, next) => {
     interview.scheduledDate = scheduledDate;
     interview.startTime = newTime;
     interview.scheduledTime = newTime;
+    if (endTime !== undefined) interview.endTime = endTime;
+    interview.scheduledAt = null;
     if (duration || durationMinutes) {
       const dur = Number(duration || durationMinutes);
       interview.duration = dur;
       interview.durationMinutes = dur;
     }
-    if (meetingMode) interview.meetingMode = meetingMode;
-    if (meetingLink) interview.meetingLink = meetingLink;
-    if (location) interview.location = location;
+    if (interview.interviewFormat !== "ai") {
+      if (meetingMode) interview.meetingMode = meetingMode;
+      if (meetingLink !== undefined) interview.meetingLink = meetingLink;
+      if (location !== undefined) interview.location = location;
+    }
+    if (preparationGuidelines !== undefined) interview.preparationGuidelines = preparationGuidelines;
     interview.status = "rescheduled";
     interview.rescheduledAt = new Date();
     interview.rescheduledBy = req.user._id;
@@ -1068,13 +1171,16 @@ exports.cancelInterview = async (req, res, next) => {
     const employerProfileId = await getEmployerProfileId(req.user);
     const { cancellationReason, cancellationMessage } = req.body;
 
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await Interview.findOne(
+      employerInterviewQuery(req.params.id, employerProfileId, req.user._id)
+    );
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview not found" });
+    }
+
+    if (!["scheduled", "rescheduled", "confirmed", "ongoing"].includes(String(interview.status).toLowerCase())) {
+      return res.status(409).json({ success: false, message: "Only an active interview can be cancelled" });
     }
 
     const finalReason = cancellationReason || "Interviewer unavailable";
@@ -1167,10 +1273,9 @@ exports.cancelInterview = async (req, res, next) => {
 exports.deleteInterview = async (req, res, next) => {
   try {
     const employerProfileId = await getEmployerProfileId(req.user);
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await Interview.findOne(
+      employerInterviewQuery(req.params.id, employerProfileId, req.user._id)
+    );
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview record not found" });
@@ -1205,13 +1310,23 @@ exports.deleteInterview = async (req, res, next) => {
 exports.completeInterview = async (req, res, next) => {
   try {
     const employerProfileId = await getEmployerProfileId(req.user);
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await Interview.findOne(
+      employerInterviewQuery(req.params.id, employerProfileId, req.user._id)
+    );
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview not found" });
+    }
+
+    if (interview.interviewFormat === "ai") {
+      return res.status(400).json({
+        success: false,
+        message: "AI interviews are completed automatically after the candidate submits all answers.",
+      });
+    }
+
+    if (!["scheduled", "rescheduled", "confirmed", "ongoing"].includes(String(interview.status).toLowerCase())) {
+      return res.status(409).json({ success: false, message: "Only an active interview can be completed" });
     }
 
     interview.status = "completed";
@@ -1234,6 +1349,220 @@ exports.completeInterview = async (req, res, next) => {
   }
 };
 
+/** POST /api/interviews/:id/ai/start - candidate starts their assigned AI interview */
+exports.startAiInterview = async (req, res, next) => {
+  try {
+    const interview = await Interview.findById(req.params.id);
+    if (!interview) return res.status(404).json({ success: false, message: "Interview not found" });
+    if (!isCandidateOwner(interview, req.user)) {
+      return res.status(403).json({ success: false, message: "Only the assigned candidate can start this interview" });
+    }
+    if (interview.interviewFormat !== "ai") {
+      return res.status(400).json({ success: false, message: "This is a manual interview" });
+    }
+    if (["evaluating", "completed"].includes(interview.aiInterview?.status)) {
+      return res.status(409).json({ success: false, message: "This AI interview is already being evaluated or completed" });
+    }
+    if (!["scheduled", "rescheduled"].includes(String(interview.status).toLowerCase())) {
+      return res.status(409).json({ success: false, message: "This interview is not available to start" });
+    }
+    if (!req.body?.consentAccepted) {
+      return res.status(400).json({ success: false, message: "Consent is required before starting the AI interview" });
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (interview.scheduledDate && interview.scheduledDate > today) {
+      return res.status(409).json({ success: false, message: "The interview can only be started on or after its scheduled date" });
+    }
+
+    if (!interview.aiInterview?.questions?.length) {
+      const context = await buildAiContext(interview);
+      const generated = await aiInterviewService.generateQuestions(context);
+      interview.aiInterview.questions = generated.questions;
+      interview.aiInterview.generationModel = generated.modelName;
+    }
+    interview.aiInterview.status = "in_progress";
+    interview.aiInterview.consentAcceptedAt ||= new Date();
+    interview.aiInterview.startedAt ||= new Date();
+    interview.aiInterview.lastActivityAt = new Date();
+    interview.aiInterview.failureReason = "";
+    await interview.save();
+
+    return res.status(200).json({
+      success: true,
+      interviewId: interview._id,
+      status: interview.aiInterview.status,
+      startedAt: interview.aiInterview.startedAt,
+      questions: interview.aiInterview.questions,
+      answeredQuestionIds: interview.aiInterview.answers.map((answer) => answer.questionId),
+      answers: interview.aiInterview.answers.map((answer) => ({
+        questionId: answer.questionId,
+        answer: answer.answer,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** POST /api/interviews/:id/ai/answer - autosave one candidate answer */
+exports.saveAiInterviewAnswer = async (req, res, next) => {
+  try {
+    const interview = await Interview.findById(req.params.id);
+    if (!interview) return res.status(404).json({ success: false, message: "Interview not found" });
+    if (!isCandidateOwner(interview, req.user)) {
+      return res.status(403).json({ success: false, message: "Only the assigned candidate can answer this interview" });
+    }
+    if (interview.interviewFormat !== "ai" || !["in_progress", "failed"].includes(interview.aiInterview?.status)) {
+      return res.status(409).json({ success: false, message: "AI interview is not in progress" });
+    }
+    const questionId = String(req.body?.questionId || "");
+    if (!/^[a-f\d]{24}$/i.test(questionId)) {
+      return res.status(400).json({ success: false, message: "Invalid interview question" });
+    }
+    const question = interview.aiInterview.questions.id(questionId);
+    const answerText = String(req.body?.answer || "").trim();
+    if (!question) return res.status(400).json({ success: false, message: "Invalid interview question" });
+    if (!answerText) return res.status(400).json({ success: false, message: "Answer cannot be empty" });
+    if (answerText.length > 6000) {
+      return res.status(400).json({ success: false, message: "Answer must be 6000 characters or fewer" });
+    }
+
+    const existing = interview.aiInterview.answers.find(
+      (answer) => String(answer.questionId) === String(question._id)
+    );
+    if (existing) {
+      existing.answer = answerText;
+      existing.answeredAt = new Date();
+    } else {
+      interview.aiInterview.answers.push({ questionId: question._id, answer: answerText });
+    }
+    interview.aiInterview.lastActivityAt = new Date();
+    interview.aiInterview.status = "in_progress";
+    interview.aiInterview.failureReason = "";
+    await interview.save();
+    return res.status(200).json({ success: true, message: "Answer saved", questionId: question._id });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** POST /api/interviews/:id/ai/complete - evaluate answers and publish the employer scorecard */
+exports.completeAiInterview = async (req, res, next) => {
+  let interview;
+  try {
+    interview = await Interview.findById(req.params.id);
+    if (!interview) return res.status(404).json({ success: false, message: "Interview not found" });
+    if (!isCandidateOwner(interview, req.user)) {
+      return res.status(403).json({ success: false, message: "Only the assigned candidate can complete this interview" });
+    }
+    if (interview.interviewFormat !== "ai" || !["in_progress", "failed"].includes(interview.aiInterview?.status)) {
+      return res.status(409).json({ success: false, message: "AI interview is not ready for evaluation" });
+    }
+    const answeredIds = new Set(interview.aiInterview.answers.map((answer) => String(answer.questionId)));
+    const missing = interview.aiInterview.questions.filter((question) => !answeredIds.has(String(question._id)));
+    if (missing.length) {
+      return res.status(400).json({
+        success: false,
+        message: `Please answer all questions before submitting (${missing.length} remaining)`,
+      });
+    }
+
+    interview.aiInterview.status = "evaluating";
+    interview.aiInterview.failureReason = "";
+    await interview.save();
+
+    const context = await buildAiContext(interview);
+    const evaluation = await aiInterviewService.evaluateInterview({
+      ...context,
+      questions: interview.aiInterview.questions,
+      answers: interview.aiInterview.answers,
+    });
+    // AI feedback is advisory. HR must explicitly set the final pass/fail outcome.
+    const finalResult = "pending";
+    interview.scorecard = {
+      technicalSkills: evaluation.technicalSkills,
+      problemSolving: evaluation.problemSolving,
+      communication: evaluation.communication,
+      roleKnowledge: evaluation.roleKnowledge,
+      cultureFit: evaluation.cultureFit,
+      overallScore: evaluation.overallScore,
+      strengths: evaluation.strengths,
+      areasForImprovement: evaluation.areasForImprovement,
+      feedback: evaluation.feedback,
+      recommendation: evaluation.recommendation,
+      submittedAt: new Date(),
+      submittedBy: null,
+      source: "ai",
+    };
+    interview.feedback = {
+      rating: evaluation.overallScore,
+      technicalScore: evaluation.technicalSkills,
+      communicationScore: evaluation.communication,
+      comments: evaluation.feedback,
+      recommendation: evaluation.recommendation,
+      submittedAt: new Date(),
+    };
+    interview.interviewerFeedback = evaluation.feedback;
+    interview.aiInterview.status = "completed";
+    interview.aiInterview.completedAt = new Date();
+    interview.aiInterview.lastActivityAt = new Date();
+    interview.aiInterview.evaluationModel = evaluation.modelName;
+    interview.aiInterview.evaluationSummary = evaluation.evaluationSummary;
+    interview.status = "completed";
+    interview.completedAt = new Date();
+    interview.result = finalResult;
+    await interview.save();
+
+    await Application.findByIdAndUpdate(interview.applicationId, {
+      status: "Interview Completed",
+      stage: `${interview.roundName} - AI EVALUATED`,
+      $push: {
+        notes: {
+          text: `AI interview scorecard generated. Score: ${evaluation.overallScore}/5.0 | Recommendation: ${evaluation.recommendation}. HR review required.`,
+          addedBy: req.user._id,
+          createdAt: new Date(),
+        },
+      },
+    });
+    try {
+      const employerProfile = await EmployerProfile.findById(interview.employerId).select("userId");
+      if (employerProfile?.userId) {
+        await notificationService.createNotification({
+          recipientId: employerProfile.userId,
+          senderId: req.user._id,
+          title: "AI Interview Ready for Review ✨",
+          message: `${interview.roundName || "AI interview"} has been completed. The AI scorecard (${evaluation.overallScore}/5.0) is ready for HR review.`,
+          notificationType: "INTERVIEW_RESULT",
+          relatedInterviewId: interview._id,
+          relatedApplicationId: interview.applicationId,
+          actionUrl: "/employer/dashboard?tab=interviews",
+          metadata: {
+            score: evaluation.overallScore,
+            recommendation: evaluation.recommendation,
+            source: "ai",
+          },
+        });
+      }
+    } catch (notificationError) {
+      console.warn("Failed to notify employer about AI interview:", notificationError.message);
+    }
+    socketService.emitInterviewStatusUpdated(interview.candidateId, interview);
+    return res.status(200).json({
+      success: true,
+      message: "AI interview completed and scorecard sent to the employer for review",
+      overallScore: evaluation.overallScore,
+      recommendation: evaluation.recommendation,
+    });
+  } catch (error) {
+    if (interview && interview.aiInterview) {
+      interview.aiInterview.status = "failed";
+      interview.aiInterview.failureReason = "Evaluation could not be completed. Please retry.";
+      await interview.save().catch(() => {});
+    }
+    next(error);
+  }
+};
+
 /**
  * POST /api/interviews/:id/scorecard (also supports PATCH /feedback)
  * Evaluates candidate on 5 criteria, calculates overall score, sets result and advances status
@@ -1241,13 +1570,22 @@ exports.completeInterview = async (req, res, next) => {
 exports.submitInterviewScorecard = async (req, res, next) => {
   try {
     const employerProfileId = await getEmployerProfileId(req.user);
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await Interview.findOne(
+      employerInterviewQuery(req.params.id, employerProfileId, req.user._id)
+    );
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview not found" });
+    }
+
+    if (interview.interviewFormat === "ai" && interview.aiInterview?.status !== "completed") {
+      return res.status(409).json({
+        success: false,
+        message: "The candidate must complete the AI interview before HR can review its scorecard.",
+      });
+    }
+    if (["cancelled", "draft"].includes(String(interview.status).toLowerCase())) {
+      return res.status(409).json({ success: false, message: "A cancelled or draft interview cannot be scored" });
     }
 
     const {
@@ -1271,6 +1609,14 @@ exports.submitInterviewScorecard = async (req, res, next) => {
     const criteriaScores = [technical, problemSolving, communication, roleKnowledge, cultureFit].filter(
       (v) => v > 0
     );
+    const allScores = [technical, problemSolving, communication, roleKnowledge, cultureFit];
+    if (allScores.some((value) => !Number.isFinite(value) || value < 0 || value > 5)) {
+      return res.status(400).json({ success: false, message: "Every score must be a number from 0 to 5" });
+    }
+    const allowedRecommendations = ["Strong Hire", "Hire", "Hold", "No Hire", "Pending"];
+    if (!allowedRecommendations.includes(recommendation)) {
+      return res.status(400).json({ success: false, message: "Invalid hiring recommendation" });
+    }
     const overallScore =
       criteriaScores.length > 0
         ? Number((criteriaScores.reduce((a, b) => a + b, 0) / criteriaScores.length).toFixed(1))
@@ -1279,12 +1625,12 @@ exports.submitInterviewScorecard = async (req, res, next) => {
     // Derive result: passed / failed
     let finalResult = result ? result.toLowerCase() : "pending";
     if (!result) {
-      if (["Strong Hire", "Hire"].includes(recommendation) || overallScore >= 3.0) {
+      if (["Strong Hire", "Hire"].includes(recommendation)) {
         finalResult = "passed";
-      } else if (recommendation === "No Hire" || overallScore < 2.5) {
+      } else if (recommendation === "No Hire") {
         finalResult = "failed";
       } else {
-        finalResult = "passed";
+        finalResult = "pending";
       }
     }
 
@@ -1295,12 +1641,14 @@ exports.submitInterviewScorecard = async (req, res, next) => {
       roleKnowledge,
       cultureFit,
       overallScore,
-      strengths: strengths || scorecard.strengths || "",
-      areasForImprovement: areasForImprovement || scorecard.areasForImprovement || "",
-      feedback: feedback || req.body.comments || "",
+      strengths: strengths || scorecard.strengths || interview.scorecard?.strengths || "",
+      areasForImprovement:
+        areasForImprovement || scorecard.areasForImprovement || interview.scorecard?.areasForImprovement || "",
+      feedback: feedback || req.body.comments || interview.scorecard?.feedback || "",
       recommendation,
       submittedAt: new Date(),
       submittedBy: req.user._id,
+      source: interview.scorecard?.source || "manual",
     };
 
     // Backward compatibility for feedback field
@@ -1321,7 +1669,7 @@ exports.submitInterviewScorecard = async (req, res, next) => {
 
     // Advance Application Status
     const shouldSelect =
-      finalResult === "passed" && (Boolean(isFinalRound) || Boolean(markSelected));
+      finalResult === "passed" && Boolean(isFinalRound) && Boolean(markSelected);
 
     if (shouldSelect) {
       await Application.findByIdAndUpdate(interview.applicationId, {
@@ -1404,13 +1752,20 @@ exports.updateInterviewResult = async (req, res, next) => {
     const employerProfileId = await getEmployerProfileId(req.user);
     const { result, selectCandidate, rejectCandidate } = req.body;
 
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    if (result && !["passed", "failed", "pending"].includes(String(result).toLowerCase())) {
+      return res.status(400).json({ success: false, message: "Result must be passed, failed, or pending" });
+    }
+
+    const interview = await Interview.findOne(
+      employerInterviewQuery(req.params.id, employerProfileId, req.user._id)
+    );
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview not found" });
+    }
+
+    if (String(interview.status).toLowerCase() !== "completed") {
+      return res.status(409).json({ success: false, message: "Complete and score the interview before setting its result" });
     }
 
     if (result) {

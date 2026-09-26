@@ -49,8 +49,8 @@ const connectDB = async (retryCount = 0) => {
   } catch (error) {
     console.error("MongoDB connection failed:", error.message);
     
-    // Fallback to local MongoDB if Atlas SRV fails
-    if (uri.startsWith("mongodb+srv://")) {
+    // Local fallback is opt-in to avoid silently using an empty database.
+    if (uri.startsWith("mongodb+srv://") && process.env.ALLOW_LOCAL_DB_FALLBACK === "true") {
       console.log("🔄 Attempting fallback to local MongoDB (mongodb://127.0.0.1:27017/careerconnect)...");
       try {
         const localConn = await mongoose.connect("mongodb://127.0.0.1:27017/careerconnect", {
@@ -66,11 +66,12 @@ const connectDB = async (retryCount = 0) => {
 
     if (retryCount < 3) {
       console.log(`🔄 Retrying MongoDB connection in 5 seconds (Attempt ${retryCount + 1}/3)...`);
-      setTimeout(() => connectDB(retryCount + 1), 5000);
-      return;
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      return connectDB(retryCount + 1);
     }
 
     console.error("❌ Max connection retries reached. Please check your internet connection or MongoDB Atlas IP Whitelist (https://cloud.mongodb.com -> Network Access).");
+    throw error;
   }
 };
 

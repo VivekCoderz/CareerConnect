@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Calendar,
   Clock,
@@ -54,6 +54,9 @@ const InterviewScheduleModal = ({
   );
   const [meetingMode, setMeetingMode] = useState(
     interviewToReschedule?.meetingMode === "Offline" ? "Offline" : "Online"
+  );
+  const [interviewFormat, setInterviewFormat] = useState(
+    interviewToReschedule?.interviewFormat === "ai" ? "ai" : "manual"
   );
   const [meetingPlatform, setMeetingPlatform] = useState("Google Meet");
   const [meetingLink, setMeetingLink] = useState(interviewToReschedule?.meetingLink || "");
@@ -396,12 +399,12 @@ const InterviewScheduleModal = ({
       return;
     }
 
-    if (meetingMode === "Online" && !meetingLink.trim()) {
+    if (interviewFormat === "manual" && meetingMode === "Online" && !meetingLink.trim()) {
       setError("Please provide a valid meeting link for Online interviews.");
       return;
     }
 
-    if (meetingMode === "Offline" && !location.trim()) {
+    if (interviewFormat === "manual" && meetingMode === "Offline" && !location.trim()) {
       setError("Please specify the physical location for Offline interviews.");
       return;
     }
@@ -447,6 +450,7 @@ const InterviewScheduleModal = ({
           roundNumber: selectedRound.roundNumber,
           roundName: selectedRound.name,
           interviewType: selectedRound.type || "Technical",
+          interviewFormat,
           title: selectedRound.name,
           interviewerId: selectedInterviewer?._id || undefined,
           interviewerName: selectedInterviewer?.fullName || "Hiring Lead",
@@ -461,9 +465,9 @@ const InterviewScheduleModal = ({
           endTime: selectedSlot.endTime,
           duration: selectedRound.durationMinutes || selectedSlot.durationMinutes || 45,
           durationMinutes: selectedRound.durationMinutes || selectedSlot.durationMinutes || 45,
-          meetingMode,
-          meetingLink: meetingMode === "Online" ? meetingLink.trim() : "",
-          location: meetingMode === "Offline" ? location.trim() : "",
+          meetingMode: interviewFormat === "ai" ? "AI Interview" : meetingMode,
+          meetingLink: interviewFormat === "manual" && meetingMode === "Online" ? meetingLink.trim() : "",
+          location: interviewFormat === "manual" && meetingMode === "Offline" ? location.trim() : "",
           preparationGuidelines: preparationGuidelines.trim() || undefined,
         };
 
@@ -496,7 +500,7 @@ const InterviewScheduleModal = ({
                 <Calendar className="w-3.5 h-3.5" />
               </div>
               <h3 className="text-base font-bold text-slate-900">
-                {isRescheduling ? "Reschedule Interview Slot" : "Schedule Live Interview"}
+                {isRescheduling ? "Reschedule Interview Slot" : "Schedule Interview"}
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-0.5 ml-9">
@@ -803,10 +807,51 @@ const InterviewScheduleModal = ({
             </p>
           </div>
 
+          {!isRescheduling && (
+            <div>
+              <label className="block font-bold text-slate-800 mb-1.5">Interview Format *</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInterviewFormat("manual")}
+                  className={`py-3 px-3 rounded-xl font-bold border transition text-left ${
+                    interviewFormat === "manual"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
+                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="block">Manual Interview</span>
+                  <span className={`block text-[10px] mt-0.5 ${interviewFormat === "manual" ? "text-slate-300" : "text-slate-500"}`}>
+                    Conducted by an assigned interviewer
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInterviewFormat("ai")}
+                  className={`py-3 px-3 rounded-xl font-bold border transition text-left ${
+                    interviewFormat === "ai"
+                      ? "bg-violet-700 text-white border-violet-700 shadow-2xs"
+                      : "bg-white border-slate-200 text-slate-700 hover:bg-violet-50"
+                  }`}
+                >
+                  <span className="flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> AI Interview</span>
+                  <span className={`block text-[10px] mt-0.5 ${interviewFormat === "ai" ? "text-violet-200" : "text-slate-500"}`}>
+                    AI-led questions and automatic scorecard
+                  </span>
+                </button>
+              </div>
+              {interviewFormat === "ai" && (
+                <p className="mt-2 p-2.5 rounded-xl bg-violet-50 border border-violet-200 text-[11px] text-violet-800">
+                  The candidate completes the interview in CareerConnect. AI feedback is advisory and remains reviewable by HR.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* ---------------------------------------------------- */}
-          {/* 5. INTERVIEW MODE (Online / Offline)                 */}
+          {/* 5. MANUAL INTERVIEW MODE (Online / Offline)          */}
           {/* ---------------------------------------------------- */}
-          <div>
+          {interviewFormat === "manual" && <div>
             <label className="block font-bold text-slate-800 mb-1.5">Interview Mode</label>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -835,10 +880,10 @@ const InterviewScheduleModal = ({
                 <span>In-Person / Offline</span>
               </button>
             </div>
-          </div>
+          </div>}
 
           {/* Online details */}
-          {meetingMode === "Online" ? (
+          {interviewFormat === "manual" && (meetingMode === "Online" ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block font-bold text-slate-800 mb-1">Platform</label>
@@ -880,7 +925,7 @@ const InterviewScheduleModal = ({
                 required
               />
             </div>
-          )}
+          ))}
 
           {/* Reschedule Reason if applicable */}
           {isRescheduling && (
