@@ -104,7 +104,7 @@ const extractKnownSkills = (text) => Object.entries(SKILL_ALIASES)
   .map(([canonical]) => canonical);
 
 const cleanJobDescriptionText = (value) => String(value || "")
-  .replace(/\u0000/g, "")
+  .replaceAll("\u0000", "")
   .replace(/\r\n?/g, "\n")
   .replace(/[ \t]+/g, " ")
   .replace(/\n{3,}/g, "\n\n")

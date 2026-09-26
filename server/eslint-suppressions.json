@@ -49,12 +49,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 4
-    }
-  },
-  "controllers/assessmentController.js": {
-    "no-unused-vars": {
-      "count": 2
+      "count": 3
     }
   },
   "controllers/authController.js": {
@@ -428,18 +423,13 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 4
+      "count": 2
     },
     "no-useless-assignment": {
       "count": 3
     },
     "no-useless-escape": {
       "count": 9
-    }
-  },
-  "services/employerDashboardService.js": {
-    "no-unused-vars": {
-      "count": 1
     }
   },
   "services/jobScraperService.js": {

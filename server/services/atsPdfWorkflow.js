@@ -20,7 +20,7 @@ const EVIDENCE_HEADING = /^(experience|work experience|professional experience|c
 const ACTION_VERBS = ["analyzed", "built", "completed", "created", "designed", "developed", "delivered", "implemented", "improved", "led", "managed", "optimized", "reduced", "researched", "tested"];
 
 const cleanText = (value) => String(value || "")
-  .replace(/\u0000/g, "")
+  .replaceAll("\u0000", "")
   .replace(/\r\n?/g, "\n")
   .replace(/[\t ]+/g, " ")
   .trim();
