@@ -35,6 +35,7 @@ const DEFAULT_STAGES = [
 ];
 
 const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
+  const navigate = useNavigate();
   const [stages, setStages] = useState(DEFAULT_STAGES);
   const [expandedStageIdx, setExpandedStageIdx] = useState(null);
   const [formData, setFormData] = useState({
