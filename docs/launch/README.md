@@ -50,13 +50,15 @@ Rules until launch:
 - [ ] A backup has been restored successfully into a test database at least once.
 - [ ] Privacy Policy, Terms and Contact pages are live, and signup asks for consent.
 - [ ] An admin moderation rota is assigned for 11–25 Oct.
-- [ ] Rollback steps have been rehearsed: redeploy the previous Render and Vercel builds.
+- [ ] Vivek has rehearsed a rollback: redeploy the previous Render and Vercel builds.
 
-## Credential rotation runbook (Imran, do on 26–27 Sep)
+## Credential rotation runbook (Imran with Vivek, do on 26–27 Sep)
 
 **Why:** `server/.env` was committed on 23 Aug (commits `a110544` and `3214bdc`) and is still in git history. It contains the MongoDB connection string and `JWT_SECRET`. A Razorpay test key and secret are also hardcoded as fallbacks in `server/controllers/paymentController.js`. Treat all of them as leaked.
 
 **Order matters:** create the new value, update Render, redeploy, confirm the app works, and only then revoke the old value.
+
+**Who does what:** Imran creates the new values in Atlas, Razorpay and Google Cloud. Vivek sets them on Render and redeploys, because he owns deployment.
 
 1. **MongoDB Atlas.** Whoever holds the Atlas login must do this step.
    1. Go to *Database Access* and create a new database user with a strong generated password. You can instead edit the existing user's password.
@@ -83,7 +85,7 @@ After rotating, log the date and the person who did it in `docs/security-hardeni
 | Person | Area |
 |---|---|
 | Ram | Product, scope, legal copy, employer supply, launch marketing |
-| Vivek | Backend: moderation, auth, emails, sockets, expiry |
+| Vivek | Backend and **deployment**: moderation, auth, emails, sockets, expiry. Only Vivek merges into `main` and deploys to Render. |
 | Imran | Infrastructure: secrets, Render, Cloudflare, backups, monitoring, job feeds, database indexes |
 | Sneha | Candidate frontend: feature flag, job detail pages, SEO, legal pages, error boundary |
 | Yug | Resume: AI limits, Cloudinary cleanup, account deletion, resume privacy |
