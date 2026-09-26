@@ -17,5 +17,10 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Keep files small enough to review. Existing large files are listed in
+      // eslint-suppressions.json; new files must stay under this limit.
+      'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
+    },
   },
 ])

@@ -28,6 +28,15 @@ Rules until launch:
 - No new features after code freeze on 6 Oct. Only fixes for bugs found in QA or the beta.
 - Never commit a `.env` file. Secrets live only in the Render and Vercel dashboards.
 
+## Code quality rules (enforced in CI)
+
+1. **Lint gate.** CI runs ESLint on `client/` and `server/` for every PR into `launch/job-portal` and `main`.
+   - The existing errors (684 in the client, 271 in the server) are recorded in `eslint-suppressions.json`.
+   - **Any new error fails the PR.**
+   - When you fix old errors, run `npm run lint:prune` and commit the updated suppressions file. The count can only go down.
+2. **File size.** New files must stay under 500 lines, and ESLint's `max-lines` rule fails the PR otherwise. For the 68 files that are already over 500 lines (50 client, 18 server), don't add new features inside them: put new code in a new component or module and import it.
+3. **Reuse, not copy-paste.** A tool can't check this, so it's on the PR checklist in `.github/pull_request_template.md` and the reviewer checks it. Build shared components for the student, fresher and professional versions.
+
 ## Phases
 
 | Phase | Dates | Goal | Exit gate |
