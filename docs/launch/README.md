@@ -8,13 +8,15 @@
 
 **Task list with owners and dates:** [Launch_Tracker.csv](Launch_Tracker.csv). Update its `Status` column daily.
 
+**Hosting (confirmed 26 Sep):** the API runs on **Render Free**: 0.1 CPU, 512 MB RAM, and it sleeps after 15 minutes idle, which is why task I01's keep-alive is required. Production deploys from `main`. The live code is `main` at `2c84c10` (23 Sep).
+
 ## Branches
 
 | Branch | Purpose |
 |---|---|
 | `launch/job-portal` | Created from `main` on 26 Sep. **All launch work goes here** through small PRs. Tripti reviews every PR. |
 | `feature/assessments-ai-interview` | Parked work-in-progress for assessments and AI interviews. Known bugs are listed in its commit message. **Do not merge before launch.** It is 57 commits behind `main`, with 13 files that conflict. |
-| `main` | Gets `launch/job-portal` merged in at code freeze (evening of 6 Oct). |
+| `main` | **Production.** Render deploys from `main`. Gets `launch/job-portal` merged in at code freeze (evening of 6 Oct). **Until then, nobody merges into `main`**; every merge goes live. |
 | `ram-mohan-code` | 6 commits not yet in `main`: ATS scoring, JD upload and the verified ATS PDF workflow. Merge decision is tracker task B01. |
 | `Imran` | 1 commit not in `main` (messaging, job visibility, offer lifecycle). Not in launch scope; on hold (B02). |
 | `sneha` | Course changes, not in launch scope. Only the auth fix gets cherry-picked (B03). |
