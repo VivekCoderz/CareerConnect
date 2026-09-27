@@ -27,6 +27,7 @@ Rules until launch:
 - Branch from `launch/job-portal`, keep PRs small, and put the tracker ID in the PR title (for example `[S03] Force pending approval on new jobs`).
 - No new features after code freeze on 6 Oct. Only fixes for bugs found in QA or the beta.
 - Never commit a `.env` file. Secrets live only in the Render and Vercel dashboards.
+- **Don't merge while CI is red.** On 23 Sep, PRs were merged into `main` with failing tests, and privacy regressions went live (see Q10).
 
 ## Code quality rules (enforced in CI)
 
