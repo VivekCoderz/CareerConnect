@@ -130,7 +130,8 @@ const Home = () => {
               </Link>
 
               {/* Navigation Dropdowns like Internshala */}
-              <JobDiscoveryMenu />
+              <div className="hidden md:flex items-center gap-2">
+                <JobDiscoveryMenu />
                 <InternshipDiscoveryMenu />
                 {FEATURES.courses && (
                   <Link
