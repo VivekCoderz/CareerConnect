@@ -112,7 +112,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 7
+      "count": 6
     }
   },
   "controllers/interviewController.js": {
@@ -131,7 +131,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 4
+      "count": 3
     }
   },
   "controllers/offerController.js": {
@@ -199,11 +199,6 @@
     }
   },
   "routes/courseRoutes.js": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "routes/jobRoutes.js": {
     "no-unused-vars": {
       "count": 1
     }
