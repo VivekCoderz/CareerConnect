@@ -172,7 +172,19 @@ exports.getJobs = async (req, res, next) => {
     if (workMode && workMode !== "All") query.workMode = workMode;
     const locFilter = (city || location || "").trim();
     if (locFilter && locFilter !== "All") {
-      query[city ? "city" : "location"] = { $regex: escapeRegex(locFilter), $options: "i" };
+      const locRegex = new RegExp(escapeRegex(locFilter), "i");
+      const locConditions = [{ city: locRegex }, { location: locRegex }];
+      if (locFilter.toLowerCase() === "remote") {
+        locConditions.push({ workMode: /Remote/i });
+      }
+      if (query.$and) {
+        query.$and.push({ $or: locConditions });
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: locConditions }];
+        delete query.$or;
+      } else {
+        query.$or = locConditions;
+      }
     }
 
     let campusJobs = [];
@@ -233,8 +245,20 @@ exports.getJobs = async (req, res, next) => {
           search: searchTerm || (category && category !== "All" ? category : ""),
         });
 
+        const locLower = (locFilter && locFilter !== "All" ? locFilter : "").toLowerCase();
         const formattedScraped = (scraped.data || [])
-          .filter((item) => !city || String(item.location || "").toLowerCase().includes(String(city).toLowerCase()))
+          .filter((item) => {
+            if (!locLower) return true;
+            const itemLoc = String(item.location || "").toLowerCase();
+            const itemCity = String(item.city || "").toLowerCase();
+            const itemTitle = String(item.title || "").toLowerCase();
+            return (
+              itemLoc.includes(locLower) ||
+              itemCity.includes(locLower) ||
+              itemTitle.includes(locLower) ||
+              (locLower === "remote" && (item.workMode || "").toLowerCase().includes("remote"))
+            );
+          })
           .map((item, idx) => ({
           _id: `scraped-job-${idx}`,
           id: `scraped-job-${idx}`,

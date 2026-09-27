@@ -7,6 +7,56 @@ import { applyOpportunity, saveOpportunity } from "../../services/studentDashboa
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 
+const CATEGORIES_LIST = [
+  "Software Development",
+  "Data Science",
+  "Machine Learning & AI",
+  "Web Development",
+  "DevOps & Cloud",
+  "UI/UX Design",
+  "Digital Marketing",
+  "Finance & Accounting",
+  "Human Resources (HR)",
+  "Sales & Business Dev",
+];
+
+const CITIES_LIST = [
+  "All",
+  "Bangalore",
+  "Delhi NCR",
+  "Mumbai",
+  "Hyderabad",
+  "Pune",
+  "Chennai",
+  "Remote",
+];
+
+const normalizeCity = (param) => {
+  if (!param) return "All";
+  const cleaned = param.replace(/-/g, " ").trim().toLowerCase();
+  const matched = CITIES_LIST.find(
+    (c) => c.toLowerCase() === cleaned || c.toLowerCase().includes(cleaned) || cleaned.includes(c.toLowerCase())
+  );
+  if (matched) return matched;
+  return cleaned
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+};
+
+const normalizeCategory = (param) => {
+  if (!param) return "All";
+  const cleaned = param.replace(/-/g, " ").trim().toLowerCase();
+  const matched = CATEGORIES_LIST.find(
+    (c) => c.toLowerCase() === cleaned || c.toLowerCase().includes(cleaned) || cleaned.includes(c.toLowerCase())
+  );
+  if (matched) return matched;
+  return cleaned
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+};
+
 const JobDiscoveryPage = () => {
   const { city: cityParam, category: categoryParam } = useParams();
   const location = useLocation();
@@ -29,8 +79,8 @@ const JobDiscoveryPage = () => {
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCity, setSelectedCity] = useState(cityParam ? cityParam.replace(/-/g, " ") : "All");
-  const [selectedCategory, setSelectedCategory] = useState(categoryParam ? categoryParam.replace(/-/g, " ") : "All");
+  const [selectedCity, setSelectedCity] = useState(cityParam ? normalizeCity(cityParam) : "All");
+  const [selectedCategory, setSelectedCategory] = useState(categoryParam ? normalizeCategory(categoryParam) : "All");
   const [selectedWorkMode, setSelectedWorkMode] = useState(isWorkFromHome ? "Remote" : "All");
   const [selectedEmpType, setSelectedEmpType] = useState("All");
   const [sortBy, setSortBy] = useState("latest");
@@ -42,10 +92,10 @@ const JobDiscoveryPage = () => {
 
   // Sync state when URL params change
   useEffect(() => {
-    if (cityParam) setSelectedCity(cityParam.replace(/-/g, " "));
+    if (cityParam) setSelectedCity(normalizeCity(cityParam));
     else if (!pathname.includes("/in/")) setSelectedCity("All");
 
-    if (categoryParam) setSelectedCategory(categoryParam.replace(/-/g, " "));
+    if (categoryParam) setSelectedCategory(normalizeCategory(categoryParam));
     else if (!pathname.includes("/category/")) setSelectedCategory("All");
 
     if (isWorkFromHome) setSelectedWorkMode("Remote");
@@ -159,30 +209,6 @@ const JobDiscoveryPage = () => {
     if (categoryParam) return `${categoryParam.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")} Jobs`;
     return "Explore All Jobs & Openings";
   }, [isWorkFromHome, isLatest, cityParam, categoryParam]);
-
-  const categoriesList = [
-    "Software Development",
-    "Data Science",
-    "Machine Learning & AI",
-    "Web Development",
-    "DevOps & Cloud",
-    "UI/UX Design",
-    "Digital Marketing",
-    "Finance & Accounting",
-    "Human Resources (HR)",
-    "Sales & Business Dev",
-  ];
-
-  const citiesList = [
-    "All",
-    "Bangalore",
-    "Delhi NCR",
-    "Mumbai",
-    "Hyderabad",
-    "Pune",
-    "Chennai",
-    "Remote",
-  ];
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800">
@@ -305,11 +331,19 @@ const JobDiscoveryPage = () => {
               </label>
               <select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCategory(val);
+                  if (val === "All") {
+                    if (pathname.includes("/category/")) navigate("/jobs");
+                  } else {
+                    navigate(`/jobs/category/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+                  }
+                }}
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:border-blue-500"
               >
                 <option value="All">All Categories</option>
-                {categoriesList.map((c) => (
+                {CATEGORIES_LIST.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -323,10 +357,18 @@ const JobDiscoveryPage = () => {
               </label>
               <select
                 value={selectedCity}
-                onChange={(e) => setSelectedCity(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCity(val);
+                  if (val === "All") {
+                    if (pathname.includes("/in/")) navigate("/jobs");
+                  } else {
+                    navigate(`/jobs/in/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+                  }
+                }}
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:border-blue-500"
               >
-                {citiesList.map((c) => (
+                {CITIES_LIST.map((c) => (
                   <option key={c} value={c}>
                     {c === "All" ? "All Locations" : c}
                   </option>
