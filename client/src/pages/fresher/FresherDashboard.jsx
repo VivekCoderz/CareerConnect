@@ -5,6 +5,7 @@ import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import { getFresherDashboardData } from "../../services/fresherDashboardService";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { FEATURES } from "../../config/features";
 
 // Fresher Dashboard Components
 import FresherSidebar from "../../components/fresher-dashboard/FresherSidebar";
@@ -228,21 +229,25 @@ const FresherDashboard = () => {
 
               {/* 2-Column: Skills & Career Recommendations */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <FresherSkillDevelopment
-                  userSkills={skillDev.userSkills}
-                  recommendedSkills={skillDev.recommendedSkills}
-                  targetRole={careerTarget.targetRole}
-                />
+                {FEATURES.courses && (
+                  <FresherSkillDevelopment
+                    userSkills={skillDev.userSkills}
+                    recommendedSkills={skillDev.recommendedSkills}
+                    targetRole={careerTarget.targetRole}
+                  />
+                )}
                 <FresherCareerRecommendations
                   recommendations={careerRecommendations}
                 />
               </div>
 
               {/* Recommended Courses */}
-              <FresherRecommendedCourses
-                courses={recommendedCourses}
-                targetRole={careerTarget.targetRole}
-              />
+              {FEATURES.courses && (
+                <FresherRecommendedCourses
+                  courses={recommendedCourses}
+                  targetRole={careerTarget.targetRole}
+                />
+              )}
 
               {/* 2-Column: Resume & Experience */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -320,7 +325,7 @@ const FresherDashboard = () => {
           )}
 
           {/* ==================== COURSES ==================== */}
-          {activeTab === "courses" && (
+          {activeTab === "courses" && FEATURES.courses && (
             <div className="animate-fade-in">
               {coursesView === "catalog" && (
                 <StudentCoursesPage

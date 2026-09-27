@@ -2,6 +2,7 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { FEATURES } from "../../config/features";
 
 // Services
 import {
@@ -180,9 +181,9 @@ const EmployerDashboard = () => {
           organizationService.getDepartments().catch(() => ({ departments: [] })),
           organizationService.getTrainingAssignments().catch(() => ({ assignments: [] })),
           organizationService.getSkillGapAnalysis().catch(() => ({ skillGaps: [] })),
-          learningService.getCourseCatalog().catch(() => ({ courses: [] })),
-          courseService.getEmployerCourses().catch(() => ({ courses: [] })),
-          learningService.getMyLearning().catch(() => ({ enrollments: [] })),
+          FEATURES.courses ? learningService.getCourseCatalog().catch(() => ({ courses: [] })) : Promise.resolve({ courses: [] }),
+          FEATURES.courses ? courseService.getEmployerCourses().catch(() => ({ courses: [] })) : Promise.resolve({ courses: [] }),
+          FEATURES.courses ? learningService.getMyLearning().catch(() => ({ enrollments: [] })) : Promise.resolve({ enrollments: [] }),
           recruitmentService.getEmployerAnalytics().catch(() => null),
           getOrganizationStatus().catch(() => null),
         ]);
@@ -1321,7 +1322,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB: UNIFIED COURSES & LEARNING HUB                      */}
           {/* ======================================================== */}
-          {(activeTab === "courses" || activeTab === "manage-courses" || activeTab === "learning" || activeTab === "my-learning") && (
+          {(activeTab === "courses" || activeTab === "manage-courses" || activeTab === "learning" || activeTab === "my-learning") && FEATURES.courses &&(
             <div className="space-y-6 animate-fade-in">
               {/* Top Courses Subtab Navigation */}
               <div className="p-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-thin">

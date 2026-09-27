@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import { getProfessionalDashboardData } from "../../services/professionalDashboardService";
+import { FEATURES } from "../../config/features";
 
 // Subcomponents
 import ProfessionalSidebar from "../../components/professional-dashboard/ProfessionalSidebar";
@@ -502,7 +503,7 @@ const ProfessionalDashboard = () => {
           )}
 
           {/* ==================== COURSES ==================== */}
-          {activeTab === "courses" && (
+          {activeTab === "courses" && FEATURES.courses && (
             <div className="animate-fade-in">
               {coursesView === "catalog" && (
                 <StudentCoursesPage
