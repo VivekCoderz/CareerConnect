@@ -1175,14 +1175,14 @@ module.exports.getPublicFresherProfile = async (req, res, next) => {
     let user = null;
     if (usernameOrId.match(/^[0-9a-fA-F]{24}$/)) {
       user = await User.findById(usernameOrId).select(
-        "fullName username email phone profileImage socialLinks userType",
+        "fullName username profileImage socialLinks userType",
       );
     }
     if (!user) {
       user = await User.findOne({
         username: usernameOrId.toLowerCase(),
       }).select(
-        "fullName username email phone profileImage socialLinks userType",
+        "fullName username profileImage socialLinks userType",
       );
     }
 

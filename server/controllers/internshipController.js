@@ -70,7 +70,7 @@ exports.createInternship = async (req, res, next) => {
     const initialStatus = req.body.status || (isSuperAdmin ? "Published" : "Pending Approval");
 
     const internship = await Internship.create({
-      ...req.body,
+      ...pickListingUpdate(req.body),
       recruitmentStages: stages,
       employerId: profile._id,
       createdBy: req.user._id,
@@ -303,23 +303,23 @@ exports.getInternships = async (req, res, next) => {
           employmentType: { $regex: /^internship$/i },
         };
 
-        const myJobFilter = { employerId: filter.employerId, employmentType: { $regex: /^internship$/i } };
-        const effectiveJobFilter = myPosts === "true" ? myJobFilter : jobInternFilter;
+        const myJobFilter = myPosts === "true" && req.user
+          ? { createdBy: req.user._id, employmentType: { $regex: /^internship$/i } }
+          : null;
+        const effectiveJobFilter = myJobFilter || jobInternFilter;
         const [intDocs, jobDocs, internshipTotal, jobTotal] = await Promise.all([
           Internship.find(filter)
             .populate("employerId", "companyName logo headquarters website industry description")
             .sort(sortOption)
             .limit(windowSize)
             .lean(),
-          myPosts !== "true"
-            ? Job.find(jobInternFilter)
-                .populate("employerId", "companyName logo headquarters website industry description")
-                .sort(sortOption)
-                .lean()
-            : Job.find({ createdBy: req.user._id, employmentType: { $regex: /^internship$/i } })
-                .populate("employerId", "companyName logo headquarters website industry description")
-                .sort(sortOption)
-                .lean(),
+          Job.find(effectiveJobFilter)
+            .populate("employerId", "companyName logo headquarters website industry description")
+            .sort(sortOption)
+            .limit(windowSize)
+            .lean(),
+          Internship.countDocuments(filter),
+          Job.countDocuments(effectiveJobFilter),
         ]);
         campusTotal = internshipTotal + jobTotal;
 

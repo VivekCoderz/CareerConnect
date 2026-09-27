@@ -12,7 +12,7 @@ router.get("/", (req, res, next) => {
   }
   return jobController.getJobs(req, res, next);
 });
-router.get("/:id", jobController.getJobById);
+router.get("/:id", optionalAuth, jobController.getJobById);
 
 // Employer authenticated routes
 router.use(protect);

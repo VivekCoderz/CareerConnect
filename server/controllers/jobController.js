@@ -328,7 +328,7 @@ exports.getJobById = async (req, res, next) => {
 
     if (!job || (job.status !== "Published" && (!req.user ||
       !(String(job.createdBy) === String(req.user._id) || await EmployerProfile.exists({
-        _id: job.employerId, userId: req.user._id,
+        _id: job.employerId?._id || job.employerId, userId: req.user._id,
       }))))) {
       return res.status(404).json({
         success: false,
@@ -480,9 +480,10 @@ exports.updateJob = async (req, res, next) => {
       });
     }
 
-    const updates = { ...req.body };
-    if (updates.recruitmentStages) {
-      updates.recruitmentStages = sanitizeRecruitmentStages(updates.recruitmentStages);
+    // Only listing fields are editable; ownership and counters are not.
+    const updates = pickListingUpdate(req.body);
+    if (req.body.recruitmentStages) {
+      updates.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     }
 
     Object.assign(job, updates);
