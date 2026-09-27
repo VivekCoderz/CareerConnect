@@ -9,6 +9,49 @@ import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { getMyAppliedIds } from "../../services/applicationService";
 
+const INTERNSHIP_CITIES = [
+  { value: "All", label: "All Locations" },
+  { value: "Bangalore", label: "Bangalore" },
+  { value: "Delhi", label: "Delhi / NCR" },
+  { value: "Hyderabad", label: "Hyderabad" },
+  { value: "Mumbai", label: "Mumbai" },
+  { value: "Pune", label: "Pune" },
+  { value: "Chennai", label: "Chennai" },
+  { value: "Kolkata", label: "Kolkata" },
+  { value: "Jaipur", label: "Jaipur" },
+];
+
+const INTERNSHIP_CATEGORIES = [
+  { value: "All", label: "All Categories" },
+  { value: "Web Development", label: "Web Development" },
+  { value: "Software Development", label: "Software Development" },
+  { value: "Data Science", label: "Data Science & AI" },
+  { value: "UI/UX Design", label: "UI/UX Design" },
+  { value: "Digital Marketing", label: "Digital Marketing" },
+  { value: "HR", label: "Human Resources" },
+  { value: "Finance", label: "Finance & Sales" },
+];
+
+const normalizeInternshipCity = (param) => {
+  if (!param) return "All";
+  const cleaned = param.replace(/-/g, " ").trim().toLowerCase();
+  const matched = INTERNSHIP_CITIES.find(
+    (c) => c.value.toLowerCase() === cleaned || c.label.toLowerCase().includes(cleaned) || cleaned.includes(c.value.toLowerCase())
+  );
+  if (matched) return matched.value;
+  return cleaned.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+};
+
+const normalizeInternshipCategory = (param) => {
+  if (!param) return "All";
+  const cleaned = param.replace(/-/g, " ").trim().toLowerCase();
+  const matched = INTERNSHIP_CATEGORIES.find(
+    (c) => c.value.toLowerCase() === cleaned || c.label.toLowerCase().includes(cleaned) || cleaned.includes(c.value.toLowerCase())
+  );
+  if (matched) return matched.value;
+  return cleaned.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+};
+
 const InternshipDiscoveryPage = () => {
   const { city: cityParam, category: categoryParam } = useParams();
   const location = useLocation();
@@ -41,8 +84,8 @@ const InternshipDiscoveryPage = () => {
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOppType, setSelectedOppType] = useState("All");
-  const [selectedCity, setSelectedCity] = useState(cityParam ? cityParam.replace(/-/g, " ") : "All");
-  const [selectedCategory, setSelectedCategory] = useState(categoryParam ? categoryParam.replace(/-/g, " ") : "All");
+  const [selectedCity, setSelectedCity] = useState(cityParam ? normalizeInternshipCity(cityParam) : "All");
+  const [selectedCategory, setSelectedCategory] = useState(categoryParam ? normalizeInternshipCategory(categoryParam) : "All");
   const [selectedWorkMode, setSelectedWorkMode] = useState(isWorkFromHome ? "Remote" : "All");
   const [selectedPaid, setSelectedPaid] = useState(isPaidOnly ? "true" : "All");
   const [selectedJobOffer, setSelectedJobOffer] = useState(isJobOfferOnly ? "true" : "All");
@@ -74,10 +117,10 @@ const InternshipDiscoveryPage = () => {
 
   // Sync state when URL params change
   useEffect(() => {
-    if (cityParam) setSelectedCity(cityParam.replace(/-/g, " "));
+    if (cityParam) setSelectedCity(normalizeInternshipCity(cityParam));
     else if (!pathname.includes("/in/")) setSelectedCity("All");
 
-    if (categoryParam) setSelectedCategory(categoryParam.replace(/-/g, " "));
+    if (categoryParam) setSelectedCategory(normalizeInternshipCategory(categoryParam));
     else if (!pathname.includes("/category/")) setSelectedCategory("All");
 
     if (isWorkFromHome) setSelectedWorkMode("Remote");
@@ -313,34 +356,43 @@ const InternshipDiscoveryPage = () => {
             {/* City */}
             <select
               value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCity(val);
+                if (val === "All") {
+                  if (pathname.includes("/in/")) navigate("/internships");
+                } else {
+                  navigate(`/internships/in/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+                }
+              }}
               className="h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium outline-none focus:border-blue-600"
             >
-              <option value="All">All Locations</option>
-              <option value="Bangalore">Bangalore</option>
-              <option value="Delhi">Delhi / NCR</option>
-              <option value="Hyderabad">Hyderabad</option>
-              <option value="Mumbai">Mumbai</option>
-              <option value="Pune">Pune</option>
-              <option value="Chennai">Chennai</option>
-              <option value="Kolkata">Kolkata</option>
-              <option value="Jaipur">Jaipur</option>
+              {INTERNSHIP_CITIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
             </select>
 
             {/* Category */}
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCategory(val);
+                if (val === "All") {
+                  if (pathname.includes("/category/")) navigate("/internships");
+                } else {
+                  navigate(`/internships/category/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+                }
+              }}
               className="h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium outline-none focus:border-blue-600"
             >
-              <option value="All">All Categories</option>
-              <option value="Web Development">Web Development</option>
-              <option value="Software Development">Software Development</option>
-              <option value="Data Science">Data Science & AI</option>
-              <option value="UI/UX Design">UI/UX Design</option>
-              <option value="Digital Marketing">Digital Marketing</option>
-              <option value="HR">Human Resources</option>
-              <option value="Finance">Finance & Sales</option>
+              {INTERNSHIP_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
             </select>
 
             {/* Work Mode */}
