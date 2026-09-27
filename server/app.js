@@ -161,7 +161,11 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  return res.status(200).json({ status: "active", node: "GU Gateway Matrix Engine" });
+  return res.status(200).json({
+    status: "OK",
+    message: "CareerConnect backend is running",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Global error handling middleware
