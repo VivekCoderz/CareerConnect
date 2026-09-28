@@ -52,6 +52,27 @@ const verifyEmployerApplicationAccess = async (employerProfileId, userId, applic
 };
 
 /**
+ * Strip everything a candidate must not see from an interview object.
+ * Candidates get the outcome (overall score and recommendation once the
+ * interview is completed); interviewer feedback, internal notes and ATS
+ * notes on the linked application stay private to the employer.
+ */
+const toCandidateInterview = (interview) => {
+  const completed = ["completed", "Completed"].includes(interview.status);
+  interview.scorecard = completed && interview.scorecard ? {
+    overallScore: interview.scorecard.overallScore,
+    recommendation: interview.scorecard.recommendation,
+  } : undefined;
+  delete interview.feedback;
+  delete interview.interviewerFeedback;
+  delete interview.notes;
+  if (interview.applicationId && typeof interview.applicationId === "object") {
+    delete interview.applicationId.notes;
+  }
+  return interview;
+};
+
+/**
  * GET /api/interviews
  * List interviews for employer or candidate with search & dynamic filters
  */
@@ -148,43 +169,9 @@ exports.getInterviews = async (req, res, next) => {
       });
     }
 
-    // Candidate view sanitization: do not expose internal scorecards/feedback notes
+    // Candidate view: result only, never internal feedback or notes
     if (!isEmployer) {
-      interviews = interviews.map((item) => {
-        const obj = item.toObject();
-        if (obj.status !== "completed" && obj.status !== "Completed") {
-          delete obj.scorecard;
-          delete obj.feedback;
-          delete obj.interviewerFeedback;
-        } else if (obj.scorecard) {
-          // Expose result, scores, recommendation, and recruiter feedback to candidate
-          const feedbackText =
-            obj.scorecard?.feedback ||
-            obj.scorecard?.overallFeedback ||
-            obj.feedback?.overallFeedback ||
-            obj.feedback?.comments ||
-            "";
-
-          obj.scorecard = {
-            overallScore: obj.scorecard?.overallScore || obj.feedback?.rating || 0,
-            technicalSkills: obj.scorecard?.technicalSkills || obj.feedback?.technicalScore || 0,
-            communication: obj.scorecard?.communication || obj.feedback?.communicationScore || 0,
-            problemSolving: obj.scorecard?.problemSolving || obj.feedback?.problemSolvingScore || 0,
-            overallPerformance: obj.scorecard?.overallPerformance || 0,
-            recommendation: obj.scorecard?.recommendation || obj.feedback?.recommendation || "",
-            feedback: feedbackText,
-            overallFeedback: feedbackText,
-          };
-          obj.feedback = {
-            rating: obj.scorecard.overallScore,
-            comments: feedbackText,
-            recommendation: obj.scorecard.recommendation,
-          };
-          delete obj.interviewerFeedback;
-        }
-        delete obj.notes;
-        return obj;
-      });
+      interviews = interviews.map((item) => toCandidateInterview(item.toObject()));
     }
 
     // Base query for stats and tabCounts
@@ -683,13 +670,7 @@ exports.getInterviewById = async (req, res, next) => {
 
     // Sanitize for candidate
     if (!isEmployer) {
-      interviewData.scorecard = interviewData.scorecard && ["completed", "Completed"].includes(interviewData.status) ? {
-        overallScore: interviewData.scorecard.overallScore,
-        recommendation: interviewData.scorecard.recommendation,
-      } : undefined;
-      delete interviewData.feedback;
-      delete interviewData.interviewerFeedback;
-      delete interviewData.notes;
+      toCandidateInterview(interviewData);
     }
 
     return res.status(200).json({

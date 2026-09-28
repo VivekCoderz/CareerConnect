@@ -207,15 +207,15 @@ const ResumeStatusCard = ({ resume, profile }) => {
   const resumeTools = [
     {
       id: "ats-checker",
-      title: "ATS Check & AI Fix",
+      title: "ATS Compatibility Check",
       badge: "NEW AI",
       badgeColor: "bg-indigo-600 text-white",
       icon: Zap,
       iconBg: "bg-indigo-600 text-white",
       borderColor: "border-indigo-100 hover:border-indigo-400",
       bgGradient: "from-indigo-50/60 via-white to-purple-50/30",
-      description: "Scan against Job Description, spot line mistakes & 1-click fix to 90%+.",
-      cta: "Audit & Fix Resume",
+      description: "Compare a resume with a job description, review the weighted score, and optimize verified content when needed.",
+      cta: "Review ATS Compatibility",
       onClick: () => navigate("/resume-builder?mode=ats-checker"),
     },
     {

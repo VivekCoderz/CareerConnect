@@ -23,4 +23,9 @@ export default defineConfig([
       'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
     },
   },
+  {
+    // Build tooling runs in Node, not the browser.
+    files: ['vite.config.js', 'eslint.config.js'],
+    languageOptions: { globals: globals.node },
+  },
 ])

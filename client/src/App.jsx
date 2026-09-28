@@ -377,6 +377,7 @@ function App() {
             <Route path="/courses" element={<StudentCoursesPage />} />
             <Route path="/courses/:id" element={<CourseDetailsPage />} />
             <Route path="/my-courses" element={<StudentMyCoursesPage />} />
+            <Route path="/ats-resume" element={<Navigate to="/resume-builder?mode=ats-checker" replace />} />
           </Route>
 
             {/* =================================================

@@ -9,8 +9,10 @@ exports.getCourseCatalog = async (req, res, next) => {
     const { domain, category, level, search, all } = req.query;
     const query = { status: "Published" };
 
-    // Restrict to courses created by this user
-    if (req.user && all !== "true") {
+    // Employers see their own courses by default; candidates browse the
+    // whole published catalog.
+    const isEmployer = req.user?.role === "employer" || req.user?.userType === "employer";
+    if (isEmployer && all !== "true") {
       query.createdBy = req.user._id;
     }
 

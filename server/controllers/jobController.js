@@ -171,7 +171,19 @@ exports.getJobs = async (req, res, next) => {
     if (workMode && workMode !== "All") query.workMode = workMode;
     const locFilter = (city || location || "").trim();
     if (locFilter && locFilter !== "All") {
-      query[city ? "city" : "location"] = { $regex: escapeRegex(locFilter), $options: "i" };
+      const locRegex = new RegExp(escapeRegex(locFilter), "i");
+      const locConditions = [{ city: locRegex }, { location: locRegex }];
+      if (locFilter.toLowerCase() === "remote") {
+        locConditions.push({ workMode: /Remote/i });
+      }
+      if (query.$and) {
+        query.$and.push({ $or: locConditions });
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: locConditions }];
+        delete query.$or;
+      } else {
+        query.$or = locConditions;
+      }
     }
 
     // S07: Source filter mapped to MongoDB (campus = internal only, external = external only, or specific source)
@@ -280,7 +292,7 @@ exports.getJobById = async (req, res, next) => {
 
     if (!job || (job.status !== "Published" && (!req.user ||
       !(String(job.createdBy) === String(req.user._id) || await EmployerProfile.exists({
-        _id: job.employerId, userId: req.user._id,
+        _id: job.employerId?._id || job.employerId, userId: req.user._id,
       }))))) {
       return res.status(404).json({
         success: false,
@@ -432,9 +444,10 @@ exports.updateJob = async (req, res, next) => {
       });
     }
 
-    const updates = { ...req.body };
-    if (updates.recruitmentStages) {
-      updates.recruitmentStages = sanitizeRecruitmentStages(updates.recruitmentStages);
+    // Only listing fields are editable; ownership and counters are not.
+    const updates = pickListingUpdate(req.body);
+    if (req.body.recruitmentStages) {
+      updates.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     }
 
     Object.assign(job, updates);

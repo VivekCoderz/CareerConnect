@@ -495,14 +495,6 @@
       "count": 1
     }
   },
-  "src/components/resume-builder/ATSCheckerAndFixer.jsx": {
-    "max-lines": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 10
-    }
-  },
   "src/components/resume-builder/ATSResumeGenerator.jsx": {
     "max-lines": {
       "count": 1
@@ -607,9 +599,6 @@
   "src/components/resume-builder/templates/ATSSafeResumeRenderer.jsx": {
     "max-lines": {
       "count": 1
-    },
-    "no-useless-escape": {
-      "count": 2
     }
   },
   "src/components/resume-builder/templates/BoldTemplate.jsx": {

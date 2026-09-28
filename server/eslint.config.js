@@ -16,6 +16,8 @@ module.exports = defineConfig([
       // Keep files small enough to review. Existing large files are listed in
       // eslint-suppressions.json; new files must stay under this limit.
       "max-lines": ["error", { max: 500, skipBlankLines: true, skipComments: true }],
+      // Allow `const { omitted, ...rest } = obj` to drop fields on purpose.
+      "no-unused-vars": ["error", { ignoreRestSiblings: true }],
     },
   },
   {
