@@ -3,6 +3,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { FEATURES } from "../../config/features";
+import PostInternship from "./PostInternship";
+import EditInternship from "./EditInternship";
 
 // Services
 import {
@@ -145,7 +147,23 @@ const EmployerDashboard = () => {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+    // Redirect away from tabs switched off by feature flags
+  useEffect(() => {
+    const hidden = {
+      courses: !FEATURES.courses,
+      "manage-courses": !FEATURES.courses,
+      learning: !FEATURES.courses,
+      "my-learning": !FEATURES.courses,
+      training: !FEATURES.courses,
+      "skill-gaps": !FEATURES.courses,
+      assessments: !FEATURES.assessments,
+    };
+    if (hidden[activeTab]) setActiveTab("overview");
+  }, [activeTab]);
+
   // Initial Load
+
+
   useEffect(() => {
     const loadAllData = async () => {
       try {
@@ -174,13 +192,13 @@ const EmployerDashboard = () => {
           internshipService.getMyPosts().catch(() => ({ internships: [] })),
           recruitmentService.getEmployerApplications().catch(() => ({ applications: [] })),
           candidateService.searchCandidates().catch(() => ({ candidates: [] })),
-          recruitmentService.getAssessments().catch(() => ({ assessments: [] })),
+           FEATURES.assessments ? recruitmentService.getAssessments().catch(() => ({ assessments: [] })) : Promise.resolve({ assessments: [] }),
           recruitmentService.getInterviews().catch(() => ({ interviews: [] })),
           recruitmentService.getOffers().catch(() => ({ offers: [] })),
           organizationService.getEmployees().catch(() => ({ employees: [] })),
           organizationService.getDepartments().catch(() => ({ departments: [] })),
-          organizationService.getTrainingAssignments().catch(() => ({ assignments: [] })),
-          organizationService.getSkillGapAnalysis().catch(() => ({ skillGaps: [] })),
+          FEATURES.courses ? organizationService.getTrainingAssignments().catch(() => ({ assignments: [] })) : Promise.resolve({ assignments: [] }),
+          FEATURES.courses ? organizationService.getSkillGapAnalysis().catch(() => ({ skillGaps: [] })) : Promise.resolve({ skillGaps: [] }),  
           FEATURES.courses ? learningService.getCourseCatalog().catch(() => ({ courses: [] })) : Promise.resolve({ courses: [] }),
           FEATURES.courses ? courseService.getEmployerCourses().catch(() => ({ courses: [] })) : Promise.resolve({ courses: [] }),
           FEATURES.courses ? learningService.getMyLearning().catch(() => ({ enrollments: [] })) : Promise.resolve({ enrollments: [] }),
@@ -1236,7 +1254,7 @@ const EmployerDashboard = () => {
                       setInterviewCandidate(c);
                       setIsInterviewModalOpen(true);
                     }}
-                    onAssignAssessment={() => setIsAssessmentModalOpen(true)}
+                    onAssignAssessment={FEATURES.assessments ? () => setIsAssessmentModalOpen(true) : undefined}
                   />
                 ))}
               </div>
@@ -1246,7 +1264,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 5: RECRUITMENT ASSESSMENTS                            */}
           {/* ======================================================== */}
-          {activeTab === "assessments" && (
+          {activeTab === "assessments"  && FEATURES.assessments &&  (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -2286,7 +2304,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 11: ASSIGN TRAINING                                  */}
           {/* ======================================================== */}
-          {activeTab === "training" && (
+          {activeTab === "training"  && FEATURES.courses && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -2344,16 +2362,26 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {activeTab === "analytics" && (
             <div className="space-y-6 animate-fade-in">
+
               <div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Hiring & Learning Analytics</h2>
-                <p className="text-xs text-slate-500">Aggregate telemetry on hiring speed and employee learning hours</p>
+
+                                <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                  {FEATURES.courses ? "Hiring & Learning Analytics" : "Hiring Analytics"}
+                </h2>
+                <p className="text-xs text-slate-500">
+                  {FEATURES.courses
+                    ? "Aggregate telemetry on hiring speed and employee learning hours"
+                    : "Aggregate telemetry on hiring speed"}
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className={`grid grid-cols-1 gap-6 ${FEATURES.courses ? "lg:grid-cols-2" : ""}`}>
                 <HiringAnalyticsChart hiring={analyticsData?.hiring} />
-                <LearningAnalyticsChart learning={analyticsData?.learning} />
+                {FEATURES.courses && (
+                  <LearningAnalyticsChart learning={analyticsData?.learning} />
+                )}
               </div>
-            </div>
+               </div>  
           )}
 
           {/* ======================================================== */}
@@ -2374,7 +2402,10 @@ const EmployerDashboard = () => {
                     { role: "Technical Recruiter", access: "Post jobs, screen applications & candidate talent pool" },
                     { role: "Hiring Manager", access: "Review shortlisted candidates & submit interview scorecards" },
                     { role: "Learning & Development Manager", access: "Assign courses, analyze skill gaps & view learning telemetry" },
-                  ].map((r, idx) => (
+                    
+                  ]
+                  .filter((r) => FEATURES.courses || r.role !== "Learning & Development Manager")
+                  .map((r, idx) => (
                     <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between">
                       <div>
                         <h4 className="text-xs font-bold text-slate-900">{r.role}</h4>
@@ -2416,12 +2447,14 @@ const EmployerDashboard = () => {
         jobs={jobs}
       />
 
+        {FEATURES.assessments && (
       <AssessmentModal
         isOpen={isAssessmentModalOpen}
         onClose={() => setIsAssessmentModalOpen(false)}
         onCreateAssessment={handleCreateAssessment}
         jobs={jobs}
       />
+        )}
 
       <AddEmployeeModal
         isOpen={isAddEmployeeModalOpen}

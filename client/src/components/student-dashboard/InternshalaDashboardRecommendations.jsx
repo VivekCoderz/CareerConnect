@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { FEATURES } from "../../config/features";
 
 const EmptyOpportunityCard = ({ type, href }) => (
   <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between min-h-[290px]">
@@ -95,7 +96,7 @@ const InternshalaDashboardRecommendations = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 gap-4 ${FEATURES.courses ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           {/* Banner 1: Internships */}
           <Link
             to="/internships"
@@ -139,6 +140,7 @@ const InternshalaDashboardRecommendations = ({
           </Link>
 
           {/* Banner 3: Courses */}
+          {FEATURES.courses && (
           <Link
             to="/courses"
             className="group relative overflow-hidden p-5 rounded-2xl bg-gradient-to-br from-[#4c1d95] via-[#5b21b6] to-[#6d28d9] text-white shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between min-h-[145px]"
@@ -158,6 +160,8 @@ const InternshalaDashboardRecommendations = ({
               <span>→</span>
             </span>
           </Link>
+          )}
+
         </div>
       </div>
 
@@ -211,6 +215,7 @@ const InternshalaDashboardRecommendations = ({
             >
               🎓 Internship
             </button>
+             {FEATURES.courses && (
             <button
               onClick={() => setActiveCategory("course")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
@@ -221,6 +226,7 @@ const InternshalaDashboardRecommendations = ({
             >
               📚 Course
             </button>
+             )}
           </div>
         </div>
 
@@ -228,7 +234,7 @@ const InternshalaDashboardRecommendations = ({
         <div
           className={
             activeCategory === "all"
-              ? "grid grid-cols-1 md:grid-cols-3 gap-5"
+            ? `grid grid-cols-1 gap-5 ${FEATURES.courses ? "md:grid-cols-3" : "md:grid-cols-2"}`
               : "grid grid-cols-1 max-w-xl mx-auto md:mx-0 gap-5"
           }
         >
@@ -520,7 +526,7 @@ const InternshalaDashboardRecommendations = ({
           ) : <EmptyOpportunityCard type="internship" href="/internships" />)}
 
           {/* ================= CARD 3: RECOMMENDED COURSE ================= */}
-          {(activeCategory === "all" || activeCategory === "course") && (
+                    {FEATURES.courses && (activeCategory === "all" || activeCategory === "course") && (
             <div className="bg-white rounded-2xl border border-slate-200/90 hover:border-purple-500 hover:shadow-xl transition-all duration-300 p-5 sm:p-6 flex flex-col justify-between gap-4 group">
               <div>
                 {/* Header Badge Row */}

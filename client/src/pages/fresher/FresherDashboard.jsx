@@ -357,7 +357,9 @@ const FresherDashboard = () => {
           )}
 
           {/* ==================== SKILLS ==================== */}
-          {activeTab === "skills" && (
+
+
+          {activeTab === "skills" && FEATURES.courses && (
             <div className="space-y-6 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Skill Development</h2>
@@ -501,12 +503,15 @@ const FresherDashboard = () => {
                     <p className="text-xs text-slate-500 max-w-sm mx-auto">
                       Certifications from Coursera, Google, or AWS can increase your profile views by 3×.
                     </p>
+                     
+                     {FEATURES.courses && (
                     <a
                       href="/courses"
                       className="inline-block mt-2 px-5 py-2 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold hover:bg-[#1e40af] transition shadow-sm"
                     >
                       Browse Certification Courses
                     </a>
+                     )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
