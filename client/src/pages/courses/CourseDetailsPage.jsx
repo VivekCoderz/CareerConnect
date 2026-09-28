@@ -286,13 +286,13 @@ const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
 
       // 4. Configure Razorpay checkout popup modal
       const options = {
-        key: orderRes.keyId || "rzp_test_TbSS4kb8G70xwq",
+        key: orderRes.keyId,
         amount: orderRes.amount,
         currency: orderRes.currency || "INR",
         name: "CareerConnect",
         description: `Enrollment: ${course.title}`,
         image: "/favicon.svg",
-        ...(orderRes.isSimulated ? {} : { order_id: orderRes.orderId }),
+        order_id: orderRes.orderId,
         handler: async function (response) {
           try {
             const verifyRes = await verifyCoursePayment({
