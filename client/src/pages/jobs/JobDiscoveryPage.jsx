@@ -386,7 +386,7 @@ const JobDiscoveryPage = () => {
             {jobs.map((jobItem) => {
               const isSaved = savedIds.includes(jobItem.id || jobItem._id);
               const compName = jobItem.employerId?.companyName || jobItem.company || jobItem.companyName || "Partner Employer";
-              const salaryStr = jobItem.salary || (jobItem.salaryRange?.min ? `₹${(jobItem.salaryRange.min / 100000).toFixed(1)}L - ₹${(jobItem.salaryRange.max / 100000).toFixed(1)}L / yr` : "Competitive Package");
+              const salaryStr = jobItem.salary || (jobItem.salaryRange?.min ? `₹${(jobItem.salaryRange.min / 100000).toFixed(1)}L - ₹${(jobItem.salaryRange.max / 100000).toFixed(1)}L / yr` : "Not disclosed");
 
               return (
                 <div
