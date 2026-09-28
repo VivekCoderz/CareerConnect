@@ -6,9 +6,10 @@ const protect = require("../middleware/authMiddleware");
 const { optionalAuth } = require("../middleware/authMiddleware");
 const { requireEmployer: employerOnly } = require("../middleware/roleMiddleware");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { internshipsLiveLimiter } = require("../middleware/rateLimitMiddleware");
 
 // Live external and campus aggregated internships feed
-router.get("/live", async (req, res, next) => {
+router.get("/live", internshipsLiveLimiter, async (req, res, next) => {
   try {
     const results = await getAggregatedOpportunities({
       ...req.query,

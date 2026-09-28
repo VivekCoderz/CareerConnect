@@ -1,42 +1,163 @@
-const rateLimit = require("express-rate-limit");
+const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 
 /**
- * Helper to get clean client IP
+ * Helper to get clean, normalized client IP using express-rate-limit's ipKeyGenerator
  */
 const getClientIp = (req) => {
-  return req.ip || req.socket?.remoteAddress || "unknown";
+  return ipKeyGenerator(req.ip || "127.0.0.1");
 };
 
 /**
- * 1. Login Rate Limiter:
- * Exactly 10 requests per 1 minute on login endpoints.
- * No 24-hour IP blocking.
+ * Helper to dynamically read limit with fallback
+ */
+const getLimitMax = (envVar, defaultVal) => {
+  const raw = process.env[envVar];
+  if (raw !== undefined && raw !== null && raw !== "") {
+    const parsed = parseInt(raw, 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return defaultVal;
+};
+
+const commonRateLimitOptions = {
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  statusCode: 429,
+  message: {
+    success: false,
+    message: "Too many requests. Please try again later.",
+  },
+};
+
+/**
+ * Global API Rate Limiter
+ * Default: 300 requests / 15 minutes per IP (RATE_LIMIT_GLOBAL_MAX)
+ * Skips OPTIONS preflights and health check routes
+ */
+const globalLimiter = rateLimit({
+  ...commonRateLimitOptions,
+  windowMs: 15 * 60 * 1000,
+  max: () => getLimitMax("RATE_LIMIT_GLOBAL_MAX", 300),
+  keyGenerator: (req) => getClientIp(req),
+  skip: (req) => {
+    return (
+      req.method === "OPTIONS" ||
+      req.path === "/health" ||
+      req.path === "/" ||
+      req.originalUrl === "/health" ||
+      req.originalUrl === "/" ||
+      req.originalUrl?.startsWith("/health")
+    );
+  },
+});
+
+/**
+ * OTP Send Rate Limiter
+ * Default: 5 requests / 15 minutes per IP + normalized email/phone (RATE_LIMIT_OTP_SEND_MAX)
+ */
+const otpSendLimiter = rateLimit({
+  ...commonRateLimitOptions,
+  windowMs: 15 * 60 * 1000,
+  max: () => getLimitMax("RATE_LIMIT_OTP_SEND_MAX", 5),
+  keyGenerator: (req) => {
+    const ip = getClientIp(req);
+    const identifier = (
+      req.body?.email ||
+      req.body?.phone ||
+      req.body?.emailOrUsername ||
+      req.body?.username ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+    return `${ip}:${identifier}`;
+  },
+});
+
+/**
+ * OTP Verify Rate Limiter
+ * Default: 10 requests / 15 minutes per IP + normalized email/phone (RATE_LIMIT_OTP_VERIFY_MAX)
+ */
+const otpVerifyLimiter = rateLimit({
+  ...commonRateLimitOptions,
+  windowMs: 15 * 60 * 1000,
+  max: () => getLimitMax("RATE_LIMIT_OTP_VERIFY_MAX", 10),
+  keyGenerator: (req) => {
+    const ip = getClientIp(req);
+    const identifier = (
+      req.body?.email ||
+      req.body?.phone ||
+      req.body?.emailOrUsername ||
+      req.body?.username ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+    return `${ip}:${identifier}`;
+  },
+});
+
+/**
+ * AI & Resume Endpoints Rate Limiter
+ * Default: 20 requests / 60 minutes (RATE_LIMIT_AI_MAX)
+ * Key: user:<req.user._id> when logged in, otherwise ip:<ip>
+ */
+const aiResumeLimiter = rateLimit({
+  ...commonRateLimitOptions,
+  windowMs: 60 * 60 * 1000,
+  max: () => getLimitMax("RATE_LIMIT_AI_MAX", 20),
+  keyGenerator: (req) => {
+    const userId = req.user?._id || req.user?.id;
+    if (userId) {
+      return `user:${userId}`;
+    }
+    const ip = getClientIp(req);
+    return `ip:${ip}`;
+  },
+});
+
+/**
+ * Live Internships Aggregator Limiter
+ * Default: 60 requests / 1 minute per IP (RATE_LIMIT_LIVE_MAX)
+ */
+const internshipsLiveLimiter = rateLimit({
+  ...commonRateLimitOptions,
+  windowMs: 1 * 60 * 1000,
+  max: () => getLimitMax("RATE_LIMIT_LIVE_MAX", 60),
+  keyGenerator: (req) => getClientIp(req),
+});
+
+/**
+ * Login Rate Limiter (Preserved with standardHeaders draft-7)
  */
 const loginLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 10,                 // 10 requests per minute
-  standardHeaders: true,
+  windowMs: 1 * 60 * 1000,
+  max: 10,
+  standardHeaders: "draft-7",
   legacyHeaders: false,
+  statusCode: 429,
   handler: (req, res) => {
     return res.status(429).json({
       success: false,
       code: "LOGIN_RATE_LIMIT_EXCEEDED",
-      message: "Too many login attempts. Limit is 10 requests per minute. Please try again after 1 minute.",
+      message:
+        "Too many login attempts. Limit is 10 requests per minute. Please try again after 1 minute.",
       retryAfterSeconds: 60,
     });
   },
 });
 
 /**
- * 2. Password Reset Limiter:
- * Maximum 3 requests per 24 hours (1 day).
- * No 24-hour IP blocking.
+ * Password Reset Limiter (Preserved with standardHeaders draft-7)
  */
 const passwordResetLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000, // 24 hours (1 day)
-  max: 3,                         // Maximum 3 calls per day
-  standardHeaders: true,
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: "draft-7",
   legacyHeaders: false,
+  statusCode: 429,
   keyGenerator: (req) => {
     const ip = getClientIp(req);
     const email = req.body?.email ? req.body.email.trim().toLowerCase() : "";
@@ -46,26 +167,31 @@ const passwordResetLimiter = rateLimit({
     return res.status(429).json({
       success: false,
       code: "PASSWORD_RESET_LIMIT_24H",
-      message: "You can only send 3 password reset requests per 24 hours. Limit reached. Please try again later.",
+      message:
+        "You can only send 3 password reset requests per 24 hours. Limit reached. Please try again later.",
       retryAfterHours: 24,
     });
   },
 });
 
-// No-op middleware for backwards compatibility or disabled rate limiters
+// No-op middleware for backwards compatibility
 const noopMiddleware = (req, res, next) => next();
 
 module.exports = {
+  // Real active limiters
+  globalLimiter,
+  otpSendLimiter,
+  otpVerifyLimiter,
+  aiResumeLimiter,
+  internshipsLiveLimiter,
   loginLimiter,
   passwordResetLimiter,
-  // Aliases for compatibility
+
+  // Aliases for backwards compatibility
+  otpLimiter: otpSendLimiter,
   passwordResetLimiter24h: passwordResetLimiter,
   resetLimiter: passwordResetLimiter,
   authLimiter: loginLimiter,
-  // Disabled / No-op
   ipBlockerMiddleware: noopMiddleware,
-  globalLimiter: noopMiddleware,
-  otpLimiter: noopMiddleware,
-  aiResumeLimiter: noopMiddleware,
   getClientIp,
 };
