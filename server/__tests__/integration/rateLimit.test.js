@@ -6,7 +6,7 @@ mongoose.set("bufferCommands", false);
 // In-memory store for OTP simulation in tests
 const otpStore = {};
 
-jest.mock("../models/User", () => ({
+jest.mock("../../models/User", () => ({
   findOne: jest.fn().mockResolvedValue(null),
 }));
 
@@ -21,7 +21,7 @@ const mockDeleteOne = jest.fn().mockImplementation((query) => {
   return Promise.resolve({ deletedCount: 1 });
 });
 
-jest.mock("../models/PendingOTP", () => ({
+jest.mock("../../models/PendingOTP", () => ({
   findOne: jest.fn().mockImplementation((query) => {
     const email = query.email;
     const record = otpStore[email];
@@ -47,7 +47,7 @@ jest.mock("../models/PendingOTP", () => ({
 }));
 
 // Mock auth middleware to populate req.user from x-test-user header
-jest.mock("../middleware/authMiddleware", () => {
+jest.mock("../../middleware/authMiddleware", () => {
   const mw = (req, res, next) => {
     const testUser = req.headers["x-test-user"];
     if (testUser) {
@@ -66,7 +66,7 @@ jest.mock("../middleware/authMiddleware", () => {
 });
 
 // Mock external scrapers, AI, emails, and captcha
-jest.mock("../services/jobScraperService", () => ({
+jest.mock("../../services/jobScraperService", () => ({
   getAggregatedOpportunities: jest.fn().mockResolvedValue({
     count: 1,
     data: [{ id: "mock-internship-1", title: "Software Engineer Intern" }],
@@ -74,7 +74,7 @@ jest.mock("../services/jobScraperService", () => ({
   }),
 }));
 
-jest.mock("../services/ragAiService", () => ({
+jest.mock("../../services/ragAiService", () => ({
   answerUserQuery: jest.fn().mockResolvedValue({
     success: true,
     answer: "Hello! This is a mock AI assistant response.",
@@ -85,18 +85,18 @@ jest.mock("../services/ragAiService", () => ({
   }),
 }));
 
-jest.mock("../utils/sendEmail", () =>
+jest.mock("../../utils/sendEmail", () =>
   jest.fn().mockResolvedValue({ messageId: "mock-email-id-12345" })
 );
 
-jest.mock("../services/emailValidationService", () => ({
+jest.mock("../../services/emailValidationService", () => ({
   validateEmail: jest.fn().mockResolvedValue({
     isValid: true,
     normalizedEmail: "test@example.com",
   }),
 }));
 
-jest.mock("../middleware/captchaMiddleware", () => () => (req, res, next) => next());
+jest.mock("../../middleware/captchaMiddleware", () => () => (req, res, next) => next());
 
 describe("S06 Security: Rate Limiting & Proxy Configuration", () => {
   const originalEnv = { ...process.env };
@@ -122,7 +122,7 @@ describe("S06 Security: Rate Limiting & Proxy Configuration", () => {
 
     let freshApp;
     jest.isolateModules(() => {
-      freshApp = require("../app");
+      freshApp = require("../../app");
     });
     return freshApp;
   }
@@ -325,7 +325,7 @@ describe("S06 Security: Rate Limiting & Proxy Configuration", () => {
       }),
     };
 
-    const PendingOTP = require("../models/PendingOTP");
+    const PendingOTP = require("../../models/PendingOTP");
 
     // 4 wrong attempts return 400
     for (let i = 1; i <= 4; i++) {
