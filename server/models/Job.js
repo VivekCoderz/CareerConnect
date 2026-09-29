@@ -218,7 +218,8 @@ const jobSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["Draft", "Pending Approval", "Published", "Paused", "Closed", "Rejected"],
-      default: "Published",
+      // Listings must be approved before they are public; publishers set status explicitly.
+      default: "Pending Approval",
       index: true,
     },
     approvedBy: {

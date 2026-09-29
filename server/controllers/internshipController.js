@@ -11,7 +11,12 @@ const FresherProfile = require("../models/FresherProfile");
 const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require("../services/jobScraperService");
-const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
+const {
+  pickListingUpdate,
+  escapeRegex,
+  resolveInitialListingStatus,
+  checkEmployerStatusChange,
+} = require("../utils/listingSecurity");
 const { sanitizeRecruitmentStages } = require("./jobController");
 
 // Helper to normalize URL slugs to category names
@@ -66,8 +71,9 @@ exports.createInternship = async (req, res, next) => {
       if (comp) companyName = comp.name;
     }
 
-    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
-    const initialStatus = req.body.status || (isSuperAdmin ? "Published" : "Pending Approval");
+    // Employers can only submit for approval (or save a draft); only platform admins publish directly
+    const initialStatus = resolveInitialListingStatus(req.user, req.body.status);
+    const selfApproved = initialStatus === "Published";
 
     const internship = await Internship.create({
       ...pickListingUpdate(req.body),
@@ -79,6 +85,8 @@ exports.createInternship = async (req, res, next) => {
       source: "CareerConnect",
       isExternal: false,
       status: initialStatus,
+      approvedBy: selfApproved ? req.user._id : null,
+      approvedAt: selfApproved ? new Date() : null,
     });
 
     // Real-time Mail Notification trigger
@@ -94,7 +102,9 @@ exports.createInternship = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: "Internship posted successfully",
+      message: initialStatus === "Pending Approval"
+        ? "Internship submitted for approval"
+        : "Internship saved successfully",
       internship,
       data: internship,
     });
@@ -702,25 +712,24 @@ exports.updateInternship = async (req, res, next) => {
 exports.updateInternshipStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
-    const allowed = ["Draft", "Published", "Paused", "Closed"];
-    if (!allowed.includes(status)) {
-      return res.status(400).json({ success: false, message: "Invalid status" });
-    }
 
     const ownerQuery = {
       _id: req.params.id,
       createdBy: req.user._id,
     };
-    const internship = await Internship.findOneAndUpdate(
-      ownerQuery,
-      { status },
-      { new: true }
-    );
+    const internship = await Internship.findOne(ownerQuery);
 
     if (!internship) {
       return res.status(404).json({ success: false, message: "Internship not found or access denied" });
     }
 
+    const denied = checkEmployerStatusChange(internship, status);
+    if (denied) {
+      return res.status(denied.code).json({ success: false, message: denied.message });
+    }
+
+    internship.status = status;
+    await internship.save();
     clearSearchCache();
 
     return res.json({ success: true, internship, data: internship });

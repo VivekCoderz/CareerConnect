@@ -21,6 +21,7 @@ import * as courseService from "../../services/courseService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import EmployerSidebar from "../../components/employer/EmployerSidebar";
 import JobModal from "../../components/employer/JobModal";
+import { canEmployerRepublish } from "../../utils/listingModeration";
 import ATSPipelineView from "../../components/employer/ATSPipelineView";
 import CandidateCard from "../../components/employer/CandidateCard";
 import AssessmentModal from "../../components/employer/AssessmentModal";
@@ -333,18 +334,22 @@ const EmployerDashboard = () => {
       const res = await jobService.createJob(jobPayload);
       if (res?.success) {
         setJobs((prev) => [res.job, ...prev]);
-        showToast("New job posted to CareerConnect talent portal!");
+        showToast("Job submitted for approval. It will go live once an admin approves it.");
         refreshDashboardData();
       }
     }
   };
 
   const handleToggleJobStatus = async (jobId, newStatus) => {
-    const res = await jobService.updateJobStatus(jobId, newStatus);
-    if (res?.success) {
-      setJobs((prev) => prev.map((j) => (j._id === jobId ? res.job : j)));
-      showToast(`Job status changed to ${newStatus}`);
-      refreshDashboardData();
+    try {
+      const res = await jobService.updateJobStatus(jobId, newStatus);
+      if (res?.success) {
+        setJobs((prev) => prev.map((j) => (j._id === jobId ? res.job : j)));
+        showToast(`Job status changed to ${newStatus}`);
+        refreshDashboardData();
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to update job status", "error");
     }
   };
 
@@ -1048,7 +1053,7 @@ const EmployerDashboard = () => {
                             ? "bg-slate-100 text-slate-600"
                             : "bg-amber-50 text-amber-700"
                         }`}>
-                          {job.status}
+                          {job.status === "Pending Approval" ? "Pending approval" : job.status}
                         </span>
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10.5px] font-semibold">
                           {job.employmentType}
@@ -1079,13 +1084,15 @@ const EmployerDashboard = () => {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleJobStatus(job._id, job.status === "Published" ? "Paused" : "Published")}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
-                      >
-                        {job.status === "Published" ? "Pause" : "Publish"}
-                      </button>
+                      {(job.status === "Published" || canEmployerRepublish(job)) && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleJobStatus(job._id, job.status === "Published" ? "Paused" : "Published")}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
+                        >
+                          {job.status === "Published" ? "Pause" : "Resume"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleDuplicateJob(job._id)}
