@@ -33,11 +33,13 @@ const opportunityRoutes = require("./routes/opportunityRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
 const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
+const { configureTrustProxy } = require("./config/trustProxy");
+const { globalLimiter } = require("./middleware/rateLimitMiddleware");
 
 const app = express();
+configureTrustProxy(app);
+
 const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
-const proxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || "0", 10);
-app.set("trust proxy", Number.isInteger(proxyHops) && proxyHops >= 0 && proxyHops <= 5 ? proxyHops : 0);
 
 // Allowed origins for CORS (loaded from CLIENT_URL in .env + local development fallbacks)
 const allowedOrigins = isProduction ? [] : [
@@ -107,6 +109,19 @@ app.use(cookieParser());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use(cookieOriginMiddleware(allowedOrigins, isProduction));
+
+// Global rate limiting for all API endpoints
+app.use("/api", globalLimiter);
+
+// Optional temporary IP Debug route (enabled ONLY when ENABLE_IP_DEBUG === "true")
+if (process.env.ENABLE_IP_DEBUG === "true") {
+  app.get("/api/_debug/ip", (req, res) => {
+    return res.status(200).json({
+      ip: req.ip,
+      xff: req.headers["x-forwarded-for"],
+    });
+  });
+}
 
 // Base & User Profile Routes
 app.use("/api/auth", authRoutes);

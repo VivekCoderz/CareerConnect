@@ -5,6 +5,7 @@ const authControllers = require("../controllers/authController.js");
 const authMiddleware = require("../middleware/authMiddleware");
 const verifyCaptcha = require("../middleware/captchaMiddleware");
 const { limitOtpAction } = require("../services/otpService");
+const { otpSendLimiter, otpVerifyLimiter } = require("../middleware/rateLimitMiddleware");
 const { sanitizeInputs } = require("../middleware/validationMiddleware");
 
 // ==========================================
@@ -84,14 +85,14 @@ router.patch(
 // ==========================================
 // PUBLIC — OTP. Account-existence lookup endpoints are intentionally not exposed.
 // ==========================================
-router.post("/send-otp", sanitizeInputs, limitOtpAction("send"), authControllers.sendOTP);
-router.post("/verify-otp", sanitizeInputs, limitOtpAction("verify"), authControllers.verifyOTP);
+router.post("/send-otp", sanitizeInputs, otpSendLimiter, authControllers.sendOTP);
+router.post("/verify-otp", sanitizeInputs, otpVerifyLimiter, authControllers.verifyOTP);
 
 // ==========================================
 // PUBLIC — Forgot / Reset Password (3 times in 24 hours / per day)
 // ==========================================
-router.post("/forgot-password", sanitizeInputs, limitOtpAction("forgot"), verifyCaptcha("forgot_password"), authControllers.forgotPassword);
-router.post("/verify-reset-otp", sanitizeInputs, limitOtpAction("verify-reset"), authControllers.verifyResetOTP);
+router.post("/forgot-password", sanitizeInputs, otpSendLimiter, verifyCaptcha("forgot_password"), authControllers.forgotPassword);
+router.post("/verify-reset-otp", sanitizeInputs, otpVerifyLimiter, authControllers.verifyResetOTP);
 router.post("/reset-password", sanitizeInputs, limitOtpAction("reset"), authControllers.resetPassword);
 
 // ==========================================
