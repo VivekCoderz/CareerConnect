@@ -325,8 +325,6 @@ describe("S06 Security: Rate Limiting & Proxy Configuration", () => {
       }),
     };
 
-    const PendingOTP = require("../../models/PendingOTP");
-
     // 4 wrong attempts return 400
     for (let i = 1; i <= 4; i++) {
       const res = await request(app)
