@@ -148,18 +148,16 @@ const EmployerDashboard = () => {
   };
 
     // Redirect away from tabs switched off by feature flags
-  useEffect(() => {
-    const hidden = {
-      courses: !FEATURES.courses,
-      "manage-courses": !FEATURES.courses,
-      learning: !FEATURES.courses,
-      "my-learning": !FEATURES.courses,
-      training: !FEATURES.courses,
-      "skill-gaps": !FEATURES.courses,
-      assessments: !FEATURES.assessments,
-    };
-    if (hidden[activeTab]) setActiveTab("overview");
-  }, [activeTab]);
+  const hiddenTabs = {
+    courses: !FEATURES.courses,
+    "manage-courses": !FEATURES.courses,
+    learning: !FEATURES.courses,
+    "my-learning": !FEATURES.courses,
+    training: !FEATURES.courses,
+    "skill-gaps": !FEATURES.courses,
+    assessments: !FEATURES.assessments,
+  };
+  const safeActiveTab = hiddenTabs[activeTab] ? "overview" : activeTab;
 
   // Initial Load
 
@@ -957,7 +955,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 1: OVERVIEW DASHBOARD                               */}
           {/* ======================================================== */}
-          {activeTab === "overview" && (
+          {safeActiveTab === "overview" && (
             <DashboardPage
               data={dashboardData}
               onPostJob={() => navigate("/employer/jobs/new")}
@@ -1005,7 +1003,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB: INTERNSHIP MANAGEMENT                               */}
           {/* ======================================================== */}
-          {activeTab === "internships" && (
+          {safeActiveTab === "internships" && (
             <div className="space-y-5 animate-fade-in bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
               {internshipView === "list" && (
                 <MyInternships
@@ -1035,7 +1033,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 2: JOB MANAGEMENT                                    */}
           {/* ======================================================== */}
-          {activeTab === "jobs" && (
+          {safeActiveTab === "jobs" && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -1177,7 +1175,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 3: ATS APPLICANT PIPELINE                            */}
           {/* ======================================================== */}
-          {activeTab === "ats" && (
+          {safeActiveTab === "ats" && (
             <div className="space-y-5 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Applicant Tracking System</h2>
@@ -1209,7 +1207,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 4: TALENT POOL & MATCHING ENGINE                     */}
           {/* ======================================================== */}
-          {activeTab === "candidates" && (
+          {safeActiveTab === "candidates" && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
@@ -1264,7 +1262,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 5: RECRUITMENT ASSESSMENTS                            */}
           {/* ======================================================== */}
-          {activeTab === "assessments"  && FEATURES.assessments &&  (
+          {safeActiveTab === "assessments"  && FEATURES.assessments &&  (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -1305,7 +1303,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 6: INTERVIEWS                                        */}
           {/* ======================================================== */}
-          {activeTab === "interviews" && (
+          {safeActiveTab === "interviews" && (
             <InterviewManagementHub
               interviews={interviews}
               jobs={jobs}
@@ -1324,7 +1322,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 7: JOB OFFERS                                        */}
           {/* ======================================================== */}
-          {activeTab === "offers" && (
+          {safeActiveTab === "offers" && (
             <OfferManagementHub
               offers={offers}
               jobs={jobs}
@@ -1340,7 +1338,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB: UNIFIED COURSES & LEARNING HUB                      */}
           {/* ======================================================== */}
-          {(activeTab === "courses" || activeTab === "manage-courses" || activeTab === "learning" || activeTab === "my-learning") && FEATURES.courses &&(
+          {(safeActiveTab === "courses" || safeActiveTab === "manage-courses" || safeActiveTab === "learning" || safeActiveTab === "my-learning") && FEATURES.courses &&(
             <div className="space-y-6 animate-fade-in">
               {/* Top Courses Subtab Navigation */}
               <div className="p-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
@@ -1593,7 +1591,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB: CONNECT COMPANY WITH CAREERCONNECT                   */}
           {/* ======================================================== */}
-          {activeTab === "organization" && (
+          {safeActiveTab === "organization" && (
             <div className="space-y-6 animate-fade-in">
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -2243,7 +2241,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 10: EMPLOYEE DIRECTORY & TEAMS                       */}
           {/* ======================================================== */}
-          {activeTab === "employees" && (
+          {safeActiveTab === "employees" && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -2304,7 +2302,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 11: ASSIGN TRAINING                                  */}
           {/* ======================================================== */}
-          {activeTab === "training"  && FEATURES.courses && (
+          {safeActiveTab === "training"  && FEATURES.courses && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -2343,7 +2341,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 12: SKILL GAP ANALYSIS                               */}
           {/* ======================================================== */}
-          {activeTab === "skill-gaps" && (
+          {safeActiveTab === "skill-gaps" && (
             <div className="space-y-5 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Organization Skill Gap Analysis</h2>
@@ -2360,7 +2358,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 13: HIRING & TRAINING ANALYTICS                      */}
           {/* ======================================================== */}
-          {activeTab === "analytics" && (
+          {safeActiveTab === "analytics" && (
             <div className="space-y-6 animate-fade-in">
 
               <div>
@@ -2387,7 +2385,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 14: TEAM ROLES & SETTINGS                            */}
           {/* ======================================================== */}
-          {activeTab === "settings" && (
+          {safeActiveTab === "settings" && (
             <div className="space-y-5 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Team Roles & Permission Settings</h2>
