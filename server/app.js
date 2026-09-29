@@ -35,6 +35,7 @@ const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
 const { configureTrustProxy } = require("./config/trustProxy");
 const { globalLimiter } = require("./middleware/rateLimitMiddleware");
+const dbStatus = require("./utils/dbStatus");
 
 const app = express();
 configureTrustProxy(app);
@@ -175,10 +176,14 @@ app.get("/", (req, res) => {
   });
 });
 
+// UptimeRobot pings this every 5 minutes: it keeps Render awake and alerts
+// the team when the API or the database is down.
 app.get("/health", (req, res) => {
-  return res.status(200).json({
-    status: "OK",
-    message: "CareerConnect backend is running",
+  const databaseConnected = dbStatus.isDatabaseConnected();
+  return res.status(databaseConnected ? 200 : 503).json({
+    status: databaseConnected ? "OK" : "degraded",
+    database: databaseConnected ? "connected" : "unavailable",
+    message: databaseConnected ? "CareerConnect backend is running" : "Database unavailable",
     timestamp: new Date().toISOString(),
   });
 });
