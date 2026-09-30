@@ -100,3 +100,9 @@ After rotating, log the date and the person who did it in `docs/security-hardeni
 | Sneha | Candidate frontend: feature flag, job detail pages, SEO, legal pages, error boundary |
 | Yug | Resume: AI limits, Cloudinary cleanup, account deletion, resume privacy |
 | Tripti | QA: test checklist, security regression tests, load test, beta, go/no-go |
+
+## Feature flags
+- Server: ENABLE_COURSES, ENABLE_PAYMENTS, ENABLE_ASSESSMENTS (default off; routes return 404)
+- Client: VITE_ENABLE_COURSES, VITE_ENABLE_PAYMENTS, VITE_ENABLE_ASSESSMENTS, VITE_ENABLE_AI_INTERVIEW (default off)
+- For launch, do NOT set any of these on Render/Vercel
+- For local testing, put them in client/.env.local (never commit)

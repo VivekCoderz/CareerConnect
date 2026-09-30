@@ -5,6 +5,7 @@ import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import { getFresherDashboardData } from "../../services/fresherDashboardService";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { FEATURES } from "../../config/features";
 
 // Fresher Dashboard Components
 import FresherSidebar from "../../components/fresher-dashboard/FresherSidebar";
@@ -228,21 +229,25 @@ const FresherDashboard = () => {
 
               {/* 2-Column: Skills & Career Recommendations */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <FresherSkillDevelopment
-                  userSkills={skillDev.userSkills}
-                  recommendedSkills={skillDev.recommendedSkills}
-                  targetRole={careerTarget.targetRole}
-                />
+                {FEATURES.courses && (
+                  <FresherSkillDevelopment
+                    userSkills={skillDev.userSkills}
+                    recommendedSkills={skillDev.recommendedSkills}
+                    targetRole={careerTarget.targetRole}
+                  />
+                )}
                 <FresherCareerRecommendations
                   recommendations={careerRecommendations}
                 />
               </div>
 
               {/* Recommended Courses */}
-              <FresherRecommendedCourses
-                courses={recommendedCourses}
-                targetRole={careerTarget.targetRole}
-              />
+              {FEATURES.courses && (
+                <FresherRecommendedCourses
+                  courses={recommendedCourses}
+                  targetRole={careerTarget.targetRole}
+                />
+              )}
 
               {/* 2-Column: Resume & Experience */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -320,7 +325,7 @@ const FresherDashboard = () => {
           )}
 
           {/* ==================== COURSES ==================== */}
-          {activeTab === "courses" && (
+          {activeTab === "courses" && FEATURES.courses && (
             <div className="animate-fade-in">
               {coursesView === "catalog" && (
                 <StudentCoursesPage
@@ -352,7 +357,9 @@ const FresherDashboard = () => {
           )}
 
           {/* ==================== SKILLS ==================== */}
-          {activeTab === "skills" && (
+
+
+          {activeTab === "skills" && FEATURES.courses && (
             <div className="space-y-6 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Skill Development</h2>
@@ -496,12 +503,15 @@ const FresherDashboard = () => {
                     <p className="text-xs text-slate-500 max-w-sm mx-auto">
                       Certifications from Coursera, Google, or AWS can increase your profile views by 3×.
                     </p>
+                     
+                     {FEATURES.courses && (
                     <a
                       href="/courses"
                       className="inline-block mt-2 px-5 py-2 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold hover:bg-[#1e40af] transition shadow-sm"
                     >
                       Browse Certification Courses
                     </a>
+                     )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
