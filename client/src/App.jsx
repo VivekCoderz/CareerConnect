@@ -1,111 +1,113 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState, lazy, Suspense } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useEffect, useState, Suspense } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import JourneyLoader from "./components/common/JourneyLoader";
+import { lazyWithRetry } from "./utils/lazyWithRetry";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 // Guards & Common Modals
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
 
 // Admin & 404
 import NotFound from "./pages/NotFound";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
-const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
-const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
-const AdminCompanies = lazy(() => import("./pages/admin/AdminCompanies"));
-const AdminCompanyAdmins = lazy(() => import("./pages/admin/AdminCompanyAdmins"));
-const AdminCompanyProfile = lazy(() => import("./pages/admin/AdminCompanyProfile"));
-const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
-const AdminOpportunities = lazy(() => import("./pages/admin/AdminOpportunities"));
-const AdminApplications = lazy(() => import("./pages/admin/AdminApplications"));
-const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
-const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
+const AdminDashboard = lazyWithRetry(() => import("./pages/admin/AdminDashboard"));
+const AdminLogin = lazyWithRetry(() => import("./pages/admin/AdminLogin"));
+const AdminCompanies = lazyWithRetry(() => import("./pages/admin/AdminCompanies"));
+const AdminCompanyAdmins = lazyWithRetry(() => import("./pages/admin/AdminCompanyAdmins"));
+const AdminCompanyProfile = lazyWithRetry(() => import("./pages/admin/AdminCompanyProfile"));
+const AdminUsers = lazyWithRetry(() => import("./pages/admin/AdminUsers"));
+const AdminOpportunities = lazyWithRetry(() => import("./pages/admin/AdminOpportunities"));
+const AdminApplications = lazyWithRetry(() => import("./pages/admin/AdminApplications"));
+const AdminReports = lazyWithRetry(() => import("./pages/admin/AdminReports"));
+const AdminSettings = lazyWithRetry(() => import("./pages/admin/AdminSettings"));
 
 // Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
 import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
 
 // Lazy-loaded Pages: Public & Discovery
-const Home = lazy(() => import("./pages/Home.jsx"));
-const SelectRole = lazy(() => import("./pages/SelectRole"));
-const JobDiscoveryPage = lazy(() => import("./pages/jobs/JobDiscoveryPage"));
-const InternshipDiscoveryPage = lazy(
+const Home = lazyWithRetry(() => import("./pages/Home.jsx"));
+const SelectRole = lazyWithRetry(() => import("./pages/SelectRole"));
+const JobDiscoveryPage = lazyWithRetry(() => import("./pages/jobs/JobDiscoveryPage"));
+const InternshipDiscoveryPage = lazyWithRetry(
   () => import("./pages/internships/InternshipDiscoveryPage"),
 );
-const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage"));
-const OrganizationRequestPage = lazy(() => import("./pages/organizations/OrganizationRequestPage"));
-const AdminActivate = lazy(() => import("./pages/admin/AdminActivate"));
+const OpportunitiesPage = lazyWithRetry(() => import("./pages/OpportunitiesPage"));
+const OrganizationRequestPage = lazyWithRetry(() => import("./pages/organizations/OrganizationRequestPage"));
+const AdminActivate = lazyWithRetry(() => import("./pages/admin/AdminActivate"));
 
 // Lazy-loaded Pages: Auth
-const Login = lazy(() => import("./pages/auth/Login"));
-const Signup = lazy(() => import("./pages/auth/Signup"));
-const EmployerRegister = lazy(() => import("./pages/auth/EmployerRegister"));
-const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword.jsx"));
-const SetPassword = lazy(() => import("./pages/auth/SetPassword.jsx"));
-const GoogleOnboarding = lazy(
+const Login = lazyWithRetry(() => import("./pages/auth/Login"));
+const Signup = lazyWithRetry(() => import("./pages/auth/Signup"));
+const EmployerRegister = lazyWithRetry(() => import("./pages/auth/EmployerRegister"));
+const ForgotPassword = lazyWithRetry(() => import("./pages/auth/ForgotPassword.jsx"));
+const SetPassword = lazyWithRetry(() => import("./pages/auth/SetPassword.jsx"));
+const GoogleOnboarding = lazyWithRetry(
   () => import("./pages/auth/GoogleOnboarding.jsx"),
 );
-const GoogleEmployerOnboarding = lazy(
+const GoogleEmployerOnboarding = lazyWithRetry(
   () => import("./pages/auth/GoogleEmployerOnboarding.jsx"),
 );
 
 // Lazy-loaded Pages: Student
-const StudentDashboard = lazy(() => import("./pages/student/StudentDashboard"));
-const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
-const Internships = lazy(() => import("./pages/student/Internships"));
-const InternshipDetail = lazy(() => import("./pages/student/InternshipDetail"));
-const MyApplications = lazy(() => import("./pages/student/MyApplications"));
+const StudentDashboard = lazyWithRetry(() => import("./pages/student/StudentDashboard"));
+const StudentProfile = lazyWithRetry(() => import("./pages/student/StudentProfile"));
+const Internships = lazyWithRetry(() => import("./pages/student/Internships"));
+const InternshipDetail = lazyWithRetry(() => import("./pages/student/InternshipDetail"));
+const MyApplications = lazyWithRetry(() => import("./pages/student/MyApplications"));
 
 // Lazy-loaded Pages: Courses
-const StudentCoursesPage = lazy(
+const StudentCoursesPage = lazyWithRetry(
   () => import("./pages/courses/StudentCoursesPage"),
 );
-const StudentMyCoursesPage = lazy(
+const StudentMyCoursesPage = lazyWithRetry(
   () => import("./pages/courses/StudentMyCoursesPage"),
 );
-const CourseDetailsPage = lazy(
+const CourseDetailsPage = lazyWithRetry(
   () => import("./pages/courses/CourseDetailsPage"),
 );
-const EmployeeCoursesPage = lazy(
+const EmployeeCoursesPage = lazyWithRetry(
   () => import("./pages/courses/EmployeeCoursesPage"),
 );
-const CreateCoursePage = lazy(() => import("./pages/courses/CreateCoursePage"));
-const EditCoursePage = lazy(() => import("./pages/courses/EditCoursePage"));
-const CourseContentPage = lazy(
+const CreateCoursePage = lazyWithRetry(() => import("./pages/courses/CreateCoursePage"));
+const EditCoursePage = lazyWithRetry(() => import("./pages/courses/EditCoursePage"));
+const CourseContentPage = lazyWithRetry(
   () => import("./pages/courses/CourseContentPage"),
 );
 
 // Lazy-loaded Pages: Fresher
-const FresherDashboard = lazy(() => import("./pages/fresher/FresherDashboard"));
-const FresherProfile = lazy(() => import("./pages/fresher/FresherProfile"));
-const CareerRecommendationsPage = lazy(
+const FresherDashboard = lazyWithRetry(() => import("./pages/fresher/FresherDashboard"));
+const FresherProfile = lazyWithRetry(() => import("./pages/fresher/FresherProfile"));
+const CareerRecommendationsPage = lazyWithRetry(
   () => import("./pages/fresher/CareerRecommendationsPage"),
 );
 
 // Lazy-loaded Pages: Professional
-const ProfessionalDashboard = lazy(
+const ProfessionalDashboard = lazyWithRetry(
   () => import("./pages/professional/ProfessionalDashboard"),
 );
-const ProfessionalProfile = lazy(
+const ProfessionalProfile = lazyWithRetry(
   () => import("./pages/professional/ProfessionalProfile"),
 );
 
 // Lazy-loaded Pages: Employer
-const EmployerProfile = lazy(() => import("./pages/employer/EmployerProfile"));
-const EmployerDashboard = lazy(
+const EmployerProfile = lazyWithRetry(() => import("./pages/employer/EmployerProfile"));
+const EmployerDashboard = lazyWithRetry(
   () => import("./pages/employer/EmployerDashboard"),
 );
-const CompanyPublicProfile = lazy(
+const CompanyPublicProfile = lazyWithRetry(
   () => import("./pages/employer/CompanyPublicProfile"),
 );
-const PostInternship = lazy(() => import("./pages/employer/PostInternship"));
-const CreateOpportunityPage = lazy(() => import("./pages/employer/CreateOpportunityPage"));
-const EmployerApplicationDetailPage = lazy(() => import("./pages/employer/EmployerApplicationDetailPage"));
-const StudentApplicationTrackingPage = lazy(() => import("./pages/student/StudentApplicationTrackingPage"));
-const MyInternships = lazy(() => import("./pages/employer/MyInternships"));
-const EditInternship = lazy(() => import("./pages/employer/EditInternship"));
-const JobPostingFlow = lazy(() => import("./pages/employer/JobPostingFlow"));
+const PostInternship = lazyWithRetry(() => import("./pages/employer/PostInternship"));
+const CreateOpportunityPage = lazyWithRetry(() => import("./pages/employer/CreateOpportunityPage"));
+const EmployerApplicationDetailPage = lazyWithRetry(() => import("./pages/employer/EmployerApplicationDetailPage"));
+const StudentApplicationTrackingPage = lazyWithRetry(() => import("./pages/student/StudentApplicationTrackingPage"));
+const MyInternships = lazyWithRetry(() => import("./pages/employer/MyInternships"));
+const EditInternship = lazyWithRetry(() => import("./pages/employer/EditInternship"));
+const JobPostingFlow = lazyWithRetry(() => import("./pages/employer/JobPostingFlow"));
 
 // Lazy-loaded Pages: Resume Builder
-const ResumeBuilder = lazy(() => import("./pages/resume/ResumeBuilder"));
+const ResumeBuilder = lazyWithRetry(() => import("./pages/resume/ResumeBuilder"));
 
 // Lightweight Page Fallback Loader
 const PageFallback = () => (
@@ -235,14 +237,12 @@ const AuthInitializer = ({ children }) => {
 // APP
 // =====================================================
 
-function App() {
+function AppRoutes() {
+  const location = useLocation();
   return (
-    <BrowserRouter>
-      <RateLimitWarningModal />
-      <FloatingAiAssistant />
-      <AuthInitializer>
-        <Suspense fallback={<PageFallback />}>
-          <Routes>
+    <ErrorBoundary key={location.pathname}>
+      <Suspense fallback={<PageFallback />}>
+<Routes>
             {/* =================================================
               PUBLIC ROUTES
           ================================================= */}
@@ -495,8 +495,19 @@ function App() {
           <Route path="/" element={<RootRoute />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </Suspense>
-    </AuthInitializer>
+            </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <RateLimitWarningModal />
+      <FloatingAiAssistant />
+      <AuthInitializer>
+        <AppRoutes />
+      </AuthInitializer>
     </BrowserRouter>
   );
 }
