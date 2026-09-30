@@ -1,0 +1,123 @@
+name: MongoDB Restore Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_key:
+        description: "B2 backup path, e.g. nightly/careerconnect-....archive.gz.gpg"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-22.04
+
+    services:
+      mongodb:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install MongoDB Database Tools
+        run: |
+          curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-8.0.gpg
+
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" \
+            | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+
+          sudo apt-get update
+          sudo apt-get install -y mongodb-database-tools
+
+          mongorestore --version
+
+      - name: Install GPG and AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg awscli
+
+          gpg --version
+          aws --version
+
+      - name: Download encrypted backup from B2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_RESTORE_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_RESTORE_APPLICATION_KEY }}
+          B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
+          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
+          BACKUP_KEY: ${{ inputs.backup_key }}
+        run: |
+          aws s3 cp \
+            "s3://$B2_BUCKET_NAME/$BACKUP_KEY" \
+            "$RUNNER_TEMP/backup.archive.gz.gpg" \
+            --endpoint-url "$B2_ENDPOINT"
+
+          test -s "$RUNNER_TEMP/backup.archive.gz.gpg"
+
+          echo "Encrypted backup downloaded successfully."
+
+      - name: Decrypt backup
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          printf '%s' "$BACKUP_PASSPHRASE" | \
+            gpg \
+              --batch \
+              --yes \
+              --pinentry-mode loopback \
+              --passphrase-fd 0 \
+              --output "$RUNNER_TEMP/backup.archive.gz" \
+              --decrypt "$RUNNER_TEMP/backup.archive.gz.gpg"
+
+          test -s "$RUNNER_TEMP/backup.archive.gz"
+
+          echo "Backup decrypted successfully."
+
+      - name: Restore backup into scratch MongoDB
+        run: |
+          mongorestore \
+            --uri="mongodb://127.0.0.1:27017" \
+            --archive="$RUNNER_TEMP/backup.archive.gz" \
+            --gzip \
+            --nsFrom="careerconnect.*" \
+            --nsTo="careerconnect_restore_test.*"
+
+          echo "MongoDB restore completed successfully."
+
+      - name: Verify restored database
+        run: |
+          docker run --rm \
+            --network host \
+            mongo:8.0 \
+            mongosh \
+            "mongodb://127.0.0.1:27017/careerconnect_restore_test" \
+            --quiet \
+            --eval '
+              const collections = db.getCollectionNames();
+              print("Collections restored: " + collections.length);
+              printjson(collections);
+
+              if (collections.length === 0) {
+                throw new Error("Restore verification failed: no collections found.");
+              }
+
+              print("Restore verification successful.");
+            '
+
+      - name: Cleanup temporary backup files
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/backup.archive.gz"
+          rm -f "$RUNNER_TEMP/backup.archive.gz.gpg"
