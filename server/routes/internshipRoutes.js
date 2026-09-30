@@ -4,7 +4,7 @@ const router = express.Router();
 const internshipController = require("../controllers/internshipController");
 const protect = require("../middleware/authMiddleware");
 const { optionalAuth } = require("../middleware/authMiddleware");
-const { requireEmployer: employerOnly } = require("../middleware/roleMiddleware");
+const { requireEmployer: employerOnly, requireSuperAdmin } = require("../middleware/roleMiddleware");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
 const { internshipsLiveLimiter } = require("../middleware/rateLimitMiddleware");
 
@@ -66,8 +66,8 @@ router.get("/category/:category", (req, res, next) => {
   return internshipController.getInternships(req, res, next);
 });
 
-// Sync external API jobs
-router.post("/sync/external", protect, employerOnly, internshipController.syncFromExternalAPIs);
+// Sync external API jobs (platform admins only: synced listings are published without moderation)
+router.post("/sync/external", protect, requireSuperAdmin, internshipController.syncFromExternalAPIs);
 
 // Employer create internship
 router.post("/", protect, employerOnly, internshipController.createInternship);

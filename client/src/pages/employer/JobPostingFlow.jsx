@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import jobService from "../../services/jobService";
 import JourneyLoader from "../../components/common/JourneyLoader";
+import ModerationBadge from "../../components/employer/ModerationBadge";
 
 const DEFAULT_CATEGORIES = [
   "Web Development",
@@ -161,7 +162,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
     bonusSkills: "Next.js, Git",
     openings: 2,
     deadline: "",
-    status: "Published",
+    status: "",
   });
 
   // Interview Rounds State
@@ -207,7 +208,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
               bonusSkills: Array.isArray(j.bonusSkills) ? j.bonusSkills.join(", ") : "",
               openings: j.openings || 2,
               deadline: j.deadline ? j.deadline.split("T")[0] : "",
-              status: j.status || "Published",
+              status: j.status || "",
             });
 
             if (Array.isArray(j.interviewRounds) && j.interviewRounds.length > 0) {
@@ -447,7 +448,6 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
           : [],
         openings: Number(formData.openings) || 1,
         deadline: formData.deadline || null,
-        status: formData.status,
         interviewRounds: interviewRounds.map((r, idx) => ({
           order: idx + 1,
           name: r.name.trim(),
@@ -475,7 +475,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
         setSuccessToast(
           isEditMode
             ? "Job & interview rounds updated successfully!"
-            : "Job opportunity & interview process published successfully!"
+            : "Job submitted for approval. It will go live once an admin approves it."
         );
 
         setTimeout(() => {
@@ -629,8 +629,8 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
                 3
               </div>
               <div className="hidden sm:block min-w-0">
-                <p className="text-xs font-bold text-slate-900 truncate">Review & Publish</p>
-                <p className="text-[10px] text-slate-500 truncate">Confirm & launch</p>
+                <p className="text-xs font-bold text-slate-900 truncate">Review & Submit</p>
+                <p className="text-[10px] text-slate-500 truncate">Submit for approval</p>
               </div>
             </button>
           </div>
@@ -645,8 +645,9 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
               <span className="px-2.5 py-1 rounded-lg bg-amber-100/70 text-[#92400e] text-[11px] font-extrabold uppercase tracking-wider">
                 Step 1 of 3
               </span>
-              <h1 className="text-xl font-extrabold text-slate-900 mt-2 tracking-tight">
+              <h1 className="text-xl font-extrabold text-slate-900 mt-2 tracking-tight flex items-center gap-2">
                 {isEditMode ? "Edit Job Details" : "Specify Job & Opportunity Details"}
+                {isEditMode && <ModerationBadge status={formData.status} />}
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
                 Provide the core vacancy information before defining the interview rounds in Step 2.
@@ -1377,12 +1378,12 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
                 {submitting ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    <span>{isEditMode ? "Updating Job..." : "Publishing Job..."}</span>
+                    <span>{isEditMode ? "Updating Job..." : "Submitting..."}</span>
                   </>
                 ) : (
                   <>
                     <Check className="w-4 h-4" />
-                    <span>{isEditMode ? "Save Changes & Update Job" : "Publish Job Opportunity"}</span>
+                    <span>{isEditMode ? "Save Changes & Update Job" : "Submit for approval"}</span>
                   </>
                 )}
               </button>
