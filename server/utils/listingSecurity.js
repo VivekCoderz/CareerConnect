@@ -16,6 +16,20 @@ const pickListingUpdate = (body) => Object.fromEntries(
   Object.entries(sanitizeProfileUpdate(body)).filter(([key]) => editableListingFields.has(key))
 );
 
+// Edits to these fields don't change what candidates read, so a published
+// listing stays live. Any other content change sends it back to moderation.
+const fieldsNotNeedingReview = new Set(["openings", "deadline", "applicationDeadline", "interviewRounds"]);
+
+const sameValue = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+const requiresReapproval = (listing, updates) => {
+  if (listing.status !== "Published") return false;
+  const current = listing.toObject({ depopulate: true });
+  return Object.entries(updates).some(
+    ([key, value]) => !fieldsNotNeedingReview.has(key) && !sameValue(current[key], value)
+  );
+};
+
 const escapeRegex = (value) => String(value || "").slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const isPlatformAdmin = (user) =>
@@ -50,6 +64,7 @@ const checkEmployerStatusChange = (listing, nextStatus) => {
 
 module.exports = {
   pickListingUpdate,
+  requiresReapproval,
   escapeRegex,
   isPlatformAdmin,
   resolveInitialListingStatus,

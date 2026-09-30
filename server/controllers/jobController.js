@@ -6,6 +6,7 @@ const Company = require("../models/Company");
 const Application = require("../models/Application");
 const {
   pickListingUpdate,
+  requiresReapproval,
   escapeRegex,
   resolveInitialListingStatus,
   checkEmployerStatusChange,
@@ -460,13 +461,18 @@ exports.updateJob = async (req, res, next) => {
       updates.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     }
 
+    // A published job whose content changes must be approved again (BUG-02).
+    const sentForReview = requiresReapproval(job, updates);
     Object.assign(job, updates);
+    if (sentForReview) job.status = "Pending Approval";
     await job.save();
     clearSearchCache();
 
     return res.status(200).json({
       success: true,
-      message: "Job updated successfully",
+      message: sentForReview
+        ? "Job updated and sent for approval again. It will be visible once an admin approves it."
+        : "Job updated successfully",
       job,
     });
   } catch (error) {

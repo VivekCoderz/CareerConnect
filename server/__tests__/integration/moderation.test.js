@@ -220,7 +220,7 @@ describe("listing moderation (S03)", () => {
       expect(stored.status).toBe("Pending Approval");
     });
 
-    it("keeps an approved job's status when its content is edited", async () => {
+    it("ignores status in an edit, and sends an approved job's edited content back for approval", async () => {
       const job = await createJobAsEmployer();
       await approve("job", job._id);
 
@@ -229,7 +229,9 @@ describe("listing moderation (S03)", () => {
         .set(auth(employer))
         .send({ description: "Updated description", status: "Draft" });
 
-      expect((await Job.findById(job._id).lean()).status).toBe("Published");
+      // Not "Draft" (status in the body is ignored) and not still "Published"
+      // (edited content must be approved again, BUG-02).
+      expect((await Job.findById(job._id).lean()).status).toBe("Pending Approval");
     });
 
     it("makes a duplicate of an approved job a draft that still needs approval", async () => {

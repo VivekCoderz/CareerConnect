@@ -13,6 +13,7 @@ const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require("../services/jobScraperService");
 const {
   pickListingUpdate,
+  requiresReapproval,
   escapeRegex,
   resolveInitialListingStatus,
   checkEmployerStatusChange,
@@ -695,14 +696,23 @@ exports.updateInternship = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Internship not found or access denied" });
     }
 
-    Object.assign(internship, pickListingUpdate(req.body));
+    const updates = pickListingUpdate(req.body);
+    // A published internship whose content changes must be approved again (BUG-02).
+    const sentForReview = requiresReapproval(internship, updates);
+    Object.assign(internship, updates);
+    if (sentForReview) internship.status = "Pending Approval";
     if (Array.isArray(req.body.recruitmentStages)) {
       internship.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     }
     await internship.save();
     clearSearchCache();
 
-    return res.json({ success: true, message: "Updated", internship, data: internship });
+    return res.json({
+      success: true,
+      message: sentForReview ? "Updated and sent for approval again" : "Updated",
+      internship,
+      data: internship,
+    });
   } catch (error) {
     next(error);
   }
