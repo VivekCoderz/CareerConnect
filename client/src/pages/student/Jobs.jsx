@@ -230,7 +230,7 @@ export default function Jobs({
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <span className="text-sm font-bold text-[#1e3a8a]">
-                          {item.salary || "Competitive Package"}
+                          {item.salary || "Not disclosed"}
                         </span>
                         {item.requiredSkills?.slice(0, 4).map((skill) => (
                           <span

@@ -2,6 +2,13 @@ import axios from "axios";
 import { store } from "../redux/store";
 import { logout, setSessionExpired } from "../redux/features/authSlice";
 
+const PUBLIC_PREFIXES = [
+  "/home", "/login", "/admin/login", "/register", "/forgot-password",
+  "/set-password", "/companies", "/opportunities", "/jobs", "/internships",
+  "/organizations", "/privacy", "/terms", "/contact", "/about",
+  "/resume-builder", "/admin/activate"
+];
+
 const api = axios.create({
   baseURL: import.meta.env.DEV ? "/api" : import.meta.env.VITE_API_URL || "/api",
   withCredentials: true,
@@ -42,16 +49,8 @@ api.interceptors.response.use(
         requestUrl.includes("/firebase-login");
       const currentPath = window.location.pathname;
 
-      const isPublicOrAuthPage =
-        currentPath === "/" ||
-        currentPath.startsWith("/home") ||
-        currentPath.startsWith("/login") ||
-        currentPath.startsWith("/admin/login") ||
-        currentPath.startsWith("/register") ||
-        currentPath.startsWith("/forgot-password") ||
-        currentPath.startsWith("/set-password") ||
-        currentPath.startsWith("/companies") ||
-        currentPath.startsWith("/opportunities");
+      const isPublicOrAuthPage = currentPath === "/" ||
+        PUBLIC_PREFIXES.some((p) => currentPath === p || currentPath.startsWith(p + "/"));
 
       if (!isMeCheck && !isAuthRequest && !isPublicOrAuthPage) {
         // Clear auth state

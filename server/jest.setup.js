@@ -1,3 +1,7 @@
+process.env.ENABLE_COURSES = "true";
+process.env.ENABLE_PAYMENTS = "true";
+process.env.ENABLE_ASSESSMENTS = "true";
+
 // ─── Mock Firebase Admin (ESM-incompatible) BEFORE any require ────────────────
 jest.mock('firebase-admin/app', () => ({
   initializeApp: jest.fn(() => ({})),

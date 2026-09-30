@@ -385,18 +385,21 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     }
 
     // 3. Fetch Real Courses from database
-    const dbCourses = await Course.find({ status: "Published" }).limit(6).lean();
-    const recommendedCourses = dbCourses.map((c) => ({
-      _id: c._id,
-      id: c._id.toString(),
-      title: c.title,
-      provider: "CareerConnect Academy",
-      level: c.level || "Intermediate",
-      duration: `${c.duration || 6} ${c.durationUnit || "Weeks"}`,
-      rating: 4.9,
-      skillsCovered: c.skills || [],
-      isFree: !c.price || c.price === 0,
-    }));
+    let recommendedCourses = [];
+    if (String(process.env.ENABLE_COURSES).toLowerCase() === "true") {
+      const dbCourses = await Course.find({ status: "Published" }).limit(6).lean();
+      recommendedCourses = dbCourses.map((c) => ({
+        _id: c._id,
+        id: c._id.toString(),
+        title: c.title,
+        provider: "CareerConnect Academy",
+        level: c.level || "Intermediate",
+        duration: `${c.duration || 6} ${c.durationUnit || "Weeks"}`,
+        rating: 4.9,
+        skillsCovered: c.skills || [],
+        isFree: !c.price || c.price === 0,
+      }));
+    }
 
     // 4. Application history was loaded above for recommendation filtering.
     const appStats = {

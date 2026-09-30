@@ -1,4 +1,5 @@
 import React from "react";
+import { FEATURES } from "../../config/features";
 
 const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onViewDetails }) => {
   const matchScore = candidate.matchPercentage || 85;
@@ -77,7 +78,7 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
       </div>
 
       {/* Action Buttons */}
-      <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
+            <div className={`pt-3 border-t border-slate-100 grid gap-2 ${FEATURES.assessments ? "grid-cols-2" : "grid-cols-1"}`}>
         <button
           type="button"
           onClick={() => onScheduleInterview(candidate)}
@@ -85,6 +86,7 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
         >
           <span>📅</span> Interview
         </button>
+        {FEATURES.assessments && (
         <button
           type="button"
           onClick={() => onAssignAssessment && onAssignAssessment(candidate)}
@@ -92,6 +94,7 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
         >
           <span>📝</span> Test
         </button>
+        )}
       </div>
     </div>
   );

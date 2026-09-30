@@ -4,7 +4,9 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
+
 const maintenanceMode = require("./middleware/maintenanceMode");
+const { parseClientUrls, isLocalDevOrigin } = require("./utils/clientOrigins");
 
 const authRoutes = require("./routes/authRoutes.js");
 const studentRoutes = require("./routes/studentRoutes.js");
@@ -56,14 +58,9 @@ const allowedOrigins = isProduction ? [] : [
 ];
 
 // Dynamically load allowed origins from CLIENT_URL in environment (supports comma-separated list)
-if (process.env.CLIENT_URL) {
-  process.env.CLIENT_URL.split(",").forEach((url) => {
-    const trimmed = url.trim().replace(/\/+$/, "");
-    if (trimmed && !allowedOrigins.includes(trimmed)) {
-      allowedOrigins.push(trimmed);
-    }
-  });
-}
+parseClientUrls().forEach((url) => {
+  if (!allowedOrigins.includes(url)) allowedOrigins.push(url);
+});
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -72,9 +69,7 @@ const corsOptions = {
 
     const isAllowed =
       allowedOrigins.includes(origin) ||
-      (!isProduction &&
-        (/^http:\/\/localhost:[0-9]+$/.test(origin) ||
-          /^http:\/\/127\.0\.0\.1:[0-9]+$/.test(origin)));
+      (!isProduction && isLocalDevOrigin(origin));
 
     if (isAllowed) {
       return callback(null, true);
@@ -137,11 +132,13 @@ app.use("/api/profile/fresher", fresherRoutes);
 app.use("/api/professional", professionalRoutes);
 app.use("/api/profile/professional", professionalRoutes);
 
+const flag = (name) => String(process.env[name]).toLowerCase() === "true";
+
 // Core LMS Course Routes
-app.use("/api/courses", courseRoutes);
-app.use("/api/courses", courseContentRoutes);
-app.use("/api/course-content", courseContentRoutes);
-app.use("/api/payment", paymentRoutes);
+if (flag("ENABLE_COURSES")) app.use("/api/courses", courseRoutes);
+if (flag("ENABLE_COURSES")) app.use("/api/courses", courseContentRoutes);
+if (flag("ENABLE_COURSES")) app.use("/api/course-content", courseContentRoutes);
+if (flag("ENABLE_PAYMENTS")) app.use("/api/payment", paymentRoutes);
 
 // Marketplace & Discovery Routes
 app.use("/api/jobs", jobRoutes);
@@ -150,10 +147,11 @@ app.use("/api/applications", applicationRoutes);
 app.use("/api/candidates", candidateRoutes);
 
 // Employer Hub Routes
+if (!flag("ENABLE_COURSES")) app.use("/api/employer/learning", (req, res) => res.status(404).json({ success: false, message: "Not found" }));
 app.use("/api/employer", employerRoutes);
-app.use("/api/employer/learning", employerLearningRoutes);
+if (flag("ENABLE_COURSES")) app.use("/api/employer/learning", employerLearningRoutes);
 app.use("/api/employer/analytics", employerAnalyticsRoutes);
-app.use("/api/assessments", assessmentRoutes);
+if (flag("ENABLE_ASSESSMENTS")) app.use("/api/assessments", assessmentRoutes);
 app.use("/api/interviews", interviewRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/organization", organizationRoutes);
