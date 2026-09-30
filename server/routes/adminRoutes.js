@@ -147,11 +147,11 @@ router.patch("/employers/:id/status", updateEmployerStatus);
 // Opportunity Management (Jobs & Internships)
 router.get("/opportunities", getAdminOpportunities);
 router.get("/opportunities/companies-list", getOpportunityCompaniesList);
-router.post("/opportunities/:type/:id/approve", approveOpportunity);
-router.post("/opportunities/:type/:id/reject", rejectOpportunity);
+router.post("/opportunities/:type/:id/approve", requireSuperAdmin, approveOpportunity);
+router.post("/opportunities/:type/:id/reject", requireSuperAdmin, rejectOpportunity);
 router.put("/opportunities/:type/:id", editOpportunity);
 router.patch("/opportunities/:type/:id/close", closeOpportunity);
-router.patch("/opportunities/:type/:id/feature", featureOpportunity);
+router.patch("/opportunities/:type/:id/feature", requireSuperAdmin, featureOpportunity);
 router.patch("/opportunities/:type/:id/status", updateOpportunityStatus);
 
 // Application Management

@@ -28,6 +28,8 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
       userId: user._id,
       role: user.role,
       companyId: user.companyId || null,
+      // authMiddleware rejects tokens whose av differs from the user's authVersion
+      av: user.authVersion || 0,
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
@@ -37,7 +39,9 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
     expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+    // The client and API are on different sites in production (Vercel and Render),
+    // so the cookie must be SameSite=None like the candidate and employer cookies.
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   };
 
   res.cookie("admin_token", token, cookieOptions);
@@ -136,6 +140,14 @@ exports.adminLogin = async (req, res) => {
       });
     }
 
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
     // Verify account status
     if (user.isActive === false || user.status === "inactive" || user.status === "suspended") {
       return res.status(403).json({
@@ -145,13 +157,6 @@ exports.adminLogin = async (req, res) => {
     }
 
     // Verify password with bcrypt
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
 
     // Update last login
     user.lastLogin = new Date();
@@ -2282,7 +2287,7 @@ exports.getOpportunityCompaniesList = async (req, res, next) => {
 exports.approveOpportunity = async (req, res, next) => {
   try {
     const { type, id } = req.params;
-    const { adminNote = "" } = req.body;
+    const { adminNote = "" } = req.body || {};
     const Model = type.toLowerCase() === "internship" ? Internship : Job;
 
     const opp = await Model.findById(id);
@@ -2298,6 +2303,13 @@ exports.approveOpportunity = async (req, res, next) => {
           message: "Access denied: You can only approve opportunities belonging to your company",
         });
       }
+    }
+
+    if (opp.status !== "Pending Approval") {
+      return res.status(400).json({
+        success: false,
+        message: `Only listings waiting for approval can be approved (current status: ${opp.status}).`,
+      });
     }
 
     opp.status = "Published";
@@ -2484,8 +2496,6 @@ exports.editOpportunity = async (req, res, next) => {
       salaryRange,
       stipend,
       duration,
-      isFeatured,
-      status,
     } = req.body;
 
     if (title) opp.title = title.trim();
@@ -2515,8 +2525,6 @@ exports.editOpportunity = async (req, res, next) => {
     }
     if (stipend !== undefined) opp.stipend = stipend;
     if (duration !== undefined) opp.duration = duration;
-    if (isFeatured !== undefined) opp.isFeatured = Boolean(isFeatured);
-    if (status !== undefined) opp.status = status;
 
     await opp.save();
 
@@ -2664,6 +2672,22 @@ exports.updateOpportunityStatus = async (req, res, next) => {
           message: "Access denied: You can only modify opportunities belonging to your company",
         });
       }
+    }
+
+    const allowedStatuses = ["Draft", "Pending Approval", "Published", "Paused", "Closed", "Rejected"];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Status must be one of: ${allowedStatuses.join(", ")}`,
+      });
+    }
+
+    // Moderation is platform-level: only a Super Admin can publish or reject a listing.
+    if (req.user.role === "COMPANY_ADMIN" && ["Published", "Rejected"].includes(status)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only CareerConnect administrators can publish or reject listings.",
+      });
     }
 
     opp.status = status;
