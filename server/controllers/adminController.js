@@ -16,6 +16,7 @@ const AuditLog = require("../models/AuditLog");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
+const { escapeRegex } = require("../utils/listingSecurity");
 
 /**
  * Generate JWT and set secure cookie for Admin sessions
@@ -1290,6 +1291,16 @@ exports.activateAdmin = async (req, res, next) => {
       });
     }
 
+    // An invitation only sets the first password. It must never replace the
+    // password of an account that is already in use.
+    if (user.hasPassword || user.status === "active") {
+      return res.status(409).json({
+        success: false,
+        code: "ALREADY_ACTIVATED",
+        message: "This account is already active. Please sign in, or use Forgot password.",
+      });
+    }
+
     const company = await Company.findById(user.companyId);
     if (!company || company.status === "inactive" || company.status === "suspended") {
       return res.status(403).json({
@@ -1458,9 +1469,30 @@ exports.approveOrganizationRequest = async (req, res, next) => {
       });
     }
 
-    // 1. Create or Find Company
+    if (request.status === "REJECTED") {
+      return res.status(400).json({
+        success: false,
+        message: "This organization request was rejected. The organization must submit a new request.",
+      });
+    }
+
+    // Approval creates a brand-new Company Admin account. It must never change an
+    // existing account (a student, employer or another admin), so check before
+    // creating or linking anything.
+    const adminEmail = request.officialEmail.trim().toLowerCase();
+    const existingAccount = await User.findOne({ email: adminEmail }).select("_id").lean();
+    if (existingAccount) {
+      return res.status(409).json({
+        success: false,
+        code: "EMAIL_ALREADY_REGISTERED",
+        message:
+          "An account already uses this official email, so the request was not approved. Ask the organization to use an official email that is not registered on CareerConnect.",
+      });
+    }
+
+    // 1. Create or Find Company (exact, case-insensitive name match)
     let company = await Company.findOne({
-      name: { $regex: `^${request.organizationName.trim()}$`, $options: "i" },
+      name: { $regex: `^${escapeRegex(request.organizationName.trim())}$`, $options: "i" },
     });
 
     const fullLocation = [request.city, request.state, request.country].filter(Boolean).join(", ");
@@ -1497,46 +1529,34 @@ exports.approveOrganizationRequest = async (req, res, next) => {
       );
     }
 
-    // 2. Prepare Company Admin Account / Invitation
-    const adminEmail = request.officialEmail.trim().toLowerCase();
-    let admin = await User.findOne({ email: adminEmail });
-
+    // 2. Create the Company Admin Account / Invitation
     const token = crypto.randomBytes(32).toString("hex");
     const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    if (!admin) {
-      let candidatePhone = (request.phone || "").trim();
-      if (candidatePhone) {
-        const existingPhone = await User.findOne({ phone: candidatePhone });
-        if (existingPhone) candidatePhone = "";
-      }
-
-      const username = await generateAdminUsername(adminEmail, "admin");
-      admin = await User.create({
-        fullName: request.contactPerson.trim(),
-        email: adminEmail,
-        username,
-        phone: candidatePhone,
-        role: "COMPANY_ADMIN",
-        userType: "admin",
-        companyId: company._id,
-        status: "invited",
-        isActive: true,
-        isEmailVerified: true,
-        isProfileComplete: true,
-        hasPassword: false,
-        invitationToken: token,
-        invitationExpires: expiry,
-        invitationStatus: "invited",
-      });
-    } else {
-      admin.role = "COMPANY_ADMIN";
-      admin.companyId = company._id;
-      admin.invitationToken = token;
-      admin.invitationExpires = expiry;
-      admin.invitationStatus = "invited";
-      await admin.save({ validateBeforeSave: false });
+    let candidatePhone = (request.phone || "").trim();
+    if (candidatePhone) {
+      const existingPhone = await User.findOne({ phone: candidatePhone });
+      if (existingPhone) candidatePhone = "";
     }
+
+    const username = await generateAdminUsername(adminEmail, "admin");
+    const admin = await User.create({
+      fullName: request.contactPerson.trim(),
+      email: adminEmail,
+      username,
+      phone: candidatePhone,
+      role: "COMPANY_ADMIN",
+      userType: "admin",
+      companyId: company._id,
+      status: "invited",
+      isActive: true,
+      isEmailVerified: true,
+      isProfileComplete: true,
+      hasPassword: false,
+      invitationToken: token,
+      invitationExpires: expiry,
+      invitationStatus: "invited",
+    });
 
     // 3. Update OrganizationRequest Document
     request.status = "APPROVED";
