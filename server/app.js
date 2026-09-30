@@ -4,6 +4,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
+const maintenanceMode = require("./middleware/maintenanceMode");
 
 const authRoutes = require("./routes/authRoutes.js");
 const studentRoutes = require("./routes/studentRoutes.js");
@@ -113,6 +114,9 @@ app.use(cookieOriginMiddleware(allowedOrigins, isProduction));
 
 // Global rate limiting for all API endpoints
 app.use("/api", globalLimiter);
+
+// Platform maintenance mode: blocks non-admin writes with 503
+app.use("/api", maintenanceMode);
 
 // Optional temporary IP Debug route (enabled ONLY when ENABLE_IP_DEBUG === "true")
 if (process.env.ENABLE_IP_DEBUG === "true") {

@@ -9,6 +9,7 @@ const {
 } = require("../middleware/roleMiddleware");
 const { loginLimiter } = require("../middleware/rateLimitMiddleware");
 const { sanitizeInputs } = require("../middleware/validationMiddleware");
+const { listEmployers, setEmployerVerification } = require("../controllers/employerVerificationController");
 const {
   adminLogin,
   adminLogout,
@@ -36,7 +37,6 @@ const {
   updateUserStatus,
   getAdminStudents,
   updateStudentStatus,
-  getAdminEmployers,
   updateEmployerStatus,
   // Opportunities
   getAdminOpportunities,
@@ -141,7 +141,8 @@ router.get("/users", getAdminUsers);
 router.patch("/users/:id/status", updateUserStatus);
 router.get("/students", getAdminStudents);
 router.patch("/students/:id/status", updateStudentStatus);
-router.get("/employers", getAdminEmployers);
+router.get("/employers", listEmployers);
+router.patch("/employers/:id/verification", requireSuperAdmin, setEmployerVerification);
 router.patch("/employers/:id/status", updateEmployerStatus);
 
 // Opportunity Management (Jobs & Internships)
@@ -170,6 +171,6 @@ router.post("/reports/:id/dismiss", sanitizeInputs, dismissAdminReport);
 
 // Settings Management
 router.get("/settings", getAdminSettings);
-router.put("/settings", updateAdminSettings);
+router.put("/settings", requireSuperAdmin, sanitizeInputs, updateAdminSettings);
 
 module.exports = router;

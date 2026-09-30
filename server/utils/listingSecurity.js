@@ -21,15 +21,25 @@ const escapeRegex = (value) => String(value || "").slice(0, 100).replace(/[.*+?^
 const isPlatformAdmin = (user) =>
   user?.role === "SUPER_ADMIN" || (user?.role === "admin" && !user?.companyId);
 
-// New listings from employers always go to moderation unless explicitly saved as a draft.
-// Only platform admins may create a listing that is published straight away.
-const resolveInitialListingStatus = (user, requestedStatus) => {
+// Moderation fields for a new listing. Employer listings go to moderation unless saved
+// as a draft, or unless autoApproveJobs is on and the employer is verified. Platform
+// admins may publish directly. Never auto-publishes for unverified employers.
+const resolveNewListingModeration = (user, requestedStatus, { autoApproveJobs = false, employerApproved = false } = {}) => {
+  const published = (approvalMethod, approvedBy) => ({
+    status: "Published",
+    approvedBy,
+    approvedAt: new Date(),
+    approvalMethod,
+  });
+  const unpublished = (status) => ({ status, approvedBy: null, approvedAt: null, approvalMethod: null });
+
   if (isPlatformAdmin(user)) {
-    return ["Draft", "Pending Approval", "Published"].includes(requestedStatus)
-      ? requestedStatus
-      : "Published";
+    if (["Draft", "Pending Approval"].includes(requestedStatus)) return unpublished(requestedStatus);
+    return published("admin", user._id);
   }
-  return requestedStatus === "Draft" ? "Draft" : "Pending Approval";
+  if (requestedStatus === "Draft") return unpublished("Draft");
+  if (autoApproveJobs && employerApproved) return published("auto", null);
+  return unpublished("Pending Approval");
 };
 
 const EMPLOYER_SETTABLE_STATUSES = ["Draft", "Pending Approval", "Paused", "Closed", "Published"];
@@ -52,6 +62,6 @@ module.exports = {
   pickListingUpdate,
   escapeRegex,
   isPlatformAdmin,
-  resolveInitialListingStatus,
+  resolveNewListingModeration,
   checkEmployerStatusChange,
 };

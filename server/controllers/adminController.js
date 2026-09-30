@@ -7,7 +7,7 @@ const Report = require("../models/Report");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const Application = require("../models/Application");
-const PlatformSetting = require("../models/PlatformSetting");
+const { getPlatformSettings, updatePlatformSettings, validateSettingsUpdate } = require("../services/platformSettings");
 const EmployerProfile = require("../models/EmployerProfile");
 const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
@@ -1895,11 +1895,6 @@ exports.updateStudentStatus = async (req, res, next) => {
   return exports.updateUserStatus(req, res, next);
 };
 
-exports.getAdminEmployers = async (req, res, next) => {
-  req.query.userType = "employer";
-  return exports.getAdminUsers(req, res, next);
-};
-
 exports.updateEmployerStatus = async (req, res, next) => {
   return exports.updateUserStatus(req, res, next);
 };
@@ -2283,6 +2278,7 @@ exports.approveOpportunity = async (req, res, next) => {
     opp.status = "Published";
     opp.approvedBy = req.user._id;
     opp.approvedAt = new Date();
+    opp.approvalMethod = "admin";
     opp.rejectedBy = null;
     opp.rejectedAt = null;
     opp.rejectionReason = null;
@@ -3496,11 +3492,10 @@ exports.getAdminSettings = async (req, res, next) => {
     const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
 
     if (isSuperAdmin) {
-      const settings = await PlatformSetting.find().lean();
       return res.status(200).json({
         success: true,
         scope: "GLOBAL",
-        settings: settings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {}),
+        settings: await getPlatformSettings({ fresh: true }),
       });
     }
 
@@ -3518,38 +3513,35 @@ exports.getAdminSettings = async (req, res, next) => {
 };
 
 /**
- * PUT /api/admin/settings
+ * PUT /api/admin/settings (platform admins only; enforced by requireSuperAdmin on the route)
  */
 exports.updateAdminSettings = async (req, res, next) => {
   try {
-    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
-
-    if (isSuperAdmin) {
-      const updates = req.body;
-      for (const [key, value] of Object.entries(updates)) {
-        await PlatformSetting.findOneAndUpdate(
-          { key },
-          { key, value, updatedBy: req.user._id },
-          { upsert: true, new: true }
-        );
-      }
-      return res.status(200).json({
-        success: true,
-        message: "Global platform settings updated successfully",
-      });
+    const invalid = validateSettingsUpdate(req.body);
+    if (invalid) {
+      return res.status(400).json({ success: false, message: invalid });
     }
 
-    // COMPANY_ADMIN: Updates ONLY assigned company settings
-    const company = await Company.findByIdAndUpdate(
-      req.user.companyId,
-      { $set: { settings: req.body } },
-      { new: true }
-    );
+    const settings = await updatePlatformSettings(req.body);
+
+    try {
+      await AuditLog.create({
+        actorId: req.user._id,
+        actorName: req.user.fullName || "Admin",
+        actorEmail: req.user.email || "",
+        action: "UPDATE_PLATFORM_SETTINGS",
+        module: "Settings",
+        target: "Platform settings",
+        details: `Updated: ${Object.keys(req.body).filter((key) => key in settings).join(", ") || "nothing"}`,
+      });
+    } catch (logErr) {
+      console.warn("Audit log creation warning:", logErr.message);
+    }
 
     return res.status(200).json({
       success: true,
-      message: "Company settings updated successfully",
-      settings: company?.settings,
+      message: "Global platform settings updated successfully",
+      settings,
     });
   } catch (error) {
     next(error);
