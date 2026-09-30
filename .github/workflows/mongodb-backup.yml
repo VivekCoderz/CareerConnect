@@ -1,6 +1,10 @@
 name: MongoDB Nightly Backup
 
 on:
+  push:
+    branches:
+      - New-Imran
+      
   schedule:
     # 20:30 UTC = 2:00 AM IST
     - cron: "30 20 * * *"
