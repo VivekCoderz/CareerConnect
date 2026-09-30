@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
 import { getJobs } from "../../services/jobService";
-import { applyOpportunity } from "../../services/studentDashboardService";
+import { applyToOpportunity } from "../../utils/opportunityApply";
 
 export default function Jobs({
   embedded = false,
@@ -66,13 +66,11 @@ export default function Jobs({
     }
 
     try {
-      const res = await applyOpportunity({
-        opportunityId: item._id || item.id,
-        jobId: item._id || item.id,
-        title: item.title,
-        company: item.company || item.companyName,
-        type: item.type || "Full-Time",
-      });
+      const res = await applyToOpportunity(item, "Job");
+      if (res.external) {
+        if (!res.opened) showToast("This listing has no apply link.", "error");
+        return;
+      }
       if (res?.success) {
         setAppliedIds((prev) => [...prev, item._id || item.id]);
         showToast(res.message || `Applied for "${item.title}"!`, "success");

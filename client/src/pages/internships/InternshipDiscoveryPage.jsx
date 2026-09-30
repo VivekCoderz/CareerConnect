@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import internshipService from "../../services/internshipService";
-import { applyOpportunity, saveOpportunity } from "../../services/studentDashboardService";
+import { saveOpportunity } from "../../services/studentDashboardService";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
