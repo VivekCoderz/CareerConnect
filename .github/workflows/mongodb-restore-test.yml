@@ -1,6 +1,10 @@
 name: MongoDB Restore Test
 
 on:
+  push:
+    branches:
+      - New-Imran
+
   workflow_dispatch:
     inputs:
       backup_key:
@@ -57,7 +61,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_RESTORE_APPLICATION_KEY }}
           B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
           B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
-          BACKUP_KEY: ${{ inputs.backup_key }}
+          BACKUP_KEY: "nightly/careerconnect-2026-09-30T16-30-38Z.archive.gz.gpg"
         run: |
           aws s3 cp \
             "s3://$B2_BUCKET_NAME/$BACKUP_KEY" \
