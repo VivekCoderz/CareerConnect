@@ -4,14 +4,15 @@ const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
-// const Company = require("../models/Company");
 const {
   pickListingUpdate,
   escapeRegex,
   resolveInitialListingStatus,
   checkEmployerStatusChange,
 } = require("../utils/listingSecurity");
-const { getAggregatedOpportunities, clearSearchCache } = require("../services/jobScraperService");
+// S07: job listings are served from the database only. clearSearchCache stays
+// so the student dashboard and opportunities feeds refresh when a job changes.
+const { clearSearchCache } = require("../services/jobScraperService");
 
 /**
  * Helper to ensure employer profile exists for logged in user
@@ -111,7 +112,6 @@ exports.getJobs = async (req, res, next) => {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const defaultPageSize = isMyJobs ? 100 : 10;
     const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || defaultPageSize));
-    const windowSize = pageNum * pageSize;
     const query = {};
 
     if (isMyJobs) {
@@ -192,146 +192,87 @@ exports.getJobs = async (req, res, next) => {
       }
     }
 
-    let campusJobs = [];
-    let campusTotal = 0;
-    if (source !== "external" && mongoose.connection.readyState === 1) {
+    // S07: Source filter mapped to MongoDB (campus = internal only, external = external only, or specific source)
+    if (source && source !== "all" && source !== "All") {
+      if (source.toLowerCase() === "campus") {
+        query.isExternal = false;
+      } else if (source.toLowerCase() === "external") {
+        query.isExternal = true;
+      } else {
+        query.source = { $regex: new RegExp(`^${escapeRegex(source)}$`, "i") };
+      }
+    }
+
+    const dbSort = sort === "salary_high" ? { "salaryRange.min": -1, _id: -1 }
+      : sort === "salary_low" ? { "salaryRange.min": 1, _id: -1 }
+        : { createdAt: -1, _id: -1 };
+
+    const skip = (pageNum - 1) * pageSize;
+    let total = 0;
+    let rawJobs = [];
+
+    if (mongoose.connection.readyState === 1) {
       try {
-        const dbSort = sort === "salary_high" ? { "salaryRange.min": -1, _id: -1 }
-          : sort === "salary_low" ? { "salaryRange.min": 1, _id: -1 }
-            : { createdAt: -1, _id: -1 };
-        const [rawJobs, totalMatches] = await Promise.all([Job.find(query)
-          .populate("employerId", "companyName logo headquarters industry")
-          .sort(dbSort).limit(windowSize)
-          .lean(), Job.countDocuments(query)]);
-        campusTotal = totalMatches;
-
-        campusJobs = rawJobs.map((j) => {
-          const salaryStr =
-            j.salaryRange?.max > 0
-              ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
-              : "Competitive Package";
-
-          return {
-            ...j,
-            _id: j._id,
-            id: j._id.toString(),
-            jobId: j._id.toString(),
-            title: j.title,
-            company: j.employerId?.companyName || "CareerConnect Partner",
-            companyName: j.employerId?.companyName || "CareerConnect Partner",
-            companyId: j.employerId?._id || "",
-            location: j.location,
-            city: j.city,
-            salary: salaryStr,
-            type: j.employmentType || "Full-Time",
-            opportunityType: j.employmentType || "Full-Time",
-            workMode: j.workMode || "On-Site",
-            requiredSkills: j.requiredSkills || [],
-            skillsRequired: j.requiredSkills || [],
-            skills: j.requiredSkills || [],
-            postedAt: j.createdAt ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Recently",
-            deadline: j.deadline ? new Date(j.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
-            isExclusive: true,
-            isExternal: false,
-          };
-        });
+        [rawJobs, total] = await Promise.all([
+          Job.find(query)
+            .populate("employerId", "companyName logo headquarters industry")
+            .sort(dbSort)
+            .skip(skip)
+            .limit(pageSize)
+            .lean(),
+          Job.countDocuments(query),
+        ]);
       } catch (dbErr) {
         console.warn("MongoDB Job.find error:", dbErr.message);
       }
     }
 
-    let allJobs = campusJobs;
-    if (!isMyJobs && source !== "campus") {
-      try {
-        const scraped = await getAggregatedOpportunities({
-          opportunityType: employmentType && employmentType !== "All" ? employmentType.toLowerCase() : "job",
-          workMode: workMode && workMode !== "All" ? workMode : "all",
-          region: locFilter && locFilter !== "All" ? locFilter : "all",
-          search: searchTerm || (category && category !== "All" ? category : ""),
-        });
-
-        const locLower = (locFilter && locFilter !== "All" ? locFilter : "").toLowerCase();
-        const formattedScraped = (scraped.data || [])
-          .filter((item) => {
-            if (!locLower) return true;
-            const itemLoc = String(item.location || "").toLowerCase();
-            const itemCity = String(item.city || "").toLowerCase();
-            const itemTitle = String(item.title || "").toLowerCase();
-            return (
-              itemLoc.includes(locLower) ||
-              itemCity.includes(locLower) ||
-              itemTitle.includes(locLower) ||
-              (locLower === "remote" && (item.workMode || "").toLowerCase().includes("remote"))
-            );
-          })
-          .map((item, idx) => ({
-          _id: `scraped-job-${idx}`,
-          id: `scraped-job-${idx}`,
-          jobId: `scraped-job-${idx}`,
-          title: item.title,
-          company: item.company,
-          employerId: {
-            companyName: item.company,
-            headquarters: item.location,
-          },
-          location: item.location,
-          city: item.location,
-          employmentType: item.opportunityType || "Full-Time",
-          workMode: item.workMode || "On-Site",
-          salary: "Competitive Package",
-          salaryRange: { min: 400000, max: 1200000, currency: "INR" },
-          description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
-          responsibilities: ["Deliver on project requirements", "Collaborate with cross-functional engineering team"],
-          requiredSkills: [item.title.split(" ")[0] || "Engineering", "Problem Solving"],
-          applyLink: item.applyLink,
-          isExternal: true,
-          platformSource: item.platformSource,
-          source: item.platformSource,
-          status: "Published",
-          postedAt: item.postedDate || "Recently",
-          postedDate: item.postedDate,
-          createdAt: item.postedDate && !isNaN(new Date(item.postedDate).getTime()) ? new Date(item.postedDate) : new Date(),
-        }));
-
-        if (source === "external") {
-          allJobs = formattedScraped;
-        } else {
-          allJobs = [...campusJobs, ...formattedScraped];
-        }
-      } catch (e) {
-        console.error("Live jobs scraper error:", e.message);
+    const formattedJobs = rawJobs.map((j) => {
+      let salaryStr = null;
+      if (j.salaryRange?.max > 0) {
+        salaryStr = `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`;
+      } else if (j.salaryRange?.min > 0) {
+        salaryStr = `₹${(j.salaryRange.min / 100000).toFixed(1)}+ LPA`;
+      } else if (j.stipend) {
+        salaryStr = j.stipend;
       }
-    }
 
-    // Sort by latest first (createdAt / postedDate descending) or salary
-    const getTimestamp = (item) => {
-      if (item.createdAt) {
-        const t = new Date(item.createdAt).getTime();
-        if (!isNaN(t)) return t;
-      }
-      if (item.postedDate) {
-        const t = new Date(item.postedDate).getTime();
-        if (!isNaN(t)) return t;
-      }
-      return 0;
-    };
+      const compName = j.employerId?.companyName || j.companyName || "CareerConnect Partner";
 
-    if (sort === "salary_high") {
-      allJobs.sort((a, b) => (b.salaryRange?.min || 0) - (a.salaryRange?.min || 0));
-    } else if (sort === "salary_low") {
-      allJobs.sort((a, b) => (a.salaryRange?.min || 0) - (b.salaryRange?.min || 0));
-    } else {
-      allJobs.sort((a, b) => getTimestamp(b) - getTimestamp(a));
-    }
-
-    const total = allJobs.length;
-    const paginatedJobs = allJobs.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+      return {
+        ...j,
+        _id: j._id,
+        id: j._id.toString(),
+        jobId: j._id.toString(),
+        title: j.title,
+        company: compName,
+        companyName: compName,
+        companyId: j.employerId?._id || "",
+        location: j.location,
+        city: j.city,
+        salary: salaryStr,
+        type: j.employmentType || "Full-Time",
+        opportunityType: j.employmentType || "Full-Time",
+        workMode: j.workMode || "On-Site",
+        requiredSkills: j.requiredSkills || [],
+        skillsRequired: j.requiredSkills || [],
+        skills: j.requiredSkills || [],
+        responsibilities: j.responsibilities || [],
+        postedAt: j.createdAt ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Recently",
+        deadline: j.deadline ? new Date(j.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
+        isExclusive: !j.isExternal,
+        isExternal: Boolean(j.isExternal),
+        source: j.source || (j.isExternal ? "External" : "CareerConnect"),
+        platformSource: j.source || (j.isExternal ? "External" : "CareerConnect"),
+        applyLink: j.applyUrl || `/jobs/${j._id}`,
+      };
+    });
 
     return res.status(200).json({
       success: true,
-      count: paginatedJobs.length,
-      jobs: paginatedJobs,
-      data: paginatedJobs,
+      count: formattedJobs.length,
+      jobs: formattedJobs,
+      data: formattedJobs,
       pagination: {
         total,
         page: pageNum,
