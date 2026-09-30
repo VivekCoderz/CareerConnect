@@ -110,3 +110,13 @@ describe("platform-level moderation (ADM-05, ADM-08, ADM-09, ADM-10, ADM-16)", (
     expect(job.isFeatured).not.toBe(true);
   });
 });
+
+describe("reports search (ADM-07)", () => {
+  it("searches reports by an ID without crashing", async () => {
+    const superAdmin = await createUserWithToken({ email: "root2@careerconnect.test", role: "SUPER_ADMIN", userType: "admin" });
+
+    const res = await as(superAdmin.token, "get", "/api/admin/reports?search=64b64c64b64c64b64c64b64c");
+
+    expect(res.statusCode).toBe(200);
+  });
+});

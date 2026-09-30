@@ -202,6 +202,20 @@ app.use((err, req, res, next) => {
           : "This account is already registered";
     return res.status(409).json({ success: false, field, message });
   }
+  // Bad input (wrong type, unknown enum value, malformed ID) is the client's
+  // mistake: answer 400 and name the field instead of leaking a Mongoose error.
+  if (err.name === "ValidationError") {
+    const fields = Object.keys(err.errors || {});
+    return res.status(400).json({
+      success: false,
+      fields,
+      message: fields.length ? `Invalid value for: ${fields.join(", ")}` : "Invalid input",
+    });
+  }
+  if (err.name === "CastError") {
+    const field = err.path === "_id" ? "id" : err.path;
+    return res.status(400).json({ success: false, fields: [field], message: `Invalid value for: ${field}` });
+  }
   console.error("Server Global Error:", err);
   const status = err.code === "LIMIT_FILE_SIZE" ? 413 : err.statusCode || err.status || 500;
   return res.status(status).json({

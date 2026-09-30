@@ -34,9 +34,6 @@
     "no-empty": {
       "count": 8
     },
-    "no-undef": {
-      "count": 2
-    },
     "no-unused-vars": {
       "count": 13
     }
