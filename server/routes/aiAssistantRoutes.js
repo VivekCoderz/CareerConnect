@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const aiAssistantController = require("../controllers/aiAssistantController");
 const protect = require("../middleware/authMiddleware");
+const { aiResumeLimiter } = require("../middleware/rateLimitMiddleware");
 const { consumeWindow } = require("../services/otpService");
 
 const limitAiRequests = (action, maxRequests, windowMs) => async (req, res, next) => {
@@ -38,7 +39,7 @@ const allowCandidateWorkspaceOnly = (req, res, next) => {
 router.use(protect);
 router.use(allowCandidateWorkspaceOnly);
 
-router.post("/chat", limitAiRequests("chat", 30, 60 * 60 * 1000), aiAssistantController.chat);
+router.post("/chat", aiResumeLimiter, aiAssistantController.chat);
 router.post("/send-recommendation-mail", limitAiRequests("recommendation", 5, 24 * 60 * 60 * 1000), aiAssistantController.sendRecommendationMail);
 
 module.exports = router;

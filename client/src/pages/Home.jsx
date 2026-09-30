@@ -9,6 +9,7 @@ import { logoutUser } from "../services/authService";
 import internshipService from "../services/internshipService";
 import jobService from "../services/jobService";
 import BrandLogo from "../components/common/BrandLogo";
+import { FEATURES } from "../config/features";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -132,15 +133,18 @@ const Home = () => {
               <div className="hidden md:flex items-center gap-2">
                 <JobDiscoveryMenu />
                 <InternshipDiscoveryMenu />
-                <Link
-                  to="/courses"
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
-                >
-                  <span>Courses</span>
-                  <span className="px-1.5 py-0.2 rounded text-[9.5px] font-extrabold bg-[#ea580c] text-white uppercase tracking-wider">
-                    OFFER
-                  </span>
-                </Link>
+                {FEATURES.courses && (
+                  <Link
+                    to="/courses"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
+                  >
+                    <span>Courses</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9.5px] font-extrabold bg-[#ea580c] text-white uppercase tracking-wider">
+                      OFFER
+                    </span>
+                  </Link>
+                )}
+
                 <Link
                   to="/organizations/request-access"
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
@@ -319,17 +323,23 @@ const Home = () => {
                   </span>
                   <span className="text-slate-400 text-xs">→</span>
                 </Link>
-                <Link
-                  to="/courses"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="text-base">🚀</span>
-                    <span>Courses & Upskilling</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#ea580c] text-white uppercase">OFFER</span>
-                </Link>
+
+
+                {FEATURES.courses && (
+                  <Link
+                    to="/courses"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <span className="text-base">🚀</span>
+                      <span>Courses & Upskilling</span>
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#ea580c] text-white uppercase">OFFER</span>
+                  </Link>
+                )}
+
+
                 <Link
                   to="/opportunities"
                   onClick={() => setMobileMenuOpen(false)}
@@ -648,6 +658,7 @@ const Home = () => {
             </Link>
 
             {/* Banner 4: Courses */}
+             {FEATURES.courses && (
             <Link
               to="/courses"
               className="group p-5 rounded-3xl bg-gradient-to-br from-[#4c1d95] via-[#5b21b6] to-[#6d28d9] text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col justify-between min-h-[160px]"
@@ -665,6 +676,8 @@ const Home = () => {
                 Enroll with 55% OFF →
               </span>
             </Link>
+                )}
+
           </div>
         </div>
       </section>
@@ -846,6 +859,7 @@ const Home = () => {
       </section>
 
       {/* ================= 7. CERTIFICATION COURSES BANNER ================= */}
+        {FEATURES.courses && (
       <section className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
@@ -889,6 +903,7 @@ const Home = () => {
           </div>
         </div>
       </section>
+       )}
 
         {/* ================= HOW IT WORKS ================= */}
       <section id="how-it-works" className="py-16 lg:py-20 bg-slate-50">
@@ -1015,7 +1030,7 @@ const Home = () => {
               <ul className="space-y-1.5 text-slate-400">
                 <li><Link to="/home" className="hover:text-white">About CareerConnect</Link></li>
                 <li><Link to="/opportunities?source=campus" className="hover:text-white">Opportunities</Link></li>
-                <li><Link to="/courses" className="hover:text-white">Training & Certifications</Link></li>
+                {FEATURES.courses && <li><Link to="/courses" className="hover:text-white">Training & Certifications</Link></li>}
                 <li><Link to="/register/employer" className="hover:text-white">Hire Talent</Link></li>
                 <li><Link to="/login" className="hover:text-white">Candidate Login</Link></li>
               </ul>

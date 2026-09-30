@@ -162,7 +162,7 @@ describe("medium security regression", () => {
     const candidate = await createUserWithToken({ email: "ai-medium@example.com" });
     const path = "/api/ai/chat";
     expect((await as(candidate.token, "post", path).send({ query: "x".repeat(2001) })).statusCode).toBe(400);
-    for (let index = 1; index < 30; index += 1) {
+    for (let index = 1; index < 20; index += 1) {
       expect((await as(candidate.token, "post", path).send({ query: "x".repeat(2001) })).statusCode).toBe(400);
     }
     expect((await as(candidate.token, "post", path).send({ query: "hello" })).statusCode).toBe(429);

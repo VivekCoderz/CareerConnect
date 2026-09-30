@@ -4,9 +4,15 @@ const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
-const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
-// S07: Disconnected scraper service from job listing API
-const clearSearchCache = () => {};
+const {
+  pickListingUpdate,
+  escapeRegex,
+  resolveInitialListingStatus,
+  checkEmployerStatusChange,
+} = require("../utils/listingSecurity");
+// S07: job listings are served from the database only. clearSearchCache stays
+// so the student dashboard and opportunities feeds refresh when a job changes.
+const { clearSearchCache } = require("../services/jobScraperService");
 
 /**
  * Helper to ensure employer profile exists for logged in user
@@ -364,9 +370,9 @@ exports.createJob = async (req, res, next) => {
       if (comp) companyName = comp.name;
     }
 
-    // Determine initial moderation status
-    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
-    const initialStatus = status || (isSuperAdmin ? "Published" : "Pending Approval");
+    // Employers can only submit for approval (or save a draft); only platform admins publish directly
+    const initialStatus = resolveInitialListingStatus(req.user, status);
+    const selfApproved = initialStatus === "Published";
 
     // Format and sanitize interview rounds if provided
     let formattedRounds;
@@ -413,7 +419,9 @@ exports.createJob = async (req, res, next) => {
       bonusSkills: Array.isArray(bonusSkills) ? bonusSkills : [],
       openings: openings ? Number(openings) : 1,
       deadline: deadline ? new Date(deadline) : null,
-      status: status || "Published",
+      status: initialStatus,
+      approvedBy: selfApproved ? req.user._id : null,
+      approvedAt: selfApproved ? new Date() : null,
       recruitmentStages: stages,
     });
 
@@ -421,7 +429,9 @@ exports.createJob = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: "Job posted successfully",
+      message: initialStatus === "Pending Approval"
+        ? "Job submitted for approval"
+        : "Job saved successfully",
       job,
     });
   } catch (error) {
@@ -464,19 +474,15 @@ exports.updateJob = async (req, res, next) => {
   }
 };
 
-// PATCH /api/jobs/:id/status (Toggle Status: Published / Paused / Closed)
+// PATCH /api/jobs/:id/status (Draft / Pending Approval / Paused / Closed; Published only to re-open an approved job)
 exports.updateJobStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
 
-    const job = await Job.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        createdBy: req.user._id,
-      },
-      { status },
-      { new: true }
-    );
+    const job = await Job.findOne({
+      _id: req.params.id,
+      createdBy: req.user._id,
+    });
 
     if (!job) {
       return res.status(404).json({
@@ -485,6 +491,13 @@ exports.updateJobStatus = async (req, res, next) => {
       });
     }
 
+    const denied = checkEmployerStatusChange(job, status);
+    if (denied) {
+      return res.status(denied.code).json({ success: false, message: denied.message });
+    }
+
+    job.status = status;
+    await job.save();
     clearSearchCache();
 
     return res.status(200).json({
@@ -515,6 +528,14 @@ exports.duplicateJob = async (req, res, next) => {
     delete duplicateData.updatedAt;
     duplicateData.title = `${original.title} (Copy)`;
     duplicateData.status = "Draft";
+    // The copy is a new listing and needs its own moderation decision
+    duplicateData.approvedBy = null;
+    duplicateData.approvedAt = null;
+    duplicateData.rejectedBy = null;
+    duplicateData.rejectedAt = null;
+    duplicateData.rejectionReason = null;
+    duplicateData.adminNote = null;
+    duplicateData.isFeatured = false;
     duplicateData.viewsCount = 0;
     duplicateData.applicantsCount = 0;
     if (Array.isArray(original.recruitmentStages)) {

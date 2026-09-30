@@ -230,7 +230,14 @@ module.exports.verifyOTP = async (req, res, next) => {
     }
 
     const normalizedEmail = normalizeEmail(email);
-    const verificationToken = await verifyOtp(normalizedEmail, "verification", String(otp).trim());
+    const result = await verifyOtp(normalizedEmail, "verification", String(otp).trim(), { returnLockStatus: true });
+    if (result && result.locked) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many failed attempts. Please request a new OTP.",
+      });
+    }
+    const verificationToken = typeof result === "string" ? result : result?.verificationToken;
     if (!verificationToken) {
       return res.status(400).json({
         success: false,
@@ -1361,7 +1368,14 @@ module.exports.verifyResetOTP = async (req, res, next) => {
         .json({ success: false, message: "Email and OTP are required" });
     }
 
-    const verificationToken = await verifyOtp(normalizeEmail(email), "reset-password", String(otp).trim());
+    const result = await verifyOtp(normalizeEmail(email), "reset-password", String(otp).trim(), { returnLockStatus: true });
+    if (result && result.locked) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many failed attempts. Please request a new OTP.",
+      });
+    }
+    const verificationToken = typeof result === "string" ? result : result?.verificationToken;
     if (!verificationToken) {
       return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
     }

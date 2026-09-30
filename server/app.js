@@ -4,6 +4,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
+const { parseClientUrls, isLocalDevOrigin } = require("./utils/clientOrigins");
 
 const authRoutes = require("./routes/authRoutes.js");
 const studentRoutes = require("./routes/studentRoutes.js");
@@ -33,11 +34,14 @@ const opportunityRoutes = require("./routes/opportunityRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
 const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
+const { configureTrustProxy } = require("./config/trustProxy");
+const { globalLimiter } = require("./middleware/rateLimitMiddleware");
+const dbStatus = require("./utils/dbStatus");
 
 const app = express();
+configureTrustProxy(app);
+
 const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
-const proxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || "0", 10);
-app.set("trust proxy", Number.isInteger(proxyHops) && proxyHops >= 0 && proxyHops <= 5 ? proxyHops : 0);
 
 // Allowed origins for CORS (loaded from CLIENT_URL in .env + local development fallbacks)
 const allowedOrigins = isProduction ? [] : [
@@ -52,14 +56,9 @@ const allowedOrigins = isProduction ? [] : [
 ];
 
 // Dynamically load allowed origins from CLIENT_URL in environment (supports comma-separated list)
-if (process.env.CLIENT_URL) {
-  process.env.CLIENT_URL.split(",").forEach((url) => {
-    const trimmed = url.trim().replace(/\/+$/, "");
-    if (trimmed && !allowedOrigins.includes(trimmed)) {
-      allowedOrigins.push(trimmed);
-    }
-  });
-}
+parseClientUrls().forEach((url) => {
+  if (!allowedOrigins.includes(url)) allowedOrigins.push(url);
+});
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -68,9 +67,7 @@ const corsOptions = {
 
     const isAllowed =
       allowedOrigins.includes(origin) ||
-      (!isProduction &&
-        (/^http:\/\/localhost:[0-9]+$/.test(origin) ||
-          /^http:\/\/127\.0\.0\.1:[0-9]+$/.test(origin)));
+      (!isProduction && isLocalDevOrigin(origin));
 
     if (isAllowed) {
       return callback(null, true);
@@ -108,6 +105,19 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use(cookieOriginMiddleware(allowedOrigins, isProduction));
 
+// Global rate limiting for all API endpoints
+app.use("/api", globalLimiter);
+
+// Optional temporary IP Debug route (enabled ONLY when ENABLE_IP_DEBUG === "true")
+if (process.env.ENABLE_IP_DEBUG === "true") {
+  app.get("/api/_debug/ip", (req, res) => {
+    return res.status(200).json({
+      ip: req.ip,
+      xff: req.headers["x-forwarded-for"],
+    });
+  });
+}
+
 // Base & User Profile Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
@@ -117,11 +127,13 @@ app.use("/api/profile/fresher", fresherRoutes);
 app.use("/api/professional", professionalRoutes);
 app.use("/api/profile/professional", professionalRoutes);
 
+const flag = (name) => String(process.env[name]).toLowerCase() === "true";
+
 // Core LMS Course Routes
-app.use("/api/courses", courseRoutes);
-app.use("/api/courses", courseContentRoutes);
-app.use("/api/course-content", courseContentRoutes);
-app.use("/api/payment", paymentRoutes);
+if (flag("ENABLE_COURSES")) app.use("/api/courses", courseRoutes);
+if (flag("ENABLE_COURSES")) app.use("/api/courses", courseContentRoutes);
+if (flag("ENABLE_COURSES")) app.use("/api/course-content", courseContentRoutes);
+if (flag("ENABLE_PAYMENTS")) app.use("/api/payment", paymentRoutes);
 
 // Marketplace & Discovery Routes
 app.use("/api/jobs", jobRoutes);
@@ -130,10 +142,11 @@ app.use("/api/applications", applicationRoutes);
 app.use("/api/candidates", candidateRoutes);
 
 // Employer Hub Routes
+if (!flag("ENABLE_COURSES")) app.use("/api/employer/learning", (req, res) => res.status(404).json({ success: false, message: "Not found" }));
 app.use("/api/employer", employerRoutes);
-app.use("/api/employer/learning", employerLearningRoutes);
+if (flag("ENABLE_COURSES")) app.use("/api/employer/learning", employerLearningRoutes);
 app.use("/api/employer/analytics", employerAnalyticsRoutes);
-app.use("/api/assessments", assessmentRoutes);
+if (flag("ENABLE_ASSESSMENTS")) app.use("/api/assessments", assessmentRoutes);
 app.use("/api/interviews", interviewRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/organization", organizationRoutes);
@@ -160,10 +173,14 @@ app.get("/", (req, res) => {
   });
 });
 
+// UptimeRobot pings this every 5 minutes: it keeps Render awake and alerts
+// the team when the API or the database is down.
 app.get("/health", (req, res) => {
-  return res.status(200).json({
-    status: "OK",
-    message: "CareerConnect backend is running",
+  const databaseConnected = dbStatus.isDatabaseConnected();
+  return res.status(databaseConnected ? 200 : 503).json({
+    status: databaseConnected ? "OK" : "degraded",
+    database: databaseConnected ? "connected" : "unavailable",
+    message: databaseConnected ? "CareerConnect backend is running" : "Database unavailable",
     timestamp: new Date().toISOString(),
   });
 });

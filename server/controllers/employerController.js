@@ -21,6 +21,7 @@ const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
 const Course = require("../models/Course");
 const { getEmployerDashboardData } = require("../services/employerDashboardService");
+const { ipKeyGenerator } = require("express-rate-limit");
 
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
@@ -862,7 +863,7 @@ exports.requestCompanyApproval = async (req, res, next) => {
         module: "Settings",
         target: trimmedCompanyName,
         details: `Employee ${cleanEmployeeName} (${cleanEmployeeEmail}) submitted connection request for "${trimmedCompanyName}" (${cleanCompanyEmail}).`,
-        ipAddress: req.ip || req.headers["x-forwarded-for"] || "127.0.0.1",
+        ipAddress: ipKeyGenerator(req.ip || "127.0.0.1"),
       });
     } catch (auditErr) {
       console.warn("AuditLog warning:", auditErr.message);
