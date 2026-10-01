@@ -6,8 +6,8 @@ import useLogout from "../../hooks/useLogout";
 import {
   getStudentDashboardData,
   saveOpportunity,
-  applyOpportunity,
 } from "../../services/studentDashboardService";
+import { isExternalOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
 import { FEATURES } from "../../config/features";
 
 // Subcomponents
@@ -162,6 +162,12 @@ const StudentDashboard = () => {
   };
 
   const handleApply = (item) => {
+    // External listings are applied to on the employer's site, not through CareerConnect.
+    if (isExternalOpportunity(item)) {
+      const url = externalApplyUrl(item);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
     setSelectedOpportunityForTailoring({
       _id: item._id || item.id,
       id: item._id || item.id,
