@@ -2,10 +2,9 @@ const axios = require("axios");
 const mongoose = require("mongoose");
 const request = require("supertest");
 const app = require("../../app");
-const EmployerProfile = require("../../models/EmployerProfile");
 const Internship = require("../../models/Internship");
 const Job = require("../../models/Job");
-const { createEmployerWithToken, createUserWithToken } = require("../helpers/createTestUser");
+const { createEmployerWithToken, createUserWithToken, createEmployerProfile } = require("../helpers/createTestUser");
 
 const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
 
@@ -39,11 +38,7 @@ describe("listing moderation (S03)", () => {
       role: "SUPER_ADMIN",
       userType: "admin",
     });
-    await EmployerProfile.create({
-      userId: employer.user._id,
-      companyName: "Moderation Co",
-      industry: "Technology",
-    });
+    await createEmployerProfile(employer.user._id, { companyName: "Moderation Co", industry: "Technology" });
   });
 
   const createJobAsEmployer = async (overrides) => {

@@ -47,6 +47,8 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  // Platform settings are cached in memory; drop the cache along with the database.
+  require('./services/platformSettings').clearPlatformSettingsCache();
   // Clean all collections after each test for isolation
   const collections = mongoose.connection.collections;
   for (const key in collections) {

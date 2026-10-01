@@ -139,6 +139,12 @@ export const getAdminEmployers = async (params = {}) => {
   return response.data;
 };
 
+// Platform admins only: status is "approved" or "rejected"; id is the EmployerProfile id
+export const setEmployerVerification = async (id, status, reason = "") => {
+  const response = await api.patch(`/admin/employers/${id}/verification`, { status, reason });
+  return response.data;
+};
+
 export const updateEmployerStatus = async (id, status) => {
   const response = await api.patch(`/admin/employers/${id}/status`, { status });
   return response.data;
@@ -343,6 +349,7 @@ export default {
   getAdminStudents,
   updateStudentStatus,
   getAdminEmployers,
+  setEmployerVerification,
   updateEmployerStatus,
   getAdminOpportunities,
   updateOpportunityStatus,

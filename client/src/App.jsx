@@ -15,6 +15,7 @@ const AdminCompanies = lazy(() => import("./pages/admin/AdminCompanies"));
 const AdminCompanyAdmins = lazy(() => import("./pages/admin/AdminCompanyAdmins"));
 const AdminCompanyProfile = lazy(() => import("./pages/admin/AdminCompanyProfile"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminEmployers = lazy(() => import("./pages/admin/AdminEmployers"));
 const AdminOpportunities = lazy(() => import("./pages/admin/AdminOpportunities"));
 const AdminApplications = lazy(() => import("./pages/admin/AdminApplications"));
 const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
@@ -498,7 +499,7 @@ function App() {
             {/* Shared Scoped Admin Routes */}
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/students" element={<AdminUsers />} />
-            <Route path="/admin/employers" element={<AdminUsers />} />
+            <Route path="/admin/employers" element={<AdminEmployers />} />
             <Route path="/admin/opportunities" element={<AdminOpportunities />} />
             <Route path="/admin/applications" element={<AdminApplications />} />
             <Route path="/admin/reports" element={<AdminReports />} />

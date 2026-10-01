@@ -8,12 +8,15 @@ const {
   pickListingUpdate,
   requiresReapproval,
   escapeRegex,
-  resolveInitialListingStatus,
+  resolveNewListingModeration,
   checkEmployerStatusChange,
 } = require("../utils/listingSecurity");
+
 // S07: job listings are served from the database only. clearSearchCache stays
 // so the student dashboard and opportunities feeds refresh when a job changes.
 const { clearSearchCache } = require("../services/jobScraperService");
+const { getPlatformSettings } = require("../services/platformSettings");
+const { isEmployerApproved } = require("../middleware/employerVerification");
 
 /**
  * Helper to ensure employer profile exists for logged in user
@@ -372,8 +375,12 @@ exports.createJob = async (req, res, next) => {
     }
 
     // Employers can only submit for approval (or save a draft); only platform admins publish directly
-    const initialStatus = resolveInitialListingStatus(req.user, status);
-    const selfApproved = initialStatus === "Published";
+    const settings = await getPlatformSettings();
+    const moderation = resolveNewListingModeration(req.user, status, {
+      autoApproveJobs: settings.autoApproveJobs,
+      employerApproved: isEmployerApproved(req.employerProfile),
+    });
+    const initialStatus = moderation.status;
 
     // Format and sanitize interview rounds if provided
     let formattedRounds;
@@ -420,9 +427,7 @@ exports.createJob = async (req, res, next) => {
       bonusSkills: Array.isArray(bonusSkills) ? bonusSkills : [],
       openings: openings ? Number(openings) : 1,
       deadline: deadline ? new Date(deadline) : null,
-      status: initialStatus,
-      approvedBy: selfApproved ? req.user._id : null,
-      approvedAt: selfApproved ? new Date() : null,
+      ...moderation,
       recruitmentStages: stages,
     });
 
@@ -537,6 +542,7 @@ exports.duplicateJob = async (req, res, next) => {
     // The copy is a new listing and needs its own moderation decision
     duplicateData.approvedBy = null;
     duplicateData.approvedAt = null;
+    duplicateData.approvalMethod = null;
     duplicateData.rejectedBy = null;
     duplicateData.rejectedAt = null;
     duplicateData.rejectionReason = null;

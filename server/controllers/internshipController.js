@@ -15,10 +15,12 @@ const {
   pickListingUpdate,
   requiresReapproval,
   escapeRegex,
-  resolveInitialListingStatus,
+  resolveNewListingModeration,
   checkEmployerStatusChange,
 } = require("../utils/listingSecurity");
 const { sanitizeRecruitmentStages } = require("./jobController");
+const { getPlatformSettings } = require("../services/platformSettings");
+const { isEmployerApproved } = require("../middleware/employerVerification");
 
 // Helper to normalize URL slugs to category names
 const formatCategorySlug = (slug = "") => {
@@ -73,8 +75,12 @@ exports.createInternship = async (req, res, next) => {
     }
 
     // Employers can only submit for approval (or save a draft); only platform admins publish directly
-    const initialStatus = resolveInitialListingStatus(req.user, req.body.status);
-    const selfApproved = initialStatus === "Published";
+    const settings = await getPlatformSettings();
+    const moderation = resolveNewListingModeration(req.user, req.body.status, {
+      autoApproveJobs: settings.autoApproveJobs,
+      employerApproved: isEmployerApproved(req.employerProfile),
+    });
+    const initialStatus = moderation.status;
 
     const internship = await Internship.create({
       ...pickListingUpdate(req.body),
@@ -85,9 +91,7 @@ exports.createInternship = async (req, res, next) => {
       companyName,
       source: "CareerConnect",
       isExternal: false,
-      status: initialStatus,
-      approvedBy: selfApproved ? req.user._id : null,
-      approvedAt: selfApproved ? new Date() : null,
+      ...moderation,
     });
 
     // Real-time Mail Notification trigger
