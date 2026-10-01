@@ -34,9 +34,6 @@
     "no-empty": {
       "count": 8
     },
-    "no-undef": {
-      "count": 2
-    },
     "no-unused-vars": {
       "count": 13
     }
@@ -45,11 +42,8 @@
     "max-lines": {
       "count": 1
     },
-    "no-undef": {
-      "count": 1
-    },
     "no-unused-vars": {
-      "count": 3
+      "count": 1
     }
   },
   "controllers/authController.js": {
@@ -126,7 +120,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 3
+      "count": 1
     }
   },
   "controllers/offerController.js": {
@@ -165,7 +159,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 2
+      "count": 1
     }
   },
   "middleware/authMiddleware.js": {

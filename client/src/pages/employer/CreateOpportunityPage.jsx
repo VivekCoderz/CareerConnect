@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import { createJob, getJobById, updateJob } from "../../services/jobService";
-import { create as createInternship, getById as getInternshipById, update as updateInternship } from "../../services/internshipService";
+import { createJob, getJobById, updateJob, updateJobStatus } from "../../services/jobService";
+import {
+  create as createInternship,
+  getById as getInternshipById,
+  update as updateInternship,
+  updateStatus as updateInternshipStatus,
+} from "../../services/internshipService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
+import ModerationBadge from "../../components/employer/ModerationBadge";
 
 const STAGE_TYPES = [
   "Resume Screening",
@@ -105,6 +111,14 @@ const PRESETS = {
   ],
 };
 
+const getSuccessMessage = (label, targetStatus) => {
+  if (targetStatus === "Draft") return `${label} saved as draft. Redirecting...`;
+  if (targetStatus === "Pending Approval") {
+    return `${label} submitted for approval. It will go live once an admin approves it. Redirecting...`;
+  }
+  return `${label} updated successfully! Redirecting...`;
+};
+
 export default function CreateOpportunityPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -153,7 +167,7 @@ export default function CreateOpportunityPage() {
     bonusSkills: "Docker, AWS, Git",
     openings: 2,
     deadline: "",
-    status: "Published",
+    status: "",
   });
 
   // Pre-load if editing
@@ -195,7 +209,7 @@ export default function CreateOpportunityPage() {
               bonusSkills: (j.bonusSkills || []).join(", "),
               openings: j.openings || 1,
               deadline: j.deadline ? j.deadline.split("T")[0] : "",
-              status: j.status || "Published",
+              status: j.status || "",
             });
             if (Array.isArray(j.recruitmentStages) && j.recruitmentStages.length > 0) {
               setStages(j.recruitmentStages.map(s => ({
@@ -253,7 +267,7 @@ export default function CreateOpportunityPage() {
               bonusSkills: (i.bonusSkills || []).join(", "),
               openings: i.openings || 1,
               deadline: i.deadline ? i.deadline.split("T")[0] : "",
-              status: i.status || "Published",
+              status: i.status || "",
             });
             if (Array.isArray(i.recruitmentStages) && i.recruitmentStages.length > 0) {
               setStages(i.recruitmentStages);
@@ -349,7 +363,13 @@ export default function CreateOpportunityPage() {
     }
   };
 
-  const handleSubmit = async (targetStatus = formData.status) => {
+  const isEditing = Boolean(editJobId || editInternshipId);
+  // Drafts and rejected listings are (re)submitted for approval; others are only edited.
+  const canSubmitForApproval = !isEditing || ["Draft", "Rejected"].includes(formData.status);
+
+  // Status is never sent with the listing content: new listings go to moderation
+  // (or stay a draft), and edits only move a draft/rejected listing to "Pending Approval".
+  const handleSubmit = async (targetStatus) => {
     setError("");
     setSuccessMsg("");
 
@@ -430,19 +450,21 @@ export default function CreateOpportunityPage() {
           requiredSkills: parsedSkills(formData.requiredSkills),
           preferredSkills: parsedSkills(formData.preferredSkills),
           deadline: formData.deadline || null,
-          status: targetStatus,
           recruitmentStages: sanitizedStages,
         };
 
         let res;
         if (editInternshipId) {
           res = await updateInternship(editInternshipId, payload);
+          if (res.success && targetStatus === "Pending Approval" && canSubmitForApproval) {
+            res = await updateInternshipStatus(editInternshipId, "Pending Approval");
+          }
         } else {
-          res = await createInternship(payload);
+          res = await createInternship({ ...payload, ...(targetStatus === "Draft" && { status: "Draft" }) });
         }
 
         if (res.success) {
-          setSuccessMsg("Internship published successfully! Redirecting...");
+          setSuccessMsg(getSuccessMessage("Internship", targetStatus));
           setTimeout(() => navigate("/employer/internships"), 1200);
         } else {
           setError(res.message || "Failed to save internship");
@@ -481,19 +503,21 @@ export default function CreateOpportunityPage() {
           bonusSkills: parsedSkills(formData.bonusSkills),
           openings: Number(formData.openings) || 1,
           deadline: formData.deadline || null,
-          status: targetStatus,
           recruitmentStages: sanitizedStages,
         };
 
         let res;
         if (editJobId) {
           res = await updateJob(editJobId, payload);
+          if (res.success && targetStatus === "Pending Approval" && canSubmitForApproval) {
+            res = await updateJobStatus(editJobId, "Pending Approval");
+          }
         } else {
-          res = await createJob(payload);
+          res = await createJob({ ...payload, ...(targetStatus === "Draft" && { status: "Draft" }) });
         }
 
         if (res.success) {
-          setSuccessMsg("Job opportunity created successfully! Redirecting...");
+          setSuccessMsg(getSuccessMessage("Job", targetStatus));
           setTimeout(() => navigate("/employer/dashboard"), 1200);
         } else {
           setError(res.message || "Failed to post job");
@@ -536,11 +560,12 @@ export default function CreateOpportunityPage() {
                 {editJobId || editInternshipId ? "Edit Opportunity" : "Create New Opportunity"}
               </span>
             </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              {editJobId || editInternshipId ? "Edit Opportunity Listing" : "Post a New Job or Internship"}
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              {isEditing ? "Edit Opportunity Listing" : "Post a New Job or Internship"}
+              {isEditing && <ModerationBadge status={formData.status} />}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Full-page SaaS creation suite with employer-configurable recruitment stages
+              New listings are reviewed by the CareerConnect team and go live once approved.
             </p>
           </div>
 
@@ -601,7 +626,7 @@ export default function CreateOpportunityPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            handleSubmit("Published");
+            handleSubmit(canSubmitForApproval ? "Pending Approval" : undefined);
           }}
           className="space-y-6"
         >
@@ -1208,14 +1233,16 @@ export default function CreateOpportunityPage() {
             </Link>
 
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => handleSubmit("Draft")}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition"
-              >
-                Save as Draft
-              </button>
+              {(!isEditing || formData.status === "Draft") && (
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleSubmit("Draft")}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition"
+                >
+                  Save as Draft
+                </button>
+              )}
 
               <button
                 type="submit"
@@ -1225,12 +1252,12 @@ export default function CreateOpportunityPage() {
                 {loading ? (
                   <>
                     <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Publishing...</span>
+                    <span>Saving...</span>
                   </>
                 ) : (
                   <>
                     <span>🚀</span>
-                    <span>{editJobId || editInternshipId ? "Update Opportunity" : `Publish ${oppType}`}</span>
+                    <span>{canSubmitForApproval ? "Submit for approval" : "Update Opportunity"}</span>
                   </>
                 )}
               </button>

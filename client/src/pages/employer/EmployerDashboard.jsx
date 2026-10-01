@@ -2,6 +2,9 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { FEATURES } from "../../config/features";
+import PostInternship from "./PostInternship";
+import EditInternship from "./EditInternship";
 
 // Services
 import {
@@ -21,6 +24,8 @@ import * as courseService from "../../services/courseService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import EmployerSidebar from "../../components/employer/EmployerSidebar";
 import JobModal from "../../components/employer/JobModal";
+import VerificationBanner from "../../components/employer/VerificationBanner";
+import { canEmployerRepublish } from "../../utils/listingModeration";
 import ATSPipelineView from "../../components/employer/ATSPipelineView";
 import CandidateCard from "../../components/employer/CandidateCard";
 import AssessmentModal from "../../components/employer/AssessmentModal";
@@ -144,7 +149,21 @@ const EmployerDashboard = () => {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+    // Redirect away from tabs switched off by feature flags
+  const hiddenTabs = {
+    courses: !FEATURES.courses,
+    "manage-courses": !FEATURES.courses,
+    learning: !FEATURES.courses,
+    "my-learning": !FEATURES.courses,
+    training: !FEATURES.courses,
+    "skill-gaps": !FEATURES.courses,
+    assessments: !FEATURES.assessments,
+  };
+  const safeActiveTab = hiddenTabs[activeTab] ? "overview" : activeTab;
+
   // Initial Load
+
+
   useEffect(() => {
     const loadAllData = async () => {
       try {
@@ -173,16 +192,16 @@ const EmployerDashboard = () => {
           internshipService.getMyPosts().catch(() => ({ internships: [] })),
           recruitmentService.getEmployerApplications().catch(() => ({ applications: [] })),
           candidateService.searchCandidates().catch(() => ({ candidates: [] })),
-          recruitmentService.getAssessments().catch(() => ({ assessments: [] })),
+           FEATURES.assessments ? recruitmentService.getAssessments().catch(() => ({ assessments: [] })) : Promise.resolve({ assessments: [] }),
           recruitmentService.getInterviews().catch(() => ({ interviews: [] })),
           recruitmentService.getOffers().catch(() => ({ offers: [] })),
           organizationService.getEmployees().catch(() => ({ employees: [] })),
           organizationService.getDepartments().catch(() => ({ departments: [] })),
-          organizationService.getTrainingAssignments().catch(() => ({ assignments: [] })),
-          organizationService.getSkillGapAnalysis().catch(() => ({ skillGaps: [] })),
-          learningService.getCourseCatalog().catch(() => ({ courses: [] })),
-          courseService.getEmployerCourses().catch(() => ({ courses: [] })),
-          learningService.getMyLearning().catch(() => ({ enrollments: [] })),
+          FEATURES.courses ? organizationService.getTrainingAssignments().catch(() => ({ assignments: [] })) : Promise.resolve({ assignments: [] }),
+          FEATURES.courses ? organizationService.getSkillGapAnalysis().catch(() => ({ skillGaps: [] })) : Promise.resolve({ skillGaps: [] }),  
+          FEATURES.courses ? learningService.getCourseCatalog().catch(() => ({ courses: [] })) : Promise.resolve({ courses: [] }),
+          FEATURES.courses ? courseService.getEmployerCourses().catch(() => ({ courses: [] })) : Promise.resolve({ courses: [] }),
+          FEATURES.courses ? learningService.getMyLearning().catch(() => ({ enrollments: [] })) : Promise.resolve({ enrollments: [] }),
           recruitmentService.getEmployerAnalytics().catch(() => null),
           getOrganizationStatus().catch(() => null),
         ]);
@@ -333,18 +352,22 @@ const EmployerDashboard = () => {
       const res = await jobService.createJob(jobPayload);
       if (res?.success) {
         setJobs((prev) => [res.job, ...prev]);
-        showToast("New job posted to CareerConnect talent portal!");
+        showToast("Job submitted for approval. It will go live once an admin approves it.");
         refreshDashboardData();
       }
     }
   };
 
   const handleToggleJobStatus = async (jobId, newStatus) => {
-    const res = await jobService.updateJobStatus(jobId, newStatus);
-    if (res?.success) {
-      setJobs((prev) => prev.map((j) => (j._id === jobId ? res.job : j)));
-      showToast(`Job status changed to ${newStatus}`);
-      refreshDashboardData();
+    try {
+      const res = await jobService.updateJobStatus(jobId, newStatus);
+      if (res?.success) {
+        setJobs((prev) => prev.map((j) => (j._id === jobId ? res.job : j)));
+        showToast(`Job status changed to ${newStatus}`);
+        refreshDashboardData();
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to update job status", "error");
     }
   };
 
@@ -551,6 +574,11 @@ const EmployerDashboard = () => {
   };
 
   const profile = dashboardData?.profile || {};
+  // Unknown until the dashboard loads; only "approved" employers may post.
+  const employerVerificationStatus = dashboardData
+    ? dashboardData.employerVerification?.status || profile.verificationStatus || "pending"
+    : null;
+  const postingDisabled = Boolean(employerVerificationStatus) && employerVerificationStatus !== "approved";
   const completion = dashboardData?.profileCompletion || profile.profileCompletion || 85;
 
   // Synchronize employer info & dynamic pre-fill into Connect Company form
@@ -935,13 +963,18 @@ const EmployerDashboard = () => {
 
         {/* Content Area */}
         <main className="flex-1 lg:pl-64 space-y-6">
+          <VerificationBanner
+            status={employerVerificationStatus}
+            rejectionReason={dashboardData?.employerVerification?.rejectionReason || profile.rejectionReason}
+          />
           {/* ======================================================== */}
           {/* TAB 1: OVERVIEW DASHBOARD                               */}
           {/* ======================================================== */}
-          {activeTab === "overview" && (
+          {safeActiveTab === "overview" && (
             <DashboardPage
               data={dashboardData}
               onPostJob={() => navigate("/employer/jobs/new")}
+              postingDisabled={postingDisabled}
               onPostInternship={() => {
                 setActiveTab("internships");
                 setInternshipView("new");
@@ -986,7 +1019,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB: INTERNSHIP MANAGEMENT                               */}
           {/* ======================================================== */}
-          {activeTab === "internships" && (
+          {safeActiveTab === "internships" && (
             <div className="space-y-5 animate-fade-in bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
               {internshipView === "list" && (
                 <MyInternships
@@ -1016,7 +1049,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 2: JOB MANAGEMENT                                    */}
           {/* ======================================================== */}
-          {activeTab === "jobs" && (
+          {safeActiveTab === "jobs" && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -1026,7 +1059,9 @@ const EmployerDashboard = () => {
                 <button
                   type="button"
                   onClick={() => navigate("/employer/jobs/create?type=job")}
-                  className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5"
+                  disabled={postingDisabled}
+                  title={postingDisabled ? "Your company is awaiting verification" : undefined}
+                  className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span>+</span> Post Opportunity
                 </button>
@@ -1048,7 +1083,7 @@ const EmployerDashboard = () => {
                             ? "bg-slate-100 text-slate-600"
                             : "bg-amber-50 text-amber-700"
                         }`}>
-                          {job.status}
+                          {job.status === "Pending Approval" ? "Pending approval" : job.status}
                         </span>
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10.5px] font-semibold">
                           {job.employmentType}
@@ -1079,13 +1114,15 @@ const EmployerDashboard = () => {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleJobStatus(job._id, job.status === "Published" ? "Paused" : "Published")}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
-                      >
-                        {job.status === "Published" ? "Pause" : "Publish"}
-                      </button>
+                      {(job.status === "Published" || canEmployerRepublish(job)) && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleJobStatus(job._id, job.status === "Published" ? "Paused" : "Published")}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
+                        >
+                          {job.status === "Published" ? "Pause" : "Resume"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleDuplicateJob(job._id)}
@@ -1158,7 +1195,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 3: ATS APPLICANT PIPELINE                            */}
           {/* ======================================================== */}
-          {activeTab === "ats" && (
+          {safeActiveTab === "ats" && (
             <div className="space-y-5 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Applicant Tracking System</h2>
@@ -1190,7 +1227,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 4: TALENT POOL & MATCHING ENGINE                     */}
           {/* ======================================================== */}
-          {activeTab === "candidates" && (
+          {safeActiveTab === "candidates" && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
@@ -1235,7 +1272,7 @@ const EmployerDashboard = () => {
                       setInterviewCandidate(c);
                       setIsInterviewModalOpen(true);
                     }}
-                    onAssignAssessment={() => setIsAssessmentModalOpen(true)}
+                    onAssignAssessment={FEATURES.assessments ? () => setIsAssessmentModalOpen(true) : undefined}
                   />
                 ))}
               </div>
@@ -1245,7 +1282,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 5: RECRUITMENT ASSESSMENTS                            */}
           {/* ======================================================== */}
-          {activeTab === "assessments" && (
+          {safeActiveTab === "assessments"  && FEATURES.assessments &&  (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -1286,7 +1323,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 6: INTERVIEWS                                        */}
           {/* ======================================================== */}
-          {activeTab === "interviews" && (
+          {safeActiveTab === "interviews" && (
             <InterviewManagementHub
               interviews={interviews}
               jobs={jobs}
@@ -1305,7 +1342,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 7: JOB OFFERS                                        */}
           {/* ======================================================== */}
-          {activeTab === "offers" && (
+          {safeActiveTab === "offers" && (
             <OfferManagementHub
               offers={offers}
               jobs={jobs}
@@ -1321,7 +1358,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB: UNIFIED COURSES & LEARNING HUB                      */}
           {/* ======================================================== */}
-          {(activeTab === "courses" || activeTab === "manage-courses" || activeTab === "learning" || activeTab === "my-learning") && (
+          {(safeActiveTab === "courses" || safeActiveTab === "manage-courses" || safeActiveTab === "learning" || safeActiveTab === "my-learning") && FEATURES.courses &&(
             <div className="space-y-6 animate-fade-in">
               {/* Top Courses Subtab Navigation */}
               <div className="p-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
@@ -1574,7 +1611,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB: CONNECT COMPANY WITH CAREERCONNECT                   */}
           {/* ======================================================== */}
-          {activeTab === "organization" && (
+          {safeActiveTab === "organization" && (
             <div className="space-y-6 animate-fade-in">
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -2224,7 +2261,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 10: EMPLOYEE DIRECTORY & TEAMS                       */}
           {/* ======================================================== */}
-          {activeTab === "employees" && (
+          {safeActiveTab === "employees" && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -2285,7 +2322,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 11: ASSIGN TRAINING                                  */}
           {/* ======================================================== */}
-          {activeTab === "training" && (
+          {safeActiveTab === "training"  && FEATURES.courses && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -2324,7 +2361,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 12: SKILL GAP ANALYSIS                               */}
           {/* ======================================================== */}
-          {activeTab === "skill-gaps" && (
+          {safeActiveTab === "skill-gaps" && (
             <div className="space-y-5 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Organization Skill Gap Analysis</h2>
@@ -2341,24 +2378,34 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 13: HIRING & TRAINING ANALYTICS                      */}
           {/* ======================================================== */}
-          {activeTab === "analytics" && (
+          {safeActiveTab === "analytics" && (
             <div className="space-y-6 animate-fade-in">
+
               <div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Hiring & Learning Analytics</h2>
-                <p className="text-xs text-slate-500">Aggregate telemetry on hiring speed and employee learning hours</p>
+
+                                <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                  {FEATURES.courses ? "Hiring & Learning Analytics" : "Hiring Analytics"}
+                </h2>
+                <p className="text-xs text-slate-500">
+                  {FEATURES.courses
+                    ? "Aggregate telemetry on hiring speed and employee learning hours"
+                    : "Aggregate telemetry on hiring speed"}
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className={`grid grid-cols-1 gap-6 ${FEATURES.courses ? "lg:grid-cols-2" : ""}`}>
                 <HiringAnalyticsChart hiring={analyticsData?.hiring} />
-                <LearningAnalyticsChart learning={analyticsData?.learning} />
+                {FEATURES.courses && (
+                  <LearningAnalyticsChart learning={analyticsData?.learning} />
+                )}
               </div>
-            </div>
+               </div>  
           )}
 
           {/* ======================================================== */}
           {/* TAB 14: TEAM ROLES & SETTINGS                            */}
           {/* ======================================================== */}
-          {activeTab === "settings" && (
+          {safeActiveTab === "settings" && (
             <div className="space-y-5 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Team Roles & Permission Settings</h2>
@@ -2373,7 +2420,10 @@ const EmployerDashboard = () => {
                     { role: "Technical Recruiter", access: "Post jobs, screen applications & candidate talent pool" },
                     { role: "Hiring Manager", access: "Review shortlisted candidates & submit interview scorecards" },
                     { role: "Learning & Development Manager", access: "Assign courses, analyze skill gaps & view learning telemetry" },
-                  ].map((r, idx) => (
+                    
+                  ]
+                  .filter((r) => FEATURES.courses || r.role !== "Learning & Development Manager")
+                  .map((r, idx) => (
                     <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between">
                       <div>
                         <h4 className="text-xs font-bold text-slate-900">{r.role}</h4>
@@ -2415,12 +2465,14 @@ const EmployerDashboard = () => {
         jobs={jobs}
       />
 
+        {FEATURES.assessments && (
       <AssessmentModal
         isOpen={isAssessmentModalOpen}
         onClose={() => setIsAssessmentModalOpen(false)}
         onCreateAssessment={handleCreateAssessment}
         jobs={jobs}
       />
+        )}
 
       <AddEmployeeModal
         isOpen={isAddEmployeeModalOpen}

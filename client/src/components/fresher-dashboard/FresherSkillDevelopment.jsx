@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { FEATURES } from "../../config/features";
 
 const DEFAULT_SKILLS = ["JavaScript", "React", "Node.js", "Python", "Git"];
 
@@ -30,14 +31,17 @@ const FresherSkillDevelopment = ({ userSkills = [], recommendedSkills = [], targ
             <span className="font-semibold text-slate-700">{targetRole}</span>
           </p>
         </div>
-
+        
+        {FEATURES.courses && (
         <Link
           to="/courses"
           className="px-4 py-2 rounded-xl bg-blue-50 text-[#1e3a8a] hover:bg-blue-100 font-bold text-xs transition border border-blue-200 inline-flex items-center gap-1.5 shrink-0"
         >
           Explore Skills →
         </Link>
+        )}
       </div>
+
 
       {/* Always show two-column layout */}
       <div className="space-y-4">
@@ -100,13 +104,15 @@ const FresherSkillDevelopment = ({ userSkills = [], recommendedSkills = [], targ
                     <p className="text-[11px] text-slate-500 line-clamp-1">{item.reason}</p>
                   )}
                 </div>
-
+                   
+                   {FEATURES.courses && (
                 <Link
                   to={item.resourceUrl || `/courses?search=${encodeURIComponent(item.name)}`}
                   className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-[#1e3a8a] hover:text-white text-slate-700 text-[11px] font-semibold transition shrink-0"
                 >
                   Learn →
                 </Link>
+                   )}
               </div>
             ))}
           </div>

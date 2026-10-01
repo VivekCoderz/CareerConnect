@@ -7,6 +7,8 @@ const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP.js");
 const sendEmail = require("../utils/sendEmail.js");
 const EmployerProfile = require("../models/EmployerProfile.js");
+const { getPlatformSettings } = require("../services/platformSettings.js");
+const { initialVerificationFields } = require("../middleware/employerVerification.js");
 const getFirebaseAdmin = require("../config/firebaseAdmin.js");
 const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
@@ -62,6 +64,12 @@ const generateUsername = (email) => {
 };
 
 const { validatePhoneFormat } = require("../middleware/validationMiddleware");
+
+const EMPLOYER_REGISTRATION_CLOSED = {
+  success: false,
+  code: "EMPLOYER_REGISTRATION_CLOSED",
+  message: "Employer registration is closed",
+};
 
 // Helper: Generate unique username (ensures no collision)
 const generateUniqueUsername = async (email) => {
@@ -1014,6 +1022,9 @@ module.exports.googleAuth = async (req, res, next) => {
 
       // Determine role/userType from request (employer vs candidate)
       const isEmployer = role === "employer";
+      if (isEmployer && !(await getPlatformSettings()).allowEmployerRegistration) {
+        return res.status(403).json(EMPLOYER_REGISTRATION_CLOSED);
+      }
 
       user = new User({
         fullName: name || normalizedEmail.split("@")[0],
@@ -1464,6 +1475,11 @@ module.exports.resetPassword = async (req, res, next) => {
 // ==========================================
 module.exports.registerEmployer = async (req, res, next) => {
   try {
+    const settings = await getPlatformSettings();
+    if (!settings.allowEmployerRegistration) {
+      return res.status(403).json(EMPLOYER_REGISTRATION_CLOSED);
+    }
+
     const {
       companyName,
       email,
@@ -1649,6 +1665,7 @@ module.exports.registerEmployer = async (req, res, next) => {
         },
         currentStep: 1,
         profileCompletion: 20,
+        ...initialVerificationFields(settings),
       });
     } catch (profileErr) {
       console.error("EmployerProfile creation error:", profileErr);
@@ -1971,6 +1988,13 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
 
     const userId = req.user.id;
 
+    // Creating a new employer profile is an employer signup.
+    const settings = await getPlatformSettings();
+    const existingProfile = await EmployerProfile.findOne({ userId });
+    if (!existingProfile && !settings.allowEmployerRegistration) {
+      return res.status(403).json(EMPLOYER_REGISTRATION_CLOSED);
+    }
+
     // -------- Validation --------
     if (!phone?.trim()) {
       return res.status(400).json({ success: false, field: "phone", message: "Mobile number is required" });
@@ -2033,8 +2057,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
 
     // -------- Create EmployerProfile (idempotent) --------
     try {
-      const existing = await EmployerProfile.findOne({ userId });
-      if (!existing) {
+      if (!existingProfile) {
         await EmployerProfile.create({
           userId,
           companyName: companyName.trim(),
@@ -2056,6 +2079,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
           },
           currentStep: 1,
           profileCompletion: 40,
+          ...initialVerificationFields(settings),
         });
       }
     } catch (profileErr) {

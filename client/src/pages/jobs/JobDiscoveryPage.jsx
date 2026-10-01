@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import jobService from "../../services/jobService";
-import { applyOpportunity, saveOpportunity } from "../../services/studentDashboardService";
+import { saveOpportunity } from "../../services/studentDashboardService";
+import { applyToOpportunity } from "../../utils/opportunityApply";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 
@@ -162,13 +163,11 @@ const JobDiscoveryPage = () => {
     }
 
     try {
-      const res = await applyOpportunity({
-        opportunityId: jobItem._id || jobItem.id,
-        jobId: jobItem._id || jobItem.id,
-        title: jobItem.title,
-        company: jobItem.company || jobItem.companyName,
-        type: "Job",
-      });
+      const res = await applyToOpportunity(jobItem, "Job");
+      if (res.external) {
+        if (!res.opened) showToast("This listing has no apply link.", "error");
+        return;
+      }
 
       if (res?.success) {
         showToast(res.message || `Application submitted for "${jobItem.title}"!`, "success");
@@ -428,7 +427,7 @@ const JobDiscoveryPage = () => {
             {jobs.map((jobItem) => {
               const isSaved = savedIds.includes(jobItem.id || jobItem._id);
               const compName = jobItem.employerId?.companyName || jobItem.company || jobItem.companyName || "Partner Employer";
-              const salaryStr = jobItem.salary || (jobItem.salaryRange?.min ? `₹${(jobItem.salaryRange.min / 100000).toFixed(1)}L - ₹${(jobItem.salaryRange.max / 100000).toFixed(1)}L / yr` : "Competitive Package");
+              const salaryStr = jobItem.salary || (jobItem.salaryRange?.min ? `₹${(jobItem.salaryRange.min / 100000).toFixed(1)}L - ₹${(jobItem.salaryRange.max / 100000).toFixed(1)}L / yr` : "Not disclosed");
 
               return (
                 <div

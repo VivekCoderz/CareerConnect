@@ -472,6 +472,11 @@ const getEmployerDashboardData = async (companyId, user = null) => {
       verificationStatus,
     },
     profileCompletion: user?.profileCompletion || profile?.profileCompletion || 85,
+    // Platform verification of this employer (separate from company.verificationStatus above)
+    employerVerification: {
+      status: profile ? profile.verificationStatus || "pending" : null,
+      rejectionReason: profile?.rejectionReason || null,
+    },
     unreadNotificationsCount,
     // Backwards compatibility fields for legacy components
     stats: {

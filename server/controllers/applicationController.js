@@ -720,8 +720,8 @@ exports.getEmployerApplications = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      count: applications.length,
-      applications,
+      count: enrichedApplications.length,
+      applications: enrichedApplications,
     });
   } catch (error) {
     next(error);
@@ -976,7 +976,7 @@ exports.addApplicationNote = async (req, res, next) => {
 
     const application = await Application.findOne({
       _id: req.params.id,
-      $or: orConditions,
+      $or: await getEmployerOwnershipOrClauses(req.user._id),
     });
 
     if (!application) {

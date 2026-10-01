@@ -218,7 +218,8 @@ const jobSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["Draft", "Pending Approval", "Published", "Paused", "Closed", "Rejected"],
-      default: "Published",
+      // Listings must be approved before they are public; publishers set status explicitly.
+      default: "Pending Approval",
       index: true,
     },
     approvedBy: {
@@ -228,6 +229,12 @@ const jobSchema = new mongoose.Schema(
     },
     approvedAt: {
       type: Date,
+      default: null,
+    },
+    // "auto" when published by the autoApproveJobs setting (approvedBy stays null).
+    approvalMethod: {
+      type: String,
+      enum: ["admin", "auto", null],
       default: null,
     },
     rejectedBy: {

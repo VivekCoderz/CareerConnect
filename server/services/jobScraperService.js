@@ -588,17 +588,18 @@ async function getAggregatedOpportunities({
   if (scope !== "on-campus") {
     const scraperPromises = [];
 
-    if (source === "all" || source === "external" || source === "linkedin") {
-      scraperPromises.push(
-        scrapeLinkedIn(queryKeywords, targetLocation, normalizedOppType),
-      );
-    }
-    if (
-      (source === "all" || source === "external" || source === "internshala") &&
-      region !== "International"
-    ) {
-      scraperPromises.push(scrapeInternshala(queryKeywords));
-    }
+    // S07: disabled - scraper removed from request flow
+    // if (source === "all" || source === "external" || source === "linkedin") {
+    //   scraperPromises.push(
+    //     scrapeLinkedIn(queryKeywords, targetLocation, normalizedOppType),
+    //   );
+    // }
+    // if (
+    //   (source === "all" || source === "external" || source === "internshala") &&
+    //   region !== "International"
+    // ) {
+    //   scraperPromises.push(scrapeInternshala(queryKeywords));
+    // }
     if (source === "all" || source === "external" || source === "remotive") {
       scraperPromises.push(fetchRemotiveJobs(queryKeywords));
     }

@@ -13,7 +13,7 @@ const userSchema = new mongoose.Schema(
 
     fullName: {
       type: String,
-      required: [true, "Full name is required"],
+      required: [true, "Fulgl name is required"],
       trim: true,
       minlength: [2, "Full name must contain at least 2 characters"],
       maxlength: [100, "Full name cannot exceed 100 characters"],
@@ -346,7 +346,7 @@ userSchema.pre("save", async function () {
     return;
   }
 
-  const salt = await bcrypt.genSalt(12);
+  const salt = await bcrypt.genSalt(10);
 
   this.password = await bcrypt.hash(this.password, salt);
 });

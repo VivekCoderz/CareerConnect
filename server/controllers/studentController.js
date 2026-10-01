@@ -385,18 +385,21 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     }
 
     // 3. Fetch Real Courses from database
-    const dbCourses = await Course.find({ status: "Published" }).limit(6).lean();
-    const recommendedCourses = dbCourses.map((c) => ({
-      _id: c._id,
-      id: c._id.toString(),
-      title: c.title,
-      provider: "CareerConnect Academy",
-      level: c.level || "Intermediate",
-      duration: `${c.duration || 6} ${c.durationUnit || "Weeks"}`,
-      rating: 4.9,
-      skillsCovered: c.skills || [],
-      isFree: !c.price || c.price === 0,
-    }));
+    let recommendedCourses = [];
+    if (String(process.env.ENABLE_COURSES).toLowerCase() === "true") {
+      const dbCourses = await Course.find({ status: "Published" }).limit(6).lean();
+      recommendedCourses = dbCourses.map((c) => ({
+        _id: c._id,
+        id: c._id.toString(),
+        title: c.title,
+        provider: "CareerConnect Academy",
+        level: c.level || "Intermediate",
+        duration: `${c.duration || 6} ${c.durationUnit || "Weeks"}`,
+        rating: 4.9,
+        skillsCovered: c.skills || [],
+        isFree: !c.price || c.price === 0,
+      }));
+    }
 
     // 4. Application history was loaded above for recommendation filtering.
     const appStats = {
@@ -691,227 +694,15 @@ module.exports.toggleSaveOpportunity = async (req, res, next) => {
 };
 
 // ==========================================
-// APPLY TO OPPORTUNITY (REAL DATABASE POST)
+// APPLY TO OPPORTUNITY (RETIRED)
 // ==========================================
-module.exports.applyOpportunity = async (req, res, next) => {
-  try {
-    const { opportunityId, jobId, title, company, type } = req.body;
-    const targetJobId = jobId || opportunityId;
-    const candidateId = req.user._id;
-
-    if (!targetJobId) {
-      return res.status(400).json({
-        success: false,
-        message: "Job ID is required to submit application",
-      });
-    }
-
-    // Handle external / scraped opportunities gracefully
-    if (typeof targetJobId === "string" && targetJobId.startsWith("scraped-")) {
-      return res.status(200).json({
-        success: true,
-        message: `Application recorded for "${title || "position"}"!`,
-        isExternal: true,
-        application: {
-          _id: `ext-app-${Date.now()}`,
-          jobId: targetJobId,
-          title: title || "External Opportunity",
-          company: company || "Partner Employer",
-          status: "Applied",
-          appliedDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-          createdAt: new Date(),
-        },
-      });
-    }
-
-    const Internship = require("../models/Internship");
-    const EmployerProfile = require("../models/EmployerProfile");
-
-    let job = null;
-    let isInternship = false;
-    if (mongoose.Types.ObjectId.isValid(targetJobId)) {
-      job = await Job.findById(targetJobId).populate("employerId");
-      if (!job) {
-        job = await Internship.findById(targetJobId).populate("employerId");
-        if (job) {
-          isInternship = true;
-        }
-      }
-    }
-
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        message: "Opportunity not found",
-      });
-    }
-
-    if (job.status !== "Published" && job.status !== "Active") {
-      return res.status(400).json({
-        success: false,
-        message: "This position is no longer accepting applications",
-      });
-    }
-
-    const existing = await Application.findOne(
-      isInternship
-        ? { internshipId: targetJobId, candidateId }
-        : { jobId: targetJobId, candidateId }
-    );
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        message: "You have already applied for this position.",
-      });
-    }
-
-    // Determine target employerId
-    let resolvedEmployerId = job.employerId?._id || job.employerId;
-    if (!resolvedEmployerId && job.createdBy) {
-      const empProfile = await EmployerProfile.findOne({ userId: job.createdBy });
-      resolvedEmployerId = empProfile ? empProfile._id : job.createdBy;
-    }
-
-    // Extract exact submitted data from request
-    const {
-      fullName,
-      studentName,
-      email,
-      studentEmail,
-      phone,
-      studentPhone,
-      education,
-      skills,
-      experience,
-      portfolioUrl,
-      resumeUrl,
-      coverLetter,
-      coverNote,
-      applicationData: rawAppData,
-    } = req.body;
-
-    const studentProf = await StudentProfile.findOne({ userId: candidateId }).lean();
-
-    const finalName = fullName || studentName || studentProf?.fullName || req.user.name || "Student Applicant";
-    const finalEmail = email || studentEmail || studentProf?.email || req.user.email;
-    const finalPhone = phone || studentPhone || studentProf?.phone || "";
-    const finalResume = resumeUrl || req.body.resume || studentProf?.resume?.resumeUrl || "";
-    const finalCover = coverLetter || coverNote || "";
-    const finalEdu = education || (studentProf?.education?.[0] ? `${studentProf.education[0].degree} at ${studentProf.education[0].institution}` : "");
-    const finalSkills = Array.isArray(skills)
-      ? skills
-      : typeof skills === "string" && skills.trim()
-      ? skills.split(",").map((s) => s.trim())
-      : studentProf?.technicalSkills || [];
-    const finalExp = experience || "";
-    const finalPortfolio = portfolioUrl || studentProf?.links?.portfolio || "";
-
-    const fullApplicationData = {
-      fullName: finalName,
-      email: finalEmail,
-      phone: finalPhone,
-      education: finalEdu,
-      skills: finalSkills,
-      experience: finalExp,
-      portfolioUrl: finalPortfolio,
-      resumeUrl: finalResume,
-      coverLetter: finalCover,
-      ...(rawAppData || {}),
-    };
-
-    // Match calculation
-    const candidateSkills = studentProf?.technicalSkills || finalSkills || [];
-    const strongSkills = candidateSkills.filter((s) =>
-      (job.requiredSkills || []).some((reqS) => reqS.toLowerCase() === s.toLowerCase())
-    );
-    const missingSkills = (job.requiredSkills || []).filter(
-      (reqS) => !candidateSkills.some((s) => s.toLowerCase() === reqS.toLowerCase())
-    );
-    const matchOverall = Math.min(100, Math.max(40, Math.round(50 + (strongSkills.length * 15))));
-
-    const companyName =
-      job.employerId?.companyName ||
-      job.companyName ||
-      job.company ||
-      company ||
-      "Partner Employer";
-
-    const applicationPayload = {
-      opportunityType: isInternship ? "Internship" : "Job",
-      opportunityTitle: job.title || title || "",
-      companyName,
-      candidateId,
-      employerId: job.employerId?._id || job.employerId,
-      resumeUrl: finalResume,
-      coverNote: req.body.coverNote ? String(req.body.coverNote).trim() : "",
-      status: "Applied",
-      stage: "Applied",
-      appliedAt: new Date(),
-      studentName: finalName,
-      studentEmail: finalEmail,
-      studentPhone: finalPhone,
-      education: typeof finalEdu === "object" ? JSON.stringify(finalEdu) : finalEdu,
-      skills: finalSkills,
-      experience: finalExp,
-      portfolioUrl: finalPortfolio,
-      coverLetter: finalCover,
-      applicationData: fullApplicationData,
-      stageHistory: [
-        {
-          stage: "Applied",
-          notes: "Student applied via CareerConnect Portal",
-          changedBy: candidateId,
-          changedAt: new Date(),
-        },
-      ],
-      matchScore: {
-        overall: matchOverall,
-        skills: Math.min(100, strongSkills.length * 25),
-        experience: 75,
-        education: 90,
-      },
-      matchingDetails: {
-        strongSkills,
-        missingSkills,
-      },
-    };
-
-    if (isInternship) {
-      applicationPayload.internshipId = targetJobId;
-    } else {
-      applicationPayload.jobId = targetJobId;
-    }
-
-    const application = await Application.create(applicationPayload);
-
-    if (typeof job.applicantsCount === "number") {
-      job.applicantsCount += 1;
-      await job.save();
-    }
-
-    return res.status(201).json({
-      success: true,
-      message: `✓ Application submitted successfully for "${job.title}" at ${companyName}!`,
-      application: {
-        _id: application._id,
-        id: application._id.toString(),
-        jobId: job._id.toString(),
-        title: job.title,
-        company: companyName,
-        type: job.employmentType || (isInternship ? "Internship" : "Job"),
-        appliedDate: "Today",
-        status: "Applied",
-        lastUpdated: "Just now",
-        applicationData: fullApplicationData,
-      },
-    });
-  } catch (error) {
-    if (error.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: "You have already applied for this position.",
-      });
-    }
-    next(error);
-  }
-};
+// POST /api/student/apply was a duplicate apply path that trusted identity and
+// listing details from the request body and faked success for external listings.
+// Candidates apply via POST /api/applications/job/:jobId or
+// /api/applications/internship/:internshipId; external listings open their apply link.
+module.exports.applyOpportunity = (req, res) =>
+  res.status(410).json({
+    success: false,
+    code: "ENDPOINT_RETIRED",
+    message: "Use /api/applications/job/:jobId or /api/applications/internship/:internshipId",
+  });

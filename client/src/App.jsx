@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState, Suspense } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import {FEATURES} from "./config/features";
 import JourneyLoader from "./components/common/JourneyLoader";
 import { lazyWithRetry } from "./utils/lazyWithRetry";
 import ErrorBoundary from "./components/common/ErrorBoundary";
@@ -16,6 +17,7 @@ const AdminCompanies = lazyWithRetry(() => import("./pages/admin/AdminCompanies"
 const AdminCompanyAdmins = lazyWithRetry(() => import("./pages/admin/AdminCompanyAdmins"));
 const AdminCompanyProfile = lazyWithRetry(() => import("./pages/admin/AdminCompanyProfile"));
 const AdminUsers = lazyWithRetry(() => import("./pages/admin/AdminUsers"));
+const AdminEmployers = lazyWithRetry(() => import("./pages/admin/AdminEmployers"));
 const AdminOpportunities = lazyWithRetry(() => import("./pages/admin/AdminOpportunities"));
 const AdminApplications = lazyWithRetry(() => import("./pages/admin/AdminApplications"));
 const AdminReports = lazyWithRetry(() => import("./pages/admin/AdminReports"));
@@ -362,21 +364,33 @@ function AppRoutes() {
             >
               <Route path="/internships/:id" element={<InternshipDetail />} />
               <Route path="/applications" element={<MyApplications />} />
-              <Route path="/courses" element={<StudentCoursesPage />} />
-              <Route path="/courses/:id" element={<CourseDetailsPage />} />
-              <Route
-                path="/courses/:id/learn"
-                element={<CourseContentPage />}
-              />
+
+              {FEATURES.courses && (
+                <>
+                  <Route path="/courses" element={<StudentCoursesPage />} />
+                  <Route path="/courses/:id" element={<CourseDetailsPage />} />
+                  <Route
+                    path="/courses/:id/learn"
+                    element={<CourseContentPage />}
+                  />
+                </>
+              )}
            
             <Route path="/internships/:id" element={<InternshipDetail />} />
             <Route path="/student/jobs/:id" element={<InternshipDetail />} />
             <Route path="/applications" element={<MyApplications />} />
             <Route path="/student/applications" element={<MyApplications />} />
             <Route path="/student/applications/:applicationId" element={<StudentApplicationTrackingPage />} />
-            <Route path="/courses" element={<StudentCoursesPage />} />
-            <Route path="/courses/:id" element={<CourseDetailsPage />} />
-            <Route path="/my-courses" element={<StudentMyCoursesPage />} />
+
+
+             {FEATURES.courses && (
+              <>
+                <Route path="/courses" element={<StudentCoursesPage />} />
+                <Route path="/courses/:id" element={<CourseDetailsPage />} />
+                <Route path="/my-courses" element={<StudentMyCoursesPage />} />
+              </>
+            )}
+
             <Route path="/ats-resume" element={<Navigate to="/resume-builder?mode=ats-checker" replace />} />
           </Route>
 
@@ -442,10 +456,16 @@ function AppRoutes() {
             <Route path="/employer/internships/:id/edit" element={<CreateOpportunityPage />} />
 
             {/* EMPLOYER COURSES */}
-            <Route path="/employer/courses" element={<EmployeeCoursesPage />} />
-            <Route path="/employer/courses/create" element={<CreateCoursePage />} />
-            <Route path="/employer/courses/:id/edit" element={<EditCoursePage />} />
-            <Route path="/employer/courses/:id/content" element={<CourseContentPage />} />
+
+            {/* EMPLOYER COURSES */}
+            {FEATURES.courses && (
+              <>
+                <Route path="/employer/courses" element={<EmployeeCoursesPage />} />
+                <Route path="/employer/courses/create" element={<CreateCoursePage />} />
+                <Route path="/employer/courses/:id/edit" element={<EditCoursePage />} />
+                <Route path="/employer/courses/:id/content" element={<CourseContentPage />} />
+              </>
+            )}
           </Route>
 
           {/* =================================================
@@ -479,7 +499,7 @@ function AppRoutes() {
             {/* Shared Scoped Admin Routes */}
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/students" element={<AdminUsers />} />
-            <Route path="/admin/employers" element={<AdminUsers />} />
+            <Route path="/admin/employers" element={<AdminEmployers />} />
             <Route path="/admin/opportunities" element={<AdminOpportunities />} />
             <Route path="/admin/applications" element={<AdminApplications />} />
             <Route path="/admin/reports" element={<AdminReports />} />
