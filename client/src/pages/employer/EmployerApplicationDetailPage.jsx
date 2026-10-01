@@ -11,6 +11,7 @@ import {
 } from "../../services/applicationService";
 import { createInterview } from "../../services/interviewService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
+import { openResume } from "../../utils/resumeAccess";
 
 const DEFAULT_STAGES = [
   { name: "Resume Screening", type: "Resume Screening", order: 0 },
@@ -363,15 +364,14 @@ export default function EmployerApplicationDetailPage() {
 
                 {resumeUrl && (
                   <div className="pt-3 border-t border-slate-100">
-                    <a
-                      href={resumeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => openResume(resumeUrl)}
                       className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
                     >
                       <span>📄</span>
                       <span>Review Candidate Resume ↗</span>
-                    </a>
+                    </button>
                   </div>
                 )}
               </div>
