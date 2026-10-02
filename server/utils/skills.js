@@ -46,4 +46,22 @@ const splitOtherSkills = (skills = []) => ({
 /** A Set of normalised skill names, for "does the user have this skill?" checks. */
 const normalizedSkillSet = (skills = []) => new Set(skills.filter(Boolean).map(normalizeSkill));
 
-module.exports = { normalizeSkill, isSoftSkill, splitOtherSkills, normalizedSkillSet };
+/**
+ * Adds incoming skills to existing ones without duplicates (compared with normalizeSkill).
+ * Existing items are kept as they are. New items are strings, or { name } when asObjects
+ * is set (fresher and professional profiles store skills as { name, proficiency }).
+ */
+const mergeSkillStrings = (existing = [], incoming = [], { asObjects = false } = {}) => {
+  const nameOf = (s) => String(typeof s === "string" ? s : s?.name || "").trim();
+  const seen = new Set(existing.map(nameOf).filter(Boolean).map(normalizeSkill));
+  const result = [...existing];
+  for (const item of incoming) {
+    const name = nameOf(item);
+    if (!name || seen.has(normalizeSkill(name))) continue;
+    seen.add(normalizeSkill(name));
+    result.push(asObjects ? { name } : name);
+  }
+  return result;
+};
+
+module.exports = { normalizeSkill, isSoftSkill, splitOtherSkills, normalizedSkillSet, mergeSkillStrings };
