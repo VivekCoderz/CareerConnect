@@ -44,6 +44,7 @@ export default function ResumeUploadInput({
   const validateFile = (file) => {
     if (!file) return "No file selected.";
 
+    const originalName = (file.name || "").toLowerCase();
     // PDF only: resumes are parsed, ATS-checked and previewed as PDF
     const isPdf = originalName.endsWith(".pdf") && ["application/pdf", "application/octet-stream", ""].includes(file.type);
     if (!isPdf) {
