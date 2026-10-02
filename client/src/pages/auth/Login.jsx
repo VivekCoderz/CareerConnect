@@ -13,6 +13,7 @@ import {
   setSessionExpired,
 } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import { getSafeRedirect } from "../../utils/authRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 
@@ -69,6 +70,7 @@ const Login = () => {
 
   const initialType = searchParams.get("type") === "employer" ? "employer" : "student";
   const isExpired = searchParams.get("expired") === "1";
+  const redirectTo = getSafeRedirect(searchParams);
 
   const [loginType, setLoginType] = useState(initialType);
   const [formData, setFormData] = useState({ emailOrUsername: "", password: "" });
@@ -119,7 +121,9 @@ const Login = () => {
       const { user, token } = response.data;
       dispatch(loginSuccess({ user, token }));
 
-      if (user.role === "employer") {
+      if (redirectTo) {
+        navigate(redirectTo, { replace: true });
+      } else if (user.role === "employer") {
         navigate("/employer/dashboard");
       } else {
         navigate(getDashboardPath(user.userType, user));
@@ -171,8 +175,8 @@ const Login = () => {
           { replace: true }
         );
       } else {
-        // Existing user with completed info → dashboard
-        navigate(getDashboardPath(user.userType, user), { replace: true });
+        // Existing user with completed info → back to where they came from, or dashboard
+        navigate(redirectTo || getDashboardPath(user.userType, user), { replace: true });
       }
     } catch (err) {
       if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
