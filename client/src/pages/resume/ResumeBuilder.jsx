@@ -1271,7 +1271,7 @@ const ResumeBuilder = () => {
                   Upload or Link Your Resume
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Upload your completed resume file (PDF, DOC, DOCX up to 10MB) or link a hosted resume URL. We will save it to your account and can parse details into your profile.
+                  Upload your completed resume as a PDF (up to 10MB) or link a hosted resume URL. We will save it to your account and can parse details into your profile.
                 </p>
               </div>
 
@@ -1322,7 +1322,7 @@ const ResumeBuilder = () => {
                       if (meta?.fileName) setUploadedResumeName(meta.fileName);
                     }}
                     label="Resume Document or Online Link"
-                    helperText="Supported formats: PDF, DOC, DOCX up to 10MB or direct URLs."
+                    helperText="Supported format: PDF up to 10MB, or a direct URL."
                   />
 
                   {/* Action Buttons */}

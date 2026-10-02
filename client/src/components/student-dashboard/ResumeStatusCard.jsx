@@ -530,7 +530,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
                     Upload or Link Resume
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    Select a resume file from your device (PDF, DOC, DOCX) or paste a hosted link
+                    Select a resume file from your device (PDF) or paste a hosted link
                   </p>
                 </div>
 
@@ -568,7 +568,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
                         if (meta?.fileName) setModalResumeName(meta.fileName);
                       }}
                       label="Resume File or URL"
-                      helperText="Supported: PDF, DOC, DOCX up to 10MB or direct URLs."
+                      helperText="Supported: PDF up to 10MB or direct URLs."
                     />
 
                     <div className="flex justify-end gap-2 pt-2">
