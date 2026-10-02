@@ -3,6 +3,7 @@ const app = require("../../app");
 const ResumeAsset = require("../../models/ResumeAsset");
 const Application = require("../../models/Application");
 const Company = require("../../models/Company");
+const { cloudinary } = require("../../config/cloudinary");
 const { createUserWithToken } = require("../helpers/createTestUser");
 
 const url = "https://res.cloudinary.com/demo/raw/authenticated/v1/careerconnect/resumes/cand.pdf";
@@ -27,6 +28,13 @@ describe("resume uploads are PDF only (G10)", () => {
 });
 
 describe("resume access for admins (G10)", () => {
+  // CI has no Cloudinary credentials; sign URLs with a stub like resumeAccess.test.js does.
+  let signedUrl;
+  beforeEach(() => {
+    signedUrl = jest.spyOn(cloudinary.utils, "private_download_url").mockReturnValue("https://api.cloudinary.com/test-signed-download");
+  });
+  afterEach(() => signedUrl.mockRestore());
+
   const setup = async () => {
     const candidate = await createUserWithToken({ email: "cand@student.test" });
     await ResumeAsset.create({ user: candidate.user._id, publicId: "careerconnect/resumes/cand.pdf", url });
