@@ -63,6 +63,8 @@ const resumeSchema = new mongoose.Schema(
 );
 
 resumeSchema.index({ user: 1, createdAt: -1 });
+// Resume file cleanup checks whether a resume still uses a file
+resumeSchema.index({ resumeUrl: 1 });
 
 const Resume = mongoose.model("Resume", resumeSchema);
 

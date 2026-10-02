@@ -671,4 +671,7 @@ fresherProfileSchema.index({ "jobPreferences.preferredLocations": 1 });
 fresherProfileSchema.index({ "location.city": 1 });
 fresherProfileSchema.index({ profileVisibility: 1 });
 
+// Resume file cleanup checks whether this still uses a resume file
+fresherProfileSchema.index({ "resume.resumeUrl": 1 });
+
 module.exports = mongoose.model("FresherProfile", fresherProfileSchema);

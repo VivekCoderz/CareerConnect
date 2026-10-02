@@ -4,6 +4,7 @@ const { aiResumeLimiter, aiDailyLimiter } = require("../middleware/rateLimitMidd
 const multer = require("multer");
 const { isResumeFile } = require("../utils/fileSignatures");
 const { getResumeDownload } = require("../controllers/resumeAccessController");
+const { scheduleResumeCleanup } = require("../services/resumeAssetCleanup");
 const {
   generateResumeHandler,
   updateResumeHandler,
@@ -85,6 +86,17 @@ const atsPdfUpload = multer({
 
 // All resume routes require authentication
 router.use(protect);
+
+// After any successful resume change, delete the user's resume files that nothing
+// references any more (runs in the background, after the response).
+router.use((req, res, next) => {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+    res.on("finish", () => {
+      if (res.statusCode < 400 && req.user?._id) scheduleResumeCleanup(req.user._id);
+    });
+  }
+  next();
+});
 
 router.get("/download", getResumeDownload);
 router.get("/", getAllResumes);

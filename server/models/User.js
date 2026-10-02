@@ -359,6 +359,9 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
+// Resume file cleanup checks whether this still uses a resume file
+userSchema.index({ "resumeUrl": 1 });
+
 const User = mongoose.model("User", userSchema);
 
 module.exports = User;
