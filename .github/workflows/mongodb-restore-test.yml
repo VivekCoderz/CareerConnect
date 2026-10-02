@@ -1,10 +1,6 @@
 name: MongoDB Restore Test
 
 on:
-  push:
-    branches:
-      - New-Imran
-
   workflow_dispatch:
     inputs:
       backup_key:
