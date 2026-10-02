@@ -21,10 +21,12 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                {candidate.degree} · CGPA {candidate.cgpa}
+                {candidate.degree || "Degree not provided"}
+                {candidate.cgpa ? ` · CGPA ${candidate.cgpa}` : ""}
               </p>
               <p className="text-[11px] text-slate-400">
-                {candidate.institution} · Class of {candidate.graduationYear}
+                {candidate.institution || "Institution not provided"}
+                {candidate.graduationYear ? ` · Class of ${candidate.graduationYear}` : ""}
               </p>
             </div>
           </div>

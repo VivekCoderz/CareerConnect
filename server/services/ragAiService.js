@@ -191,13 +191,13 @@ const answerUserQuery = async ({ query, userId = null, conversationHistory = [] 
   const profileText = context.studentProfile
     ? `
 STUDENT PROFILE INFORMATION:
-- Career Goal: ${context.studentProfile.careerGoal || "Software Developer"}
+- Career Goal: ${context.studentProfile.careerGoal || "Not provided"}
 - Technical Skills: ${(context.studentProfile.technicalSkills || []).join(", ") || "None listed"}
-- Soft Skills: ${(context.studentProfile.softSkills || []).join(", ") || "Communication, Teamwork"}
+- Soft Skills: ${(context.studentProfile.softSkills || []).join(", ") || "None listed"}
 - Education: ${
         context.studentProfile.education?.[0]
           ? `${context.studentProfile.education[0].degree} from ${context.studentProfile.education[0].institution}`
-          : "Geeta University"
+          : "Not provided"
       }
 - Projects Count: ${context.studentProfile.projects?.length || 0}
 - Certifications: ${context.studentProfile.certifications?.length || 0}

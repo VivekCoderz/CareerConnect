@@ -220,7 +220,12 @@ exports.searchCandidates = async (req, res, next) => {
         experience.jobTitle ||
         experience.designation ||
         (user.userType === "student" ? "Undergraduate Student" : "Software Associate");
-      const cgpa = education.score || education.grade || education.cgpa || "8.5";
+      // Missing education/location stays empty; the UI shows "Not provided".
+      const cgpa = education.score || education.grade || education.cgpa || "";
+      const rawLocation = (sProf || fProf || pProf)?.location;
+      const location = typeof rawLocation === "string"
+        ? rawLocation
+        : [rawLocation?.city, rawLocation?.state].filter(Boolean).join(", ");
 
       return {
         _id: user._id,
@@ -232,16 +237,16 @@ exports.searchCandidates = async (req, res, next) => {
         userType: user.userType,
         socialLinks: user.socialLinks,
         skills: candidateSkills,
-        degree: education.degree || "B.Tech Computer Science",
-        institution: education.institution || "Geeta University",
-        graduationYear: education.endYear || 2026,
+        degree: education.degree || "",
+        institution: education.institution || "",
+        graduationYear: education.endYear || null,
         cgpa,
         jobTitle,
         experienceYears: user.userType === "professional" ? "2+ Years" : "Fresher",
         matchPercentage: matchInfo.matchPercentage,
         strongSkills: matchInfo.strongSkills,
         missingSkills: matchInfo.missingSkills,
-        location: "Panipat, Haryana / Delhi NCR",
+        location,
         availability: "Immediate / Within 15 Days",
         profileCompletion: user.profileCompletion || 80,
       };
