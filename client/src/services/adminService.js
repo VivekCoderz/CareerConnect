@@ -158,6 +158,12 @@ export const getAdminOpportunities = async (params = {}) => {
   return response.data;
 };
 
+// Super Admin: post a job or internship on behalf of an approved employer
+export const createOpportunityForEmployer = async (payload) => {
+  const response = await api.post("/admin/opportunities", payload);
+  return response.data;
+};
+
 export const getAdminOpportunitiesCompanies = async () => {
   const response = await api.get("/admin/opportunities/companies-list");
   return response.data;

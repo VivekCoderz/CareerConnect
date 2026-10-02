@@ -54,7 +54,7 @@
       "count": 5
     },
     "no-unused-vars": {
-      "count": 10
+      "count": 9
     }
   },
   "controllers/candidateController.js": {

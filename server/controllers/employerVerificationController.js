@@ -5,6 +5,7 @@ const Internship = require("../models/Internship");
 const Job = require("../models/Job");
 const User = require("../models/User");
 const { escapeRegex } = require("../utils/listingSecurity");
+const { notifyEmployerVerification } = require("../services/accountNotifications");
 
 // Profiles created before verification existed have no verificationStatus; they count as pending.
 const STATUS_FILTERS = {
@@ -137,6 +138,10 @@ exports.setEmployerVerification = async (req, res, next) => {
     } catch (logErr) {
       console.warn("Audit log creation warning:", logErr.message);
     }
+
+    // In-app + email to the employer; never blocks the response. Pass closedListings
+    // once rejection also closes the employer's listings.
+    notifyEmployerVerification({ profile, status, reason: trimmedReason });
 
     return res.status(200).json({
       success: true,

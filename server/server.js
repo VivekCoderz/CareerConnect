@@ -77,4 +77,6 @@ setInterval(async () => {
 
 server.listen(PORT, () => {
   console.log(`CareerConnect server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
+  // Daily summary email of rejections / closed positions (6 PM IST)
+  require("./services/emailDigest").startEmailDigestScheduler();
 });

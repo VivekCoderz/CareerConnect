@@ -17,10 +17,12 @@ const {
   escapeRegex,
   resolveNewListingModeration,
   checkEmployerStatusChange,
+  toPublicListing,
 } = require("../utils/listingSecurity");
 const { sanitizeRecruitmentStages } = require("./jobController");
 const { getPlatformSettings } = require("../services/platformSettings");
 const { isEmployerApproved } = require("../middleware/employerVerification");
+const { notifyListingClosedInBackground } = require("../services/listingClosure");
 
 // Helper to normalize URL slugs to category names
 const formatCategorySlug = (slug = "") => {
@@ -606,7 +608,7 @@ exports.getInternshipById = async (req, res, next) => {
             `scraped-rec-int-${idx}` === id ||
             `scraped-rec-job-${idx}` === id ||
             item.title === id
-        ) || (aggregated.data || [])[0];
+        );
 
         if (match) {
           const formatted = {
@@ -677,10 +679,11 @@ exports.getInternshipById = async (req, res, next) => {
       await internship.constructor.updateOne({ _id: internship._id }, { $inc: { viewsCount: 1 } });
     }
 
+    const publicInternship = toPublicListing(internship, req.user);
     return res.status(200).json({
       success: true,
-      internship,
-      data: internship,
+      internship: publicInternship,
+      data: publicInternship,
     });
   } catch (error) {
     next(error);
@@ -742,8 +745,10 @@ exports.updateInternshipStatus = async (req, res, next) => {
       return res.status(denied.code).json({ success: false, message: denied.message });
     }
 
+    const wasClosed = internship.status === "Closed";
     internship.status = status;
     await internship.save();
+    if (status === "Closed" && !wasClosed) notifyListingClosedInBackground("internship", internship._id, { senderId: req.user._id });
     clearSearchCache();
 
     return res.json({ success: true, internship, data: internship });

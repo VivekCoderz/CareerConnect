@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies");
 const User = require("../models/User");
 const Company = require("../models/Company");
 const Report = require("../models/Report");
@@ -14,13 +15,20 @@ const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
 const AuditLog = require("../models/AuditLog");
+const { notifyListingDecision } = require("../services/accountNotifications");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
-const { escapeRegex } = require("../utils/listingSecurity");
+const { escapeRegex, pickListingUpdate } = require("../utils/listingSecurity");
+const { clearSearchCache } = require("../services/jobScraperService");
+const { createNotification } = require("../services/notificationService");
+const { notifyListingClosedInBackground } = require("../services/listingClosure");
+
+const ADMIN_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Generate JWT and set secure cookie for Admin sessions
+ * Generate JWT and set secure cookie for Admin sessions.
+ * `av` (authVersion) lets a password reset revoke admin tokens, as for user tokens.
  */
 const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) => {
   const token = jwt.sign(
@@ -36,20 +44,15 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
     { expiresIn: "7d" }
   );
 
-  const cookieOptions = {
-    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    // The client and API are on different sites in production (Vercel and Render),
-    // so the cookie must be SameSite=None like the candidate and employer cookies.
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-  };
-
+  // Same options as the candidate/employer cookies (SameSite=None + Secure in production,
+  // because the client and API are on different sites).
+  const cookieOptions = authCookieOptions(ADMIN_SESSION_MS);
   res.cookie("admin_token", token, cookieOptions);
-  res.cookie("token", token, cookieOptions); // Compatibility with general auth middleware
+  res.cookie("token", token, cookieOptions); // Read by the general auth middleware
 
   return res.status(statusCode).json({
     success: true,
+    // AdminLogin.jsx stores this as the Bearer fallback used by api.jsx
     token,
     user: {
       _id: user._id,
@@ -183,8 +186,9 @@ exports.adminLogin = async (req, res) => {
  * POST /api/admin/logout
  */
 exports.adminLogout = (req, res) => {
-  res.clearCookie("admin_token");
-  res.clearCookie("token");
+  // Clearing only works when the options match the ones used to set the cookies.
+  res.clearCookie("admin_token", authCookieBaseOptions());
+  res.clearCookie("token", authCookieBaseOptions());
   return res.status(200).json({
     success: true,
     message: "Admin logged out successfully",
@@ -2277,6 +2281,78 @@ exports.getOpportunityCompaniesList = async (req, res, next) => {
 };
 
 /**
+ * POST /api/admin/opportunities  (Super Admin)
+ * Posts a job or internship on behalf of an approved employer (assisted posting).
+ * The listing belongs to the employer, so it appears in their dashboard and they
+ * manage the applicants; it goes live straight away as approved by this admin.
+ * body: { type: "job" | "internship", employerProfileId, title, description, location, ...listing fields }
+ */
+exports.createOpportunityForEmployer = async (req, res, next) => {
+  try {
+    const { type = "job", employerProfileId } = req.body || {};
+    if (!["job", "internship"].includes(type)) {
+      return res.status(400).json({ success: false, message: 'type must be "job" or "internship"' });
+    }
+    if (!mongoose.isValidObjectId(employerProfileId)) {
+      return res.status(400).json({ success: false, message: "Choose an employer" });
+    }
+    const profile = await EmployerProfile.findById(employerProfileId).populate("userId", "isActive companyId fullName");
+    if (!profile?.userId) {
+      return res.status(404).json({ success: false, message: "Employer not found" });
+    }
+    if (profile.verificationStatus !== "approved" || profile.userId.isActive === false) {
+      return res.status(400).json({ success: false, message: "Approve this employer before posting for them" });
+    }
+
+    const fields = pickListingUpdate(req.body);
+    for (const required of ["title", "description", "location"]) {
+      if (typeof fields[required] !== "string" || !fields[required].trim()) {
+        return res.status(400).json({ success: false, message: `${required} is required` });
+      }
+    }
+
+    const Model = type === "internship" ? Internship : Job;
+    const now = new Date();
+    const listing = await Model.create({
+      ...fields,
+      employerId: profile._id,
+      createdBy: profile.userId._id,
+      companyId: profile.userId.companyId || null,
+      companyName: profile.companyName || "",
+      isExternal: false,
+      status: "Published",
+      approvedBy: req.user._id,
+      approvedAt: now,
+      approvalMethod: "admin",
+    });
+    clearSearchCache();
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.fullName,
+      companyId: listing.companyId || null,
+      action: "OPPORTUNITY_POSTED_ON_BEHALF",
+      module: type === "internship" ? "Internships" : "Jobs",
+      target: listing.title,
+      details: `Posted "${listing.title}" on behalf of ${profile.companyName || "employer"}`,
+      ipAddress: req.ip || "127.0.0.1",
+    }).catch((err) => console.warn("Audit log failed:", err.message));
+
+    await createNotification({
+      recipientId: profile.userId._id,
+      senderId: req.user._id,
+      title: `We posted "${listing.title}" for you`,
+      message: `CareerConnect posted "${listing.title}" on your behalf. It's live now, and you can manage applicants from your dashboard.`,
+      actionUrl: "/employer/dashboard",
+    });
+
+    return res.status(201).json({ success: true, message: "Listing posted for the employer and published", opportunity: listing });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /api/admin/opportunities/:type/:id/approve
  * Approves a pending opportunity and marks it Published (visible to candidates)
  */
@@ -2336,24 +2412,8 @@ exports.approveOpportunity = async (req, res, next) => {
       console.warn("Audit log creation warning:", logErr.message);
     }
 
-    // Notify creator/employer if applicable
-    if (opp.createdBy) {
-      try {
-        await Notification.create({
-          recipient: opp.createdBy,
-          recipientId: opp.createdBy,
-          senderRole: "admin",
-          sender: "CareerConnect Moderation Team",
-          title: "Opportunity Approved",
-          preview: `Your listing "${opp.title}" has been approved.`,
-          message: `Your opportunity listing "${opp.title}" has been reviewed and approved by Platform Administration. It is now active and accepting candidate applications.`,
-          category: "system_alert",
-          notificationType: "info",
-        });
-      } catch (notifErr) {
-        console.warn("Notification creation warning:", notifErr.message);
-      }
-    }
+    // Tell the employer (in-app + email); never blocks the response
+    notifyListingDecision({ listing: opp, decision: "approved" });
 
     return res.status(200).json({
       success: true,
@@ -2421,26 +2481,8 @@ exports.rejectOpportunity = async (req, res, next) => {
       console.warn("Audit log creation warning:", logErr.message);
     }
 
-    // Send Notification to creator
-    if (opp.createdBy) {
-      try {
-        await Notification.create({
-          recipient: opp.createdBy,
-          recipientId: opp.createdBy,
-          senderRole: "admin",
-          sender: "CareerConnect Moderation Team",
-          title: "Opportunity Listing Rejected",
-          preview: `Listing "${opp.title}" requires modifications.`,
-          message: `Your listing "${opp.title}" was rejected during moderation. Reason: ${rejectionReason}.${
-            adminNote ? ` Admin note: ${adminNote}` : ""
-          } Please review and update your listing.`,
-          category: "system_alert",
-          notificationType: "warning",
-        });
-      } catch (notifErr) {
-        console.warn("Notification creation warning:", notifErr.message);
-      }
-    }
+    // Tell the employer (in-app + email); never blocks the response
+    notifyListingDecision({ listing: opp, decision: "rejected", reason: opp.rejectionReason || "" });
 
     return res.status(200).json({
       success: true,
@@ -2574,8 +2616,10 @@ exports.closeOpportunity = async (req, res, next) => {
       }
     }
 
+    const wasClosed = opp.status === "Closed";
     opp.status = "Closed";
     await opp.save();
+    if (!wasClosed) notifyListingClosedInBackground(type.toLowerCase() === "internship" ? "internship" : "job", opp._id, { senderId: req.user._id });
 
     try {
       await AuditLog.create({
@@ -3358,7 +3402,7 @@ exports.resolveAdminReport = async (req, res, next) => {
           preview: `Report #${report._id.toString().slice(-6)} has been reviewed and resolved.`,
           message: `Your report regarding "${report.title || report.category || "an issue"}" has been thoroughly investigated and resolved. Action note: ${resolutionNote.trim()}. Thank you for helping keep CareerConnect safe.`,
           category: "system_alert",
-          notificationType: "info",
+          notificationType: "GENERAL",
         });
       } catch (notifErr) {}
     }
@@ -3437,7 +3481,7 @@ exports.dismissAdminReport = async (req, res, next) => {
           preview: `Report #${report._id.toString().slice(-6)} has been reviewed.`,
           message: `Your report regarding "${report.title || report.category || "an issue"}" has been reviewed by moderation. It was closed with the following outcome: ${dismissalReason.trim()}.`,
           category: "system_alert",
-          notificationType: "info",
+          notificationType: "GENERAL",
         });
       } catch (notifErr) {}
     }

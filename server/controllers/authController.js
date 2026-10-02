@@ -3,6 +3,7 @@ const StudentProfile = require("../models/StudentProfile.js");
 const FresherProfile = require("../models/FresherProfile.js");
 const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const jwt = require("jsonwebtoken");
+const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies.js");
 const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP.js");
 const sendEmail = require("../utils/sendEmail.js");
@@ -13,6 +14,7 @@ const getFirebaseAdmin = require("../config/firebaseAdmin.js");
 const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
 const { deleteAccount } = require("../services/accountDeletion.js");
+const { recordOtpEmail } = require("../services/emailBudget.js");
 
 // ==========================================
 // PASSWORD VALIDATION & HELPERS
@@ -46,12 +48,7 @@ const setTokenCookie = (res, token, keepSignedIn = false) => {
     ? 7 * 24 * 60 * 60 * 1000   // 7 days in ms
     : 25 * 60 * 60 * 1000;       // 25 hours in ms
 
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-    maxAge,
-  });
+  res.cookie("token", token, authCookieOptions(maxAge));
 };
 
 // Helper: Generate username from email
@@ -164,7 +161,7 @@ module.exports.sendOTP = async (req, res, next) => {
       const validationResult = await validateEmail(email);
       
       if (!validationResult.isValid) {
-        console.log("❌ [Email Validation Failed]:", validationResult);
+        console.log("❌ [Email Validation Failed]:", maskEmail(email), validationResult?.reason);
         return res.status(400).json({
           success: false,
           field: "email",
@@ -192,6 +189,7 @@ module.exports.sendOTP = async (req, res, next) => {
     const { code: otp, otpHash } = await issueOtp(normalizedEmail, "verification");
 
     // Send email
+    recordOtpEmail();
     const delivery = await sendEmail({
       to: normalizedEmail,
       subject: "Your CareerConnect verification code",
@@ -928,10 +926,11 @@ module.exports.googleAuth = async (req, res, next) => {
     if (!uid || !normalizedEmail || !isGoogleProvider || !isEmailVerified) {
       console.warn("[GoogleAuth] Rejected Google sign-in claims:", {
         uid: Boolean(uid),
-        email: normalizedEmail,
+        email: maskEmail(normalizedEmail),
         email_verified: decoded.email_verified,
         sign_in_provider: decoded.firebase?.sign_in_provider,
-        identities: decoded.firebase?.identities,
+        // Identity providers only; the identities object itself lists the user's emails.
+        identities: Object.keys(decoded.firebase?.identities || {}),
         isGoogleProvider,
         isEmailVerified,
       });
@@ -1094,18 +1093,8 @@ module.exports.cancelGoogleSignup = async (req, res, next) => {
       }));
     }
 
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
-    });
-
-    res.clearCookie("sid", {
-      path: "/",
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
-    });
+    res.clearCookie("token", authCookieBaseOptions());
+    res.clearCookie("sid", authCookieBaseOptions());
 
     if (req.session) {
       req.session.destroy(() => {});
@@ -1275,19 +1264,10 @@ module.exports.deleteMyAccount = async (req, res, next) => {
 // ==========================================
 module.exports.logoutUser = async (req, res) => {
   // 1. Clear token cookie
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-  });
+  res.clearCookie("token", authCookieBaseOptions());
 
   // 2. Clear session cookie
-  res.clearCookie("sid", {
-    path: "/",
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-  });
+  res.clearCookie("sid", authCookieBaseOptions());
 
   // 3. Destroy session in Redis
   if (req.session) {
@@ -1380,6 +1360,7 @@ module.exports.forgotPassword = async (req, res, next) => {
 
     const { code: otp, otpHash } = await issueOtp(normalizedEmail, "reset-password");
 
+    recordOtpEmail();
     const delivery = await sendEmail({
       to: normalizedEmail,
       subject: "Reset your CareerConnect password",
