@@ -63,6 +63,10 @@ const FresherHeader = ({ user, careerTarget, profileCompletion = 80 }) => {
           >
             Profile Completion: {profileCompletion}% →
           </Link>
+
+          <Link to="/account" className="text-xs text-blue-100 hover:text-white underline font-semibold">
+            Account settings
+          </Link>
         </div>
       </div>
     </div>

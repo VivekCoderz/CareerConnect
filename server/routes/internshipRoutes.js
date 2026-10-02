@@ -5,6 +5,7 @@ const internshipController = require("../controllers/internshipController");
 const protect = require("../middleware/authMiddleware");
 const { optionalAuth } = require("../middleware/authMiddleware");
 const { requireEmployer: employerOnly, requireSuperAdmin } = require("../middleware/roleMiddleware");
+const { requireVerifiedEmployer, requireVerifiedEmployerToPublish } = require("../middleware/employerVerification");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
 const { internshipsLiveLimiter } = require("../middleware/rateLimitMiddleware");
 
@@ -70,7 +71,7 @@ router.get("/category/:category", (req, res, next) => {
 router.post("/sync/external", protect, requireSuperAdmin, internshipController.syncFromExternalAPIs);
 
 // Employer create internship
-router.post("/", protect, employerOnly, internshipController.createInternship);
+router.post("/", protect, employerOnly, requireVerifiedEmployer, internshipController.createInternship);
 
 // General filterable catalog / myPosts
 router.get("/", (req, res, next) => {
@@ -85,7 +86,7 @@ router.get("/:id", optionalAuth, internshipController.getInternshipById);
 
 // Employer update/delete operations
 router.put("/:id", protect, employerOnly, internshipController.updateInternship);
-router.patch("/:id/status", protect, employerOnly, internshipController.updateInternshipStatus);
+router.patch("/:id/status", protect, employerOnly, requireVerifiedEmployerToPublish, internshipController.updateInternshipStatus);
 router.delete("/:id", protect, employerOnly, internshipController.deleteInternship);
 
 module.exports = router;

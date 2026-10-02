@@ -13,11 +13,14 @@ const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require("../services/jobScraperService");
 const {
   pickListingUpdate,
+  requiresReapproval,
   escapeRegex,
-  resolveInitialListingStatus,
+  resolveNewListingModeration,
   checkEmployerStatusChange,
 } = require("../utils/listingSecurity");
 const { sanitizeRecruitmentStages } = require("./jobController");
+const { getPlatformSettings } = require("../services/platformSettings");
+const { isEmployerApproved } = require("../middleware/employerVerification");
 
 // Helper to normalize URL slugs to category names
 const formatCategorySlug = (slug = "") => {
@@ -72,8 +75,12 @@ exports.createInternship = async (req, res, next) => {
     }
 
     // Employers can only submit for approval (or save a draft); only platform admins publish directly
-    const initialStatus = resolveInitialListingStatus(req.user, req.body.status);
-    const selfApproved = initialStatus === "Published";
+    const settings = await getPlatformSettings();
+    const moderation = resolveNewListingModeration(req.user, req.body.status, {
+      autoApproveJobs: settings.autoApproveJobs,
+      employerApproved: isEmployerApproved(req.employerProfile),
+    });
+    const initialStatus = moderation.status;
 
     const internship = await Internship.create({
       ...pickListingUpdate(req.body),
@@ -84,9 +91,7 @@ exports.createInternship = async (req, res, next) => {
       companyName,
       source: "CareerConnect",
       isExternal: false,
-      status: initialStatus,
-      approvedBy: selfApproved ? req.user._id : null,
-      approvedAt: selfApproved ? new Date() : null,
+      ...moderation,
     });
 
     // Real-time Mail Notification trigger
@@ -695,14 +700,23 @@ exports.updateInternship = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Internship not found or access denied" });
     }
 
-    Object.assign(internship, pickListingUpdate(req.body));
+    const updates = pickListingUpdate(req.body);
+    // A published internship whose content changes must be approved again (BUG-02).
+    const sentForReview = requiresReapproval(internship, updates);
+    Object.assign(internship, updates);
+    if (sentForReview) internship.status = "Pending Approval";
     if (Array.isArray(req.body.recruitmentStages)) {
       internship.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     }
     await internship.save();
     clearSearchCache();
 
-    return res.json({ success: true, message: "Updated", internship, data: internship });
+    return res.json({
+      success: true,
+      message: sentForReview ? "Updated and sent for approval again" : "Updated",
+      internship,
+      data: internship,
+    });
   } catch (error) {
     next(error);
   }

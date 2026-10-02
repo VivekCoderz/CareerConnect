@@ -4,6 +4,8 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
+
+const maintenanceMode = require("./middleware/maintenanceMode");
 const { parseClientUrls, isLocalDevOrigin } = require("./utils/clientOrigins");
 
 const authRoutes = require("./routes/authRoutes.js");
@@ -108,6 +110,9 @@ app.use(cookieOriginMiddleware(allowedOrigins, isProduction));
 // Global rate limiting for all API endpoints
 app.use("/api", globalLimiter);
 
+// Platform maintenance mode: blocks non-admin writes with 503
+app.use("/api", maintenanceMode);
+
 // Optional temporary IP Debug route (enabled ONLY when ENABLE_IP_DEBUG === "true")
 if (process.env.ENABLE_IP_DEBUG === "true") {
   app.get("/api/_debug/ip", (req, res) => {
@@ -201,6 +206,20 @@ app.use((err, req, res, next) => {
           ? "This username is already taken"
           : "This account is already registered";
     return res.status(409).json({ success: false, field, message });
+  }
+  // Bad input (wrong type, unknown enum value, malformed ID) is the client's
+  // mistake: answer 400 and name the field instead of leaking a Mongoose error.
+  if (err.name === "ValidationError") {
+    const fields = Object.keys(err.errors || {});
+    return res.status(400).json({
+      success: false,
+      fields,
+      message: fields.length ? `Invalid value for: ${fields.join(", ")}` : "Invalid input",
+    });
+  }
+  if (err.name === "CastError") {
+    const field = err.path === "_id" ? "id" : err.path;
+    return res.status(400).json({ success: false, fields: [field], message: `Invalid value for: ${field}` });
   }
   console.error("Server Global Error:", err);
   const status = err.code === "LIMIT_FILE_SIZE" ? 413 : err.statusCode || err.status || 500;

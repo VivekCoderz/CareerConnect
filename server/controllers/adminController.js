@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
@@ -7,7 +8,7 @@ const Report = require("../models/Report");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const Application = require("../models/Application");
-const PlatformSetting = require("../models/PlatformSetting");
+const { getPlatformSettings, updatePlatformSettings, validateSettingsUpdate } = require("../services/platformSettings");
 const EmployerProfile = require("../models/EmployerProfile");
 const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
@@ -16,6 +17,7 @@ const AuditLog = require("../models/AuditLog");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
+const { escapeRegex } = require("../utils/listingSecurity");
 
 /**
  * Generate JWT and set secure cookie for Admin sessions
@@ -27,6 +29,8 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
       userId: user._id,
       role: user.role,
       companyId: user.companyId || null,
+      // authMiddleware rejects tokens whose av differs from the user's authVersion
+      av: user.authVersion || 0,
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
@@ -36,7 +40,9 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
     expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+    // The client and API are on different sites in production (Vercel and Render),
+    // so the cookie must be SameSite=None like the candidate and employer cookies.
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   };
 
   res.cookie("admin_token", token, cookieOptions);
@@ -135,6 +141,14 @@ exports.adminLogin = async (req, res) => {
       });
     }
 
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
     // Verify account status
     if (user.isActive === false || user.status === "inactive" || user.status === "suspended") {
       return res.status(403).json({
@@ -144,13 +158,6 @@ exports.adminLogin = async (req, res) => {
     }
 
     // Verify password with bcrypt
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
 
     // Update last login
     user.lastLogin = new Date();
@@ -1290,6 +1297,16 @@ exports.activateAdmin = async (req, res, next) => {
       });
     }
 
+    // An invitation only sets the first password. It must never replace the
+    // password of an account that is already in use.
+    if (user.hasPassword || user.status === "active") {
+      return res.status(409).json({
+        success: false,
+        code: "ALREADY_ACTIVATED",
+        message: "This account is already active. Please sign in, or use Forgot password.",
+      });
+    }
+
     const company = await Company.findById(user.companyId);
     if (!company || company.status === "inactive" || company.status === "suspended") {
       return res.status(403).json({
@@ -1458,9 +1475,30 @@ exports.approveOrganizationRequest = async (req, res, next) => {
       });
     }
 
-    // 1. Create or Find Company
+    if (request.status === "REJECTED") {
+      return res.status(400).json({
+        success: false,
+        message: "This organization request was rejected. The organization must submit a new request.",
+      });
+    }
+
+    // Approval creates a brand-new Company Admin account. It must never change an
+    // existing account (a student, employer or another admin), so check before
+    // creating or linking anything.
+    const adminEmail = request.officialEmail.trim().toLowerCase();
+    const existingAccount = await User.findOne({ email: adminEmail }).select("_id").lean();
+    if (existingAccount) {
+      return res.status(409).json({
+        success: false,
+        code: "EMAIL_ALREADY_REGISTERED",
+        message:
+          "An account already uses this official email, so the request was not approved. Ask the organization to use an official email that is not registered on CareerConnect.",
+      });
+    }
+
+    // 1. Create or Find Company (exact, case-insensitive name match)
     let company = await Company.findOne({
-      name: { $regex: `^${request.organizationName.trim()}$`, $options: "i" },
+      name: { $regex: `^${escapeRegex(request.organizationName.trim())}$`, $options: "i" },
     });
 
     const fullLocation = [request.city, request.state, request.country].filter(Boolean).join(", ");
@@ -1497,46 +1535,34 @@ exports.approveOrganizationRequest = async (req, res, next) => {
       );
     }
 
-    // 2. Prepare Company Admin Account / Invitation
-    const adminEmail = request.officialEmail.trim().toLowerCase();
-    let admin = await User.findOne({ email: adminEmail });
-
+    // 2. Create the Company Admin Account / Invitation
     const token = crypto.randomBytes(32).toString("hex");
     const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    if (!admin) {
-      let candidatePhone = (request.phone || "").trim();
-      if (candidatePhone) {
-        const existingPhone = await User.findOne({ phone: candidatePhone });
-        if (existingPhone) candidatePhone = "";
-      }
-
-      const username = await generateAdminUsername(adminEmail, "admin");
-      admin = await User.create({
-        fullName: request.contactPerson.trim(),
-        email: adminEmail,
-        username,
-        phone: candidatePhone,
-        role: "COMPANY_ADMIN",
-        userType: "admin",
-        companyId: company._id,
-        status: "invited",
-        isActive: true,
-        isEmailVerified: true,
-        isProfileComplete: true,
-        hasPassword: false,
-        invitationToken: token,
-        invitationExpires: expiry,
-        invitationStatus: "invited",
-      });
-    } else {
-      admin.role = "COMPANY_ADMIN";
-      admin.companyId = company._id;
-      admin.invitationToken = token;
-      admin.invitationExpires = expiry;
-      admin.invitationStatus = "invited";
-      await admin.save({ validateBeforeSave: false });
+    let candidatePhone = (request.phone || "").trim();
+    if (candidatePhone) {
+      const existingPhone = await User.findOne({ phone: candidatePhone });
+      if (existingPhone) candidatePhone = "";
     }
+
+    const username = await generateAdminUsername(adminEmail, "admin");
+    const admin = await User.create({
+      fullName: request.contactPerson.trim(),
+      email: adminEmail,
+      username,
+      phone: candidatePhone,
+      role: "COMPANY_ADMIN",
+      userType: "admin",
+      companyId: company._id,
+      status: "invited",
+      isActive: true,
+      isEmailVerified: true,
+      isProfileComplete: true,
+      hasPassword: false,
+      invitationToken: token,
+      invitationExpires: expiry,
+      invitationStatus: "invited",
+    });
 
     // 3. Update OrganizationRequest Document
     request.status = "APPROVED";
@@ -1893,11 +1919,6 @@ exports.getAdminStudents = async (req, res, next) => {
 
 exports.updateStudentStatus = async (req, res, next) => {
   return exports.updateUserStatus(req, res, next);
-};
-
-exports.getAdminEmployers = async (req, res, next) => {
-  req.query.userType = "employer";
-  return exports.getAdminUsers(req, res, next);
 };
 
 exports.updateEmployerStatus = async (req, res, next) => {
@@ -2262,7 +2283,7 @@ exports.getOpportunityCompaniesList = async (req, res, next) => {
 exports.approveOpportunity = async (req, res, next) => {
   try {
     const { type, id } = req.params;
-    const { adminNote = "" } = req.body;
+    const { adminNote = "" } = req.body || {};
     const Model = type.toLowerCase() === "internship" ? Internship : Job;
 
     const opp = await Model.findById(id);
@@ -2280,9 +2301,17 @@ exports.approveOpportunity = async (req, res, next) => {
       }
     }
 
+    if (opp.status !== "Pending Approval") {
+      return res.status(400).json({
+        success: false,
+        message: `Only listings waiting for approval can be approved (current status: ${opp.status}).`,
+      });
+    }
+
     opp.status = "Published";
     opp.approvedBy = req.user._id;
     opp.approvedAt = new Date();
+    opp.approvalMethod = "admin";
     opp.rejectedBy = null;
     opp.rejectedAt = null;
     opp.rejectionReason = null;
@@ -2464,8 +2493,6 @@ exports.editOpportunity = async (req, res, next) => {
       salaryRange,
       stipend,
       duration,
-      isFeatured,
-      status,
     } = req.body;
 
     if (title) opp.title = title.trim();
@@ -2495,8 +2522,6 @@ exports.editOpportunity = async (req, res, next) => {
     }
     if (stipend !== undefined) opp.stipend = stipend;
     if (duration !== undefined) opp.duration = duration;
-    if (isFeatured !== undefined) opp.isFeatured = Boolean(isFeatured);
-    if (status !== undefined) opp.status = status;
 
     await opp.save();
 
@@ -2644,6 +2669,22 @@ exports.updateOpportunityStatus = async (req, res, next) => {
           message: "Access denied: You can only modify opportunities belonging to your company",
         });
       }
+    }
+
+    const allowedStatuses = ["Draft", "Pending Approval", "Published", "Paused", "Closed", "Rejected"];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Status must be one of: ${allowedStatuses.join(", ")}`,
+      });
+    }
+
+    // Moderation is platform-level: only a Super Admin can publish or reject a listing.
+    if (req.user.role === "COMPANY_ADMIN" && ["Published", "Rejected"].includes(status)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only CareerConnect administrators can publish or reject listings.",
+      });
     }
 
     opp.status = status;
@@ -3496,11 +3537,10 @@ exports.getAdminSettings = async (req, res, next) => {
     const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
 
     if (isSuperAdmin) {
-      const settings = await PlatformSetting.find().lean();
       return res.status(200).json({
         success: true,
         scope: "GLOBAL",
-        settings: settings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {}),
+        settings: await getPlatformSettings({ fresh: true }),
       });
     }
 
@@ -3518,38 +3558,35 @@ exports.getAdminSettings = async (req, res, next) => {
 };
 
 /**
- * PUT /api/admin/settings
+ * PUT /api/admin/settings (platform admins only; enforced by requireSuperAdmin on the route)
  */
 exports.updateAdminSettings = async (req, res, next) => {
   try {
-    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
-
-    if (isSuperAdmin) {
-      const updates = req.body;
-      for (const [key, value] of Object.entries(updates)) {
-        await PlatformSetting.findOneAndUpdate(
-          { key },
-          { key, value, updatedBy: req.user._id },
-          { upsert: true, new: true }
-        );
-      }
-      return res.status(200).json({
-        success: true,
-        message: "Global platform settings updated successfully",
-      });
+    const invalid = validateSettingsUpdate(req.body);
+    if (invalid) {
+      return res.status(400).json({ success: false, message: invalid });
     }
 
-    // COMPANY_ADMIN: Updates ONLY assigned company settings
-    const company = await Company.findByIdAndUpdate(
-      req.user.companyId,
-      { $set: { settings: req.body } },
-      { new: true }
-    );
+    const settings = await updatePlatformSettings(req.body);
+
+    try {
+      await AuditLog.create({
+        actorId: req.user._id,
+        actorName: req.user.fullName || "Admin",
+        actorEmail: req.user.email || "",
+        action: "UPDATE_PLATFORM_SETTINGS",
+        module: "Settings",
+        target: "Platform settings",
+        details: `Updated: ${Object.keys(req.body).filter((key) => key in settings).join(", ") || "nothing"}`,
+      });
+    } catch (logErr) {
+      console.warn("Audit log creation warning:", logErr.message);
+    }
 
     return res.status(200).json({
       success: true,
-      message: "Company settings updated successfully",
-      settings: company?.settings,
+      message: "Global platform settings updated successfully",
+      settings,
     });
   } catch (error) {
     next(error);

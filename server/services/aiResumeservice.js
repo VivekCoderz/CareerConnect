@@ -5,6 +5,8 @@
  * - Uses Google Gemini if GEMINI_API_KEY is set, otherwise uses improved smart mock
  */
 
+const { runWithGeminiCascade } = require("./geminiCascade");
+
 let genAI = null;
 let geminiModel = null;
 
@@ -26,7 +28,7 @@ try {
 }
 
 /**
- * Universal Gemini caller with multi-tier model cascade and automatic retry on transient spikes (503 / fetch failed)
+ * Universal Gemini caller: at most GEMINI_MAX_CALLS calls (configured model, then one retry or fallback)
  */
 async function callGeminiContent(prompt, timeoutMs = 30000) {
   if (!genAI) {
@@ -37,56 +39,25 @@ async function callGeminiContent(prompt, timeoutMs = 30000) {
     throw new Error("Gemini AI is not initialized");
   }
 
-  const configured = process.env.GEMINI_MODEL || "gemini-3.6-flash";
-
-  // Comprehensive multi-pool cascade:
-  // If flash experiences high demand spikes (503), flash-lite or preview pools immediately take over
-  const models = [
-    configured,
-    "gemini-3.6-flash",
-    "gemini-flash-lite-latest",
-    "gemini-3.5-flash-lite",
-    "gemini-3-flash-preview",
-    "gemini-flash-latest",
-    "gemini-3.8-flash",
-  ];
-  const uniqueModels = [...new Set(models.filter(Boolean))];
-
-  for (const modelName of uniqueModels) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          generationConfig: { temperature: 0.2 },
-        });
-
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Gemini ${modelName} timed out`)), timeoutMs)
-        );
-
-        const generatePromise = (async () => {
-          const result = await model.generateContent(prompt);
-          return result.response.text();
-        })();
-
-        const text = await Promise.race([generatePromise, timeoutPromise]);
-        if (text && text.trim()) {
-          return text.trim();
-        }
-      } catch (err) {
-        const isTransient = /503|fetch failed|terminated|high demand|overloaded|ECONNRESET|ETIMEDOUT/i.test(err.message);
-        if (isTransient && attempt < 2) {
-          console.warn(`Model ${modelName} attempt ${attempt} transient issue (${err.message}). Retrying in 1200ms...`);
-          await new Promise((r) => setTimeout(r, 1200));
-          continue;
-        }
-        console.warn(`Model ${modelName} attempt failed (${err.message}), trying next model in cascade...`);
-        break;
-      }
+  // At most GEMINI_MAX_CALLS (default 2) calls per action; see services/geminiCascade.js
+  return runWithGeminiCascade(async (modelName) => {
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: { temperature: 0.2 },
+    });
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Gemini ${modelName} timed out`)), timeoutMs);
+    });
+    try {
+      const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);
+      const text = result.response.text();
+      if (!text || !text.trim()) throw new Error(`Gemini ${modelName} returned an empty response`);
+      return text.trim();
+    } finally {
+      clearTimeout(timer);
     }
-  }
-
-  throw new Error("All Gemini models failed or timed out");
+  }, { label: "Resume AI" });
 }
 
 function cleanAndParseJson(text) {

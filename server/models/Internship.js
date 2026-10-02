@@ -86,6 +86,12 @@ const internshipSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // "auto" when published by the autoApproveJobs setting (approvedBy stays null).
+    approvalMethod: {
+      type: String,
+      enum: ["admin", "auto", null],
+      default: null,
+    },
     rejectedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
