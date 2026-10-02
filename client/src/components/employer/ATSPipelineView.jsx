@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import ApplicantExportModal from "./ApplicantExportModal";
 import { openResume } from "../../utils/resumeAccess";
 import BulkActionBar from "./BulkActionBar";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 // Helper for professional role casing
 const formatRoleTitle = (str) => {
@@ -949,7 +950,7 @@ const ATSPipelineView = ({
                       </div>
                       {app.latestInterview.meetingLink && (
                         <a
-                          href={app.latestInterview.meetingLink}
+                          href={safeHttpUrl(app.latestInterview.meetingLink)}
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}

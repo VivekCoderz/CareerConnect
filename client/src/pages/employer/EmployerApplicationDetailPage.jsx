@@ -12,6 +12,7 @@ import {
 import { createInterview } from "../../services/interviewService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import { openResume } from "../../utils/resumeAccess";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 const DEFAULT_STAGES = [
   { name: "Resume Screening", type: "Resume Screening", order: 0 },
@@ -579,7 +580,7 @@ export default function EmployerApplicationDetailPage() {
                             <span className="text-slate-400 block text-[10px]">Meeting Link</span>
                             {interview?.meetingLink || historyItem?.meetingLink ? (
                               <a
-                                href={interview?.meetingLink || historyItem?.meetingLink}
+                                href={safeHttpUrl(interview?.meetingLink || historyItem?.meetingLink)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-700 font-bold hover:underline truncate block"

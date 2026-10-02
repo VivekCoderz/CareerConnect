@@ -6,6 +6,7 @@ const path = require("path");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
 
 const maintenanceMode = require("./middleware/maintenanceMode");
+const { requireTextFields } = require("./middleware/textFields");
 const { parseClientUrls, isLocalDevOrigin } = require("./utils/clientOrigins");
 
 const authRoutes = require("./routes/authRoutes.js");
@@ -124,6 +125,9 @@ if (process.env.ENABLE_IP_DEBUG === "true") {
 }
 
 // Base & User Profile Routes
+// Text fields must be text and meeting links http(s) on the job portal write routes.
+app.use(["/api/jobs", "/api/internships", "/api/applications", "/api/admin", "/api/interviews", "/api/offers"], requireTextFields);
+
 app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/profile/student", studentRoutes);
