@@ -116,8 +116,8 @@ export default function EmployerApplicationDetailPage() {
   const studentName = application.studentName || appData.fullName || application.candidateId?.fullName || "Applicant";
   const studentEmail = application.studentEmail || appData.email || application.candidateId?.email || "";
   const studentPhone = application.studentPhone || appData.phone || application.candidateId?.phone || "";
-  const education = application.education || appData.education || appData.degree || "B.Tech";
-  const college = appData.college || "CareerConnect";
+  const education = application.education || appData.education || appData.degree || "Not provided";
+  const college = appData.college || "Not provided";
   const graduationYear = appData.graduationYear || "";
   const skills = Array.isArray(application.skills) && application.skills.length > 0
     ? application.skills

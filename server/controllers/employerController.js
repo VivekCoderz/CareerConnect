@@ -452,7 +452,7 @@ exports.getEmployerDashboard = async (req, res, next) => {
       type: app.opportunityType || (app.internshipId ? "Internship" : "Full-time"),
       status: app.status || "Reviewing",
       appliedDate: app.createdAt ? new Date(app.createdAt).toISOString().split("T")[0] : "Recent",
-      matchScore: app.matchScore || 85,
+      matchScore: app.matchScore ?? null,
       cgpa: app.cgpa || "",
       degree: app.degree || "",
     }));

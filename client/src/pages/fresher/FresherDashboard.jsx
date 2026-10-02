@@ -137,14 +137,16 @@ const FresherDashboard = () => {
   // ─── Derived data ──────────────────────────────────────────────────────
   const currentUser = dashboardData?.user || user;
   const profile = dashboardData?.profile || {};
-  const completion = dashboardData?.profileCompletion ?? 80;
+  const completion = dashboardData?.profileCompletion ?? 0;
+  // Only what the fresher actually set; empty values show as "not set" in the UI.
   const careerTarget = dashboardData?.careerTarget || {
-    targetRole: profile.targetRole || "Full Stack Developer",
-    jobType: "Full-time opportunities",
-    workMode: "Remote / Hybrid",
-    preferredLocations: ["Bangalore", "Pune", "Remote"],
-    careerGoal: "Get my first job",
+    targetRole: profile.targetRole || "",
+    jobType: "",
+    workMode: "",
+    preferredLocations: [],
+    careerGoal: "",
   };
+  const targetRoleLabel = careerTarget.targetRole || "your target role";
 
   const recommendedJobs = dashboardData?.recommendedJobs || [];
   const skillDev = dashboardData?.skillDevelopment || {
@@ -233,7 +235,7 @@ const FresherDashboard = () => {
                   <FresherSkillDevelopment
                     userSkills={skillDev.userSkills}
                     recommendedSkills={skillDev.recommendedSkills}
-                    targetRole={careerTarget.targetRole}
+                    targetRole={targetRoleLabel}
                   />
                 )}
                 <FresherCareerRecommendations
@@ -245,7 +247,7 @@ const FresherDashboard = () => {
               {FEATURES.courses && (
                 <FresherRecommendedCourses
                   courses={recommendedCourses}
-                  targetRole={careerTarget.targetRole}
+                  targetRole={targetRoleLabel}
                 />
               )}
 
@@ -364,13 +366,13 @@ const FresherDashboard = () => {
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Skill Development</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Your skill profile and gap analysis for {careerTarget.targetRole}
+                  Your skill profile and gap analysis for {targetRoleLabel}
                 </p>
               </div>
               <FresherSkillDevelopment
                 userSkills={skillDev.userSkills}
                 recommendedSkills={skillDev.recommendedSkills}
-                targetRole={careerTarget.targetRole}
+                targetRole={targetRoleLabel}
               />
             </div>
           )}
@@ -450,7 +452,7 @@ const FresherDashboard = () => {
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Career Recommendations</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  AI-powered career advice tailored for {careerTarget.targetRole}
+                  AI-powered career advice tailored for {targetRoleLabel}
                 </p>
               </div>
               <FresherCareerRecommendations

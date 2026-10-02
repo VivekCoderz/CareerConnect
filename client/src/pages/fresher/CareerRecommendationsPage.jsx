@@ -66,7 +66,7 @@ const CareerRecommendationsPage = () => {
           setPrefForm({
             targetRole: res.data.careerSummary.targetRole || "Full Stack Developer",
             careerGoal: res.data.careerSummary.careerGoal || "Get my first full-time job",
-            preferredLocations: res.data.careerSummary.preferredLocations || "Bangalore, Remote",
+            preferredLocations: res.data.careerSummary.preferredLocations || "",
             workMode: res.data.careerSummary.workMode?.split(" / ")[0] || "Remote",
             expectedSalaryMin: 4,
           });
@@ -321,7 +321,7 @@ const CareerRecommendationsPage = () => {
                     <div className="text-left md:text-right space-y-2 shrink-0">
                       <div className="flex items-baseline md:justify-end gap-2">
                         <span className="text-3xl font-black text-emerald-400">
-                          {topOverallMatch.matchScore || 87}%
+                          {topOverallMatch.matchScore ?? 0}%
                         </span>
                         <span className="text-xs text-slate-300">Match Score</span>
                       </div>

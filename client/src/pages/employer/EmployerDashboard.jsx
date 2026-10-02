@@ -579,7 +579,7 @@ const EmployerDashboard = () => {
     ? dashboardData.employerVerification?.status || profile.verificationStatus || "pending"
     : null;
   const postingDisabled = Boolean(employerVerificationStatus) && employerVerificationStatus !== "approved";
-  const completion = dashboardData?.profileCompletion || profile.profileCompletion || 85;
+  const completion = dashboardData?.profileCompletion ?? profile.profileCompletion ?? 0;
 
   // Synchronize employer info & dynamic pre-fill into Connect Company form
   useEffect(() => {
@@ -1749,13 +1749,13 @@ const EmployerDashboard = () => {
                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
                         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Industry</p>
                         <p className="text-sm font-bold text-slate-800 mt-1">
-                          {orgStatusData?.company?.industry || profile.industry || "Information Technology"}
+                          {orgStatusData?.company?.industry || profile.industry || "Not provided"}
                         </p>
                       </div>
                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
                         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Headquarters</p>
                         <p className="text-sm font-bold text-slate-800 mt-1">
-                          {orgStatusData?.company?.location || profile.headquarters?.city || "Gurugram, India"}
+                          {orgStatusData?.company?.location || profile.headquarters?.city || "Not provided"}
                         </p>
                       </div>
                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">

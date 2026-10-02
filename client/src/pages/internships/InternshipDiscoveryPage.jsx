@@ -414,7 +414,7 @@ const InternshipDiscoveryPage = () => {
               onChange={(e) => setSelectedOppType(e.target.value)}
               className="h-9 rounded-xl border border-blue-200 bg-blue-50/50 px-2.5 text-xs font-bold text-blue-900 outline-none focus:border-blue-600"
             >
-              <option value="All">🌟 All Opportunities (160+)</option>
+              <option value="All">🌟 All Opportunities</option>
               <option value="internship">🎓 Internships</option>
               <option value="fulltime">💼 Full-Time Jobs</option>
               <option value="parttime">⏰ Part-Time</option>
@@ -446,7 +446,7 @@ const InternshipDiscoveryPage = () => {
           <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Quick:</span>
             {[
-              { label: "🌟 All 160+ Opportunities", value: "All", type: "opp" },
+              { label: "🌟 All Opportunities", value: "All", type: "opp" },
               { label: "🎓 Internships Only", value: "internship", type: "opp" },
               { label: "💼 Full-Time Jobs", value: "fulltime", type: "opp" },
               { label: "🏠 Remote / WFH", value: "Remote", type: "work" },

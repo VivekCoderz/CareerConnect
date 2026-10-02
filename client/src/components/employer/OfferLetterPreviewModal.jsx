@@ -6,15 +6,15 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "Career
   if (!isOpen || !offer) return null;
 
   const candidateName = offer.candidateId?.fullName || "Valued Candidate";
-  const candidateEmail = offer.candidateId?.email || "candidate@careerconnect.edu";
-  const designation = offer.designation || "Software Engineer";
+  const candidateEmail = offer.candidateId?.email || "";
+  const designation = offer.designation || "Not specified";
   const department = offer.department || "Engineering";
   const employmentType = offer.employmentType || "Full-time";
   const workLocationType = offer.workLocationType || "Hybrid";
-  const location = offer.location || "Gurugram / CareerConnect Campus";
+  const location = offer.location || "Not specified";
   const reportingManager = offer.reportingManager || "Head of Department";
   const probationPeriod = offer.probationPeriod || "3 Months";
-  const noticePeriod = offer.noticePeriod || "30 Days";
+  const noticePeriod = offer.noticePeriod || "Not specified";
   const salary = offer.salary || 0;
   const baseSalary = offer.baseSalary || Math.round(salary * 0.7);
   const allowances = offer.allowances || Math.round(salary * 0.2);
@@ -23,7 +23,7 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "Career
   const currency = offer.currency || "INR (₹)";
   const joiningDate = offer.joiningDate
     ? new Date(offer.joiningDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
-    : "Immediate";
+    : "Not specified";
   const expiryDate = offer.expiryDate
     ? new Date(offer.expiryDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
     : "Within 5 Business Days";

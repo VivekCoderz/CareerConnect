@@ -277,7 +277,7 @@ export default function StudentApplicationTrackingPage() {
                   {application.opportunityTitle || opp.title || "Opportunity"}
                 </h1>
                 <p className="text-xs sm:text-sm font-semibold text-slate-600 mt-0.5">
-                  🏢 {application.companyName || opp.companyName || "Organization Lead"} · 📍 {opp.location || opp.city || "Bangalore"}
+                  🏢 {application.companyName || opp.companyName || "Organization Lead"} · 📍 {opp.location || opp.city || "Location not specified"}
                 </p>
               </div>
             </div>
@@ -308,7 +308,7 @@ export default function StudentApplicationTrackingPage() {
             <div>
               <span className="text-slate-400 block text-[10px] font-bold uppercase">Compensation</span>
               <span className="font-bold text-slate-800">
-                {isInternship ? (opp.stipend || "Stipend Disclosed") : (opp.compensationLabel || "Competitive CTC")}
+                {isInternship ? (opp.stipend || "Stipend not disclosed") : (opp.compensationLabel || "Salary not disclosed")}
               </span>
             </div>
             <div>

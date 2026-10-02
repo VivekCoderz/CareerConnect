@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
 
-const FresherHeader = ({ user, careerTarget, profileCompletion = 80 }) => {
+const FresherHeader = ({ user, careerTarget, profileCompletion = 0 }) => {
   const firstName = user?.fullName ? user.fullName.split(" ")[0] : "Graduate";
-  const targetRole = careerTarget?.targetRole || "Full Stack Developer";
-  const jobType = careerTarget?.jobType || "Full-time opportunities";
-  const workMode = careerTarget?.workMode || "Remote / Hybrid";
+  // Show only what the fresher set; prompt them to fill in the rest.
+  const targetRole = careerTarget?.targetRole || "Not set yet";
+  const jobType = careerTarget?.jobType || "Not set yet";
+  const workMode = careerTarget?.workMode || "Not set yet";
 
   return (
     <div className="bg-gradient-to-r from-[#1e3a8a] via-[#1e40af] to-[#172554] rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden shadow-lg shadow-blue-950/10">

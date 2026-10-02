@@ -59,9 +59,9 @@ export default function ApplicantExportModal({
     const name = app.studentName || appData.fullName || cand.fullName || "Candidate";
     const email = app.studentEmail || appData.email || cand.email || "N/A";
     const phone = app.studentPhone || appData.phone || cand.phone || "N/A";
-    const college = appData.college || "CareerConnect Partner Campus";
-    const education = app.education || appData.education || appData.degree || "B.Tech / Graduate";
-    const experience = app.experience || appData.experience || "Fresher";
+    const college = appData.college || "Not provided";
+    const education = app.education || appData.education || appData.degree || "Not provided";
+    const experience = app.experience || appData.experience || "Not provided";
 
     let skillsStr = "";
     if (Array.isArray(app.skills)) {
