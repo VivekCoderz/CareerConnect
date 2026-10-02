@@ -38,6 +38,9 @@ const OpportunitiesPage = lazyWithRetry(() => import("./pages/OpportunitiesPage"
 const AccountSettings = lazyWithRetry(() => import("./pages/AccountSettings"));
 const OrganizationRequestPage = lazyWithRetry(() => import("./pages/organizations/OrganizationRequestPage"));
 const AdminActivate = lazyWithRetry(() => import("./pages/admin/AdminActivate"));
+const PrivacyPolicy = lazyWithRetry(() => import("./pages/legal/PrivacyPolicy"));
+const Terms = lazyWithRetry(() => import("./pages/legal/Terms"));
+const Contact = lazyWithRetry(() => import("./pages/legal/Contact"));
 
 // Lazy-loaded Pages: Auth
 const Login = lazyWithRetry(() => import("./pages/auth/Login"));
@@ -289,6 +292,13 @@ function AppRoutes() {
             />
             <Route path="/organizations" element={<OrganizationRequestPage />} />
             <Route path="/organizations/request-access" element={<OrganizationRequestPage />} />
+
+            {/* =================================================
+              LEGAL (public for everyone, logged in or not)
+          ================================================= */}
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/contact" element={<Contact />} />
 
             {/* =================================================
               SET PASSWORD
