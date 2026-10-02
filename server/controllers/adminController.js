@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies");
 const User = require("../models/User");
 const Company = require("../models/Company");
 const Report = require("../models/Report");
@@ -22,8 +23,11 @@ const { clearSearchCache } = require("../services/jobScraperService");
 const { createNotification } = require("../services/notificationService");
 const { notifyListingClosedInBackground } = require("../services/listingClosure");
 
+const ADMIN_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+
 /**
- * Generate JWT and set secure cookie for Admin sessions
+ * Generate JWT and set secure cookie for Admin sessions.
+ * `av` (authVersion) lets a password reset revoke admin tokens, as for user tokens.
  */
 const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) => {
   const token = jwt.sign(
@@ -39,20 +43,15 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
     { expiresIn: "7d" }
   );
 
-  const cookieOptions = {
-    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    // The client and API are on different sites in production (Vercel and Render),
-    // so the cookie must be SameSite=None like the candidate and employer cookies.
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-  };
-
+  // Same options as the candidate/employer cookies (SameSite=None + Secure in production,
+  // because the client and API are on different sites).
+  const cookieOptions = authCookieOptions(ADMIN_SESSION_MS);
   res.cookie("admin_token", token, cookieOptions);
-  res.cookie("token", token, cookieOptions); // Compatibility with general auth middleware
+  res.cookie("token", token, cookieOptions); // Read by the general auth middleware
 
   return res.status(statusCode).json({
     success: true,
+    // AdminLogin.jsx stores this as the Bearer fallback used by api.jsx
     token,
     user: {
       _id: user._id,
@@ -186,8 +185,9 @@ exports.adminLogin = async (req, res) => {
  * POST /api/admin/logout
  */
 exports.adminLogout = (req, res) => {
-  res.clearCookie("admin_token");
-  res.clearCookie("token");
+  // Clearing only works when the options match the ones used to set the cookies.
+  res.clearCookie("admin_token", authCookieBaseOptions());
+  res.clearCookie("token", authCookieBaseOptions());
   return res.status(200).json({
     success: true,
     message: "Admin logged out successfully",
