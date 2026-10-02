@@ -19,6 +19,7 @@ const {
   checkEmployerStatusChange,
 } = require("../utils/listingSecurity");
 const { sanitizeRecruitmentStages } = require("./jobController");
+const { isListingExpired, withOpenDeadline, openListingQuery } = require("../utils/listingExpiry");
 const { getPlatformSettings } = require("../services/platformSettings");
 const { isEmployerApproved } = require("../middleware/employerVerification");
 
@@ -308,6 +309,9 @@ exports.getInternships = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Please narrow your search to view more results" });
     }
 
+    // Candidates never see listings whose deadline has passed, even before the sweep closes them.
+    if (myPosts !== "true") withOpenDeadline(filter);
+
     // 1. Fetch Campus Internships from MongoDB (unless source is explicitly "external")
     let campusList = [];
     let campusTotal = 0;
@@ -374,6 +378,7 @@ exports.getInternships = async (req, res, next) => {
             isInternational: !!int.isInternational,
             isExclusive: int.isExclusive !== undefined ? int.isExclusive : true,
             isExternal: false,
+            isExpired: isListingExpired(int),
             requiredSkills: int.requiredSkills || int.skillsRequired || [],
             skillsRequired: int.skillsRequired || int.requiredSkills || [],
             skills: int.requiredSkills || int.skillsRequired || [],
@@ -499,7 +504,7 @@ exports.getInternships = async (req, res, next) => {
 // GET /api/internships/categories (Dynamic category & location counts aggregated from database)
 exports.getInternshipCategories = async (req, res, next) => {
   try {
-    const baseQuery = { status: "Published" };
+    const baseQuery = openListingQuery();
 
     const [
       internshipCount,
@@ -666,14 +671,15 @@ exports.getInternshipById = async (req, res, next) => {
       );
     }
 
-    if (!internship || (internship.status !== "Published" && (!req.user ||
+    const publiclyVisible = internship && internship.status === "Published" && !isListingExpired(internship);
+    if (!internship || (!publiclyVisible && (!req.user ||
       !(String(internship.createdBy) === String(req.user._id) || await EmployerProfile.exists({
         _id: internship.employerId, userId: req.user._id,
       }))))) {
       return res.status(404).json({ success: false, message: "Internship opportunity not found" });
     }
 
-    if (internship.status === "Published") {
+    if (publiclyVisible) {
       await internship.constructor.updateOne({ _id: internship._id }, { $inc: { viewsCount: 1 } });
     }
 
@@ -743,6 +749,7 @@ exports.updateInternshipStatus = async (req, res, next) => {
     }
 
     internship.status = status;
+    if (status !== "Closed") internship.closedReason = null;
     await internship.save();
     clearSearchCache();
 

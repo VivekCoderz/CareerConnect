@@ -5,6 +5,7 @@ const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const { escapeRegex } = require("../utils/listingSecurity");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 // =========================================================================
 // 1. CLEAN DEGREE KEYWORD MAP (SIMPLIFIED NAMES)
@@ -790,8 +791,8 @@ async function getAggregatedOpportunities({
   let dbOpportunities = [];
   if (mongoose.connection.readyState === 1) {
     try {
-      const jobFilter = { status: "Published" };
-      const internFilter = { status: "Published" };
+      const jobFilter = openListingQuery();
+      const internFilter = openListingQuery();
 
       if (customQuery) {
         const sRegex = new RegExp(escapeRegex(customQuery), "i");

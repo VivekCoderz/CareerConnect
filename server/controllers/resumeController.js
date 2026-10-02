@@ -32,6 +32,7 @@ const { runWithGeminiCascade } = require("../services/geminiCascade");
 const { splitOtherSkills } = require("../utils/skills");
 const mongoose = require("mongoose");
 const atsPdfWorkflow = require("../services/atsPdfWorkflow");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 /**
  * POST /api/resume/generate
@@ -2182,7 +2183,7 @@ const analyzeATSResumeHandler = async (req, res) => {
       }
       const isInternship = String(opportunityType || "").toLowerCase() === "internship";
       const Model = isInternship ? Internship : Job;
-      const record = await Model.findOne({ _id: opportunityId, status: "Published" }).lean();
+      const record = await Model.findOne(openListingQuery({ _id: opportunityId })).lean();
       if (!record) return res.status(404).json({ success: false, message: "Published opportunity not found" });
       opportunity = {
         title: record.title,

@@ -1083,7 +1083,9 @@ const EmployerDashboard = () => {
                             ? "bg-slate-100 text-slate-600"
                             : "bg-amber-50 text-amber-700"
                         }`}>
-                          {job.status === "Pending Approval" ? "Pending approval" : job.status}
+                          {job.isExpired || job.closedReason === "expired"
+                            ? "Expired"
+                            : job.status === "Pending Approval" ? "Pending approval" : job.status}
                         </span>
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10.5px] font-semibold">
                           {job.employmentType}

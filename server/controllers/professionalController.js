@@ -4,6 +4,7 @@ const Job = require("../models/Job");
 const Application = require("../models/Application");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 // Skill benchmarks for target senior/executive roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -554,7 +555,7 @@ module.exports.getProfessionalDashboard = async (req, res, next) => {
     // Fetch live Published Jobs for Professionals
     let dbJobs = [];
     try {
-      dbJobs = await Job.find({ status: "Published" })
+      dbJobs = await Job.find(openListingQuery())
         .populate("employerId", "companyName logo headquarters")
         .sort({ createdAt: -1 })
         .limit(20)

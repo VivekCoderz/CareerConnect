@@ -8,6 +8,7 @@ const { getAggregatedOpportunities } = require("../services/jobScraperService");
 const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 const mongoose = require("mongoose")
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 // Skill benchmarks for target roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -185,25 +186,23 @@ module.exports.getStudentDashboard = async (req, res, next) => {
       try {
         const Internship = require("../models/Internship");
         const [internshipDocs, jobInternDocs, dbJobsDocs] = await Promise.all([
-          Internship.find({ status: "Published", _id: { $nin: appliedInternshipIds } })
+          Internship.find(openListingQuery({ _id: { $nin: appliedInternshipIds } }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
             .lean(),
-          Job.find({
-            status: "Published",
+          Job.find(openListingQuery({
             employmentType: { $regex: /^internship$/i },
             _id: { $nin: appliedInternshipIds },
-          })
+          }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
             .lean(),
-          Job.find({
-            status: "Published",
+          Job.find(openListingQuery({
             employmentType: { $not: /^internship$/i },
             _id: { $nin: appliedJobIds },
-          })
+          }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)

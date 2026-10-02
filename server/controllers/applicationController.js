@@ -8,6 +8,7 @@ const notificationService = require("../services/notificationService");
 
 const JobOffer = require("../models/JobOffer");
 const socketService = require("../services/socketService");
+const { acceptsApplications, APPLICATIONS_CLOSED } = require("../utils/listingExpiry");
 
 // ==========================================
 // HELPERS
@@ -141,7 +142,10 @@ exports.applyToInternship = async (req, res, next) => {
       if (internship) isFromJob = true;
     }
 
-    if (!internship || (internship.status !== "Published" && internship.status !== "Active")) {
+    if (internship && !acceptsApplications(internship)) {
+      return res.status(400).json({ success: false, message: APPLICATIONS_CLOSED });
+    }
+    if (!internship) {
       return res.status(404).json({
         success: false,
         message: "Internship not found or closed",
@@ -321,7 +325,10 @@ exports.applyToJob = async (req, res, next) => {
       if (job) isFromInternship = true;
     }
 
-    if (!job || (job.status !== "Published" && job.status !== "Active")) {
+    if (job && !acceptsApplications(job)) {
+      return res.status(400).json({ success: false, message: APPLICATIONS_CLOSED });
+    }
+    if (!job) {
       return res.status(404).json({
         success: false,
         message: "Job not found or closed",
