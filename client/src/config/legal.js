@@ -22,6 +22,9 @@ export const LEGAL = {
   resolutionDays: null, // days to resolve a grievance (draft: 30)
 };
 
+/** Version of the Terms and Privacy Policy a new account agrees to; sent as termsVersion at signup. */
+export const TERMS_VERSION = LEGAL.version;
+
 const required = [
   LEGAL.lastUpdated,
   LEGAL.entityName,

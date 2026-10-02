@@ -6,6 +6,8 @@ import { auth } from "../../config/firebase";
 import api from "../../api/api";
 import { updateUserProfile, logout } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
+import { TERMS_VERSION } from "../../config/legal";
 
 const POPULAR_LANGUAGES = [
   "English",
@@ -93,6 +95,7 @@ const GoogleOnboarding = () => {
   const [cancelling, setCancelling] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const handleCancelAndGoHome = async () => {
     setCancelling(true);
@@ -302,6 +305,10 @@ const GoogleOnboarding = () => {
   // Step 2 Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!acceptedTerms) {
+      setSubmitError("Please agree to the Terms and Privacy Policy to continue.");
+      return;
+    }
     setLoading(true);
     setSubmitError("");
 
@@ -326,6 +333,8 @@ const GoogleOnboarding = () => {
         interests: formData.interests,
         linkedin: formData.linkedin?.trim() || "",
         github: formData.github?.trim() || "",
+        acceptedTerms: true,
+        termsVersion: TERMS_VERSION,
       };
 
       const res = await api.post("/auth/google-onboarding", payload);
@@ -1052,6 +1061,8 @@ const GoogleOnboarding = () => {
                   </button>
                 </form>
 
+                <TermsConsentCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} className="pt-2" />
+
                 {/* Submit button */}
                 <div className="pt-3 flex items-center justify-between">
                   <button
@@ -1065,7 +1076,7 @@ const GoogleOnboarding = () => {
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={loading}
+                    disabled={loading || !acceptedTerms}
                     className="h-11 px-8 rounded-lg bg-[#008bdc] hover:bg-[#0077ba] disabled:bg-blue-300 text-white text-sm font-semibold transition shadow-sm flex items-center gap-2"
                   >
                     {loading ? (
