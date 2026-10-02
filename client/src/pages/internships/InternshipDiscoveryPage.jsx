@@ -8,6 +8,7 @@ import InternshipDiscoveryMenu from "../../components/internships/InternshipDisc
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { getMyAppliedIds } from "../../services/applicationService";
+import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
 
 const INTERNSHIP_CITIES = [
   { value: "All", label: "All Locations" },
@@ -505,7 +506,11 @@ const InternshipDiscoveryPage = () => {
                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
                         {intItem.type || "Opportunity"}
                       </span>
-                      <h3 className="text-base font-bold text-slate-900">{intItem.title}</h3>
+                      <h3 className="text-base font-bold text-slate-900">
+                        <OpportunityTitleLink item={intItem} type="Internship" className="hover:text-blue-700 hover:underline">
+                          {intItem.title}
+                        </OpportunityTitleLink>
+                      </h3>
                       <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
                         {intItem.workMode}
                       </span>

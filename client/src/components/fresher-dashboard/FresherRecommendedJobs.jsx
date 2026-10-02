@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import OpportunityTitleLink from "../common/OpportunityTitleLink";
 
 const SAMPLE_JOBS = [
   {
@@ -117,7 +118,7 @@ const FresherRecommendedJobs = ({
 
                   <div className="min-w-0">
                     <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#1e3a8a] transition leading-snug line-clamp-1">
-                      {job.title}
+                      <OpportunityTitleLink item={job} type="Job">{job.title}</OpportunityTitleLink>
                     </h3>
                     <p className="text-xs text-slate-600 font-medium">{job.company}</p>
                   </div>

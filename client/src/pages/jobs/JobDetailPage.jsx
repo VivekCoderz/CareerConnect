@@ -4,13 +4,10 @@ import { useSelector } from "react-redux";
 import { getJobById } from "../../services/jobService";
 import { getMyAppliedIds } from "../../services/applicationService";
 import { applyToOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
+import { isCandidateUser } from "../../utils/userRoles";
+import ShareButtons from "../../components/common/ShareButtons";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
-const CANDIDATE_TYPES = ["student", "fresher", "professional"];
-const NON_CANDIDATE_ROLES = ["employer", "admin", "SUPER_ADMIN", "COMPANY_ADMIN"];
-
-const isCandidateUser = (user) =>
-  Boolean(user) && CANDIDATE_TYPES.includes(user.userType) && !NON_CANDIDATE_ROLES.includes(user.role);
 
 const formatDate = (value) =>
   value ? new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
@@ -121,25 +118,6 @@ const Fact = ({ label, value }) =>
     </div>
   ) : null;
 
-const copyText = async (text) => {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    // Clipboard API needs a secure context; fall back for older mobile browsers.
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.setAttribute("readonly", "");
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    document.body.appendChild(area);
-    area.select();
-    const ok = document.execCommand("copy");
-    area.remove();
-    return ok;
-  }
-};
-
 export default function JobDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -221,11 +199,6 @@ export default function JobDetailPage() {
   const shareUrl = `${window.location.origin}/jobs/${id}`;
   const shareText = job ? `${job.title} at ${companyName} – apply on CareerConnect: ${shareUrl}` : shareUrl;
 
-  const handleCopy = async () => {
-    const ok = await copyText(shareUrl);
-    showToast(ok ? "Link copied" : "Could not copy the link", ok ? "success" : "error");
-  };
-
   const renderApply = () => {
     if (job.isExternal) {
       const url = externalApplyUrl(job);
@@ -287,14 +260,7 @@ export default function JobDetailPage() {
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {renderApply()}
-            <button type="button" onClick={handleCopy}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition">
-              🔗 Copy link
-            </button>
-            <a href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noopener noreferrer"
-              className="px-4 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition">
-              Share on WhatsApp
-            </a>
+            <ShareButtons url={shareUrl} text={shareText} onNotify={showToast} />
           </div>
         </div>
 

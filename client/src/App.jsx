@@ -349,6 +349,7 @@ function AppRoutes() {
               path="/internships/category/:category"
               element={<InternshipDiscoveryPage />}
             />
+            <Route path="/internships/:id" element={<InternshipDetail />} />
 
             {/* =================================================
               GOOGLE ONBOARDING
@@ -372,7 +373,6 @@ function AppRoutes() {
                 />
               }
             >
-              <Route path="/internships/:id" element={<InternshipDetail />} />
               <Route path="/applications" element={<MyApplications />} />
 
               {FEATURES.courses && (
@@ -386,7 +386,6 @@ function AppRoutes() {
                 </>
               )}
            
-            <Route path="/internships/:id" element={<InternshipDetail />} />
             <Route path="/student/jobs/:id" element={<InternshipDetail />} />
             <Route path="/applications" element={<MyApplications />} />
             <Route path="/student/applications" element={<MyApplications />} />
