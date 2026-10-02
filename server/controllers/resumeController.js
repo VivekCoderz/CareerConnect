@@ -1096,26 +1096,21 @@ const uploadResumeHandler = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: "No resume file provided. Please select a PDF, DOC, or DOCX file.",
+        message: "No resume file provided. Please select a PDF file.",
       });
     }
 
     const original = (req.file.originalname || "").toLowerCase();
-    const isAllowedExt =
-      original.endsWith(".pdf") ||
-      original.endsWith(".doc") ||
-      original.endsWith(".docx");
+    const isAllowedExt = original.endsWith(".pdf");
     const isAllowedMime = [
       "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/octet-stream",
     ].includes(req.file.mimetype);
 
-    if (!isAllowedExt && !isAllowedMime) {
+    if (!isAllowedExt || !isAllowedMime) {
       return res.status(400).json({
         success: false,
-        message: "Only PDF, DOC, and DOCX files are allowed for resume upload.",
+        message: "Only PDF files are allowed for resume upload.",
       });
     }
 
