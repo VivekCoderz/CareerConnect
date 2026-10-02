@@ -14,6 +14,7 @@ const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
 const AuditLog = require("../models/AuditLog");
+const { notifyListingDecision } = require("../services/accountNotifications");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
@@ -2336,24 +2337,8 @@ exports.approveOpportunity = async (req, res, next) => {
       console.warn("Audit log creation warning:", logErr.message);
     }
 
-    // Notify creator/employer if applicable
-    if (opp.createdBy) {
-      try {
-        await Notification.create({
-          recipient: opp.createdBy,
-          recipientId: opp.createdBy,
-          senderRole: "admin",
-          sender: "CareerConnect Moderation Team",
-          title: "Opportunity Approved",
-          preview: `Your listing "${opp.title}" has been approved.`,
-          message: `Your opportunity listing "${opp.title}" has been reviewed and approved by Platform Administration. It is now active and accepting candidate applications.`,
-          category: "system_alert",
-          notificationType: "info",
-        });
-      } catch (notifErr) {
-        console.warn("Notification creation warning:", notifErr.message);
-      }
-    }
+    // Tell the employer (in-app + email); never blocks the response
+    notifyListingDecision({ listing: opp, decision: "approved" });
 
     return res.status(200).json({
       success: true,
@@ -2421,26 +2406,8 @@ exports.rejectOpportunity = async (req, res, next) => {
       console.warn("Audit log creation warning:", logErr.message);
     }
 
-    // Send Notification to creator
-    if (opp.createdBy) {
-      try {
-        await Notification.create({
-          recipient: opp.createdBy,
-          recipientId: opp.createdBy,
-          senderRole: "admin",
-          sender: "CareerConnect Moderation Team",
-          title: "Opportunity Listing Rejected",
-          preview: `Listing "${opp.title}" requires modifications.`,
-          message: `Your listing "${opp.title}" was rejected during moderation. Reason: ${rejectionReason}.${
-            adminNote ? ` Admin note: ${adminNote}` : ""
-          } Please review and update your listing.`,
-          category: "system_alert",
-          notificationType: "warning",
-        });
-      } catch (notifErr) {
-        console.warn("Notification creation warning:", notifErr.message);
-      }
-    }
+    // Tell the employer (in-app + email); never blocks the response
+    notifyListingDecision({ listing: opp, decision: "rejected", reason: opp.rejectionReason || "" });
 
     return res.status(200).json({
       success: true,
@@ -3358,7 +3325,7 @@ exports.resolveAdminReport = async (req, res, next) => {
           preview: `Report #${report._id.toString().slice(-6)} has been reviewed and resolved.`,
           message: `Your report regarding "${report.title || report.category || "an issue"}" has been thoroughly investigated and resolved. Action note: ${resolutionNote.trim()}. Thank you for helping keep CareerConnect safe.`,
           category: "system_alert",
-          notificationType: "info",
+          notificationType: "GENERAL",
         });
       } catch (notifErr) {}
     }
@@ -3437,7 +3404,7 @@ exports.dismissAdminReport = async (req, res, next) => {
           preview: `Report #${report._id.toString().slice(-6)} has been reviewed.`,
           message: `Your report regarding "${report.title || report.category || "an issue"}" has been reviewed by moderation. It was closed with the following outcome: ${dismissalReason.trim()}.`,
           category: "system_alert",
-          notificationType: "info",
+          notificationType: "GENERAL",
         });
       } catch (notifErr) {}
     }

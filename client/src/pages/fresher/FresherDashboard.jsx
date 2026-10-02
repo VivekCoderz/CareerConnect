@@ -1,6 +1,6 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import { getFresherDashboardData } from "../../services/fresherDashboardService";
@@ -36,7 +36,9 @@ const FresherDashboard = () => {
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // Start on the tab named in ?tab= (email links open e.g. ?tab=applications).
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);

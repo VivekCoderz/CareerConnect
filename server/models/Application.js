@@ -355,4 +355,19 @@ applicationSchema.pre("validate", function () {
   }
 });
 
+// Candidate email when the status changes through save(). The interview and offer flows
+// email about their own events and set $locals.skipStatusEmail to avoid a second email.
+applicationSchema.post("init", function () {
+  this.$locals.loadedStatus = this.status;
+});
+
+applicationSchema.post("save", function (doc) {
+  const previousStatus = doc.$locals.loadedStatus;
+  doc.$locals.loadedStatus = doc.status;
+  if (doc.$locals.skipStatusEmail || previousStatus === undefined) return;
+  // Required lazily: the notification service depends on other models.
+  const { notifyApplicationStatusChange } = require("../services/accountNotifications");
+  notifyApplicationStatusChange({ application: doc, previousStatus, newStatus: doc.status });
+});
+
 module.exports = mongoose.model("Application", applicationSchema);
