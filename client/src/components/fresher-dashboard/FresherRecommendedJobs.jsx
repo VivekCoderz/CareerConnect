@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FEATURES } from "../../config/features";
 import { Link } from "react-router-dom";
 
 const SAMPLE_JOBS = [
@@ -124,30 +125,33 @@ const FresherRecommendedJobs = ({
                 </div>
 
                 {/* Save button */}
-                <button
-                  type="button"
-                  onClick={() => handleToggleSave(jobId)}
-                  className={`p-2 rounded-xl border transition shrink-0 ${
-                    isSaved
-                      ? "bg-amber-50 border-amber-300 text-amber-600"
-                      : "border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50"
-                  }`}
-                  aria-label="Save Job"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill={isSaved ? "currentColor" : "none"}
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                {FEATURES.savedJobs && (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSave(jobId)}
+                    className={`p-2 rounded-xl border transition shrink-0 ${
+                      isSaved
+                        ? "bg-amber-50 border-amber-300 text-amber-600"
+                        : "border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                    }`}
+                    aria-label="Save Job"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                    />
-                  </svg>
-                </button>
+                    <svg
+                      className="w-4 h-4"
+                      fill={isSaved ? "currentColor" : "none"}
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                      />
+                    </svg>
+                  </button>
+                )}
               </div>
 
               {/* Match badge + meta */}

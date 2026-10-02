@@ -743,6 +743,7 @@ exports.updateInternshipStatus = async (req, res, next) => {
     }
 
     internship.status = status;
+    if (status !== "Closed") internship.closedReason = null;
     await internship.save();
     clearSearchCache();
 

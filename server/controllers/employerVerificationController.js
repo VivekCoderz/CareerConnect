@@ -5,6 +5,29 @@ const Internship = require("../models/Internship");
 const Job = require("../models/Job");
 const User = require("../models/User");
 const { escapeRegex } = require("../utils/listingSecurity");
+const { clearSearchCache } = require("../services/jobScraperService");
+
+// Listings that stop being visible (or waiting for review) when their employer is rejected.
+const LIVE_STATUSES = ["Published", "Pending Approval"];
+
+/**
+ * Closes every Published or Pending Approval job and internship owned by this employer.
+ * Older listings store the owner's user id in employerId, so match that too.
+ * Re-approving the employer does not reopen them.
+ */
+const closeListingsOfRejectedEmployer = async (profile) => {
+  const filter = {
+    status: { $in: LIVE_STATUSES },
+    $or: [{ employerId: profile._id }, { employerId: profile.userId }, { createdBy: profile.userId }],
+  };
+  const update = { $set: { status: "Closed", closedReason: "employer_rejected", closedAt: new Date() } };
+  const [jobs, internships] = await Promise.all([
+    Job.updateMany(filter, update),
+    Internship.updateMany(filter, update),
+  ]);
+  clearSearchCache();
+  return { jobs: jobs.modifiedCount, internships: internships.modifiedCount };
+};
 
 // Profiles created before verification existed have no verificationStatus; they count as pending.
 const STATUS_FILTERS = {
@@ -123,6 +146,10 @@ exports.setEmployerVerification = async (req, res, next) => {
     profile.rejectionReason = status === "rejected" ? trimmedReason || null : null;
     await profile.save();
 
+    const closedListings = status === "rejected"
+      ? await closeListingsOfRejectedEmployer(profile)
+      : { jobs: 0, internships: 0 };
+
     try {
       await AuditLog.create({
         employerId: profile._id,
@@ -132,7 +159,12 @@ exports.setEmployerVerification = async (req, res, next) => {
         action: status === "approved" ? "APPROVE_EMPLOYER" : "REJECT_EMPLOYER",
         module: "Employers",
         target: profile.companyName,
-        details: trimmedReason ? `Reason: ${trimmedReason}` : "",
+        details: [
+          trimmedReason ? `Reason: ${trimmedReason}` : "",
+          status === "rejected"
+            ? `Closed ${closedListings.jobs} job(s) and ${closedListings.internships} internship(s) (employer_rejected).`
+            : "",
+        ].filter(Boolean).join(" "),
       });
     } catch (logErr) {
       console.warn("Audit log creation warning:", logErr.message);
@@ -141,6 +173,7 @@ exports.setEmployerVerification = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: `Employer "${profile.companyName}" ${status}`,
+      closedListings,
       employer: {
         _id: profile._id,
         userId: profile.userId,

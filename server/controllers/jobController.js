@@ -508,6 +508,7 @@ exports.updateJobStatus = async (req, res, next) => {
     }
 
     job.status = status;
+    if (status !== "Closed") job.closedReason = null;
     await job.save();
     clearSearchCache();
 

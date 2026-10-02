@@ -1,4 +1,5 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
+import { FEATURES } from "../../config/features";
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -482,17 +483,20 @@ const JobDiscoveryPage = () => {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-                    <button
-                      onClick={() => handleSaveToggle(jobItem)}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                        isSaved
-                          ? "bg-amber-50 border-amber-300 text-amber-600"
-                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                      title={isSaved ? "Saved" : "Save Job"}
-                    >
-                      {isSaved ? "★ Saved" : "☆ Save"}
-                    </button>
+                    {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                    {FEATURES.savedJobs && (
+                      <button
+                        onClick={() => handleSaveToggle(jobItem)}
+                        className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                          isSaved
+                            ? "bg-amber-50 border-amber-300 text-amber-600"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                        }`}
+                        title={isSaved ? "Saved" : "Save Job"}
+                      >
+                        {isSaved ? "★ Saved" : "☆ Save"}
+                      </button>
+                    )}
 
                     {jobItem.applyLink ? (
                       <a
