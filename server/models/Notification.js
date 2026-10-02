@@ -133,5 +133,7 @@ notificationSchema.pre("save", function () {
 
 notificationSchema.index({ recipient: 1, createdAt: -1 });
 notificationSchema.index({ recipientId: 1, isRead: 1, createdAt: -1 });
+// Daily application digest looks up pending summary emails
+notificationSchema.index({ "metadata.emailDigest": 1, "metadata.digestSent": 1, recipient: 1 });
 
 module.exports = mongoose.model("Notification", notificationSchema);

@@ -21,6 +21,7 @@ const {
 const { sanitizeRecruitmentStages } = require("./jobController");
 const { getPlatformSettings } = require("../services/platformSettings");
 const { isEmployerApproved } = require("../middleware/employerVerification");
+const { notifyListingClosedInBackground } = require("../services/listingClosure");
 
 // Helper to normalize URL slugs to category names
 const formatCategorySlug = (slug = "") => {
@@ -742,8 +743,10 @@ exports.updateInternshipStatus = async (req, res, next) => {
       return res.status(denied.code).json({ success: false, message: denied.message });
     }
 
+    const wasClosed = internship.status === "Closed";
     internship.status = status;
     await internship.save();
+    if (status === "Closed" && !wasClosed) notifyListingClosedInBackground("internship", internship._id, { senderId: req.user._id });
     clearSearchCache();
 
     return res.json({ success: true, internship, data: internship });

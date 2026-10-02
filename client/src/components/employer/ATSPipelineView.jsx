@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import ApplicantExportModal from "./ApplicantExportModal";
 import { openResume } from "../../utils/resumeAccess";
+import BulkActionBar from "./BulkActionBar";
 
 // Helper for professional role casing
 const formatRoleTitle = (str) => {
@@ -29,11 +30,14 @@ const ATSPipelineView = ({
   onScheduleInterview,
   onCreateOffer,
   onAddNote,
+  onBulkStatus,
 }) => {
   // State
   const [selectedJobId, setSelectedJobId] = useState("All");
   const [activeStageFilter, setActiveStageFilter] = useState("All");
   const [viewMode, setViewMode] = useState("list"); // "list" | "kanban"
+  const [checkedIds, setCheckedIds] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedApp, setSelectedApp] = useState(null);
   const [viewingApp, setViewingApp] = useState(null);
@@ -699,6 +703,26 @@ const ATSPipelineView = ({
       {/* ======================================================== */}
       {/* 4. LIST VIEW: COMPLETE PIPELINE PER CANDIDATE            */}
       {/* ======================================================== */}
+      {viewMode === "list" && filteredApps.length > 0 && onBulkStatus && (
+        <BulkActionBar
+          selectedCount={checkedIds.size}
+          visibleCount={filteredApps.length}
+          allVisibleSelected={filteredApps.every((a) => checkedIds.has(a._id))}
+          busy={bulkBusy}
+          onToggleAll={() =>
+            setCheckedIds((prev) =>
+              filteredApps.every((a) => prev.has(a._id)) ? new Set() : new Set(filteredApps.map((a) => a._id))
+            )
+          }
+          onClear={() => setCheckedIds(new Set())}
+          onApply={async (status) => {
+            setBulkBusy(true);
+            const ok = await onBulkStatus([...checkedIds], status);
+            setBulkBusy(false);
+            if (ok) setCheckedIds(new Set());
+          }}
+        />
+      )}
       {viewMode === "list" && filteredApps.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           {/* Main List of Candidates */}
@@ -721,6 +745,23 @@ const ATSPipelineView = ({
                   {/* Candidate Header Row */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3.5">
+                      {onBulkStatus && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${info.name}`}
+                          className="mt-3.5"
+                          checked={checkedIds.has(app._id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() =>
+                            setCheckedIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(app._id)) next.delete(app._id);
+                              else next.add(app._id);
+                              return next;
+                            })
+                          }
+                        />
+                      )}
                       {/* Sleek Initial Avatar */}
                       <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-sm flex-shrink-0 border border-indigo-100 shadow-2xs">
                         {info.name[0]?.toUpperCase() || "C"}

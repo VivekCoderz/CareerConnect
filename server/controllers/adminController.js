@@ -17,7 +17,10 @@ const AuditLog = require("../models/AuditLog");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
-const { escapeRegex } = require("../utils/listingSecurity");
+const { escapeRegex, pickListingUpdate } = require("../utils/listingSecurity");
+const { clearSearchCache } = require("../services/jobScraperService");
+const { createNotification } = require("../services/notificationService");
+const { notifyListingClosedInBackground } = require("../services/listingClosure");
 
 /**
  * Generate JWT and set secure cookie for Admin sessions
@@ -2277,6 +2280,78 @@ exports.getOpportunityCompaniesList = async (req, res, next) => {
 };
 
 /**
+ * POST /api/admin/opportunities  (Super Admin)
+ * Posts a job or internship on behalf of an approved employer (assisted posting).
+ * The listing belongs to the employer, so it appears in their dashboard and they
+ * manage the applicants; it goes live straight away as approved by this admin.
+ * body: { type: "job" | "internship", employerProfileId, title, description, location, ...listing fields }
+ */
+exports.createOpportunityForEmployer = async (req, res, next) => {
+  try {
+    const { type = "job", employerProfileId } = req.body || {};
+    if (!["job", "internship"].includes(type)) {
+      return res.status(400).json({ success: false, message: 'type must be "job" or "internship"' });
+    }
+    if (!mongoose.isValidObjectId(employerProfileId)) {
+      return res.status(400).json({ success: false, message: "Choose an employer" });
+    }
+    const profile = await EmployerProfile.findById(employerProfileId).populate("userId", "isActive companyId fullName");
+    if (!profile?.userId) {
+      return res.status(404).json({ success: false, message: "Employer not found" });
+    }
+    if (profile.verificationStatus !== "approved" || profile.userId.isActive === false) {
+      return res.status(400).json({ success: false, message: "Approve this employer before posting for them" });
+    }
+
+    const fields = pickListingUpdate(req.body);
+    for (const required of ["title", "description", "location"]) {
+      if (typeof fields[required] !== "string" || !fields[required].trim()) {
+        return res.status(400).json({ success: false, message: `${required} is required` });
+      }
+    }
+
+    const Model = type === "internship" ? Internship : Job;
+    const now = new Date();
+    const listing = await Model.create({
+      ...fields,
+      employerId: profile._id,
+      createdBy: profile.userId._id,
+      companyId: profile.userId.companyId || null,
+      companyName: profile.companyName || "",
+      isExternal: false,
+      status: "Published",
+      approvedBy: req.user._id,
+      approvedAt: now,
+      approvalMethod: "admin",
+    });
+    clearSearchCache();
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.fullName,
+      companyId: listing.companyId || null,
+      action: "OPPORTUNITY_POSTED_ON_BEHALF",
+      module: type === "internship" ? "Internships" : "Jobs",
+      target: listing.title,
+      details: `Posted "${listing.title}" on behalf of ${profile.companyName || "employer"}`,
+      ipAddress: req.ip || "127.0.0.1",
+    }).catch((err) => console.warn("Audit log failed:", err.message));
+
+    await createNotification({
+      recipientId: profile.userId._id,
+      senderId: req.user._id,
+      title: `We posted "${listing.title}" for you`,
+      message: `CareerConnect posted "${listing.title}" on your behalf. It's live now, and you can manage applicants from your dashboard.`,
+      actionUrl: "/employer/dashboard",
+    });
+
+    return res.status(201).json({ success: true, message: "Listing posted for the employer and published", opportunity: listing });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /api/admin/opportunities/:type/:id/approve
  * Approves a pending opportunity and marks it Published (visible to candidates)
  */
@@ -2574,8 +2649,10 @@ exports.closeOpportunity = async (req, res, next) => {
       }
     }
 
+    const wasClosed = opp.status === "Closed";
     opp.status = "Closed";
     await opp.save();
+    if (!wasClosed) notifyListingClosedInBackground(type.toLowerCase() === "internship" ? "internship" : "job", opp._id, { senderId: req.user._id });
 
     try {
       await AuditLog.create({

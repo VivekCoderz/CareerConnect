@@ -90,6 +90,13 @@ router.get(
 );
 
 router.patch(
+  "/bulk-status",
+  protect,
+  employerOnly,
+  ensureFn(applicationController.bulkUpdateApplicationStatus, "bulkUpdateApplicationStatus")
+);
+
+router.patch(
   "/:id/status",
   protect,
   employerOnly,

@@ -16,6 +16,12 @@ export const updateApplicationStatus = async (id, status) => {
   return res.data;
 };
 
+// Bulk shortlist / review / interview / reject (max 300 per request)
+export const bulkUpdateApplicationStatus = async (applicationIds, status) => {
+  const res = await api.patch("/applications/bulk-status", { applicationIds, status });
+  return res.data;
+};
+
 export const addApplicationNote = async (id, note) => {
   const res = await api.post(`/applications/${id}/notes`, { text: note });
   return res.data;

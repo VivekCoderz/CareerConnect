@@ -17,6 +17,7 @@ const {
 const { clearSearchCache } = require("../services/jobScraperService");
 const { getPlatformSettings } = require("../services/platformSettings");
 const { isEmployerApproved } = require("../middleware/employerVerification");
+const { notifyListingClosedInBackground } = require("../services/listingClosure");
 
 /**
  * Helper to ensure employer profile exists for logged in user
@@ -507,8 +508,10 @@ exports.updateJobStatus = async (req, res, next) => {
       return res.status(denied.code).json({ success: false, message: denied.message });
     }
 
+    const wasClosed = job.status === "Closed";
     job.status = status;
     await job.save();
+    if (status === "Closed" && !wasClosed) notifyListingClosedInBackground("job", job._id, { senderId: req.user._id });
     clearSearchCache();
 
     return res.status(200).json({

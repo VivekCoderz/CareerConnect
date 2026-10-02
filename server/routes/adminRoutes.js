@@ -40,6 +40,7 @@ const {
   updateEmployerStatus,
   // Opportunities
   getAdminOpportunities,
+  createOpportunityForEmployer,
   getOpportunityCompaniesList,
   approveOpportunity,
   rejectOpportunity,
@@ -147,6 +148,7 @@ router.patch("/employers/:id/status", updateEmployerStatus);
 
 // Opportunity Management (Jobs & Internships)
 router.get("/opportunities", getAdminOpportunities);
+router.post("/opportunities", requireSuperAdmin, sanitizeInputs, createOpportunityForEmployer);
 router.get("/opportunities/companies-list", getOpportunityCompaniesList);
 router.post("/opportunities/:type/:id/approve", requireSuperAdmin, approveOpportunity);
 router.post("/opportunities/:type/:id/reject", requireSuperAdmin, rejectOpportunity);

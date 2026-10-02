@@ -13,6 +13,7 @@ const getFirebaseAdmin = require("../config/firebaseAdmin.js");
 const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
 const { deleteAccount } = require("../services/accountDeletion.js");
+const { recordOtpEmail } = require("../services/emailBudget.js");
 
 // ==========================================
 // PASSWORD VALIDATION & HELPERS
@@ -192,6 +193,7 @@ module.exports.sendOTP = async (req, res, next) => {
     const { code: otp, otpHash } = await issueOtp(normalizedEmail, "verification");
 
     // Send email
+    recordOtpEmail();
     const delivery = await sendEmail({
       to: normalizedEmail,
       subject: "Your CareerConnect verification code",
@@ -1380,6 +1382,7 @@ module.exports.forgotPassword = async (req, res, next) => {
 
     const { code: otp, otpHash } = await issueOtp(normalizedEmail, "reset-password");
 
+    recordOtpEmail();
     const delivery = await sendEmail({
       to: normalizedEmail,
       subject: "Reset your CareerConnect password",

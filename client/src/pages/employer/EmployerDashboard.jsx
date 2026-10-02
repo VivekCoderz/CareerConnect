@@ -444,6 +444,35 @@ const EmployerDashboard = () => {
     }
   };
 
+  // Bulk shortlist / review / interview / reject from the applicant list
+  const handleBulkStatus = async (applicationIds, status) => {
+    try {
+      // The server accepts up to 300 per request; send larger selections in batches.
+      const res = { success: true, updated: 0, skipped: 0 };
+      for (let i = 0; i < applicationIds.length; i += 300) {
+        const part = await recruitmentService.bulkUpdateApplicationStatus(applicationIds.slice(i, i + 300), status);
+        if (!part?.success) {
+          showToast(part?.message || "Bulk update failed", "error");
+          return false;
+        }
+        res.updated += part.updated || 0;
+        res.skipped += part.skipped || 0;
+      }
+      res.message = `${res.updated} application${res.updated === 1 ? "" : "s"} marked as ${status}`;
+      const chosen = new Set(applicationIds);
+      setApplications((prev) =>
+        prev.map((a) =>
+          chosen.has(a._id) && !["Withdrawn", "Hired"].includes(a.status) ? { ...a, status, stage: status } : a
+        )
+      );
+      showToast(res.skipped ? `${res.message} (${res.skipped} skipped)` : res.message);
+      return true;
+    } catch (err) {
+      showToast(err.response?.data?.message || "Bulk update failed", "error");
+      return false;
+    }
+  };
+
   const handleRejectCandidate = async (appId, remarks) => {
     try {
       const res = await recruitmentService.rejectCandidate(appId, remarks);
@@ -1220,6 +1249,7 @@ const EmployerDashboard = () => {
                   setIsOfferModalOpen(true);
                 }}
                 onAddNote={handleAddAppNote}
+                onBulkStatus={handleBulkStatus}
               />
             </div>
           )}

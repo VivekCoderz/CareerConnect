@@ -22,6 +22,7 @@ const Enrollment = require("../models/Enrollment");
 const AssessmentSubmission = require("../models/AssessmentSubmission");
 const AuditLog = require("../models/AuditLog");
 const { cleanupOrphanResumeAssets } = require("./resumeAssetCleanup");
+const { notifyListingClosedInBackground } = require("./listingClosure");
 
 const FINAL_APPLICATION_STATUSES = ["Hired", "Rejected", "Withdrawn"];
 const UPCOMING_INTERVIEW_STATUSES = ["scheduled", "confirmed", "rescheduled", "draft", "Scheduled", "Confirmed", "Rescheduled"];
@@ -64,10 +65,17 @@ const closeEmployerListings = async (userId) => {
   const profile = await EmployerProfile.findOne({ userId }).select("_id").lean();
   const owner = [{ createdBy: userId }, ...(profile ? [{ employerId: profile._id }] : [])];
   const open = { status: { $nin: ["Closed", "Rejected"] } };
-  await Promise.all([
-    Job.updateMany({ $or: owner, ...open }, { $set: { status: "Closed" } }),
-    Internship.updateMany({ $or: owner, ...open }, { $set: { status: "Closed" } }),
+  const [jobIds, internshipIds] = await Promise.all([
+    Job.find({ $or: owner, ...open }).distinct("_id"),
+    Internship.find({ $or: owner, ...open }).distinct("_id"),
   ]);
+  await Promise.all([
+    Job.updateMany({ _id: { $in: jobIds } }, { $set: { status: "Closed" } }),
+    Internship.updateMany({ _id: { $in: internshipIds } }, { $set: { status: "Closed" } }),
+  ]);
+  // Candidates still waiting on these listings get a "position filled" notice.
+  jobIds.forEach((id) => notifyListingClosedInBackground("job", id));
+  internshipIds.forEach((id) => notifyListingClosedInBackground("internship", id));
 };
 
 /**
