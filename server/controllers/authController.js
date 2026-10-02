@@ -161,7 +161,7 @@ module.exports.sendOTP = async (req, res, next) => {
       const validationResult = await validateEmail(email);
       
       if (!validationResult.isValid) {
-        console.log("❌ [Email Validation Failed]:", validationResult);
+        console.log("❌ [Email Validation Failed]:", maskEmail(email), validationResult?.reason);
         return res.status(400).json({
           success: false,
           field: "email",
@@ -926,10 +926,11 @@ module.exports.googleAuth = async (req, res, next) => {
     if (!uid || !normalizedEmail || !isGoogleProvider || !isEmailVerified) {
       console.warn("[GoogleAuth] Rejected Google sign-in claims:", {
         uid: Boolean(uid),
-        email: normalizedEmail,
+        email: maskEmail(normalizedEmail),
         email_verified: decoded.email_verified,
         sign_in_provider: decoded.firebase?.sign_in_provider,
-        identities: decoded.firebase?.identities,
+        // Identity providers only; the identities object itself lists the user's emails.
+        identities: Object.keys(decoded.firebase?.identities || {}),
         isGoogleProvider,
         isEmailVerified,
       });

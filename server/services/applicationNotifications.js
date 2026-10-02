@@ -8,6 +8,7 @@
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const sendEmail = require("../utils/sendEmail");
+const { track } = require("./notificationEmail");
 const { broadcastRealtimeNotification } = require("./notificationService");
 const { reserveNotificationEmail, releaseNotificationEmail } = require("./emailBudget");
 
@@ -49,7 +50,8 @@ const sendGoodNewsEmails = async (items) => {
       continue;
     }
     try {
-      await sendEmail({ to: item.email, subject: item.title, html: emailHtml(item.name, [item]) });
+      const result = await sendEmail({ to: item.email, subject: item.title, html: emailHtml(item.name, [item]) });
+      if (result?.error) throw new Error(String(result.error));
     } catch (err) {
       await releaseNotificationEmail();
       console.warn(`Application email failed for ${item.notificationId}: ${err.message}`);
@@ -105,7 +107,9 @@ const notifyApplicationUpdates = async (applications, status, { senderId = null,
       const user = userById.get(String(n.recipient));
       return { notificationId: n._id, email: user?.email, name: user?.fullName, title: n.title, message: n.message };
     });
-    setImmediate(() => sendGoodNewsEmails(items).catch((err) => console.warn("Application emails failed:", err.message)));
+    // Background work, tracked so tests can wait for it (flushNotificationEmails).
+    track(new Promise(setImmediate).then(() => sendGoodNewsEmails(items))
+      .catch((err) => console.warn("Application emails failed:", err.message)));
   }
   return created;
 };
