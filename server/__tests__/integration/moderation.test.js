@@ -2,10 +2,9 @@ const axios = require("axios");
 const mongoose = require("mongoose");
 const request = require("supertest");
 const app = require("../../app");
-const EmployerProfile = require("../../models/EmployerProfile");
 const Internship = require("../../models/Internship");
 const Job = require("../../models/Job");
-const { createEmployerWithToken, createUserWithToken } = require("../helpers/createTestUser");
+const { createEmployerWithToken, createUserWithToken, createEmployerProfile } = require("../helpers/createTestUser");
 
 const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
 
@@ -39,11 +38,7 @@ describe("listing moderation (S03)", () => {
       role: "SUPER_ADMIN",
       userType: "admin",
     });
-    await EmployerProfile.create({
-      userId: employer.user._id,
-      companyName: "Moderation Co",
-      industry: "Technology",
-    });
+    await createEmployerProfile(employer.user._id, { companyName: "Moderation Co", industry: "Technology" });
   });
 
   const createJobAsEmployer = async (overrides) => {
@@ -220,7 +215,7 @@ describe("listing moderation (S03)", () => {
       expect(stored.status).toBe("Pending Approval");
     });
 
-    it("keeps an approved job's status when its content is edited", async () => {
+    it("ignores status in an edit, and sends an approved job's edited content back for approval", async () => {
       const job = await createJobAsEmployer();
       await approve("job", job._id);
 
@@ -229,7 +224,9 @@ describe("listing moderation (S03)", () => {
         .set(auth(employer))
         .send({ description: "Updated description", status: "Draft" });
 
-      expect((await Job.findById(job._id).lean()).status).toBe("Published");
+      // Not "Draft" (status in the body is ignored) and not still "Published"
+      // (edited content must be approved again, BUG-02).
+      expect((await Job.findById(job._id).lean()).status).toBe("Pending Approval");
     });
 
     it("makes a duplicate of an approved job a draft that still needs approval", async () => {

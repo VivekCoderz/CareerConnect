@@ -119,6 +119,27 @@ const aiResumeLimiter = rateLimit({
 });
 
 /**
+ * Daily AI quota, shared by every Gemini-backed feature (resume parse, tailor,
+ * generate, ATS optimize, AI assistant) so the free Gemini tier lasts the day.
+ * Default: 40 AI actions / 24 hours per user (RATE_LIMIT_AI_DAILY_MAX)
+ * The count is kept in memory, so it resets when the server restarts.
+ */
+const aiDailyLimiter = rateLimit({
+  ...commonRateLimitOptions,
+  windowMs: 24 * 60 * 60 * 1000,
+  max: () => getLimitMax("RATE_LIMIT_AI_DAILY_MAX", 40),
+  keyGenerator: (req) => {
+    const userId = req.user?._id || req.user?.id;
+    return userId ? `ai-daily:user:${userId}` : `ai-daily:ip:${getClientIp(req)}`;
+  },
+  message: {
+    success: false,
+    code: "AI_DAILY_LIMIT",
+    message: "You've used today's free AI limit. It resets within 24 hours.",
+  },
+});
+
+/**
  * Live Internships Aggregator Limiter
  * Default: 60 requests / 1 minute per IP (RATE_LIMIT_LIVE_MAX)
  */
@@ -183,6 +204,7 @@ module.exports = {
   otpSendLimiter,
   otpVerifyLimiter,
   aiResumeLimiter,
+  aiDailyLimiter,
   internshipsLiveLimiter,
   loginLimiter,
   passwordResetLimiter,

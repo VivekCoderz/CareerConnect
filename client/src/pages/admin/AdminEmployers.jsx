@@ -1,7 +1,8 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
+import { useSelector } from "react-redux";
 import AdminLayout from "../../components/admin/AdminLayout";
-import { getAdminEmployers, updateEmployerStatus } from "../../services/adminService";
+import { getAdminEmployers, setEmployerVerification } from "../../services/adminService";
 import {
   Building2,
   Search,
@@ -23,7 +24,24 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
+const VERIFICATION_BADGES = {
+  approved: { label: "Verified", className: "bg-emerald-50 text-emerald-700 border-emerald-200", Icon: CheckCircle2 },
+  rejected: { label: "Rejected", className: "bg-red-50 text-red-700 border-red-200", Icon: X },
+  pending: { label: "Pending verification", className: "bg-amber-50 text-amber-700 border-amber-200", Icon: Clock },
+};
+
+const VerificationBadge = ({ status }) => {
+  const { label, className, Icon } = VERIFICATION_BADGES[status] || VERIFICATION_BADGES.pending;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${className}`}>
+      <Icon className="w-3 h-3" /> {label}
+    </span>
+  );
+};
+
 const AdminEmployers = () => {
+  const { user } = useSelector((state) => state.auth);
+  const canVerify = user?.role === "SUPER_ADMIN" || (user?.role === "admin" && !user?.companyId);
   const [employers, setEmployers] = useState([]);
   const [stats, setStats] = useState({ total: 0, verified: 0, pending: 0 });
   const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, pages: 1 });
@@ -58,30 +76,27 @@ const AdminEmployers = () => {
     fetchEmployers(1);
   }, [fetchEmployers]);
 
-  const handleToggleVerification = async (employer) => {
-    const nextVerified = !employer.isPublished;
-    const confirmMsg = nextVerified
-      ? `Verify employer "${employer.companyName}"? Their company profile and opportunities will be visible to all candidates.`
-      : `Unverify employer "${employer.companyName}"? Their listings will be paused.`;
-
-    if (!window.confirm(confirmMsg)) return;
+  // nextStatus: "approved" lets the employer post; "rejected" blocks posting.
+  const handleVerification = async (employer, nextStatus) => {
+    let reason = "";
+    if (nextStatus === "approved") {
+      if (!window.confirm(`Approve "${employer.companyName}"? They will be able to post jobs and internships.`)) return;
+    } else {
+      const input = window.prompt(`Reject "${employer.companyName}"? Optionally give a reason for the employer:`, "");
+      if (input === null) return;
+      reason = input.trim();
+    }
 
     setUpdatingId(employer._id);
     try {
-      const res = await updateEmployerStatus(employer._id, { isPublished: nextVerified });
+      const res = await setEmployerVerification(employer._id, nextStatus, reason);
       if (res?.success) {
-        setEmployers((prev) =>
-          prev.map((e) => (e._id === employer._id ? { ...e, isPublished: nextVerified } : e))
-        );
-        setStats((prev) => ({
-          ...prev,
-          verified: nextVerified ? prev.verified + 1 : Math.max(0, prev.verified - 1),
-          pending: nextVerified ? Math.max(0, prev.pending - 1) : prev.pending + 1,
-        }));
+        setSelectedEmployer((prev) => (prev?._id === employer._id ? { ...prev, ...res.employer } : prev));
+        await fetchEmployers(pagination.page);
       }
     } catch (err) {
       console.error("Failed to update employer verification:", err);
-      alert("Failed to update employer status. Please try again.");
+      alert(err.response?.data?.message || "Failed to update employer verification. Please try again.");
     } finally {
       setUpdatingId(null);
     }
@@ -165,8 +180,9 @@ const AdminEmployers = () => {
               className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             >
               <option value="all">All Organizations</option>
-              <option value="verified">Verified Only</option>
-              <option value="pending">Pending Verification Only</option>
+              <option value="pending">Pending verification</option>
+              <option value="approved">Verified</option>
+              <option value="rejected">Rejected</option>
             </select>
           </div>
         </div>
@@ -246,15 +262,7 @@ const AdminEmployers = () => {
                       </td>
 
                       <td className="py-3 px-4">
-                        {emp.isPublished ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle2 className="w-3 h-3" /> Verified
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            <Clock className="w-3 h-3" /> Pending Review
-                          </span>
-                        )}
+                        <VerificationBadge status={emp.verificationStatus} />
                       </td>
 
                       <td className="py-3 px-4 text-slate-500 text-[11px]">
@@ -272,25 +280,29 @@ const AdminEmployers = () => {
                             <Eye className="w-4 h-4" />
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleToggleVerification(emp)}
-                            disabled={updatingId === emp._id}
-                            title={emp.isPublished ? "Revoke Verification" : "Approve & Verify Organization"}
-                            className={`p-1.5 rounded-lg transition cursor-pointer ${
-                              emp.isPublished
-                                ? "text-slate-500 hover:text-amber-600 hover:bg-amber-50"
-                                : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
-                            }`}
-                          >
-                            {updatingId === emp._id ? (
-                              <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
-                            ) : emp.isPublished ? (
-                              <ShieldAlert className="w-4 h-4" />
-                            ) : (
+                          {canVerify && updatingId === emp._id && (
+                            <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
+                          )}
+                          {canVerify && updatingId !== emp._id && emp.verificationStatus !== "approved" && (
+                            <button
+                              type="button"
+                              onClick={() => handleVerification(emp, "approved")}
+                              title="Approve employer"
+                              className="p-1.5 rounded-lg transition cursor-pointer text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
+                            >
                               <ShieldCheck className="w-4 h-4" />
-                            )}
-                          </button>
+                            </button>
+                          )}
+                          {canVerify && updatingId !== emp._id && emp.verificationStatus !== "rejected" && (
+                            <button
+                              type="button"
+                              onClick={() => handleVerification(emp, "rejected")}
+                              title="Reject employer"
+                              className="p-1.5 rounded-lg transition cursor-pointer text-slate-500 hover:text-red-600 hover:bg-red-50"
+                            >
+                              <ShieldAlert className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -412,20 +424,29 @@ const AdminEmployers = () => {
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleToggleVerification(selectedEmployer);
-                    setSelectedEmployer((prev) => ({ ...prev, isPublished: !prev.isPublished }));
-                  }}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                    selectedEmployer.isPublished
-                      ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                      : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                  }`}
-                >
-                  {selectedEmployer.isPublished ? "Revoke Verification" : "Approve & Verify Organization"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <VerificationBadge status={selectedEmployer.verificationStatus} />
+                  {canVerify && selectedEmployer.verificationStatus !== "approved" && (
+                    <button
+                      type="button"
+                      disabled={updatingId === selectedEmployer._id}
+                      onClick={() => handleVerification(selectedEmployer, "approved")}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                  )}
+                  {canVerify && selectedEmployer.verificationStatus !== "rejected" && (
+                    <button
+                      type="button"
+                      disabled={updatingId === selectedEmployer._id}
+                      onClick={() => handleVerification(selectedEmployer, "rejected")}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => setSelectedEmployer(null)}

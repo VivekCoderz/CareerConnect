@@ -132,7 +132,7 @@ const ApplyReviewModal = ({
                     if (meta?.fileName) setCustomResumeName(meta.fileName);
                   }}
                   label="Custom Application Resume"
-                  helperText="Upload PDF, DOC, DOCX up to 10MB or paste an online link."
+                  helperText="Upload a PDF up to 10MB or paste an online link."
                 />
               </div>
             ) : (

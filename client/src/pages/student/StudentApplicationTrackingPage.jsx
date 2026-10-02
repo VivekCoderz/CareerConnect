@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getApplicationById, withdraw } from "../../services/applicationService";
 import { useSelector } from "react-redux";
+import { openResume } from "../../utils/resumeAccess";
 
 const DEFAULT_STAGES = [
   { name: "Resume Screening", type: "Resume Screening", order: 0 },
@@ -702,14 +703,13 @@ export default function StudentApplicationTrackingPage() {
                   <p className="text-[10px] text-slate-400">Attached with initial application</p>
                 </div>
               </div>
-              <a
-                href={application.resumeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => openResume(application.resumeUrl)}
                 className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-[#1e3a8a] transition"
               >
                 View Document ↗
-              </a>
+              </button>
             </div>
           )}
 

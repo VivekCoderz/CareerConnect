@@ -228,6 +228,13 @@ const ProfessionalHeader = ({
                   >
                     Career & Privacy Settings
                   </button>
+                  <Link
+                    to="/account"
+                    onClick={() => setShowProfileMenu(false)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-purple-700 transition text-left"
+                  >
+                    Account Settings
+                  </Link>
                 </div>
                 <div className="pt-1 border-t border-slate-100">
                   <button

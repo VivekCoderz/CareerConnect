@@ -16,6 +16,7 @@ const DashboardPage = ({
   data = null,
   onPostJob,
   onPostInternship,
+  postingDisabled = false,
   onViewApplications,
   onScheduleInterview,
   onViewPipeline,
@@ -127,6 +128,7 @@ const DashboardPage = ({
         <QuickActions
           onPostJob={onPostJob}
           onPostInternship={onPostInternship}
+          postingDisabled={postingDisabled}
           onViewApplications={onViewApplications}
           onScheduleInterview={onScheduleInterview}
           onViewPipeline={onViewPipeline}
@@ -175,6 +177,7 @@ const DashboardPage = ({
             jobs={activeJobs}
             loading={loading}
             onPostJob={onPostJob}
+            postingDisabled={postingDisabled}
             onViewJob={onJobClick}
             onViewJobApplications={(jobId) => onNavigate?.(`/jobs/${jobId}/applications`)}
             onViewAllJobs={onViewAllJobs}

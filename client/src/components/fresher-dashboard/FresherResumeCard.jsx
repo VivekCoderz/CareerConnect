@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { getResumeHref } from "../../utils/resumeAccess";
+import { openResume } from "../../utils/resumeAccess";
 
 const FresherResumeCard = ({ resumeData = {} }) => {
   const hasResume = Boolean(resumeData?.resumeUrl || resumeData?.resumeName);
@@ -62,14 +62,13 @@ const FresherResumeCard = ({ resumeData = {} }) => {
 
             <div className="flex flex-wrap items-center gap-2">
               {resumeData.resumeUrl ? (
-                <a
-                  href={getResumeHref(resumeData.resumeUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => openResume(resumeData.resumeUrl)}
                   className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition"
                 >
                   View Resume
-                </a>
+                </button>
               ) : (
                 <Link
                   to="/resume-builder"

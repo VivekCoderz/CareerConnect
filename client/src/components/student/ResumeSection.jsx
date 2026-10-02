@@ -4,7 +4,7 @@ import { updateStudentProfile } from "../../services/studentProfileService";
 import { parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
 import ParsedResumeReviewModal from "../resume-builder/ParsedResumeReviewModal";
 import ResumeUploadInput from "../common/ResumeUploadInput";
-import { getResumeHref } from "../../utils/resumeAccess";
+import { openResume } from "../../utils/resumeAccess";
 
 const ResumeSection = ({
   resume,
@@ -169,14 +169,13 @@ const ResumeSection = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <a
-              href={getResumeHref(resume.resumeUrl)}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={() => openResume(resume.resumeUrl)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition self-start sm:self-center"
             >
               View Live Resume ↗
-            </a>
+            </button>
             <Link
               to="/resume-builder?mode=ats"
               className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-xl transition self-start sm:self-center inline-flex items-center gap-1"
@@ -197,7 +196,7 @@ const ResumeSection = ({
             value={url}
             onChange={handleResumeChange}
             label="Resume Document or Online Link"
-            helperText="Supported formats: PDF, DOC, DOCX up to 10MB or direct URLs."
+            helperText="Supported format: PDF up to 10MB or direct URLs."
           />
 
           <div>

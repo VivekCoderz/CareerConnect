@@ -28,6 +28,8 @@ const {
   parseJobDescriptionText,
   selectBestATSResume,
 } = require("../services/atsScoringService.js");
+const { runWithGeminiCascade } = require("../services/geminiCascade");
+const { splitOtherSkills } = require("../utils/skills");
 const mongoose = require("mongoose");
 const atsPdfWorkflow = require("../services/atsPdfWorkflow");
 
@@ -645,12 +647,16 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
     if (education.length > 0) profile.education = education;
     if (projects.length > 0) profile.projects = projects;
     if (experience.length > 0) profile.experience = experience;
+    // "Other" skills are mostly technical (HTML5, NumPy, DBMS...); only real
+    // interpersonal skills go to softSkills (T02).
+    const otherSkills = splitOtherSkills(splitSkills(rawData.skills?.other));
     profile.technicalSkills = [
       ...splitSkills(rawData.skills?.programmingLanguages),
       ...splitSkills(rawData.skills?.frameworks),
       ...splitSkills(rawData.skills?.tools),
+      ...otherSkills.technical,
     ];
-    profile.softSkills = splitSkills(rawData.skills?.other);
+    profile.softSkills = otherSkills.soft;
     profile.interests =
       profile.interests && profile.interests.length > 0
         ? profile.interests
@@ -1270,39 +1276,18 @@ ${rawText.slice(0, 10000)}
 `;
 
   const genAI = new GoogleGenerativeAI(key);
-  const modelsToTry = [
-    process.env.GEMINI_MODEL,
-    "gemini-3.6-flash",
-    "gemini-flash-lite-latest",
-    "gemini-3.5-flash-lite",
-    "gemini-3-flash-preview",
-    "gemini-flash-latest",
-    "gemini-3.8-flash",
-  ].filter(Boolean);
-  const uniqueModels = [...new Set(modelsToTry)];
-
-  for (const modelName of uniqueModels) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text() || "{}";
-        const cleanJson = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-        return JSON.parse(cleanJson);
-      } catch (err) {
-        const isTransient = /503|fetch failed|terminated|high demand|overloaded|ECONNRESET/i.test(err.message);
-        if (isTransient && attempt < 2) {
-          console.warn(`AI resume parsing with ${modelName} attempt ${attempt} transient issue (${err.message}). Retrying in 1200ms...`);
-          await new Promise((r) => setTimeout(r, 1200));
-          continue;
-        }
-        console.warn(`AI resume parsing with ${modelName} warning:`, err.message);
-        break;
-      }
-    }
+  try {
+    // At most GEMINI_MAX_CALLS (default 2) calls; see services/geminiCascade.js
+    return await runWithGeminiCascade(async (modelName) => {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text() || "{}";
+      const cleanJson = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+      return JSON.parse(cleanJson);
+    }, { label: "AI resume parsing" });
+  } catch {
+    return null;
   }
-
-  return null;
 };
 
 /**
