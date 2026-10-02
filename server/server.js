@@ -40,7 +40,6 @@ if (!SESSION_SECRET) {
 const app = require("./app.js");
 const connectDB = require("./config/db");
 const socketService = require("./services/socketService");
-const { getInterviewTimeDetails } = require("./utils/interviewTimeUtils");
 
 const PORT = process.env.PORT || 5000;
 
@@ -52,28 +51,10 @@ const server = http.createServer(app);
 // Initialize Socket.IO
 socketService.init(server);
 
-// Background job: Automatically sync expired interviews every 60s
-setInterval(async () => {
-  try {
-    const Interview = require("./models/Interview");
-    const activeInterviews = await Interview.find({
-      status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
-    });
-
-    const now = new Date();
-    for (const interview of activeInterviews) {
-      const timeDetails = getInterviewTimeDetails(interview, now);
-      if (timeDetails.isTimePast) {
-        interview.status = "completed";
-        interview.completedAt = timeDetails.endDateTime || now;
-        await interview.save();
-        socketService.emitInterviewStatusUpdated(interview.candidateId, interview);
-      }
-    }
-  } catch (err) {
-    // Silent catch for background job
-  }
-}, 60000);
+// Background job: mark interviews whose end time has passed as completed (every 5 min + on startup)
+const { sweepPastInterviews } = require("./services/interviewSweep");
+sweepPastInterviews();
+setInterval(sweepPastInterviews, 5 * 60 * 1000);
 
 server.listen(PORT, () => {
   console.log(`CareerConnect server running on port ${PORT} 🔥 (with Socket.IO enabled)`);

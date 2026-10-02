@@ -399,11 +399,6 @@
       "count": 1
     }
   },
-  "server.js": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "services/aiResumeservice.js": {
     "max-lines": {
       "count": 1
