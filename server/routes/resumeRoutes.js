@@ -31,19 +31,18 @@ const {
 
 const router = express.Router();
 
-// Multer memory storage for Cloudinary upload
+// Multer memory storage for Cloudinary upload (PDF only for launch consistency)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 8, parts: 9 },
   fileFilter: (req, file, cb) => {
     const original = (file.originalname || "").toLowerCase();
-    const mimeByExtension = original.endsWith(".pdf") ? "application/pdf"
-      : original.endsWith(".docx") ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      : original.endsWith(".doc") ? "application/msword" : null;
-    if (mimeByExtension && [mimeByExtension, "application/octet-stream"].includes(file.mimetype)) {
+    const isPdfName = original.endsWith(".pdf");
+    const isPdfMime = ["application/pdf", "application/octet-stream"].includes(file.mimetype);
+    if (isPdfName && isPdfMime) {
       cb(null, true);
     } else {
-      const error = new Error("Only PDF, DOC, and DOCX files are allowed");
+      const error = new Error("Only PDF files are allowed for resume upload");
       error.statusCode = 400;
       cb(error);
     }
@@ -52,7 +51,7 @@ const upload = multer({
 
 const validateResumeUpload = (req, res, next) => {
   if (req.file && !isResumeFile(req.file)) {
-    return res.status(400).json({ success: false, message: "Invalid resume file" });
+    return res.status(400).json({ success: false, message: "Invalid resume file. Only valid PDF files are accepted." });
   }
   next();
 };

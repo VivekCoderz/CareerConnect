@@ -11,8 +11,6 @@ const isResumeFile = (file) => {
   const name = (file?.originalname || "").toLowerCase();
   const buffer = file?.buffer;
   if (name.endsWith(".pdf")) return isPdf(buffer);
-  if (name.endsWith(".docx")) return isDocx(buffer);
-  if (name.endsWith(".doc")) return isDoc(buffer);
   return false;
 };
 

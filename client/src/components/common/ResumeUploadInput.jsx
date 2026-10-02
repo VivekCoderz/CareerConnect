@@ -45,20 +45,15 @@ export default function ResumeUploadInput({
     if (!file) return "No file selected.";
 
     const originalName = (file.name || "").toLowerCase();
-    const isAllowedExt =
-      originalName.endsWith(".pdf") ||
-      originalName.endsWith(".doc") ||
-      originalName.endsWith(".docx");
+    const isAllowedExt = originalName.endsWith(".pdf");
 
     const isAllowedMime = [
       "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/octet-stream",
     ].includes(file.type);
 
     if (!isAllowedExt && !isAllowedMime) {
-      return "Invalid file format. Only PDF, DOC, and DOCX files are allowed.";
+      return "Invalid file format. Only PDF files are allowed.";
     }
 
     const maxSize = 10 * 1024 * 1024; // 10MB
@@ -198,7 +193,7 @@ export default function ResumeUploadInput({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept=".pdf,application/pdf"
             onChange={handleFileChange}
             className="hidden"
             id="resume-device-file-input"
@@ -216,7 +211,7 @@ export default function ResumeUploadInput({
                 Click to browse or drop resume file
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Supported formats: <strong className="text-slate-700">PDF, DOC, DOCX</strong> (Up to 10 MB)
+                Supported formats: <strong className="text-slate-700">PDF</strong> (Up to 10 MB)
               </p>
             </div>
           ) : (
