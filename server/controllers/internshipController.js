@@ -17,6 +17,7 @@ const {
   escapeRegex,
   resolveNewListingModeration,
   checkEmployerStatusChange,
+  toPublicListing,
 } = require("../utils/listingSecurity");
 const { sanitizeRecruitmentStages } = require("./jobController");
 const { getPlatformSettings } = require("../services/platformSettings");
@@ -607,7 +608,7 @@ exports.getInternshipById = async (req, res, next) => {
             `scraped-rec-int-${idx}` === id ||
             `scraped-rec-job-${idx}` === id ||
             item.title === id
-        ) || (aggregated.data || [])[0];
+        );
 
         if (match) {
           const formatted = {
@@ -678,10 +679,11 @@ exports.getInternshipById = async (req, res, next) => {
       await internship.constructor.updateOne({ _id: internship._id }, { $inc: { viewsCount: 1 } });
     }
 
+    const publicInternship = toPublicListing(internship, req.user);
     return res.status(200).json({
       success: true,
-      internship,
-      data: internship,
+      internship: publicInternship,
+      data: publicInternship,
     });
   } catch (error) {
     next(error);

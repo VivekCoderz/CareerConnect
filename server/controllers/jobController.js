@@ -10,6 +10,7 @@ const {
   escapeRegex,
   resolveNewListingModeration,
   checkEmployerStatusChange,
+  toPublicListing,
 } = require("../utils/listingSecurity");
 
 // S07: job listings are served from the database only. clearSearchCache stays
@@ -316,7 +317,7 @@ exports.getJobById = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      job,
+      job: toPublicListing(job, req.user),
     });
   } catch (error) {
     next(error);

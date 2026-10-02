@@ -72,8 +72,23 @@ const checkEmployerStatusChange = (listing, nextStatus) => {
   return { code: 403, message: "This listing must be approved by an admin before it can be published" };
 };
 
+// Moderation details are for the listing's owner and platform admins only; the
+// public detail pages must not show them.
+const INTERNAL_LISTING_FIELDS = [
+  "adminNote", "rejectionReason", "rejectedBy", "rejectedAt", "approvedBy", "approvalMethod",
+];
+
+const toPublicListing = (listing, user) => {
+  const plain = typeof listing?.toObject === "function" ? listing.toObject() : { ...listing };
+  const ownerId = plain.createdBy?._id || plain.createdBy;
+  if (isPlatformAdmin(user) || (user && String(ownerId) === String(user._id))) return plain;
+  for (const field of INTERNAL_LISTING_FIELDS) delete plain[field];
+  return plain;
+};
+
 module.exports = {
   pickListingUpdate,
+  toPublicListing,
   requiresReapproval,
   escapeRegex,
   isPlatformAdmin,
