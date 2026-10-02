@@ -348,6 +348,14 @@ const EmployerNavbar = ({
                   <User className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
                   <span>Company Profile</span>
                 </Link>
+                <Link
+                  to="/account"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="flex items-center gap-2 px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-amber-800 font-semibold transition"
+                >
+                  <User className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+                  <span>Account Settings</span>
+                </Link>
                 <button
                   type="button"
                   onClick={() => {

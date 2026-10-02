@@ -12,6 +12,7 @@ const { initialVerificationFields } = require("../middleware/employerVerificatio
 const getFirebaseAdmin = require("../config/firebaseAdmin.js");
 const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
+const { deleteAccount } = require("../services/accountDeletion.js");
 
 // ==========================================
 // PASSWORD VALIDATION & HELPERS
@@ -1224,6 +1225,46 @@ module.exports.completePasswordSetup = async (req, res, next) => {
       token,
       user: userPayload(user),
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// DELETE MY ACCOUNT
+// DELETE /api/auth/account
+// body: { password } for accounts with a password, { confirm: "DELETE" } for Google-only accounts
+// ==========================================
+module.exports.deleteMyAccount = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select("+password");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Account not found" });
+    }
+    if (["SUPER_ADMIN", "COMPANY_ADMIN", "admin"].includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin accounts are removed by a CareerConnect administrator.",
+      });
+    }
+
+    const { password, confirm } = req.body || {};
+    if (user.password) {
+      if (typeof password !== "string" || !password || !(await user.comparePassword(password))) {
+        return res.status(401).json({ success: false, code: "INVALID_PASSWORD", message: "Password is incorrect." });
+      }
+    } else if (confirm !== "DELETE") {
+      return res.status(400).json({ success: false, code: "CONFIRMATION_REQUIRED", message: 'Type "DELETE" to confirm.' });
+    }
+
+    await deleteAccount(user);
+
+    const cookieOptions = { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax" };
+    res.clearCookie("token", cookieOptions);
+    res.clearCookie("sid", { ...cookieOptions, path: "/" });
+    if (req.session) req.session.destroy(() => {});
+
+    return res.status(200).json({ success: true, message: "Your account and personal data have been deleted." });
   } catch (error) {
     next(error);
   }

@@ -453,8 +453,8 @@ exports.getEmployerDashboard = async (req, res, next) => {
       status: app.status || "Reviewing",
       appliedDate: app.createdAt ? new Date(app.createdAt).toISOString().split("T")[0] : "Recent",
       matchScore: app.matchScore || 85,
-      cgpa: app.cgpa || "8.5",
-      degree: app.degree || "Geeta University Student",
+      cgpa: app.cgpa || "",
+      degree: app.degree || "",
     }));
 
     const activeListings = [

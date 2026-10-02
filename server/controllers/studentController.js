@@ -5,6 +5,7 @@ const Application = require("../models/Application");
 const Course = require("../models/Course");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 const mongoose = require("mongoose")
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 
@@ -17,6 +18,16 @@ const ROLE_SKILL_BENCHMARKS = {
   "Data Scientist / Analyst": ["Python", "SQL", "Pandas", "NumPy", "Machine Learning", "Data Visualization", "PowerBI"],
   "DevOps Engineer": ["Linux", "Docker", "Kubernetes", "AWS", "CI/CD", "Git", "Terraform"],
 };
+
+// A student without a profile gets an empty one: only schema defaults, never sample
+// skills, education or goals (those would show up as the student's own data).
+// Upsert so two concurrent first requests don't race to create duplicates.
+const createEmptyStudentProfile = (userId) =>
+  StudentProfile.findOneAndUpdate(
+    { userId },
+    { $setOnInsert: { userId } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
 
 // Calculate profile completion percentage (0 - 100)
 const calculateProfileCompletion = (profile, user) => {
@@ -89,13 +100,15 @@ const calculateCareerReadiness = (profile, completion) => {
 const analyzeSkillGap = (profile) => {
   const targetRole = profile?.careerGoal || profile?.jobPreferences?.preferredRoles?.[0] || "Full Stack Developer";
   const benchmarkSkills = ROLE_SKILL_BENCHMARKS[targetRole] || ROLE_SKILL_BENCHMARKS["Full Stack Developer"];
-  const studentSkills = (profile?.technicalSkills || []).map((s) => s.trim().toLowerCase());
+  // Compare normalised names over all skills, so React.js counts as React and
+  // RESTful APIs counts as REST API (T03).
+  const studentSkills = normalizedSkillSet([...(profile?.technicalSkills || []), ...(profile?.softSkills || [])]);
 
   const mastered = [];
   const recommendedToLearn = [];
 
   benchmarkSkills.forEach((skill) => {
-    if (studentSkills.includes(skill.toLowerCase())) {
+    if (studentSkills.has(normalizeSkill(skill))) {
       mastered.push(skill);
     } else {
       recommendedToLearn.push(skill);
@@ -118,30 +131,9 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     const userId = req.user._id;
     let profile = await StudentProfile.findOne({ userId });
 
-    // Auto-create initial profile if none exists
+    // Auto-create an empty profile if none exists
     if (!profile) {
-      profile = await StudentProfile.create({
-        userId,
-        technicalSkills: ["JavaScript", "React", "Node.js", "Git"],
-        softSkills: ["Communication", "Problem Solving", "Teamwork"],
-        education: [
-          {
-            institution: "Geeta University",
-            degree: "B.Tech Computer Science",
-            fieldOfStudy: "Computer Science & Engineering",
-            startYear: 2024,
-            endYear: 2028,
-            currentlyStudying: true,
-          },
-        ],
-        careerGoal: "Full Stack Developer",
-        jobPreferences: {
-          preferredRoles: ["Full Stack Developer", "Frontend Developer"],
-          preferredLocations: ["Bangalore", "Gurgaon", "Remote"],
-          jobTypes: ["internship", "full-time"],
-          remote: true,
-        },
-      });
+      profile = await createEmptyStudentProfile(userId);
     }
 
     // Fallback sync: if profile has no resumeUrl, but req.user has resumeUrl, sync it now
@@ -499,7 +491,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         achievements: profile.achievements || [],
         experience: profile.experience || [],
         resume: profile.resume || {},
-        careerGoal: profile.careerGoal || "Full Stack Developer",
+        careerGoal: profile.careerGoal || "",
         jobPreferences: profile.jobPreferences || {},
         recommendedInternships: finalRecommendedInternships,
         recommendedJobs: finalRecommendedJobs,
@@ -534,19 +526,7 @@ module.exports.getStudentProfile = async (req, res, next) => {
     );
 
     if (!profile) {
-      profile = await StudentProfile.create({
-        userId,
-        technicalSkills: ["JavaScript", "React", "Node.js"],
-        education: [
-          {
-            institution: "Geeta University",
-            degree: "B.Tech Computer Science",
-            startYear: 2024,
-            endYear: 2028,
-            currentlyStudying: true,
-          },
-        ],
-      });
+      profile = await createEmptyStudentProfile(userId);
       profile = await profile.populate(
         "userId",
         "fullName email username phone profileImage socialLinks resumeUrl resumeName"
@@ -706,3 +686,4 @@ module.exports.applyOpportunity = (req, res) =>
     code: "ENDPOINT_RETIRED",
     message: "Use /api/applications/job/:jobId or /api/applications/internship/:internshipId",
   });
+module.exports.analyzeSkillGap = analyzeSkillGap;

@@ -37,6 +37,7 @@ const InternshipDiscoveryPage = lazyWithRetry(
   () => import("./pages/internships/InternshipDiscoveryPage"),
 );
 const OpportunitiesPage = lazyWithRetry(() => import("./pages/OpportunitiesPage"));
+const AccountSettings = lazyWithRetry(() => import("./pages/AccountSettings"));
 const OrganizationRequestPage = lazyWithRetry(() => import("./pages/organizations/OrganizationRequestPage"));
 const AdminActivate = lazyWithRetry(() => import("./pages/admin/AdminActivate"));
 
@@ -357,6 +358,11 @@ function AppRoutes() {
               path="/onboarding/employer"
               element={<GoogleEmployerOnboarding />}
             />
+
+            {/* ========== ACCOUNT SETTINGS: candidates and employers ========== */}
+            <Route element={<RoleProtectedRoute allowedRoles={["student", "fresher", "professional", "employer"]} />}>
+              <Route path="/account" element={<AccountSettings />} />
+            </Route>
 
             {/* ========== CANDIDATES: student + fresher + professional ========== */}
             <Route
