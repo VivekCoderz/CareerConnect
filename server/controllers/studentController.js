@@ -5,6 +5,7 @@ const Application = require("../models/Application");
 const Course = require("../models/Course");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 const mongoose = require("mongoose")
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 
@@ -89,13 +90,15 @@ const calculateCareerReadiness = (profile, completion) => {
 const analyzeSkillGap = (profile) => {
   const targetRole = profile?.careerGoal || profile?.jobPreferences?.preferredRoles?.[0] || "Full Stack Developer";
   const benchmarkSkills = ROLE_SKILL_BENCHMARKS[targetRole] || ROLE_SKILL_BENCHMARKS["Full Stack Developer"];
-  const studentSkills = (profile?.technicalSkills || []).map((s) => s.trim().toLowerCase());
+  // Compare normalised names over all skills, so React.js counts as React and
+  // RESTful APIs counts as REST API (T03).
+  const studentSkills = normalizedSkillSet([...(profile?.technicalSkills || []), ...(profile?.softSkills || [])]);
 
   const mastered = [];
   const recommendedToLearn = [];
 
   benchmarkSkills.forEach((skill) => {
-    if (studentSkills.includes(skill.toLowerCase())) {
+    if (studentSkills.has(normalizeSkill(skill))) {
       mastered.push(skill);
     } else {
       recommendedToLearn.push(skill);
@@ -706,3 +709,4 @@ module.exports.applyOpportunity = (req, res) =>
     code: "ENDPOINT_RETIRED",
     message: "Use /api/applications/job/:jobId or /api/applications/internship/:internshipId",
   });
+module.exports.analyzeSkillGap = analyzeSkillGap;

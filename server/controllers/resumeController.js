@@ -29,6 +29,7 @@ const {
   selectBestATSResume,
 } = require("../services/atsScoringService.js");
 const { runWithGeminiCascade } = require("../services/geminiCascade");
+const { splitOtherSkills } = require("../utils/skills");
 const mongoose = require("mongoose");
 const atsPdfWorkflow = require("../services/atsPdfWorkflow");
 
@@ -646,12 +647,16 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
     if (education.length > 0) profile.education = education;
     if (projects.length > 0) profile.projects = projects;
     if (experience.length > 0) profile.experience = experience;
+    // "Other" skills are mostly technical (HTML5, NumPy, DBMS...); only real
+    // interpersonal skills go to softSkills (T02).
+    const otherSkills = splitOtherSkills(splitSkills(rawData.skills?.other));
     profile.technicalSkills = [
       ...splitSkills(rawData.skills?.programmingLanguages),
       ...splitSkills(rawData.skills?.frameworks),
       ...splitSkills(rawData.skills?.tools),
+      ...otherSkills.technical,
     ];
-    profile.softSkills = splitSkills(rawData.skills?.other);
+    profile.softSkills = otherSkills.soft;
     profile.interests =
       profile.interests && profile.interests.length > 0
         ? profile.interests

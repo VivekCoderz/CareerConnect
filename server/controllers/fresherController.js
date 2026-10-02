@@ -6,6 +6,7 @@ const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
+const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 
 // Skill benchmarks for target roles for Job Matching & Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -822,9 +823,10 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       });
     }
 
-    const userSkillsSet = new Set(allProfileSkills.map((s) => s.toLowerCase()));
+    // Normalised comparison: React.js counts as React (T03)
+    const userSkillsSet = normalizedSkillSet(allProfileSkills);
     const missingSkills = benchmarks.filter(
-      (s) => !userSkillsSet.has(s.toLowerCase()),
+      (s) => !userSkillsSet.has(normalizeSkill(s)),
     );
 
     const skillReasons = {
