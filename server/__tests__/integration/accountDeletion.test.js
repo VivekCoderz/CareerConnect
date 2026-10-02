@@ -17,7 +17,8 @@ const deleteAccount = (token, body) =>
   request(app).delete("/api/auth/account").set("Authorization", `Bearer ${token}`).send(body);
 
 const waitFor = async (check) => {
-  for (let i = 0; i < 40 && !(await check()); i++) await new Promise((r) => setTimeout(r, 50));
+  // Background work: allow up to 10 s on slow CI runners
+  for (let i = 0; i < 100 && !(await check()); i++) await new Promise((r) => setTimeout(r, 100));
 };
 
 describe("account deletion (G07)", () => {

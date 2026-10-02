@@ -196,7 +196,7 @@ const ResumeSection = ({
             value={url}
             onChange={handleResumeChange}
             label="Resume Document or Online Link"
-            helperText="Supported formats: PDF, DOC, DOCX up to 10MB or direct URLs."
+            helperText="Supported format: PDF up to 10MB or direct URLs."
           />
 
           <div>

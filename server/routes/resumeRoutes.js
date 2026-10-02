@@ -36,13 +36,12 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 8, parts: 9 },
   fileFilter: (req, file, cb) => {
-    const original = (file.originalname || "").toLowerCase();
-    const isPdfName = original.endsWith(".pdf");
-    const isPdfMime = ["application/pdf", "application/octet-stream"].includes(file.mimetype);
-    if (isPdfName && isPdfMime) {
+    // PDF only: resumes are parsed, ATS-checked and previewed as PDF (G10).
+    const isPdfName = (file.originalname || "").toLowerCase().endsWith(".pdf");
+    if (isPdfName && ["application/pdf", "application/octet-stream"].includes(file.mimetype)) {
       cb(null, true);
     } else {
-      const error = new Error("Only PDF files are allowed for resume upload");
+      const error = new Error("Please upload your resume as a PDF file (max 10 MB)");
       error.statusCode = 400;
       cb(error);
     }

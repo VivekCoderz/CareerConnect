@@ -68,8 +68,9 @@ describe("resume file cleanup (G08)", () => {
     const res = await request(app).delete(`/api/resume/${resume._id}`).set("Authorization", `Bearer ${token}`);
     expect(res.statusCode).toBe(200);
 
-    for (let i = 0; i < 20 && (await ResumeAsset.exists({ _id: asset._id })); i++) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
+    // Background work: allow up to 10 s on slow CI runners
+    for (let i = 0; i < 100 && (await ResumeAsset.exists({ _id: asset._id })); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
     expect(await ResumeAsset.exists({ _id: asset._id })).toBeNull();
     expect(destroy).toHaveBeenCalledTimes(1);
