@@ -70,7 +70,7 @@ We keep your data for as long as your account is active. If you delete your acco
 You can:
 
 - **access and correct** your data from your profile settings;
-- **delete your account** and its data from [Settings → Delete account];
+- **delete your account** and its data from **Account settings → Delete account** (/account);
 - **withdraw consent** at any time by deleting your account (this does not affect processing that happened before);
 - **nominate** another person to exercise your rights if you die or become unable to do so;
 - **raise a complaint** with our Grievance Officer (section 9). If you are not satisfied with the response, you may approach the Data Protection Board of India.

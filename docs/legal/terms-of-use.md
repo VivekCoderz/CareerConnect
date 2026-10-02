@@ -58,7 +58,7 @@ CareerConnect is provided "as is". To the extent the law allows, we are not liab
 
 ## 10. Ending your account
 
-You can delete your account at any time from [Settings → Delete account]. We may suspend or close accounts that break these terms.
+You can delete your account at any time from **Account settings → Delete account** (/account). We may suspend or close accounts that break these terms.
 
 ## 11. Changes
 
