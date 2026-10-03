@@ -203,6 +203,8 @@ const internshipSchema = new mongoose.Schema(
 internshipSchema.index({ employerId: 1, status: 1 });
 // Expiry sweep and public "still open" filter
 internshipSchema.index({ status: 1, deadline: 1 });
+// Public internship list: status filter + newest-first sort
+internshipSchema.index({ status: 1, createdAt: -1 });
 internshipSchema.index({ status: 1, isExternal: 1 });
 internshipSchema.index({ requiredSkills: 1 });
 internshipSchema.index(

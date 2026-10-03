@@ -461,14 +461,15 @@ exports.getMyApplications = async (req, res, next) => {
       .populate("internshipId", "title stipend duration location workMode status companyName")
       .populate("jobId", "title location employmentType workMode status companyName recruitmentStages")
       .populate("employerId", "companyName logo industry")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     const appIds = applications.map((a) => a._id);
     const interviews = await Interview.find({
       applicationId: { $in: appIds },
     }).select(
       "applicationId scheduledDate scheduledTime startTime duration durationMinutes meetingMode meetingLink location instructions roundName roundNumber status result"
-    );
+    ).lean();
 
     const interviewMap = {};
     interviews.forEach((inv) => {
@@ -607,12 +608,13 @@ exports.getEmployerApplications = async (req, res, next) => {
       .populate("candidateId", "fullName email phone profileImage userType location skills")
       .populate("internshipId", "title stipend duration location workMode")
       .populate("jobId", "title employmentType location workMode")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     const appIds = applications.map((a) => a._id);
     const interviews = await Interview.find({ applicationId: { $in: appIds } }).select(
       "applicationId scheduledDate scheduledTime startTime duration durationMinutes meetingMode meetingLink location instructions roundName roundNumber status result scorecard"
-    );
+    ).lean();
 
     const interviewMap = {};
     interviews.forEach((inv) => {

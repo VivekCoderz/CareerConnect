@@ -1,6 +1,7 @@
 require("dotenv").config({ override: true });
 const express = require("express");
 const cors = require("cors");
+const compression = require("compression");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
@@ -43,6 +44,9 @@ const dbStatus = require("./utils/dbStatus");
 
 const app = express();
 configureTrustProxy(app);
+
+// Gzip responses over 1 KB (job and internship lists in particular)
+app.use(compression());
 
 const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
 

@@ -134,20 +134,8 @@ exports.getJobs = async (req, res, next) => {
       query.status = "Published";
     }
 
-    const searchTerm = escapeRegex((search || q || "").trim());
-    if (searchTerm) {
-      const searchCond = [
-        { title: { $regex: searchTerm, $options: "i" } },
-        { description: { $regex: searchTerm, $options: "i" } },
-        { requiredSkills: { $in: [new RegExp(searchTerm, "i")] } },
-      ];
-      if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: searchCond }];
-        delete query.$or;
-      } else {
-        query.$or = searchCond;
-      }
-    }
+    // Keyword search is applied after the other filters are built (see findPage below).
+    const rawSearch = (search || q || "").trim();
 
     const reqType = req.query.employmentType || req.query.opportunityType || req.query.type;
     if (reqType && reqType !== "All" && reqType !== "all") {
@@ -216,17 +204,43 @@ exports.getJobs = async (req, res, next) => {
     // Candidates never see listings whose deadline has passed, even before the sweep closes them.
     if (!isMyJobs) withOpenDeadline(query);
 
+    // Search uses the job_text_search index (whole words, as a phrase). If that finds nothing,
+    // fall back to the substring regex so partial words such as "devel" still match.
+    const textPhrase = rawSearch.replace(/"/g, " ").trim();
+    const textQuery = textPhrase ? { ...query, $text: { $search: `"${textPhrase}"` } } : null;
+    let regexQuery = query;
+    if (rawSearch) {
+      const searchTerm = escapeRegex(rawSearch);
+      const searchCond = [
+        { title: { $regex: searchTerm, $options: "i" } },
+        { description: { $regex: searchTerm, $options: "i" } },
+        { requiredSkills: { $in: [new RegExp(searchTerm, "i")] } },
+      ];
+      regexQuery = { ...query, $and: [...(query.$and || []), { $or: searchCond }] };
+    }
+
+    const findPage = (filter) => Promise.all([
+      Job.find(filter)
+        .populate("employerId", "companyName logo headquarters industry")
+        .sort(dbSort)
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      Job.countDocuments(filter),
+    ]);
+
     if (mongoose.connection.readyState === 1) {
       try {
-        [rawJobs, total] = await Promise.all([
-          Job.find(query)
-            .populate("employerId", "companyName logo headquarters industry")
-            .sort(dbSort)
-            .skip(skip)
-            .limit(pageSize)
-            .lean(),
-          Job.countDocuments(query),
-        ]);
+        if (textQuery) {
+          try {
+            [rawJobs, total] = await findPage(textQuery);
+          } catch (textErr) {
+            console.warn("MongoDB Job text search error, using regex:", textErr.message);
+          }
+        }
+        if (!textQuery || total === 0) {
+          [rawJobs, total] = await findPage(regexQuery);
+        }
       } catch (dbErr) {
         console.warn("MongoDB Job.find error:", dbErr.message);
       }
