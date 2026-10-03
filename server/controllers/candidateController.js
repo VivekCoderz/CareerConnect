@@ -3,10 +3,9 @@ const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
 const Job = require("../models/Job");
-const EmployerProfile = require("../models/EmployerProfile");
-const Internship = require("../models/Internship");
 const Application = require("../models/Application");
 const { escapeRegex } = require("../utils/listingSecurity");
+const { getOwnerScope, listingOwnerClauses, applicationOwnerClauses } = require("../utils/employerOwnership");
 const mongoose = require("mongoose");
 
 /**
@@ -130,20 +129,9 @@ const formatLocation = (location) => {
   return [location.city, location.state].filter(Boolean).join(", ") || null;
 };
 
-const getApplicantIdsForEmployer = async (userId, candidateIds) => {
+const getApplicantIdsForEmployer = async (user, candidateIds) => {
   if (candidateIds.length === 0) return new Set();
-  const profile = await EmployerProfile.findOne({ userId }).select("_id").lean();
-  const ownerClauses = [{ createdBy: userId }, ...(profile ? [{ employerId: profile._id }] : [])];
-  const [jobIds, internshipIds] = await Promise.all([
-    Job.find({ $or: ownerClauses }).distinct("_id"),
-    Internship.find({ $or: ownerClauses }).distinct("_id"),
-  ]);
-  const applicationClauses = [
-    ...(profile ? [{ employerId: profile._id }] : []),
-    ...(jobIds.length ? [{ jobId: { $in: jobIds } }] : []),
-    ...(internshipIds.length ? [{ internshipId: { $in: internshipIds } }] : []),
-  ];
-  if (applicationClauses.length === 0) return new Set();
+  const applicationClauses = await applicationOwnerClauses(await getOwnerScope(user));
   const applicantIds = await Application.find({
     candidateId: { $in: candidateIds },
     $or: applicationClauses,
@@ -172,10 +160,7 @@ exports.searchCandidates = async (req, res, next) => {
 
     let targetJob = null;
     if (jobId) {
-      const employer = await EmployerProfile.findOne({ userId: req.user._id }).select("_id").lean();
-      targetJob = await Job.findOne({ _id: jobId, $or: [
-        { createdBy: req.user._id }, ...(employer ? [{ employerId: employer._id }] : []),
-      ] });
+      targetJob = await Job.findOne({ _id: jobId, $or: listingOwnerClauses(await getOwnerScope(req.user)) });
       if (!targetJob) return res.status(404).json({ success: false, message: "Job not found" });
     }
 
@@ -215,7 +200,7 @@ exports.searchCandidates = async (req, res, next) => {
       professionalProfiles.filter((p) => p?.userId).map((p) => [p.userId.toString(), p])
     );
 
-    const applicantIds = await getApplicantIdsForEmployer(req.user._id, userIds);
+    const applicantIds = await getApplicantIdsForEmployer(req.user, userIds);
 
     const candidates = users.map((user) => {
       const uId = user._id.toString();
@@ -320,7 +305,7 @@ exports.getCandidateById = async (req, res, next) => {
       ])
     );
 
-    const applicantIds = await getApplicantIdsForEmployer(req.user._id, [user._id]);
+    const applicantIds = await getApplicantIdsForEmployer(req.user, [user._id]);
     if (!applicantIds.has(String(user._id))) {
       user.email = null;
       user.phone = null;

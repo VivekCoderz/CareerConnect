@@ -1,4 +1,5 @@
 // server/middleware/roleMiddleware.js
+const { getActiveCompany } = require("../utils/employerOwnership");
 
 /**
  * Middleware to restrict access to users with role === 'employer'
@@ -155,6 +156,26 @@ const requireCompanyAdmin = (req, res, next) => {
 };
 
 /**
+ * A Company Admin loses all company access while the company is inactive or deleted
+ * (ADM-11/12). Other roles pass through.
+ */
+const requireActiveCompany = async (req, res, next) => {
+  try {
+    if (req.user?.role !== "COMPANY_ADMIN") return next();
+    if (!(await getActiveCompany(req.user))) {
+      return res.status(403).json({
+        success: false,
+        code: "COMPANY_INACTIVE",
+        message: "Your company account is not active. Please contact platform support.",
+      });
+    }
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
  * Strict Multi-Tenant Scoping Middleware:
  * - If SUPER_ADMIN: Allows global access or optional company filtering
  * - If COMPANY_ADMIN: Strictly forces query scope to req.user.companyId.
@@ -262,5 +283,6 @@ module.exports = {
   requireAdmin,
   requireSuperAdmin,
   requireCompanyAdmin,
+  requireActiveCompany,
   scopeToCompany,
 };

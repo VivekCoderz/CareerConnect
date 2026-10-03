@@ -5,6 +5,8 @@ const sanitizeEmployerUpdate = (body) => {
   const data = sanitizeProfileUpdate(body);
   delete data.__v;
   delete data.isPublished;
+  delete data.verifiedAt;
+  delete data.verifiedBy;
   return data;
 };
 // server/controllers/employerController.js
@@ -22,6 +24,7 @@ const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
 const Course = require("../models/Course");
 const { getEmployerDashboardData } = require("../services/employerDashboardService");
+const { getActiveCompany } = require("../utils/employerOwnership");
 const { ipKeyGenerator } = require("express-rate-limit");
 
 /**
@@ -495,10 +498,17 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
     if (isObjectId) {
       profile = await EmployerProfile.findOne({
         $or: [{ _id: companyId }, { userId: companyId }],
-      }).populate("userId", "fullName email profileImage");
+      }).populate("userId", "fullName email profileImage companyId");
     }
 
-    if (!profile) {
+    // Only published, admin-approved profiles are public, and not while the employer's
+    // company is inactive or deleted (ADM-11/12). Anything else looks like "not found".
+    const isPublic = Boolean(profile) &&
+      profile.isPublished === true &&
+      profile.verificationStatus === "approved" &&
+      (!profile.userId?.companyId || Boolean(await getActiveCompany(profile.userId)));
+
+    if (!isPublic) {
       return res.status(404).json({
         success: false,
         message: "Company profile not found",

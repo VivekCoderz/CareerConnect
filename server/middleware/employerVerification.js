@@ -1,4 +1,5 @@
 const EmployerProfile = require("../models/EmployerProfile");
+const { getActiveCompany } = require("../utils/employerOwnership");
 
 const AWAITING_VERIFICATION = "Your company is awaiting verification";
 
@@ -14,7 +15,8 @@ const initialVerificationFields = (settings, now = new Date()) =>
     : { verificationStatus: "pending" };
 
 /**
- * Blocks posting unless the employer's profile has been approved by a platform admin.
+ * Blocks posting unless the employer's profile has been approved by a platform admin
+ * and, for an employer linked to a company, that company is active.
  * Pass `when(req)` to enforce only for some requests (e.g. re-publishing).
  * Attaches the profile as req.employerProfile.
  */
@@ -29,6 +31,16 @@ const requireVerifiedEmployer = ({ when } = {}) => async (req, res, next) => {
         code: "EMPLOYER_NOT_VERIFIED",
         verificationStatus: profile?.verificationStatus || null,
         message: AWAITING_VERIFICATION,
+      });
+    }
+
+    // An employer linked to a company can't post while that company is inactive or
+    // deleted (ADM-11/12).
+    if (req.user.companyId && !(await getActiveCompany(req.user))) {
+      return res.status(403).json({
+        success: false,
+        code: "COMPANY_INACTIVE",
+        message: "Your company account is not active, so new listings can't be posted.",
       });
     }
 

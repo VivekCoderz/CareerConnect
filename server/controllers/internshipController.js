@@ -1,6 +1,7 @@
 // server/controllers/internshipController.js
 const mongoose = require("mongoose");
 const Internship = require("../models/Internship");
+const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const { syncExternalInternships } = require("../services/externalInternships");
@@ -701,7 +702,7 @@ exports.updateInternship = async (req, res, next) => {
   try {
     const ownerQuery = {
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     };
     const internship = await Internship.findOne(ownerQuery);
 
@@ -738,7 +739,7 @@ exports.updateInternshipStatus = async (req, res, next) => {
 
     const ownerQuery = {
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     };
     const internship = await Internship.findOne(ownerQuery);
 
@@ -769,7 +770,7 @@ exports.deleteInternship = async (req, res, next) => {
   try {
     const ownerQuery = {
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     };
 
     let deleted = await Internship.findOneAndDelete(ownerQuery);

@@ -5,6 +5,7 @@ const {
   requireAdmin,
   requireSuperAdmin,
   requireCompanyAdmin,
+  requireActiveCompany,
   scopeToCompany,
 } = require("../middleware/roleMiddleware");
 const { loginLimiter } = require("../middleware/rateLimitMiddleware");
@@ -95,6 +96,9 @@ router.use(protect, requireAdmin);
 
 // Current admin identity & permissions
 router.get("/me", getAdminMe);
+
+// Everything below needs an active company for a Company Admin (ADM-11/12).
+router.use(requireActiveCompany);
 
 // Role-Aware Dynamic Dashboard
 router.get("/dashboard", getAdminDashboard);

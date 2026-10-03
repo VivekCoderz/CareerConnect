@@ -92,10 +92,11 @@ const internshipSchema = new mongoose.Schema(
       enum: ["admin", "auto", "legacy", null],
       default: null,
     },
-    // Why the platform closed the listing (deadline passed, or its employer was rejected).
+    // Why the platform closed the listing (deadline passed, its employer was rejected, or its
+    // company was deactivated or deleted).
     closedReason: {
       type: String,
-      enum: ["expired", "employer_rejected", null],
+      enum: ["expired", "employer_rejected", "company_inactive", null],
       default: null,
     },
     closedAt: {
