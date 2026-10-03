@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Job = require("../models/Job");
+const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
@@ -125,12 +126,7 @@ exports.getJobs = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({ success: false, message: "Not authenticated" });
       }
-      const employerProfile = await EmployerProfile.findOne({ userId: req.user._id });
-      const orConditions = [{ createdBy: req.user._id }];
-      if (employerProfile) {
-        orConditions.push({ employerId: employerProfile._id });
-      }
-      query.$or = orConditions;
+      query.$or = listingOwnerClauses(await getOwnerScope(req.user));
       if (status && status !== "All") {
         query.status = status;
       }
@@ -458,7 +454,7 @@ exports.updateJob = async (req, res, next) => {
   try {
     const job = await Job.findOne({
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     });
 
     if (!job) {
@@ -500,7 +496,7 @@ exports.updateJobStatus = async (req, res, next) => {
 
     const job = await Job.findOne({
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     });
 
     if (!job) {
@@ -537,7 +533,7 @@ exports.duplicateJob = async (req, res, next) => {
   try {
     const original = await Job.findOne({
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     });
 
     if (!original) {
@@ -586,7 +582,7 @@ exports.deleteJob = async (req, res, next) => {
   try {
     const ownerQuery = {
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     };
     let job = await Job.findOneAndDelete(ownerQuery);
     if (!job) {

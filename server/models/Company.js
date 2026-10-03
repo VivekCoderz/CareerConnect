@@ -60,9 +60,15 @@ const companySchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["active", "inactive", "suspended", "pending", "ACTIVE", "INACTIVE", "SUSPENDED", "PENDING"],
+      // "deleted" is a soft delete (ADM-12): the company and its data stay, but it is hidden
+      // and its users lose the company context.
+      enum: ["active", "inactive", "suspended", "pending", "deleted", "ACTIVE", "INACTIVE", "SUSPENDED", "PENDING"],
       default: "active",
       index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
     },
     settings: {
       allowedDomains: {
