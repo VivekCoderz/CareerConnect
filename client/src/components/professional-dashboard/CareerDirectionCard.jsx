@@ -1,6 +1,6 @@
 const CareerDirectionCard = ({
-  currentRole = "Senior Software Engineer",
-  targetRole = "Engineering Lead",
+  currentRole = "Not set yet",
+  targetRole = "Not set yet",
   focusAreas = ["System Design", "Cloud Architecture", "Leadership"],
   onViewCareerPath,
 }) => {
