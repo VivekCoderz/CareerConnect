@@ -2,7 +2,7 @@ import React from "react";
 import { FEATURES } from "../../config/features";
 
 const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onViewDetails }) => {
-  const matchScore = candidate.matchPercentage || 85;
+  const matchScore = candidate.matchPercentage ?? 0;
 
   return (
     <div className="p-5 rounded-3xl bg-white border border-slate-200/80 hover:border-amber-300 shadow-2xs hover:shadow-xs transition space-y-4 flex flex-col justify-between">

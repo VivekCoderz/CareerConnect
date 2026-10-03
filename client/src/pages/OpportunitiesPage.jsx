@@ -475,7 +475,7 @@ export default function OpportunitiesPage() {
                 onChange={(e) => setSource(e.target.value)}
                 className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium outline-none focus:border-blue-600"
               >
-                <option value="all">All Platforms (100+ Live Jobs)</option>
+                <option value="all">All Platforms</option>
                 <option value="linkedin">LinkedIn Verified</option>
                 <option value="internshala">Internshala Portal</option>
                 <option value="remotive">Remotive Remote</option>

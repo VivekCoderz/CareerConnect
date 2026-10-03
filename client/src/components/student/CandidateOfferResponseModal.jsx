@@ -20,8 +20,8 @@ const CandidateOfferResponseModal = ({
   if (!isOpen || !offer) return null;
 
   const candidateName = offer.candidateId?.fullName || "Candidate";
-  const salary = offer.salary ? `₹${offer.salary.toLocaleString()} ${offer.salaryPeriod || "Per Annum"}` : "Competitive";
-  const joiningDate = offer.joiningDate ? new Date(offer.joiningDate).toLocaleDateString("en-IN") : "Immediate";
+  const salary = offer.salary ? `₹${offer.salary.toLocaleString()} ${offer.salaryPeriod || "Per Annum"}` : "Not specified";
+  const joiningDate = offer.joiningDate ? new Date(offer.joiningDate).toLocaleDateString("en-IN") : "Not specified";
   const expiryDate = offer.expiryDate ? new Date(offer.expiryDate).toLocaleDateString("en-IN") : "Shortly";
 
   const isResponded = ["Accepted", "Rejected"].includes(offer.status);

@@ -81,8 +81,8 @@ const ATSPipelineView = ({
     const email = app.studentEmail || appData.email || cand.email || "N/A";
     const phone = app.studentPhone || appData.phone || cand.phone || "N/A";
     const address = appData.address || "N/A";
-    const education = app.education || appData.education || appData.degree || "B.Tech CSE";
-    const college = appData.college || "CareerConnect";
+    const education = app.education || appData.education || appData.degree || "Not provided";
+    const college = appData.college || "Not provided";
     const graduationYear = appData.graduationYear || "";
 
     let skillsList = [];
@@ -96,7 +96,7 @@ const ATSPipelineView = ({
       skillsList = app.skills.split(",").map((s) => s.trim());
     }
 
-    const experience = app.experience || appData.experience || "Fresher";
+    const experience = app.experience || appData.experience || "Not provided";
     const portfolioUrl = app.portfolioUrl || appData.portfolioUrl || "";
     const resumeUrl = app.resumeUrl || appData.resumeUrl || "";
     const coverLetter = app.coverLetter || app.coverNote || appData.coverLetter || appData.coverNote || "";

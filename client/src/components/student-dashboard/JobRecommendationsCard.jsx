@@ -92,12 +92,12 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
                   </div>
 
                   <p className="text-xs font-medium text-slate-600">
-                    <span className="font-semibold text-slate-800">{job.company || job.companyName}</span> • {job.location || "India"}
+                    <span className="font-semibold text-slate-800">{job.company || job.companyName}</span> {job.location ? ` • ${job.location}` : ""}
                   </p>
 
                   <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
                     <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                      {job.salary || "Competitive CTC"}
+                      {job.salary || "Salary not disclosed"}
                     </span>
                     <span>• {job.postedAt || "Actively hiring"}</span>
                   </div>

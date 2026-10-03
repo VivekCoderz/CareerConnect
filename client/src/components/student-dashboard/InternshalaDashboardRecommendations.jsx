@@ -62,13 +62,13 @@ const InternshalaDashboardRecommendations = ({
     topJob?.salary ||
     (topJob?.salaryRange?.min
       ? `₹${topJob.salaryRange.min.toLocaleString()} - ₹${(topJob.salaryRange.max || topJob.salaryRange.min).toLocaleString()}`
-      : "Competitive CTC");
+      : "Salary not disclosed");
 
   const internshipStipend =
     topInternship?.stipend ||
     (topInternship?.stipendAmount?.min
       ? `₹${topInternship.stipendAmount.min.toLocaleString()} / month`
-      : "Competitive Stipend");
+      : "Stipend not disclosed");
 
   // Format apply link for job
   const jobApplyHref = topJob?.applyLink || topJob?.applyUrl;
@@ -287,7 +287,7 @@ const InternshalaDashboardRecommendations = ({
                   <div className="flex items-center gap-2">
                     <span className="text-slate-400 shrink-0">📍</span>
                     <span className="font-medium text-slate-700 line-clamp-1">
-                      {topJob.location || "Bangalore / Remote"}
+                      {topJob.location || "Location not specified"}
                     </span>
                     <span className="text-slate-300">•</span>
                     <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
@@ -433,7 +433,7 @@ const InternshalaDashboardRecommendations = ({
                   <div className="flex items-center gap-2">
                     <span className="text-slate-400 shrink-0">📍</span>
                     <span className="font-medium text-slate-700 line-clamp-1">
-                      {topInternship.location || "Delhi / Remote"}
+                      {topInternship.location || "Location not specified"}
                     </span>
                     <span className="text-slate-300">•</span>
                     <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
@@ -542,7 +542,7 @@ const InternshalaDashboardRecommendations = ({
                   </span>
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                     <span>★</span>
-                    <span>{topCourse.rating || "4.8"} Rating</span>
+                    <span>{topCourse.rating ? `${topCourse.rating} Rating` : "Not yet rated"}</span>
                   </span>
                 </div>
 

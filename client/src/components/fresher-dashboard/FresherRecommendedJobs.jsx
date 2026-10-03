@@ -2,46 +2,10 @@ import { useState } from "react";
 import { FEATURES } from "../../config/features";
 import { Link } from "react-router-dom";
 
-const SAMPLE_JOBS = [
-  {
-    _id: "sample-1",
-    title: "Junior Full Stack Developer",
-    company: "TechCorp India",
-    location: "Bangalore",
-    type: "Full-Time",
-    workMode: "Hybrid",
-    salary: "₹4–6 LPA",
-    skillsRequired: ["React", "Node.js", "MongoDB"],
-    postedAt: "2 days ago",
-  },
-  {
-    _id: "sample-2",
-    title: "Associate Software Engineer",
-    company: "Infosys",
-    location: "Pune",
-    type: "Full-Time",
-    workMode: "Onsite",
-    salary: "₹3.5–5 LPA",
-    skillsRequired: ["Java", "Spring Boot", "SQL"],
-    postedAt: "4 days ago",
-  },
-  {
-    _id: "sample-3",
-    title: "Frontend Developer",
-    company: "Razorpay",
-    location: "Remote",
-    type: "Full-Time",
-    workMode: "Remote",
-    salary: "₹5–8 LPA",
-    skillsRequired: ["React", "TypeScript", "CSS"],
-    postedAt: "1 week ago",
-  },
-];
-
 const FresherRecommendedJobs = ({
   jobs = [],
   appliedJobIds = new Set(),
-  targetRole = "Full Stack Developer",
+  targetRole = "",
   onSaveJob,
   onApplyJob,
 }) => {
@@ -57,8 +21,7 @@ const FresherRecommendedJobs = ({
     if (onSaveJob) onSaveJob(jobId);
   };
 
-  const displayJobs = jobs.length > 0 ? jobs : SAMPLE_JOBS;
-  const isStaticData = jobs.length === 0;
+  const displayJobs = jobs;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
@@ -69,13 +32,21 @@ const FresherRecommendedJobs = ({
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
               Recommended Jobs
             </h2>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-200">
-              {isStaticData ? "Sample" : `${displayJobs.length} Match${displayJobs.length !== 1 ? "es" : ""}`}
-            </span>
+            {displayJobs.length > 0 && (
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-200">
+                {`${displayJobs.length} Match${displayJobs.length !== 1 ? "es" : ""}`}
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Curated entry-level openings for{" "}
-            <span className="font-semibold text-slate-700">{targetRole}</span>
+            {targetRole ? (
+              <>
+                Curated entry-level openings for{" "}
+                <span className="font-semibold text-slate-700">{targetRole}</span>
+              </>
+            ) : (
+              "Entry-level openings matched to your profile"
+            )}
           </p>
         </div>
 
@@ -87,12 +58,23 @@ const FresherRecommendedJobs = ({
         </Link>
       </div>
 
+      {displayJobs.length === 0 && (
+        <div className="p-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-center space-y-2">
+          <p className="text-sm text-slate-600">
+            No recommended jobs yet. Complete your profile to get better matches.
+          </p>
+          <Link to="/jobs" className="inline-block text-xs font-bold text-[#1e3a8a] hover:underline">
+            Browse jobs →
+          </Link>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4">
         {displayJobs.slice(0, 3).map((job) => {
           const jobId = job.id || job._id;
           const isSaved = savedIds.has(jobId);
           const isApplied = appliedJobIds.has(String(jobId));
-          const isTargetMatch = (job.title || "")
+          const isTargetMatch = Boolean(targetRole) && (job.title || "")
             .toLowerCase()
             .includes(targetRole.toLowerCase().split(" ")[0]);
 
@@ -163,17 +145,10 @@ const FresherRecommendedJobs = ({
                   {isTargetMatch ? "Role Match" : "Entry-Level Fit"}
                 </span>
 
-                <span className="text-xs text-slate-500">
-                  📍 {job.location || "Multiple Locations"}
-                </span>
-                <span className="text-xs text-slate-400">·</span>
-                <span className="text-xs text-slate-500">
-                  🏠 {job.workMode || "Hybrid"}
-                </span>
-                <span className="text-xs text-slate-400">·</span>
-                <span className="text-xs font-semibold text-slate-700">
-                  {job.salary || "Competitive CTC"}
-                </span>
+                {/* Only show details the listing actually has */}
+                {job.location && <span className="text-xs text-slate-500">📍 {job.location}</span>}
+                {job.workMode && <span className="text-xs text-slate-500">🏠 {job.workMode}</span>}
+                {job.salary && <span className="text-xs font-semibold text-slate-700">{job.salary}</span>}
               </div>
 
               {/* Skills */}
@@ -193,7 +168,7 @@ const FresherRecommendedJobs = ({
               {/* Actions */}
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
                 <span className="text-[11px] text-slate-400 font-medium">
-                  {job.postedAt || "Active"}
+                  {job.postedAt || ""}
                 </span>
 
                 <div className="flex items-center gap-2">
@@ -241,14 +216,16 @@ const FresherRecommendedJobs = ({
       </div>
 
       {/* Browse more CTA */}
-      <div className="text-center pt-1">
-        <Link
-          to="/jobs"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1e3a8a] hover:text-[#1e40af] hover:underline transition"
-        >
-          Browse all entry-level openings on CareerConnect →
-        </Link>
-      </div>
+      {displayJobs.length > 0 && (
+        <div className="text-center pt-1">
+          <Link
+            to="/jobs"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1e3a8a] hover:text-[#1e40af] hover:underline transition"
+          >
+            Browse all entry-level openings on CareerConnect →
+          </Link>
+        </div>
+      )}
     </div>
   );
 };
