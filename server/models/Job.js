@@ -218,7 +218,8 @@ const jobSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["Draft", "Pending Approval", "Published", "Paused", "Closed", "Rejected"],
-      default: "Published",
+      // Listings must be approved before they are public; publishers set status explicitly.
+      default: "Pending Approval",
       index: true,
     },
     approvedBy: {
@@ -227,6 +228,22 @@ const jobSchema = new mongoose.Schema(
       default: null,
     },
     approvedAt: {
+      type: Date,
+      default: null,
+    },
+    // "auto" when published by the autoApproveJobs setting (approvedBy stays null).
+    approvalMethod: {
+      type: String,
+      enum: ["admin", "auto", "legacy", null],
+      default: null,
+    },
+    // Why the platform closed the listing (deadline passed, or its employer was rejected).
+    closedReason: {
+      type: String,
+      enum: ["expired", "employer_rejected", null],
+      default: null,
+    },
+    closedAt: {
       type: Date,
       default: null,
     },
@@ -363,6 +380,15 @@ const jobSchema = new mongoose.Schema(
 
 // ---------- Indexes (no duplicates) ----------
 jobSchema.index({ employerId: 1, status: 1 });
+// Expiry sweep and public "still open" filter
+jobSchema.index({ status: 1, deadline: 1 });
+// Public job list: status filter + newest-first sort (_id breaks createdAt ties for stable paging)
+jobSchema.index({ status: 1, createdAt: -1, _id: -1 });
+// Keyword search in getJobs. "none" = no stemming or stop words, so "IT" or "C" still match.
+jobSchema.index(
+  { title: "text", requiredSkills: "text", description: "text" },
+  { name: "job_text_search", weights: { title: 10, requiredSkills: 5, description: 1 }, default_language: "none" }
+);
 jobSchema.index({ category: 1, status: 1 });
 jobSchema.index({ city: 1, status: 1 });
 jobSchema.index({ workMode: 1, status: 1 });

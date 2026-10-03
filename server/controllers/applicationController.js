@@ -4,10 +4,12 @@ const Job = require("../models/Job");
 const User = require("../models/User");
 const EmployerProfile = require("../models/EmployerProfile");
 const Interview = require("../models/Interview");
-const notificationService = require("../services/notificationService");
 
 const JobOffer = require("../models/JobOffer");
 const socketService = require("../services/socketService");
+const mongoose = require("mongoose");
+const { notifyApplicationUpdates } = require("../services/applicationNotifications");
+const { acceptsApplications, APPLICATIONS_CLOSED } = require("../utils/listingExpiry");
 
 // ==========================================
 // HELPERS
@@ -141,7 +143,10 @@ exports.applyToInternship = async (req, res, next) => {
       if (internship) isFromJob = true;
     }
 
-    if (!internship || (internship.status !== "Published" && internship.status !== "Active")) {
+    if (internship && !acceptsApplications(internship)) {
+      return res.status(400).json({ success: false, message: APPLICATIONS_CLOSED });
+    }
+    if (!internship) {
       return res.status(404).json({
         success: false,
         message: "Internship not found or closed",
@@ -321,7 +326,10 @@ exports.applyToJob = async (req, res, next) => {
       if (job) isFromInternship = true;
     }
 
-    if (!job || (job.status !== "Published" && job.status !== "Active")) {
+    if (job && !acceptsApplications(job)) {
+      return res.status(400).json({ success: false, message: APPLICATIONS_CLOSED });
+    }
+    if (!job) {
       return res.status(404).json({
         success: false,
         message: "Job not found or closed",
@@ -500,14 +508,15 @@ exports.getMyApplications = async (req, res, next) => {
       .populate("internshipId", "title stipend duration location workMode status companyName")
       .populate("jobId", "title location employmentType workMode status companyName recruitmentStages")
       .populate("employerId", "companyName logo industry")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     const appIds = applications.map((a) => a._id);
     const interviews = await Interview.find({
       applicationId: { $in: appIds },
     }).select(
       "applicationId scheduledDate scheduledTime startTime duration durationMinutes meetingMode meetingLink location instructions roundName roundNumber status result"
-    );
+    ).lean();
 
     const interviewMap = {};
     interviews.forEach((inv) => {
@@ -653,14 +662,14 @@ exports.getEmployerApplications = async (req, res, next) => {
         { createdBy: req.user._id },
         ...(profileId ? [{ employerId: profileId }] : []),
       ],
-    }, "_id");
+    }, "_id").lean();
 
     const allEmployerInternships = await Internship.find({
       $or: [
         { createdBy: req.user._id },
         ...(profileId ? [{ employerId: profileId }] : []),
       ],
-    }, "_id");
+    }, "_id").lean();
 
     const jobIds = allEmployerJobs.map((j) => j._id);
     const internshipIds = allEmployerInternships.map((i) => i._id);
@@ -691,12 +700,13 @@ exports.getEmployerApplications = async (req, res, next) => {
       .populate("candidateId", "fullName email phone profileImage userType location skills")
       .populate("internshipId", "title stipend duration location workMode")
       .populate("jobId", "title employmentType location workMode")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     const appIds = applications.map((a) => a._id);
     const interviews = await Interview.find({ applicationId: { $in: appIds } }).select(
       "applicationId scheduledDate scheduledTime startTime duration durationMinutes meetingMode meetingLink location instructions roundName roundNumber status result scorecard"
-    );
+    ).lean();
 
     const interviewMap = {};
     interviews.forEach((inv) => {
@@ -720,8 +730,8 @@ exports.getEmployerApplications = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      count: applications.length,
-      applications,
+      count: enrichedApplications.length,
+      applications: enrichedApplications,
     });
   } catch (error) {
     next(error);
@@ -798,6 +808,7 @@ exports.updateApplicationStatus = async (req, res, next) => {
       });
     }
 
+    const previousStatus = application.status;
     application.status = statusMap[rawStatus];
     application.stage = rawStatus;
     application.updatedAt = new Date();
@@ -814,11 +825,73 @@ exports.updateApplicationStatus = async (req, res, next) => {
 
     // Broadcast live event via Socket.IO
     socketService.emitApplicationUpdated(application);
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
+    }
 
     return res.status(200).json({
       success: true,
       message: `Application marked as ${rawStatus}`,
       application,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// EMPLOYER — BULK STATUS UPDATE
+// PATCH /api/applications/bulk-status
+// body: { applicationIds: [...], status }
+// Lets an employer shortlist or reject many applicants at once (e.g. 300).
+// Offers and hiring stay one at a time on purpose.
+// ==========================================
+const BULK_STATUSES = ["Under Review", "Shortlisted", "Interview", "Rejected"];
+const MAX_BULK_APPLICATIONS = 300;
+
+exports.bulkUpdateApplicationStatus = async (req, res, next) => {
+  try {
+    const { applicationIds, status } = req.body || {};
+    if (!BULK_STATUSES.includes(status)) {
+      return res.status(400).json({ success: false, message: `Bulk status must be one of: ${BULK_STATUSES.join(", ")}` });
+    }
+    if (!Array.isArray(applicationIds) || applicationIds.length === 0 || applicationIds.length > MAX_BULK_APPLICATIONS) {
+      return res.status(400).json({ success: false, message: `Select between 1 and ${MAX_BULK_APPLICATIONS} applications` });
+    }
+    const ids = [...new Set(applicationIds.map(String))].filter((id) => mongoose.isValidObjectId(id));
+    if (ids.length === 0) {
+      return res.status(400).json({ success: false, message: "No valid application ids" });
+    }
+
+    const owned = await Application.find({ _id: { $in: ids }, $or: await getEmployerOwnershipOrClauses(req.user._id) })
+      .select("_id candidateId employerId status opportunityTitle companyName")
+      .lean();
+    // Withdrawn and hired applications are final; skip those already at the target status.
+    const unchangeable = new Set(["Withdrawn", "Hired", status]);
+    const toUpdate = owned.filter((a) => !unchangeable.has(a.status));
+
+    if (toUpdate.length > 0) {
+      const now = new Date();
+      await Application.updateMany(
+        { _id: { $in: toUpdate.map((a) => a._id) } },
+        {
+          $set: { status, stage: status, overallStatus: status === "Rejected" ? "Rejected" : "In Progress", updatedAt: now },
+          $push: { stageHistory: { stage: status, notes: `Bulk update to ${status}`, changedBy: req.user._id, changedAt: now } },
+        }
+      );
+      const updated = toUpdate.map((a) => ({ ...a, status }));
+      updated.forEach((a) => socketService.emitApplicationUpdated(a));
+      await notifyApplicationUpdates(updated, status, { senderId: req.user._id })
+        .catch((err) => console.warn("Bulk application notifications failed:", err.message));
+    }
+
+    return res.status(200).json({
+      success: true,
+      updated: toUpdate.length,
+      skipped: owned.length - toUpdate.length,
+      notFound: ids.length - owned.length,
+      message: `${toUpdate.length} application${toUpdate.length === 1 ? "" : "s"} marked as ${status}`,
     });
   } catch (error) {
     next(error);
@@ -911,6 +984,7 @@ exports.updateApplicationStage = async (req, res, next) => {
       ? canonicalStage
       : (allowedStatuses.includes(application.status) ? application.status : "Under Review");
 
+    const previousStatus = application.status;
     application.stage = canonicalStage;
     application.status = nextStatus;
     application.updatedAt = new Date();
@@ -940,6 +1014,10 @@ exports.updateApplicationStage = async (req, res, next) => {
 
     // Broadcast live event via Socket.IO
     socketService.emitApplicationUpdated(application);
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
+    }
 
     return res.status(200).json({
       success: true,
@@ -976,7 +1054,7 @@ exports.addApplicationNote = async (req, res, next) => {
 
     const application = await Application.findOne({
       _id: req.params.id,
-      $or: orConditions,
+      $or: await getEmployerOwnershipOrClauses(req.user._id),
     });
 
     if (!application) {
@@ -1152,27 +1230,10 @@ exports.moveToNextStage = async (req, res, next) => {
     }
 
     await application.save();
+    // Tell the candidate about every stage advance, with the stage name
+    await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id, stageName: nextStage.name })
+      .catch((err) => console.warn("Application notification failed:", err.message));
 
-    // Dispatch notification to candidate
-    try {
-      const oppTitle = application.opportunityTitle || application.jobId?.title || "Opportunity";
-      await notificationService.createNotification({
-        recipientId: application.candidateId?._id || application.candidateId,
-        senderId: req.user._id,
-        title: "Recruitment Stage Advanced 🚀",
-        message: `Congratulations! You have advanced to stage "${nextStage.name}" for ${oppTitle}.`,
-        notificationType: "APPLICATION_STAGE_ADVANCED",
-        relatedApplicationId: application._id,
-        actionUrl: "/student/my-applications",
-        metadata: {
-          previousStage: currentStage.name,
-          nextStage: nextStage.name,
-          stageIndex: nextIndex,
-        },
-      });
-    } catch (notifErr) {
-      console.warn("Stage advance notification error:", notifErr.message);
-    }
 
     return res.status(200).json({
       success: true,
@@ -1225,6 +1286,8 @@ exports.selectCandidate = async (req, res, next) => {
       }
     }
 
+    const previousStatus = application.status;
+
     application.overallStatus = "Selected";
     application.status = "Selected";
     application.stage = "Selected";
@@ -1236,22 +1299,11 @@ exports.selectCandidate = async (req, res, next) => {
     });
 
     await application.save();
-
-    // Dispatch in-app notification
-    try {
-      const oppTitle = application.opportunityTitle || application.jobId?.title || "Position";
-      await notificationService.createNotification({
-        recipientId: application.candidateId?._id || application.candidateId,
-        senderId: req.user._id,
-        title: "Congratulations! You are Selected! 🎉",
-        message: `You have successfully cleared all selection rounds and have been SELECTED for ${oppTitle}!`,
-        notificationType: "APPLICATION_SELECTED",
-        relatedApplicationId: application._id,
-        actionUrl: "/student/my-applications",
-      });
-    } catch (notifErr) {
-      console.warn("Selection notification error:", notifErr.message);
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
     }
+
 
     return res.status(200).json({
       success: true,
@@ -1304,6 +1356,8 @@ exports.rejectCandidate = async (req, res, next) => {
       }
     }
 
+    const previousStatus = application.status;
+
     application.overallStatus = "Rejected";
     application.status = "Rejected";
     application.stage = "Rejected";
@@ -1315,22 +1369,11 @@ exports.rejectCandidate = async (req, res, next) => {
     });
 
     await application.save();
-
-    // In-app notification to candidate
-    try {
-      const oppTitle = application.opportunityTitle || application.jobId?.title || "the position";
-      await notificationService.createNotification({
-        recipientId: application.candidateId?._id || application.candidateId,
-        senderId: req.user._id,
-        title: "Application Status Update",
-        message: `Thank you for your interest in ${oppTitle}. After review, the hiring team has decided not to proceed with your application at this time.`,
-        notificationType: "APPLICATION_REJECTED",
-        relatedApplicationId: application._id,
-        actionUrl: "/student/my-applications",
-      });
-    } catch (notifErr) {
-      console.warn("Rejection notification error:", notifErr.message);
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
     }
+
 
     return res.status(200).json({
       success: true,

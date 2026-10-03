@@ -847,4 +847,7 @@ professionalProfileSchema.index({ profileVisibility: 1 });
 professionalProfileSchema.index({ jobSearchStatus: 1 });
 professionalProfileSchema.index({ "location.city": 1 });
 
+// Resume file cleanup checks whether this still uses a resume file
+professionalProfileSchema.index({ "resume.resumeUrl": 1 });
+
 module.exports = mongoose.model("ProfessionalProfile", professionalProfileSchema);

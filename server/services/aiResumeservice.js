@@ -5,6 +5,8 @@
  * - Uses Google Gemini if GEMINI_API_KEY is set, otherwise uses improved smart mock
  */
 
+const { runWithGeminiCascade } = require("./geminiCascade");
+
 let genAI = null;
 let geminiModel = null;
 
@@ -26,7 +28,7 @@ try {
 }
 
 /**
- * Universal Gemini caller with multi-tier model cascade and automatic retry on transient spikes (503 / fetch failed)
+ * Universal Gemini caller: at most GEMINI_MAX_CALLS calls (configured model, then one retry or fallback)
  */
 async function callGeminiContent(prompt, timeoutMs = 30000) {
   if (!genAI) {
@@ -37,56 +39,25 @@ async function callGeminiContent(prompt, timeoutMs = 30000) {
     throw new Error("Gemini AI is not initialized");
   }
 
-  const configured = process.env.GEMINI_MODEL || "gemini-3.6-flash";
-
-  // Comprehensive multi-pool cascade:
-  // If flash experiences high demand spikes (503), flash-lite or preview pools immediately take over
-  const models = [
-    configured,
-    "gemini-3.6-flash",
-    "gemini-flash-lite-latest",
-    "gemini-3.5-flash-lite",
-    "gemini-3-flash-preview",
-    "gemini-flash-latest",
-    "gemini-3.8-flash",
-  ];
-  const uniqueModels = [...new Set(models.filter(Boolean))];
-
-  for (const modelName of uniqueModels) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          generationConfig: { temperature: 0.2 },
-        });
-
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Gemini ${modelName} timed out`)), timeoutMs)
-        );
-
-        const generatePromise = (async () => {
-          const result = await model.generateContent(prompt);
-          return result.response.text();
-        })();
-
-        const text = await Promise.race([generatePromise, timeoutPromise]);
-        if (text && text.trim()) {
-          return text.trim();
-        }
-      } catch (err) {
-        const isTransient = /503|fetch failed|terminated|high demand|overloaded|ECONNRESET|ETIMEDOUT/i.test(err.message);
-        if (isTransient && attempt < 2) {
-          console.warn(`Model ${modelName} attempt ${attempt} transient issue (${err.message}). Retrying in 1200ms...`);
-          await new Promise((r) => setTimeout(r, 1200));
-          continue;
-        }
-        console.warn(`Model ${modelName} attempt failed (${err.message}), trying next model in cascade...`);
-        break;
-      }
+  // At most GEMINI_MAX_CALLS (default 2) calls per action; see services/geminiCascade.js
+  return runWithGeminiCascade(async (modelName) => {
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: { temperature: 0.2 },
+    });
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Gemini ${modelName} timed out`)), timeoutMs);
+    });
+    try {
+      const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);
+      const text = result.response.text();
+      if (!text || !text.trim()) throw new Error(`Gemini ${modelName} returned an empty response`);
+      return text.trim();
+    } finally {
+      clearTimeout(timer);
     }
-  }
-
-  throw new Error("All Gemini models failed or timed out");
+  }, { label: "Resume AI" });
 }
 
 function cleanAndParseJson(text) {
@@ -111,6 +82,18 @@ const parseSkills = (str) => {
 };
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
+
+// Empty candidate in the shape normalizeResumeCandidateData returns.
+const EMPTY_RAW = {
+  personal: { fullName: "", email: "", phone: "", location: "", linkedin: "", github: "", portfolio: "" },
+  summary: "",
+  skills: { programmingLanguages: "", frameworks: "", tools: "", other: "" },
+  experience: [],
+  projects: [],
+  education: [],
+  certifications: [],
+  achievements: [],
+};
 
 const improveBullet = (text) => {
   if (!text || !text.trim()) return text;
@@ -813,6 +796,28 @@ const heuristicParseResume = (rawText) => {
 const mockTailor = (userData, opportunityData, template = "classic") => {
   const user = deepClone(userData || {});
   const opp = opportunityData || {};
+  const asArray = (value) => Array.isArray(value) ? value : [];
+  const uniqueEntries = (entries) => {
+    const seen = new Set();
+    return entries.filter((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const key = JSON.stringify(entry);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const entryDescription = (entry) => (
+    entry?.description
+    || entry?.bullets
+    || entry?.responsibilities
+    || entry?.highlights
+    || entry?.details
+    || []
+  );
+  const preserveDescription = (value) => (Array.isArray(value) ? value : String(value || "").split(/[\n•]+/))
+    .map((item) => String(item).replace(/^[-–*]\s*/, "").trim())
+    .filter(Boolean);
 
   // Extract all opportunity keywords from title, requiredSkills, preferredSkills, description
   const oppSkills = [
@@ -858,12 +863,22 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
     programmingLanguages: tailorSkillCategory(user.skills?.programmingLanguages),
     frameworks: tailorSkillCategory(user.skills?.frameworks),
     tools: tailorSkillCategory(user.skills?.tools),
-    other: tailorSkillCategory(user.skills?.other),
+    other: tailorSkillCategory([
+      ...parseSkills(Array.isArray(user.skills) ? user.skills : []),
+      ...parseSkills(user.skills?.other),
+      ...parseSkills(user.skills?.databases),
+      ...parseSkills(user.technicalSkills),
+      ...parseSkills(user.softSkills),
+    ]),
   };
 
   // Score projects by keyword overlap with opportunity, sort highest relevance first
-  const userProjects = (user.projects || []).map((p) => {
-    const pText = `${p.name || ""} ${p.technologies || ""} ${Array.isArray(p.description) ? p.description.join(" ") : p.description || ""}`.toLowerCase();
+  const userProjects = uniqueEntries([
+    ...asArray(user.projects),
+    ...asArray(user.academicProjects),
+  ]).map((p) => {
+    const description = entryDescription(p);
+    const pText = `${p.name || p.title || ""} ${p.technologies || p.techStack || ""} ${Array.isArray(description) ? description.join(" ") : description || ""}`.toLowerCase();
     let score = 0;
     for (const ms of matchedSkillsList) {
       if (pText.includes(ms.toLowerCase())) score += 2;
@@ -877,14 +892,22 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
   userProjects.sort((a, b) => b._score - a._score);
   const tailoredProjects = userProjects.map(({ _score, ...p }) => ({
     ...p,
-    description: Array.isArray(p.description)
-      ? p.description.map(improveBullet)
-      : improveDescriptionToBullets(p.description),
+    name: p.name || p.title || "",
+    technologies: p.technologies || p.techStack || p.skills || "",
+    description: preserveDescription(entryDescription(p)),
+    github: p.github || p.repository || p.repoUrl || "",
+    live: p.live || p.link || p.demoUrl || "",
   }));
 
   // Score experience entries
-  const userExp = (user.experience || user.workExperience || []).map((e) => {
-    const eText = `${e.role || ""} ${e.company || ""} ${Array.isArray(e.description) ? e.description.join(" ") : e.description || ""}`.toLowerCase();
+  const userExp = uniqueEntries([
+    ...asArray(user.experience),
+    ...asArray(user.workExperience),
+    ...asArray(user.internships),
+    ...asArray(user.professionalExperience),
+  ]).map((e) => {
+    const description = entryDescription(e);
+    const eText = `${e.role || e.jobTitle || e.title || ""} ${e.company || e.companyName || e.organization || ""} ${Array.isArray(description) ? description.join(" ") : description || ""}`.toLowerCase();
     let score = 0;
     for (const ms of matchedSkillsList) {
       if (eText.includes(ms.toLowerCase())) score += 2;
@@ -894,12 +917,11 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
 
   userExp.sort((a, b) => b._score - a._score);
   const tailoredExp = userExp.map(({ _score, ...e }) => ({
+    ...e,
     company: e.company || e.companyName || e.organization || "",
-    role: e.role || e.jobTitle || "",
-    duration: e.duration || "",
-    description: Array.isArray(e.description)
-      ? e.description.map(improveBullet)
-      : improveDescriptionToBullets(e.description),
+    role: e.role || e.jobTitle || e.title || e.position || "",
+    duration: e.duration || [e.startDate || e.startYear, e.endDate || e.endYear].filter(Boolean).join(" – "),
+    description: preserveDescription(entryDescription(e)),
   }));
 
   // Unique matched skills
@@ -913,12 +935,29 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
   const skillHighlights = uniqueMatchedSkills.slice(0, 5).join(", ");
   const skillClause = skillHighlights ? ` with hands-on proficiency in ${skillHighlights}` : "";
 
-  const tailoredSummary = `Results-oriented candidate tailored for the ${targetLabel} position${skillClause}. Demonstrates a proven track record in software engineering, modern development methodologies, and building dependable solutions. Committed to immediate high-impact contributions and continuous learning.`;
+  const originalSummary = String(user.summary || user.objective || "").trim();
+  const evidenceClause = tailoredExp.length
+    ? `${tailoredExp.length} verified experience entr${tailoredExp.length === 1 ? "y" : "ies"}`
+    : `${tailoredProjects.length} verified project${tailoredProjects.length === 1 ? "" : "s"}`;
+  const tailoredSummary = originalSummary
+    ? `${originalSummary}${skillHighlights ? ` Relevant strengths for ${oppTitle} include ${skillHighlights}.` : ""}`
+    : `Candidate for ${targetLabel}${skillClause}, supported by ${evidenceClause}.`;
 
   return {
-    personal: { ...user.personal },
+    ...user,
+    personal: {
+      ...(user.personal || {}),
+      fullName: user.personal?.fullName || user.fullName || user.name || "",
+      email: user.personal?.email || user.email || "",
+      phone: user.personal?.phone || user.phone || "",
+      location: user.personal?.location || user.location || user.city || "",
+      linkedin: user.personal?.linkedin || user.socialLinks?.linkedin || "",
+      github: user.personal?.github || user.socialLinks?.github || "",
+      portfolio: user.personal?.portfolio || user.socialLinks?.portfolio || "",
+    },
     summary: tailoredSummary,
     education: (user.education || []).map((edu) => ({
+      ...edu,
       college: edu.college || edu.institution || "",
       degree: edu.degree || "",
       branch: edu.branch || edu.fieldOfStudy || edu.specialization || "",
@@ -930,13 +969,15 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
     projects: tailoredProjects,
     experience: tailoredExp,
     certifications: (user.certifications || []).map((c) => ({
-      name: c.name || "",
-      issuer: c.issuer || c.issuingOrganization || "",
-      year: c.year ? String(c.year) : c.issueDate ? String(new Date(c.issueDate).getFullYear()) : "",
+      ...(typeof c === "object" ? c : {}),
+      name: typeof c === "string" ? c : c.name || c.title || "",
+      issuer: typeof c === "object" ? c.issuer || c.issuingOrganization || "" : "",
+      year: typeof c === "object" && c.year ? String(c.year) : c?.issueDate ? String(new Date(c.issueDate).getFullYear()) : "",
     })),
     achievements: (user.achievements || []).map((a) => ({
-      title: a.title || "",
-      description: a.description ? improveBullet(a.description) : "",
+      ...(typeof a === "object" ? a : {}),
+      title: typeof a === "string" ? a : a.title || a.name || "",
+      description: typeof a === "object" && a.description ? String(a.description).trim() : "",
     })),
     template: template || user.template || "classic",
     tailoredMeta: {
@@ -2131,4 +2172,4 @@ module.exports = {
   mockTailor,
   heuristicParseResume,
   enforceGrounding,
-};
+};

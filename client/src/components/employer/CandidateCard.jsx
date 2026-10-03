@@ -1,7 +1,8 @@
 import React from "react";
+import { FEATURES } from "../../config/features";
 
 const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onViewDetails }) => {
-  const matchScore = candidate.matchPercentage || 85;
+  const matchScore = candidate.matchPercentage ?? 0;
 
   return (
     <div className="p-5 rounded-3xl bg-white border border-slate-200/80 hover:border-amber-300 shadow-2xs hover:shadow-xs transition space-y-4 flex flex-col justify-between">
@@ -20,10 +21,10 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                {candidate.degree} · CGPA {candidate.cgpa}
+                {[candidate.degree, candidate.cgpa && `CGPA ${candidate.cgpa}`].filter(Boolean).join(" · ") || "Education not added"}
               </p>
               <p className="text-[11px] text-slate-400">
-                {candidate.institution} · Class of {candidate.graduationYear}
+                {[candidate.institution, candidate.graduationYear && `Class of ${candidate.graduationYear}`].filter(Boolean).join(" · ")}
               </p>
             </div>
           </div>
@@ -77,7 +78,7 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
       </div>
 
       {/* Action Buttons */}
-      <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
+            <div className={`pt-3 border-t border-slate-100 grid gap-2 ${FEATURES.assessments ? "grid-cols-2" : "grid-cols-1"}`}>
         <button
           type="button"
           onClick={() => onScheduleInterview(candidate)}
@@ -85,6 +86,7 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
         >
           <span>📅</span> Interview
         </button>
+        {FEATURES.assessments && (
         <button
           type="button"
           onClick={() => onAssignAssessment && onAssignAssessment(candidate)}
@@ -92,6 +94,7 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
         >
           <span>📝</span> Test
         </button>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import ModerationBadge from "./ModerationBadge";
 
 const STAGE_TYPES = [
   "Resume Screening",
@@ -35,6 +36,7 @@ const DEFAULT_STAGES = [
 ];
 
 const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
+  const navigate = useNavigate();
   const [stages, setStages] = useState(DEFAULT_STAGES);
   const [expandedStageIdx, setExpandedStageIdx] = useState(null);
   const [formData, setFormData] = useState({
@@ -64,7 +66,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
     bonusSkills: "Next.js, Git",
     openings: 2,
     deadline: "",
-    status: "Published",
+    status: "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -99,7 +101,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         bonusSkills: (jobToEdit.bonusSkills || []).join(", "),
         openings: jobToEdit.openings || 1,
         deadline: jobToEdit.deadline ? jobToEdit.deadline.split("T")[0] : "",
-        status: jobToEdit.status || "Published",
+        status: jobToEdit.status || "",
       });
 
       if (Array.isArray(jobToEdit.recruitmentStages) && jobToEdit.recruitmentStages.length > 0) {
@@ -149,7 +151,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         bonusSkills: "Next.js, Git",
         openings: 2,
         deadline: "",
-        status: "Published",
+        status: "",
       });
       setStages(DEFAULT_STAGES);
     }
@@ -373,7 +375,6 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
           : [],
         openings: Number(formData.openings) || 1,
         deadline: formData.deadline || null,
-        status: formData.status,
         recruitmentStages: stages.map((s, idx) => ({
           name: (s.name || `Stage ${idx + 1}`).trim(),
           type: s.type || "Custom",
@@ -424,11 +425,12 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div>
-            <h3 className="text-base font-bold text-slate-900">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               {jobToEdit ? "Edit Opportunity" : "Post Job / Internship Opportunity"}
+              {jobToEdit && <ModerationBadge status={jobToEdit.status} />}
             </h3>
             <p className="text-xs text-slate-500">
-              Auto-discoverable in Category & City Discovery Hubs
+              New listings go live after admin approval
             </p>
           </div>
           <button

@@ -1,8 +1,7 @@
 const request = require("supertest");
 const app = require("../../app");
-const { createEmployerWithToken, createUserWithToken } = require("../helpers/createTestUser");
+const { createEmployerWithToken, createUserWithToken, createEmployerProfile } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
-const EmployerProfile = require("../../models/EmployerProfile");
 const Employee = require("../../models/Employee");
 const TrainingAssignment = require("../../models/TrainingAssignment");
 const Course = require("../../models/Course");
@@ -18,8 +17,8 @@ const setup = async () => {
   const owner = await createEmployerWithToken({ email: `medium-owner-${Date.now()}@example.com` });
   const other = await createEmployerWithToken({ email: `medium-other-${Date.now()}@example.com` });
   const candidate = await createUserWithToken({ email: `medium-candidate-${Date.now()}@example.com` });
-  const ownerProfile = await EmployerProfile.create({ userId: owner.user._id, companyName: "Owner Co" });
-  const otherProfile = await EmployerProfile.create({ userId: other.user._id, companyName: "Other Co" });
+  const ownerProfile = await createEmployerProfile(owner.user._id, { companyName: "Owner Co" });
+  const otherProfile = await createEmployerProfile(other.user._id, { companyName: "Other Co" });
   return { owner, other, candidate, ownerProfile, otherProfile };
 };
 
@@ -162,7 +161,7 @@ describe("medium security regression", () => {
     const candidate = await createUserWithToken({ email: "ai-medium@example.com" });
     const path = "/api/ai/chat";
     expect((await as(candidate.token, "post", path).send({ query: "x".repeat(2001) })).statusCode).toBe(400);
-    for (let index = 1; index < 30; index += 1) {
+    for (let index = 1; index < 20; index += 1) {
       expect((await as(candidate.token, "post", path).send({ query: "x".repeat(2001) })).statusCode).toBe(400);
     }
     expect((await as(candidate.token, "post", path).send({ query: "hello" })).statusCode).toBe(429);

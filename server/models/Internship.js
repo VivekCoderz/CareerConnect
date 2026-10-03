@@ -73,7 +73,8 @@ const internshipSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["Draft", "Pending Approval", "Published", "Paused", "Closed", "Rejected"],
-      default: "Published",
+      // Listings must be approved before they are public; publishers set status explicitly.
+      default: "Pending Approval",
       index: true,
     },
     approvedBy: {
@@ -82,6 +83,22 @@ const internshipSchema = new mongoose.Schema(
       default: null,
     },
     approvedAt: {
+      type: Date,
+      default: null,
+    },
+    // "auto" when published by the autoApproveJobs setting (approvedBy stays null).
+    approvalMethod: {
+      type: String,
+      enum: ["admin", "auto", "legacy", null],
+      default: null,
+    },
+    // Why the platform closed the listing (deadline passed, or its employer was rejected).
+    closedReason: {
+      type: String,
+      enum: ["expired", "employer_rejected", null],
+      default: null,
+    },
+    closedAt: {
       type: Date,
       default: null,
     },
@@ -183,6 +200,10 @@ const internshipSchema = new mongoose.Schema(
 );
 
 internshipSchema.index({ employerId: 1, status: 1 });
+// Expiry sweep and public "still open" filter
+internshipSchema.index({ status: 1, deadline: 1 });
+// Public internship list: status filter + newest-first sort
+internshipSchema.index({ status: 1, createdAt: -1 });
 internshipSchema.index({ status: 1, isExternal: 1 });
 internshipSchema.index({ requiredSkills: 1 });
 internshipSchema.index(

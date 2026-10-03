@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { getMyPosts, updateStatus, remove, syncExternal } from "../../services/internshipService";
+import { getMyPosts, updateStatus, remove } from "../../services/internshipService";
+import ModerationBadge from "../../components/employer/ModerationBadge";
+import { canEmployerRepublish } from "../../utils/listingModeration";
 
 export default function MyInternships() {
   const { user } = useSelector((state) => state.auth);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [syncing, setSyncing] = useState(false);
-  const [msg, setMsg] = useState("");
 
   const load = async () => {
     try {
@@ -34,8 +34,10 @@ export default function MyInternships() {
 
   const onStatus = async (id, status) => {
     try {
-      await updateStatus(id, status);
-      setList((p) => p.map((i) => (i._id === id ? { ...i, status } : i)));
+      setError("");
+      const res = await updateStatus(id, status);
+      const updated = res.internship || res.data;
+      setList((p) => p.map((i) => (i._id === id ? { ...i, ...(updated || { status }) } : i)));
     } catch (err) {
       setError(err.response?.data?.message || "Status update failed");
     }
@@ -51,36 +53,15 @@ export default function MyInternships() {
     }
   };
 
-  const onSync = async () => {
-    try {
-      setSyncing(true);
-      setMsg("");
-      const res = await syncExternal();
-      setMsg(`Synced ${res.upserted || 0} external internships`);
-    } catch (err) {
-      setError(err.response?.data?.message || "Sync failed");
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8 px-4">
       <div className="max-w-5xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-5 mb-6">
           <div>
             <h1 className="text-2xl font-extrabold text-[#f59e0b]">Manage Internships</h1>
-            <p className="text-sm text-slate-500">Post, pause, close · sync external boards</p>
+            <p className="text-sm text-slate-500">Post, pause and close your internships</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onSync}
-              disabled={syncing}
-              className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50"
-            >
-              {syncing ? "Syncing..." : "Sync External APIs"}
-            </button>
             <Link
               to="/employer/internships/new"
               className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold"
@@ -91,7 +72,6 @@ export default function MyInternships() {
         </div>
 
         {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</div>}
-        {msg && <div className="mb-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">{msg}</div>}
 
         {loading ? (
           <p className="text-sm text-slate-500">Loading...</p>
@@ -108,7 +88,13 @@ export default function MyInternships() {
               <div key={item._id} className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap gap-2 mb-1">
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100">{item.status}</span>
+                    {["Pending Approval", "Rejected", "Draft"].includes(item.status) ? (
+                      <ModerationBadge status={item.status} className="text-xs" />
+                    ) : (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100">
+                        {item.isExpired || item.closedReason === "expired" ? "Expired" : item.status}
+                      </span>
+                    )}
                     <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-slate-50 text-slate-600">{item.workMode}</span>
                   </div>
                   <h3 className="font-bold text-slate-900">{item.title}</h3>
@@ -128,7 +114,14 @@ export default function MyInternships() {
                     onChange={(e) => onStatus(item._id, e.target.value)}
                     className="h-9 px-2 rounded-xl border text-xs bg-white"
                   >
-                    <option value="Published">Published</option>
+                    {(item.status === "Published" || canEmployerRepublish(item)) && (
+                      <option value="Published">Published</option>
+                    )}
+                    {["Pending Approval", "Rejected"].includes(item.status) && (
+                      <option value={item.status} disabled>
+                        {item.status}
+                      </option>
+                    )}
                     <option value="Paused">Paused</option>
                     <option value="Closed">Closed</option>
                     <option value="Draft">Draft</option>

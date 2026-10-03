@@ -5,6 +5,7 @@ const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const { escapeRegex } = require("../utils/listingSecurity");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 // =========================================================================
 // 1. CLEAN DEGREE KEYWORD MAP (SIMPLIFIED NAMES)
@@ -544,18 +545,29 @@ async function getAggregatedOpportunities({
   }
 
   let targetLocation = "India";
-  if (region === "International") {
+  const normRegion = (region || "").trim().toLowerCase();
+  if (normRegion === "international") {
     targetLocation = "Worldwide";
-  } else if (region === "Delhi NCR") {
+  } else if (normRegion === "delhi ncr" || normRegion === "delhi") {
     targetLocation = "Delhi NCR, India";
-  } else if (region === "Bangalore") {
+  } else if (normRegion === "bangalore" || normRegion === "bengaluru") {
     targetLocation = "Bengaluru, Karnataka, India";
-  } else if (region === "Pune") {
+  } else if (normRegion === "hyderabad") {
+    targetLocation = "Hyderabad, Telangana, India";
+  } else if (normRegion === "mumbai") {
+    targetLocation = "Mumbai, Maharashtra, India";
+  } else if (normRegion === "pune") {
     targetLocation = "Pune, Maharashtra, India";
-  } else if (region === "Chandigarh") {
+  } else if (normRegion === "chennai") {
+    targetLocation = "Chennai, Tamil Nadu, India";
+  } else if (normRegion === "kolkata") {
+    targetLocation = "Kolkata, West Bengal, India";
+  } else if (normRegion === "chandigarh") {
     targetLocation = "Chandigarh, Punjab, India";
-  } else if (region === "all") {
-    targetLocation = "India";
+  } else if (normRegion === "jaipur") {
+    targetLocation = "Jaipur, Rajasthan, India";
+  } else if (normRegion && normRegion !== "all") {
+    targetLocation = `${region}, India`;
   }
 
   const cacheKey = `${queryKeywords}_${targetLocation}_${scope}_${workMode}_${normalizedOppType}_${source}_${region}`;
@@ -577,17 +589,18 @@ async function getAggregatedOpportunities({
   if (scope !== "on-campus") {
     const scraperPromises = [];
 
-    if (source === "all" || source === "external" || source === "linkedin") {
-      scraperPromises.push(
-        scrapeLinkedIn(queryKeywords, targetLocation, normalizedOppType),
-      );
-    }
-    if (
-      (source === "all" || source === "external" || source === "internshala") &&
-      region !== "International"
-    ) {
-      scraperPromises.push(scrapeInternshala(queryKeywords));
-    }
+    // S07: disabled - scraper removed from request flow
+    // if (source === "all" || source === "external" || source === "linkedin") {
+    //   scraperPromises.push(
+    //     scrapeLinkedIn(queryKeywords, targetLocation, normalizedOppType),
+    //   );
+    // }
+    // if (
+    //   (source === "all" || source === "external" || source === "internshala") &&
+    //   region !== "International"
+    // ) {
+    //   scraperPromises.push(scrapeInternshala(queryKeywords));
+    // }
     if (source === "all" || source === "external" || source === "remotive") {
       scraperPromises.push(fetchRemotiveJobs(queryKeywords));
     }
@@ -612,6 +625,7 @@ async function getAggregatedOpportunities({
   // MULTI-TIER GEOGRAPHIC SCRUBBING
   // =========================================================================
   if (region && region !== "all") {
+    const regLower = region.trim().toLowerCase();
     scrapedResults = scrapedResults.filter((job) => {
       const fullLocation =
         `${job.location || ""} ${job.company || ""}`.toLowerCase();
@@ -620,14 +634,14 @@ async function getAggregatedOpportunities({
         fullLocation.includes("remote") ||
         fullLocation.includes("work from home");
 
-      if (region === "International") {
+      if (regLower === "international") {
         const hasIndianKeyword = INDIAN_GEO_KEYWORDS.some((keyword) =>
           fullLocation.includes(keyword),
         );
         return !hasIndianKeyword;
       }
 
-      if (region === "Delhi NCR") {
+      if (regLower === "delhi ncr" || regLower === "delhi") {
         return (
           isRemote ||
           fullLocation.includes("delhi") ||
@@ -640,20 +654,35 @@ async function getAggregatedOpportunities({
         );
       }
 
-      if (region === "Bangalore") {
+      if (regLower === "bangalore" || regLower === "bengaluru") {
         return (
           isRemote ||
           fullLocation.includes("bengaluru") ||
           fullLocation.includes("bangalore") ||
-          fullLocation.includes("hyderabad") ||
           fullLocation.includes("karnataka")
         );
       }
 
-      if (region === "Pune") {
+      if (regLower === "hyderabad") {
+        return (
+          isRemote ||
+          fullLocation.includes("hyderabad") ||
+          fullLocation.includes("secunderabad") ||
+          fullLocation.includes("telangana")
+        );
+      }
+
+      if (regLower === "pune") {
         return (
           isRemote ||
           fullLocation.includes("pune") ||
+          fullLocation.includes("maharashtra")
+        );
+      }
+
+      if (regLower === "mumbai") {
+        return (
+          isRemote ||
           fullLocation.includes("mumbai") ||
           fullLocation.includes("navi mumbai") ||
           fullLocation.includes("thane") ||
@@ -661,7 +690,23 @@ async function getAggregatedOpportunities({
         );
       }
 
-      if (region === "Chandigarh") {
+      if (regLower === "chennai") {
+        return (
+          isRemote ||
+          fullLocation.includes("chennai") ||
+          fullLocation.includes("tamil nadu")
+        );
+      }
+
+      if (regLower === "kolkata") {
+        return (
+          isRemote ||
+          fullLocation.includes("kolkata") ||
+          fullLocation.includes("west bengal")
+        );
+      }
+
+      if (regLower === "chandigarh") {
         return (
           isRemote ||
           fullLocation.includes("chandigarh") ||
@@ -671,7 +716,15 @@ async function getAggregatedOpportunities({
         );
       }
 
-      return true;
+      if (regLower === "jaipur") {
+        return (
+          isRemote ||
+          fullLocation.includes("jaipur") ||
+          fullLocation.includes("rajasthan")
+        );
+      }
+
+      return isRemote || fullLocation.includes(regLower);
     });
   }
 
@@ -738,8 +791,8 @@ async function getAggregatedOpportunities({
   let dbOpportunities = [];
   if (mongoose.connection.readyState === 1) {
     try {
-      const jobFilter = { status: "Published" };
-      const internFilter = { status: "Published" };
+      const jobFilter = openListingQuery();
+      const internFilter = openListingQuery();
 
       if (customQuery) {
         const sRegex = new RegExp(escapeRegex(customQuery), "i");

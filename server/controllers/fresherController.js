@@ -6,6 +6,8 @@ const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
+const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 // Skill benchmarks for target roles for Job Matching & Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -578,18 +580,12 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     if (mongoose.connection.readyState === 1) {
       try {
         [dbJobs, dbInternships] = await Promise.all([
-          Job.find({
-            status: "Published",
-            employmentType: { $ne: "Internship" },
-          })
+          Job.find(openListingQuery({ employmentType: { $ne: "Internship" } }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
             .lean(),
-          Job.find({
-            status: "Published",
-            employmentType: "Internship",
-          })
+          Job.find(openListingQuery({ employmentType: "Internship" }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
@@ -822,9 +818,10 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       });
     }
 
-    const userSkillsSet = new Set(allProfileSkills.map((s) => s.toLowerCase()));
+    // Normalised comparison: React.js counts as React (T03)
+    const userSkillsSet = normalizedSkillSet(allProfileSkills);
     const missingSkills = benchmarks.filter(
-      (s) => !userSkillsSet.has(s.toLowerCase()),
+      (s) => !userSkillsSet.has(normalizeSkill(s)),
     );
 
     const skillReasons = {
@@ -931,7 +928,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       careerRecommendations.push({
         id: "rec-skill-1",
         title: `Add ${missingSkills[0]} to strengthen your ${targetRole} profile`,
-        description: `82% of entry-level ${targetRole} postings list ${missingSkills[0]} as a key requirement.`,
+        description: `Entry-level ${targetRole} postings often list ${missingSkills[0]} as a key requirement.`,
         ctaText: "Explore Learning",
         ctaAction: `/courses?search=${encodeURIComponent(missingSkills[0])}`,
         type: "skill",
@@ -1024,20 +1021,16 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       })),
     ];
 
+    // What the fresher actually set (targetRole above falls back to a default for matching only).
+    const chosenRole = profile?.targetRole || profile?.jobPreferences?.preferredRoles?.[0] || "";
     const careerTarget = {
-      targetRole,
+      targetRole: chosenRole,
       targetRoles:
-        profile.targetRoles?.length > 0 ? profile.targetRoles : [targetRole],
-      jobType:
-        profile.jobPreferences?.employmentTypes?.join(", ") ||
-        "Full-time opportunities",
-      workMode:
-        profile.jobPreferences?.workMode?.join(" / ") || "Remote / Hybrid",
-      preferredLocations:
-        profile.jobPreferences?.preferredLocations?.length > 0
-          ? profile.jobPreferences.preferredLocations
-          : ["Bangalore", "Pune", "Remote"],
-      careerGoal: profile.careerGoal || "Get my first job",
+        profile.targetRoles?.length > 0 ? profile.targetRoles : chosenRole ? [chosenRole] : [],
+      jobType: profile.jobPreferences?.employmentTypes?.join(", ") || "",
+      workMode: profile.jobPreferences?.workMode?.join(" / ") || "",
+      preferredLocations: profile.jobPreferences?.preferredLocations || [],
+      careerGoal: profile.careerGoal || "",
       activelyLooking: profile.activelyLooking !== false,
     };
 

@@ -118,7 +118,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
   const isSuperAdmin = user?.role === "SUPER_ADMIN" || (user?.role === "admin" && !user?.companyId);
 
   // Exact Section 12 Specification:
-  // SUPER_ADMIN: 8 items
+  // SUPER_ADMIN: 9 items (incl. Employers verification)
   // COMPANY_ADMIN: 7 items (No Companies or Company Admins)
   const navItems = isSuperAdmin
     ? [
@@ -126,6 +126,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
         { label: "Companies", path: "/admin/companies", icon: Building2 },
         { label: "Company Admins", path: "/admin/company-admins", icon: ShieldCheck },
         { label: "Users", path: "/admin/users", icon: GraduationCap },
+        { label: "Employers", path: "/admin/employers", icon: Building2 },
         { label: "Opportunities", path: "/admin/opportunities", icon: Briefcase },
         { label: "Applications", path: "/admin/applications", icon: FileSpreadsheet },
         { label: "Reports", path: "/admin/reports", icon: BarChart3 },

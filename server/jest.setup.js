@@ -1,3 +1,7 @@
+process.env.ENABLE_COURSES = "true";
+process.env.ENABLE_PAYMENTS = "true";
+process.env.ENABLE_ASSESSMENTS = "true";
+
 // ─── Mock Firebase Admin (ESM-incompatible) BEFORE any require ────────────────
 jest.mock('firebase-admin/app', () => ({
   initializeApp: jest.fn(() => ({})),
@@ -43,6 +47,8 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  // Platform settings are cached in memory; drop the cache along with the database.
+  require('./services/platformSettings').clearPlatformSettingsCache();
   // Clean all collections after each test for isolation
   const collections = mongoose.connection.collections;
   for (const key in collections) {

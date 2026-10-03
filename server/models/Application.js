@@ -342,6 +342,11 @@ applicationSchema.index(
 );
 
 applicationSchema.index({ employerId: 1, candidateId: 1 });
+// Resume file cleanup checks whether an application still uses a resume file
+applicationSchema.index({ resumeUrl: 1 });
+// Applicant lists and "position filled" notices query by listing and status
+applicationSchema.index({ jobId: 1, status: 1 });
+applicationSchema.index({ internshipId: 1, status: 1 });
 
 applicationSchema.pre("validate", function () {
   if (this.opportunityType === "Internship" && !this.internshipId) {

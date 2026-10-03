@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
+import { FEATURES } from "../../config/features";
 import BrandLogo from "../common/BrandLogo";
 
 const NAV_ITEMS = [
@@ -151,7 +152,7 @@ const FresherSidebar = ({
 
           {/* Nav List */}
           <div className="py-4 px-2.5 space-y-0.5 overflow-y-auto flex-1 scrollbar-thin">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.filter((item) => item.id !== "courses" || FEATURES.courses).map((item) => {
               const isActive = activeTab === item.id;
 
               if (item.link) {

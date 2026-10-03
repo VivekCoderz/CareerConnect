@@ -3,7 +3,7 @@ const router = express.Router();
 const professionalController = require("../controllers/professionalController");
 const marketInsightsController = require("../controllers/marketInsightsController");
 const protect = require("../middleware/authMiddleware");
-const { requireUserType } = require("../middleware/roleMiddleware");
+const { requireCandidate, requireUserType } = require("../middleware/roleMiddleware");
 
 // Public route for recruiter / public preview
 router.get(
@@ -14,7 +14,9 @@ router.get(
 
 // Authenticated Professional-only routes
 router.use(protect);
-router.use(requireUserType("professional"));
+// requireCandidate rejects employer/admin accounts that carry a leftover userType;
+// requireUserType then limits these routes to professionals.
+router.use(requireCandidate(), requireUserType("professional"));
 
 // Profile CRUD & draft endpoints
 router.get("/profile", professionalController.getProfessionalProfile);

@@ -4,6 +4,8 @@ const FresherProfile = require("../models/FresherProfile");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
+const Internship = require("../models/Internship");
+const Application = require("../models/Application");
 const { escapeRegex } = require("../utils/listingSecurity");
 const mongoose = require("mongoose");
 
@@ -118,6 +120,37 @@ const calculateMatch = (candidateSkills = [], jobRequiredSkills = [], jobPreferr
   };
 };
 
+/**
+ * IDs of the given candidates who applied to one of this employer's jobs or
+ * internships. Only these candidates' email and phone are shown to the employer.
+ */
+const formatLocation = (location) => {
+  if (!location) return null;
+  if (typeof location === "string") return location;
+  return [location.city, location.state].filter(Boolean).join(", ") || null;
+};
+
+const getApplicantIdsForEmployer = async (userId, candidateIds) => {
+  if (candidateIds.length === 0) return new Set();
+  const profile = await EmployerProfile.findOne({ userId }).select("_id").lean();
+  const ownerClauses = [{ createdBy: userId }, ...(profile ? [{ employerId: profile._id }] : [])];
+  const [jobIds, internshipIds] = await Promise.all([
+    Job.find({ $or: ownerClauses }).distinct("_id"),
+    Internship.find({ $or: ownerClauses }).distinct("_id"),
+  ]);
+  const applicationClauses = [
+    ...(profile ? [{ employerId: profile._id }] : []),
+    ...(jobIds.length ? [{ jobId: { $in: jobIds } }] : []),
+    ...(internshipIds.length ? [{ internshipId: { $in: internshipIds } }] : []),
+  ];
+  if (applicationClauses.length === 0) return new Set();
+  const applicantIds = await Application.find({
+    candidateId: { $in: candidateIds },
+    $or: applicationClauses,
+  }).distinct("candidateId");
+  return new Set(applicantIds.map(String));
+};
+
 // GET /api/candidates/search
 exports.searchCandidates = async (req, res, next) => {
   try {
@@ -182,6 +215,8 @@ exports.searchCandidates = async (req, res, next) => {
       professionalProfiles.filter((p) => p?.userId).map((p) => [p.userId.toString(), p])
     );
 
+    const applicantIds = await getApplicantIdsForEmployer(req.user._id, userIds);
+
     const candidates = users.map((user) => {
       const uId = user._id.toString();
       const sProf = studentMap.get(uId);
@@ -219,31 +254,32 @@ exports.searchCandidates = async (req, res, next) => {
       const jobTitle =
         experience.jobTitle ||
         experience.designation ||
-        (user.userType === "student" ? "Undergraduate Student" : "Software Associate");
-      const cgpa = education.score || education.grade || education.cgpa || "8.5";
+        null;
+      const cgpa = education.score || education.grade || education.cgpa || null;
 
       return {
         _id: user._id,
         id: user._id,
         fullName: user.fullName,
-        email: user.email,
-        phone: user.phone,
+        // Contact details only for candidates who applied to this employer
+        email: applicantIds.has(String(user._id)) ? user.email : null,
+        phone: applicantIds.has(String(user._id)) ? user.phone : null,
         profileImage: user.profileImage,
         userType: user.userType,
         socialLinks: user.socialLinks,
         skills: candidateSkills,
-        degree: education.degree || "B.Tech Computer Science",
-        institution: education.institution || "Geeta University",
-        graduationYear: education.endYear || 2026,
+        degree: education.degree || null,
+        institution: education.institution || null,
+        graduationYear: education.endYear || null,
         cgpa,
         jobTitle,
-        experienceYears: user.userType === "professional" ? "2+ Years" : "Fresher",
+        experienceYears: null,
         matchPercentage: matchInfo.matchPercentage,
         strongSkills: matchInfo.strongSkills,
         missingSkills: matchInfo.missingSkills,
-        location: "Panipat, Haryana / Delhi NCR",
-        availability: "Immediate / Within 15 Days",
-        profileCompletion: user.profileCompletion || 80,
+        location: formatLocation(sProf?.location || fProf?.location || pProf?.location),
+        availability: null,
+        profileCompletion: user.profileCompletion || 0,
       };
     });
 
@@ -283,6 +319,12 @@ exports.getCandidateById = async (req, res, next) => {
         ...extractProfileSkills(professionalProfile),
       ])
     );
+
+    const applicantIds = await getApplicantIdsForEmployer(req.user._id, [user._id]);
+    if (!applicantIds.has(String(user._id))) {
+      user.email = null;
+      user.phone = null;
+    }
 
     return res.status(200).json({
       success: true,

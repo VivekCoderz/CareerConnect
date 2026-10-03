@@ -6,8 +6,9 @@ import useLogout from "../../hooks/useLogout";
 import {
   getStudentDashboardData,
   saveOpportunity,
-  applyOpportunity,
 } from "../../services/studentDashboardService";
+import { isExternalOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
+import { FEATURES } from "../../config/features";
 
 // Subcomponents
 import Sidebar from "../../components/student-dashboard/Sidebar";
@@ -23,7 +24,7 @@ import ProjectsPortfolioCard from "../../components/student-dashboard/ProjectsPo
 import CertificationsCard from "../../components/student-dashboard/CertificationsCard";
 import InternshipRecommendationsCard from "../../components/student-dashboard/InternshipRecommendationsCard";
 import JobRecommendationsCard from "../../components/student-dashboard/JobRecommendationsCard";
-import CourseRecommendationsCard from "../../components/student-dashboard/CourseRecommendationsCard";
+//import CourseRecommendationsCard from "../../components/student-dashboard/CourseRecommendationsCard";
 import InternshalaDashboardRecommendations from "../../components/student-dashboard/InternshalaDashboardRecommendations";
 // import StudentCoursesPage from "../courses/StudentCoursesPage";
 import ApplicationTrackerCard from "../../components/student-dashboard/ApplicationTrackerCard";
@@ -161,6 +162,12 @@ const StudentDashboard = () => {
   };
 
   const handleApply = (item) => {
+    // External listings are applied to on the employer's site, not through CareerConnect.
+    if (isExternalOpportunity(item)) {
+      const url = externalApplyUrl(item);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
     setSelectedOpportunityForTailoring({
       _id: item._id || item.id,
       id: item._id || item.id,
@@ -342,7 +349,7 @@ const StudentDashboard = () => {
               appliedJobIds={appliedJobIds}
               appliedInternshipIds={appliedInternshipIds}
               internships={filteredInternships}
-              courses={filteredCourses}
+              courses={FEATURES.courses ? filteredCourses : []}
               savedIds={savedIds}
               onSave={handleSaveToggle}
               onApply={handleApply}
@@ -426,7 +433,7 @@ const StudentDashboard = () => {
           )}
 
           {/* ================= COURSES (full module) ================= */}
-          {activeTab === "courses" && (
+          {activeTab === "courses" && FEATURES.courses && (
             <div className="animate-fade-in">
               {coursesView === "catalog" && (
                 <StudentCoursesPage
@@ -472,7 +479,7 @@ const StudentDashboard = () => {
           )}
 
           {/* ================= SAVED ================= */}
-          {activeTab === "saved" && (
+          {FEATURES.savedJobs && activeTab === "saved" && (
             <SavedOpportunitiesCard
               savedItems={savedList}
               onRemove={(id) => {

@@ -1,13 +1,14 @@
 import { Link } from "react-router-dom";
 
 const CareerGoalCard = ({ careerGoal, preferences }) => {
-  const targetRole = careerGoal || "Full Stack Developer";
+  // Show what the student actually set; empty fields prompt them to fill it in.
+  const targetRole = careerGoal || "Not set yet";
   const preferredRoles = preferences?.preferredRoles?.length
     ? preferences.preferredRoles.join(", ")
-    : "Frontend Developer, Software Engineer";
+    : "Not set yet";
   const preferredLocations = preferences?.preferredLocations?.length
     ? preferences.preferredLocations.join(", ")
-    : "Bangalore, Gurgaon, Remote";
+    : "Not set yet";
   const remote = preferences?.remote !== false;
 
   return (
