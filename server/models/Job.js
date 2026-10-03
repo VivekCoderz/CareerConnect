@@ -382,6 +382,13 @@ const jobSchema = new mongoose.Schema(
 jobSchema.index({ employerId: 1, status: 1 });
 // Expiry sweep and public "still open" filter
 jobSchema.index({ status: 1, deadline: 1 });
+// Public job list: status filter + newest-first sort (_id breaks createdAt ties for stable paging)
+jobSchema.index({ status: 1, createdAt: -1, _id: -1 });
+// Keyword search in getJobs. "none" = no stemming or stop words, so "IT" or "C" still match.
+jobSchema.index(
+  { title: "text", requiredSkills: "text", description: "text" },
+  { name: "job_text_search", weights: { title: 10, requiredSkills: 5, description: 1 }, default_language: "none" }
+);
 jobSchema.index({ category: 1, status: 1 });
 jobSchema.index({ city: 1, status: 1 });
 jobSchema.index({ workMode: 1, status: 1 });

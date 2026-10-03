@@ -5,13 +5,14 @@ const protect = require("../middleware/authMiddleware");
 const { optionalAuth } = require("../middleware/authMiddleware");
 const { requireEmployer } = require("../middleware/roleMiddleware");
 const { requireVerifiedEmployer, requireVerifiedEmployerToPublish } = require("../middleware/employerVerification");
+const publicCache = require("../middleware/publicCache");
 
 // Public Job Search / Authenticated myJobs
 router.get("/", (req, res, next) => {
   if (req.query.myJobs === "true" || req.query.myJobs === true || req.query.myJobs === "1") {
     return protect(req, res, () => jobController.getJobs(req, res, next));
   }
-  return jobController.getJobs(req, res, next);
+  return publicCache(req, res, () => jobController.getJobs(req, res, next));
 });
 router.get("/:id", optionalAuth, jobController.getJobById);
 
