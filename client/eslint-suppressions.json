@@ -921,9 +921,6 @@
     "max-lines": {
       "count": 1
     },
-    "no-undef": {
-      "count": 1
-    },
     "no-unused-vars": {
       "count": 1
     }
