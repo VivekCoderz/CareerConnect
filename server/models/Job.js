@@ -295,6 +295,17 @@ const jobSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    // Credit line shown with feed listings, e.g. "Job listing from Remotive (remotive.com)"
+    attribution: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    // Last time the scheduled feed sync saw this listing (external listings only)
+    lastSyncedAt: {
+      type: Date,
+      default: null,
+    },
 
     // ---------- Interview & Selection Rounds ----------
     interviewRounds: {

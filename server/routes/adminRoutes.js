@@ -74,6 +74,8 @@ const {
   reviewOrganizationRequest,
   approveOrganizationRequest,
   rejectOrganizationRequest,
+  // External job feeds
+  syncExternalJobs,
 } = require("../controllers/adminController");
 
 // ===================================================
@@ -122,6 +124,9 @@ router.get("/companies/:id", requireSuperAdmin, getAdminCompanyById);
 router.put("/companies/:id", requireSuperAdmin, sanitizeInputs, updateAdminCompany);
 router.patch("/companies/:id/status", requireSuperAdmin, updateAdminCompanyStatus);
 router.delete("/companies/:id", requireSuperAdmin, deleteAdminCompany);
+
+// External job feeds: run the scheduled sync now (SUPER_ADMIN)
+router.post("/jobs/sync", requireSuperAdmin, syncExternalJobs);
 
 // Company Admins Management
 router.get("/company-admins", requireSuperAdmin, getCompanyAdmins);

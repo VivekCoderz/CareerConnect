@@ -5,6 +5,7 @@ const Application = require("../models/Application");
 const Course = require("../models/Course");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { withoutListed } = require("../utils/listingSecurity");
 const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 const mongoose = require("mongoose")
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
@@ -311,10 +312,11 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           }
 
           const mappedInt = intList.filter((job) => /^https?:\/\//i.test(job.applyLink || ""))
-            .slice(0, 20).map((job, idx) => ({
-            _id: `scraped-rec-int-${idx}`,
-            id: `scraped-rec-int-${idx}`,
-            jobId: `scraped-rec-int-${idx}`,
+            .slice(0, 20).map((job) => ({
+            // Stored feed listing: its MongoDB id is stable across syncs (I04).
+            _id: String(job._id),
+            id: String(job._id),
+            jobId: String(job._id),
             title: job.title,
             company: job.company,
             companyId: "",
@@ -332,8 +334,9 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             applyUrl: job.applyLink,
             isExternal: true,
             platformSource: job.platformSource,
+            attribution: job.attribution,
           }));
-          finalRecommendedInternships = [...recommendedInternships, ...mappedInt];
+          finalRecommendedInternships = [...recommendedInternships, ...withoutListed(mappedInt, recommendedInternships)];
         }
 
         if (finalRecommendedJobs.length < 10) {
@@ -348,10 +351,11 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           }
 
           const mappedJobs = jobList.filter((job) => /^https?:\/\//i.test(job.applyLink || ""))
-            .slice(0, 20).map((job, idx) => ({
-            _id: `scraped-rec-job-${idx}`,
-            id: `scraped-rec-job-${idx}`,
-            jobId: `scraped-rec-job-${idx}`,
+            .slice(0, 20).map((job) => ({
+            // Stored feed listing: its MongoDB id is stable across syncs (I04).
+            _id: String(job._id),
+            id: String(job._id),
+            jobId: String(job._id),
             title: job.title,
             company: job.company,
             companyId: "",
@@ -367,8 +371,9 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             applyUrl: job.applyLink,
             isExternal: true,
             platformSource: job.platformSource,
+            attribution: job.attribution,
           }));
-          finalRecommendedJobs = [...recommendedJobs, ...mappedJobs];
+          finalRecommendedJobs = [...recommendedJobs, ...withoutListed(mappedJobs, recommendedJobs)];
         }
       } catch (e) {
         console.warn("Aggregated opportunities fallback error:", e.message);
