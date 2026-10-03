@@ -479,7 +479,7 @@ const StudentDashboard = () => {
           )}
 
           {/* ================= SAVED ================= */}
-          {activeTab === "saved" && (
+          {FEATURES.savedJobs && activeTab === "saved" && (
             <SavedOpportunitiesCard
               savedItems={savedList}
               onRemove={(id) => {

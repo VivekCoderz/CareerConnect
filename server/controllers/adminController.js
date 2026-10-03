@@ -2385,6 +2385,7 @@ exports.approveOpportunity = async (req, res, next) => {
     }
 
     opp.status = "Published";
+    opp.closedReason = null;
     opp.approvedBy = req.user._id;
     opp.approvedAt = new Date();
     opp.approvalMethod = "admin";
@@ -2732,6 +2733,7 @@ exports.updateOpportunityStatus = async (req, res, next) => {
     }
 
     opp.status = status;
+    if (status !== "Closed") opp.closedReason = null;
     if (status === "Published") {
       opp.approvedBy = req.user._id;
       opp.approvedAt = new Date();

@@ -326,18 +326,21 @@ const InternshalaDashboardRecommendations = ({
               {/* Bottom Actions Row */}
               <div>
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => onSave && onSave(topJob)}
-                    className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                      isJobSaved
-                        ? "bg-amber-50 border-amber-300 text-amber-600"
-                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                    }`}
-                    title={isJobSaved ? "Saved" : "Save Job"}
-                  >
-                    {isJobSaved ? "★" : "☆"}
-                  </button>
+                  {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                  {FEATURES.savedJobs && (
+                    <button
+                      type="button"
+                      onClick={() => onSave && onSave(topJob)}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                        isJobSaved
+                          ? "bg-amber-50 border-amber-300 text-amber-600"
+                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                      }`}
+                      title={isJobSaved ? "Saved" : "Save Job"}
+                    >
+                      {isJobSaved ? "★" : "☆"}
+                    </button>
+                  )}
 
                   {isJobApplied ? (
                     <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
@@ -469,18 +472,21 @@ const InternshalaDashboardRecommendations = ({
               {/* Bottom Actions Row */}
               <div>
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => onSave && onSave(topInternship)}
-                    className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                      isInternshipSaved
-                        ? "bg-amber-50 border-amber-300 text-amber-600"
-                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                    }`}
-                    title={isInternshipSaved ? "Saved" : "Save Internship"}
-                  >
-                    {isInternshipSaved ? "★" : "☆"}
-                  </button>
+                  {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                  {FEATURES.savedJobs && (
+                    <button
+                      type="button"
+                      onClick={() => onSave && onSave(topInternship)}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                        isInternshipSaved
+                          ? "bg-amber-50 border-amber-300 text-amber-600"
+                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                      }`}
+                      title={isInternshipSaved ? "Saved" : "Save Internship"}
+                    >
+                      {isInternshipSaved ? "★" : "☆"}
+                    </button>
+                  )}
 
                   {isInternshipApplied ? (
                     <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">

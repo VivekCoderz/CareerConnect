@@ -234,7 +234,17 @@ const jobSchema = new mongoose.Schema(
     // "auto" when published by the autoApproveJobs setting (approvedBy stays null).
     approvalMethod: {
       type: String,
-      enum: ["admin", "auto", null],
+      enum: ["admin", "auto", "legacy", null],
+      default: null,
+    },
+    // Why the listing was closed by the platform (e.g. its employer was rejected).
+    closedReason: {
+      type: String,
+      enum: ["employer_rejected", null],
+      default: null,
+    },
+    closedAt: {
+      type: Date,
       default: null,
     },
     rejectedBy: {

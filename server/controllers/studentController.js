@@ -660,18 +660,9 @@ module.exports.updateStudentProfile = async (req, res, next) => {
 // ==========================================
 // SAVE / BOOKMARK OPPORTUNITY
 // ==========================================
-module.exports.toggleSaveOpportunity = async (req, res, next) => {
-  try {
-    const { opportunityId, title, type } = req.body;
-    return res.status(200).json({
-      success: true,
-      message: "Opportunity saved to your workspace",
-      savedItem: { id: opportunityId, title, type, savedAt: new Date() },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+// Saved jobs are not stored yet; say so instead of returning a fake success.
+module.exports.toggleSaveOpportunity = (req, res) =>
+  res.status(501).json({ success: false, code: "NOT_IMPLEMENTED", message: "Not available yet" });
 
 // ==========================================
 // APPLY TO OPPORTUNITY (RETIRED)

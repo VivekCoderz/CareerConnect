@@ -747,6 +747,7 @@ exports.updateInternshipStatus = async (req, res, next) => {
 
     const wasClosed = internship.status === "Closed";
     internship.status = status;
+    if (status !== "Closed") internship.closedReason = null;
     await internship.save();
     if (status === "Closed" && !wasClosed) notifyListingClosedInBackground("internship", internship._id, { senderId: req.user._id });
     clearSearchCache();

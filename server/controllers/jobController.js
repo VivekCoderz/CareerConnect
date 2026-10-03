@@ -511,6 +511,7 @@ exports.updateJobStatus = async (req, res, next) => {
 
     const wasClosed = job.status === "Closed";
     job.status = status;
+    if (status !== "Closed") job.closedReason = null;
     await job.save();
     if (status === "Closed" && !wasClosed) notifyListingClosedInBackground("job", job._id, { senderId: req.user._id });
     clearSearchCache();

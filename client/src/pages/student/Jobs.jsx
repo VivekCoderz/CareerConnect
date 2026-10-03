@@ -1,4 +1,5 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
+import { FEATURES } from "../../config/features";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
@@ -242,18 +243,21 @@ export default function Jobs({
                     </div>
 
                     <div className="flex items-center sm:flex-col sm:items-stretch gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleSaveClick(item)}
-                        className={`h-10 px-3.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 ${
-                          isSaved
-                            ? "bg-amber-50 border-amber-300 text-amber-600"
-                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                        title={isSaved ? "Saved" : "Save Job"}
-                      >
-                        {isSaved ? "★ Saved" : "☆ Save"}
-                      </button>
+                      {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                      {FEATURES.savedJobs && (
+                        <button
+                          type="button"
+                          onClick={() => handleSaveClick(item)}
+                          className={`h-10 px-3.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 ${
+                            isSaved
+                              ? "bg-amber-50 border-amber-300 text-amber-600"
+                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                          }`}
+                          title={isSaved ? "Saved" : "Save Job"}
+                        >
+                          {isSaved ? "★ Saved" : "☆ Save"}
+                        </button>
+                      )}
 
                       {item.applyLink ? (
                         <a

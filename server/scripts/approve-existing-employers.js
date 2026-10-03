@@ -6,6 +6,10 @@
  * also match never-reviewed "pending" profiles created before that date. Profiles an admin
  * has reviewed (verifiedBy set) are never touched.
  *
+ * It also backfills approvedAt (and approvalMethod "legacy") on those employers' Published
+ * jobs and internships that predate moderation, so they can be paused and re-opened.
+ * approvedAt is set to the listing's creation date.
+ *
  * Usage (from server/):
  *   node scripts/approve-existing-employers.js                       # dry run: lists who would be approved
  *   node scripts/approve-existing-employers.js --before=2026-10-01   # dry run incl. pre-S04 "pending"
@@ -14,12 +18,24 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 const EmployerProfile = require("../models/EmployerProfile");
+const Internship = require("../models/Internship");
+const Job = require("../models/Job");
 require("../models/User");
 
 const legacyFilter = (before) => ({
   $or: [
     { verificationStatus: { $exists: false } },
     ...(before ? [{ verificationStatus: "pending", verifiedBy: null, createdAt: { $lt: before } }] : []),
+  ],
+});
+
+// Published listings of these employers that were never recorded as approved.
+const unapprovedPublishedFilter = (employers) => ({
+  status: "Published",
+  approvedAt: null,
+  $or: [
+    { employerId: { $in: employers.flatMap((e) => [e._id, e.userId?._id || e.userId].filter(Boolean)) } },
+    { createdBy: { $in: employers.map((e) => e.userId?._id || e.userId).filter(Boolean) } },
   ],
 });
 
@@ -39,19 +55,46 @@ async function approveLegacyEmployers({ apply = false, before = null, log = cons
     log(`  - ${e._id}  ${e.companyName || "(no company name)"}  <${e.officialEmail || owner}>  created ${created}${inactive}`);
   }
 
+  const listingFilter = unapprovedPublishedFilter(employers);
+  const [jobsToBackfill, internshipsToBackfill] = employers.length === 0
+    ? [0, 0]
+    : await Promise.all([Job.countDocuments(listingFilter), Internship.countDocuments(listingFilter)]);
+  log(`Published listings to backfill approvedAt on: ${jobsToBackfill} job(s), ${internshipsToBackfill} internship(s).`);
+
   if (!apply) {
     log("");
     log("Dry run: nothing changed. Re-run with --apply to approve these employers.");
-    return { matched: employers.length, approved: 0 };
+    return {
+      matched: employers.length,
+      approved: 0,
+      listingsToBackfill: { jobs: jobsToBackfill, internships: internshipsToBackfill },
+      listingsBackfilled: { jobs: 0, internships: 0 },
+    };
   }
 
   const result = await EmployerProfile.updateMany(
     { _id: { $in: employers.map((e) => e._id) }, ...filter },
     { $set: { verificationStatus: "approved", verifiedAt: new Date(), verifiedBy: null, rejectionReason: null } }
   );
+
+  // Pipeline update so each listing's approvedAt is its own createdAt.
+  const backfill = [{ $set: { approvedAt: { $ifNull: ["$createdAt", "$$NOW"] }, approvalMethod: "legacy" } }];
+  const [jobs, internships] = employers.length === 0
+    ? [{ modifiedCount: 0 }, { modifiedCount: 0 }]
+    : await Promise.all([
+      Job.updateMany(listingFilter, backfill, { updatePipeline: true }),
+      Internship.updateMany(listingFilter, backfill, { updatePipeline: true }),
+    ]);
+
   log("");
   log(`Approved ${result.modifiedCount} employer(s).`);
-  return { matched: employers.length, approved: result.modifiedCount };
+  log(`Backfilled approvedAt on ${jobs.modifiedCount} job(s) and ${internships.modifiedCount} internship(s).`);
+  return {
+    matched: employers.length,
+    approved: result.modifiedCount,
+    listingsToBackfill: { jobs: jobsToBackfill, internships: internshipsToBackfill },
+    listingsBackfilled: { jobs: jobs.modifiedCount, internships: internships.modifiedCount },
+  };
 }
 
 function parseBefore(argv) {
