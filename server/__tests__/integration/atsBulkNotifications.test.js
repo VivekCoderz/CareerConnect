@@ -120,6 +120,26 @@ describe("position filled and daily summary", () => {
   });
 });
 
+describe("position filled from platform closures", () => {
+  it("expired listings and rejected employers notify waiting candidates", async () => {
+    const { closeExpiredListings } = require("../../utils/listingExpiry");
+    const expired = await setup(1);
+    await Job.updateOne({ _id: expired.job._id }, { deadline: new Date("2020-01-01") });
+    await closeExpiredListings();
+    await waitFor(async () => (await Notification.countDocuments({ relatedApplicationId: expired.applicationIds[0], "metadata.status": "PositionFilled" })) === 1);
+    expect((await Job.findById(expired.job._id).lean()).status).toBe("Closed");
+    expect(await Notification.countDocuments({ relatedApplicationId: expired.applicationIds[0], "metadata.status": "PositionFilled" })).toBe(1);
+
+    const rejected = await setup(1);
+    const admin = await createUserWithToken({ email: `root3${Date.now()}@careerconnect.test`, role: "SUPER_ADMIN", userType: "admin" });
+    const res = await as(admin.token, "patch", `/api/admin/employers/${rejected.profile._id}/verification`)
+      .send({ status: "rejected", reason: "Could not verify" });
+    expect(res.statusCode).toBe(200);
+    await waitFor(async () => (await Notification.countDocuments({ relatedApplicationId: rejected.applicationIds[0], "metadata.status": "PositionFilled" })) === 1);
+    expect(await Notification.countDocuments({ relatedApplicationId: rejected.applicationIds[0], "metadata.status": "PositionFilled" })).toBe(1);
+  });
+});
+
 describe("email budget", () => {
   it("never blocks OTPs and stops other emails at the daily budget", async () => {
     process.env.NOTIFICATION_EMAIL_DAILY_BUDGET = "2";
