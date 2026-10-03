@@ -3,6 +3,7 @@ const ProfessionalProfile = require("../models/ProfessionalProfile");
 const Job = require("../models/Job");
 const Application = require("../models/Application");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { withoutListed } = require("../utils/listingSecurity");
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 const { openListingQuery } = require("../utils/listingExpiry");
 
@@ -609,10 +610,11 @@ module.exports.getProfessionalDashboard = async (req, res, next) => {
           search: targetSearch,
         });
 
-        const mappedJobs = (scraped.data || []).slice(0, 20).map((job, idx) => ({
-          _id: `scraped-prof-job-${idx}`,
-          id: `scraped-prof-job-${idx}`,
-          jobId: `scraped-prof-job-${idx}`,
+        const mappedJobs = (scraped.data || []).slice(0, 20).map((job) => ({
+          // Stored feed listing: its MongoDB id is stable across syncs (I04).
+          _id: String(job._id),
+          id: String(job._id),
+          jobId: String(job._id),
           title: job.title,
           company: job.company,
           location: job.location,
@@ -632,8 +634,9 @@ module.exports.getProfessionalDashboard = async (req, res, next) => {
           applyUrl: job.applyLink,
           isExternal: true,
           platformSource: job.platformSource,
+          attribution: job.attribution,
         }));
-        recommendedJobs = [...recommendedJobs, ...mappedJobs];
+        recommendedJobs = [...recommendedJobs, ...withoutListed(mappedJobs, recommendedJobs)];
       } catch (scrapErr) {
         console.warn("Professional scraped jobs fallback error:", scrapErr.message);
       }

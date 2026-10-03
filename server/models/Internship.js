@@ -130,6 +130,9 @@ const internshipSchema = new mongoose.Schema(
     isExternal: { type: Boolean, default: false, index: true },
     externalId: { type: String, default: null },
     applyUrl: { type: String, default: "", trim: true },
+    // Feed credit line and last time the scheduled feed sync saw this listing (external only)
+    attribution: { type: String, default: "", trim: true },
+    lastSyncedAt: { type: Date, default: null },
 
     // ---------- Dynamic Recruitment Pipeline Stages ----------
     recruitmentStages: [

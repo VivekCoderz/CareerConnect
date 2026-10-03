@@ -90,6 +90,12 @@ const toPublicListing = (listing, user) => {
   return plain;
 };
 
+/** Listings in `extra` whose id is not already in `listed` (feed fallbacks can repeat a DB result). */
+const withoutListed = (extra, listed) => {
+  const ids = new Set(listed.map((item) => String(item._id)));
+  return extra.filter((item) => !ids.has(String(item._id)));
+};
+
 module.exports = {
   pickListingUpdate,
   toPublicListing,
@@ -98,4 +104,5 @@ module.exports = {
   isPlatformAdmin,
   resolveNewListingModeration,
   checkEmployerStatusChange,
+  withoutListed,
 };

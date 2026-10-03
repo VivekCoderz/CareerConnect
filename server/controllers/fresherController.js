@@ -5,6 +5,7 @@ const Job = require("../models/Job");
 const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { withoutListed } = require("../utils/listingSecurity");
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 const { openListingQuery } = require("../utils/listingExpiry");
@@ -671,10 +672,11 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         });
         const mappedJobs = (scraped.data || [])
           .slice(0, 20)
-          .map((job, idx) => ({
-            _id: `scraped-fresher-job-${idx}`,
-            id: `scraped-fresher-job-${idx}`,
-            jobId: `scraped-fresher-job-${idx}`,
+          .map((job) => ({
+            // Stored feed listing: its MongoDB id is stable across syncs (I04).
+            _id: String(job._id),
+            id: String(job._id),
+            jobId: String(job._id),
             title: job.title,
             company: job.company,
             location: job.location,
@@ -697,8 +699,9 @@ module.exports.getFresherDashboard = async (req, res, next) => {
             applyUrl: job.applyLink,
             isExternal: true,
             platformSource: job.platformSource,
+            attribution: job.attribution,
           }));
-        finalRecommendedJobs = [...recommendedJobs, ...mappedJobs];
+        finalRecommendedJobs = [...recommendedJobs, ...withoutListed(mappedJobs, recommendedJobs)];
       } catch (e) {
         console.warn("Fresher scraped jobs fallback error:", e.message);
       }
@@ -711,10 +714,11 @@ module.exports.getFresherDashboard = async (req, res, next) => {
           opportunityType: "internship",
           search: profile.targetRole || "Developer",
         });
-        const mappedInt = (scraped.data || []).slice(0, 20).map((job, idx) => ({
-          _id: `scraped-fresher-int-${idx}`,
-          id: `scraped-fresher-int-${idx}`,
-          jobId: `scraped-fresher-int-${idx}`,
+        const mappedInt = (scraped.data || []).slice(0, 20).map((job) => ({
+          // Stored feed listing: its MongoDB id is stable across syncs (I04).
+          _id: String(job._id),
+          id: String(job._id),
+          jobId: String(job._id),
           title: job.title,
           company: job.company,
           location: job.location,
@@ -728,8 +732,9 @@ module.exports.getFresherDashboard = async (req, res, next) => {
           applyUrl: job.applyLink,
           isExternal: true,
           platformSource: job.platformSource,
+          attribution: job.attribution,
         }));
-        finalRecommendedInternships = [...recommendedInternships, ...mappedInt];
+        finalRecommendedInternships = [...recommendedInternships, ...withoutListed(mappedInt, recommendedInternships)];
       } catch (e) {
         console.warn("Fresher scraped internships fallback error:", e.message);
       }

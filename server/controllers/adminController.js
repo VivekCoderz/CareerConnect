@@ -21,6 +21,7 @@ const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
 const { escapeRegex, pickListingUpdate } = require("../utils/listingSecurity");
 const { clearSearchCache } = require("../services/jobScraperService");
+const { runExternalJobSync } = require("../services/externalJobSync");
 const { createNotification } = require("../services/notificationService");
 const { notifyListingClosedInBackground } = require("../services/listingClosure");
 
@@ -3721,6 +3722,20 @@ exports.getAdminNotifications = async (req, res, next) => {
       notifications,
       unreadCount: notifications.length,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ===================================================
+// EXTERNAL JOB FEED SYNC (SUPER_ADMIN)
+// POST /api/admin/jobs/sync
+// Runs the same sync as the schedule; feed failures are reported per source, not thrown.
+// ===================================================
+exports.syncExternalJobs = async (req, res, next) => {
+  try {
+    const result = await runExternalJobSync();
+    return res.status(200).json({ success: true, message: "External job feeds synced", ...result });
   } catch (error) {
     next(error);
   }

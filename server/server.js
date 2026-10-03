@@ -75,6 +75,10 @@ const runListingExpirySweep = async () => {
 runListingExpirySweep();
 setInterval(runListingExpirySweep, LISTING_EXPIRY_INTERVAL_MS);
 
+// Background job: sync approved external job feeds (Remotive, Arbeitnow) into MongoDB.
+// Job lists only read the stored listings; requests never call the feeds.
+require("./services/externalJobSync").startExternalJobSyncSchedule();
+
 server.listen(PORT, () => {
   console.log(`CareerConnect server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
   // Daily summary email of rejections / closed positions (6 PM IST)

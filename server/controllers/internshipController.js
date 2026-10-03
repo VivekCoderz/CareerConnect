@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const Internship = require("../models/Internship");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
-const { syncExternalInternships } = require("../services/externalInternships");
+const { runExternalJobSync } = require("../services/externalJobSync");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const StudentProfile = require("../models/StudentProfile");
@@ -313,6 +313,8 @@ exports.getInternships = async (req, res, next) => {
 
     // Candidates never see listings whose deadline has passed, even before the sweep closes them.
     if (myPosts !== "true") withOpenDeadline(filter);
+    // Feed listings (isExternal) are added below as the external list, so they are not campus listings.
+    if (filter.isExternal === undefined) filter.isExternal = { $ne: true };
 
     // 1. Fetch Campus Internships from MongoDB (unless source is explicitly "external")
     let campusList = [];
@@ -429,10 +431,11 @@ exports.getInternships = async (req, res, next) => {
             const key = `${(item.title || "").toLowerCase().trim()}_${(item.company || "").toLowerCase().trim()}`;
             return !campusKeys.has(key);
           })
-          .map((item, idx) => ({
-            _id: `scraped-int-${idx}`,
-            id: `scraped-int-${idx}`,
-            jobId: `scraped-int-${idx}`,
+          .map((item) => ({
+            // Stored feed listings have a stable MongoDB id
+            _id: item._id,
+            id: item.id,
+            jobId: item.id,
             title: item.title,
             company: item.company,
             companyName: item.company,
@@ -453,12 +456,13 @@ exports.getInternships = async (req, res, next) => {
             isInternational: !!item.location?.toLowerCase().includes("worldwide") || !item.location?.toLowerCase().includes("india"),
             isExclusive: false,
             isExternal: true,
-            skillsRequired: [item.title.split(" ")[0] || "Development", "Problem Solving"],
-            requiredSkills: [item.title.split(" ")[0] || "Development", "Problem Solving"],
+            skillsRequired: item.skills?.length ? item.skills : [item.title.split(" ")[0] || "Development", "Problem Solving"],
+            requiredSkills: item.skills?.length ? item.skills : [item.title.split(" ")[0] || "Development", "Problem Solving"],
             postedAt: item.postedDate || "Recently Posted",
-            createdAt: new Date(),
+            createdAt: item.createdAt || new Date(),
             deadline: "Open until filled",
-            description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
+            description: item.description || `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
+            attribution: item.attribution || "",
             responsibilities: ["Contribute to ongoing development", "Collaborate with mentors and team"],
             openings: 2,
             applicantsCount: 5,
@@ -602,59 +606,10 @@ exports.getInternshipById = async (req, res, next) => {
   try {
     const id = req.params.id;
 
-    // Handle scraped / external opportunity IDs
+    // Every listing, including synced feed listings, has a stable MongoDB id (I04). The old
+    // positional "scraped-*" ids pointed at different listings as results changed, so they
+    // are no longer resolved.
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      try {
-        const aggregated = await getAggregatedOpportunities({ opportunityType: "all" });
-        const match = (aggregated.data || []).find(
-          (item, idx) =>
-            `scraped-int-${idx}` === id ||
-            `scraped-job-${idx}` === id ||
-            `scraped-rec-int-${idx}` === id ||
-            `scraped-rec-job-${idx}` === id ||
-            item.title === id
-        );
-
-        if (match) {
-          const formatted = {
-            _id: id,
-            id: id,
-            title: match.title,
-            company: match.company,
-            companyName: match.company,
-            location: match.location,
-            workMode: match.workMode || "Remote",
-            type: match.opportunityType || "Internship",
-            stipend: "Competitive Stipend / Package",
-            salary: "Competitive Package",
-            duration: "3-6 Months",
-            isPaid: true,
-            isExternal: true,
-            applyLink: match.applyLink,
-            applyUrl: match.applyLink,
-            platformSource: match.platformSource,
-            source: match.platformSource,
-            description: `${match.title} at ${match.company}. Real-time verified opportunity aggregated from ${match.platformSource}. Click below to apply directly on the source platform.`,
-            responsibilities: [
-              "Collaborate with the engineering and product team",
-              "Execute tasks and features as per requirements",
-              "Participate in design and code reviews"
-            ],
-            requiredSkills: [match.title.split(" ")[0] || "Engineering", "Communication", "Problem Solving"],
-            openings: 2,
-            deadline: "Open until filled",
-            postedAt: match.postedDate || "Recently Posted",
-          };
-          return res.status(200).json({
-            success: true,
-            internship: formatted,
-            data: formatted,
-          });
-        }
-      } catch (e) {
-        console.warn("Scraped ID lookup error in getInternshipById:", e.message);
-      }
-
       return res.status(404).json({ success: false, message: "Internship opportunity not found" });
     }
 
@@ -797,13 +752,13 @@ exports.deleteInternship = async (req, res, next) => {
   }
 };
 
-// POST /api/internships/sync/external (Sync external APIs)
+// POST /api/internships/sync/external (older alias of POST /api/admin/jobs/sync)
 exports.syncFromExternalAPIs = async (req, res, next) => {
   try {
-    const result = await syncExternalInternships();
+    const result = await runExternalJobSync();
     return res.json({
       success: true,
-      message: "External internships synced",
+      message: "External job feeds synced",
       ...result,
     });
   } catch (error) {

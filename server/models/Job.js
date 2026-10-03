@@ -294,6 +294,17 @@ const jobSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    // Credit line shown with feed listings, e.g. "Job listing from Remotive (remotive.com)"
+    attribution: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    // Last time the scheduled feed sync saw this listing (external listings only)
+    lastSyncedAt: {
+      type: Date,
+      default: null,
+    },
 
     // ---------- Interview & Selection Rounds ----------
     interviewRounds: {
@@ -382,6 +393,8 @@ const jobSchema = new mongoose.Schema(
 jobSchema.index({ employerId: 1, status: 1 });
 // Expiry sweep and public "still open" filter
 jobSchema.index({ status: 1, deadline: 1 });
+// Public job list: Published listings, newest first (GET /api/jobs default sort).
+jobSchema.index({ status: 1, createdAt: -1, _id: -1 });
 jobSchema.index({ category: 1, status: 1 });
 jobSchema.index({ city: 1, status: 1 });
 jobSchema.index({ workMode: 1, status: 1 });
