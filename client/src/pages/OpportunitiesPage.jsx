@@ -58,6 +58,19 @@ export default function OpportunitiesPage() {
   // Data States
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [appliedMap, setAppliedMap] = useState({});
+  const [selectedOpportunity, setSelectedOpportunity] = useState(null);
+  const [applying, setApplying] = useState(false);
+  const [coverNote, setCoverNote] = useState("");
+  const [appFormData, setAppFormData] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    education: "",
+    skills: "",
+    experience: "",
+    resumeUrl: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);

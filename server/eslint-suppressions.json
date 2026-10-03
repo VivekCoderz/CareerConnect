@@ -147,9 +147,6 @@
     "max-lines": {
       "count": 1
     },
-    "no-undef": {
-      "count": 5
-    },
     "no-unused-vars": {
       "count": 4
     }
@@ -406,9 +403,6 @@
   },
   "services/aiResumeservice.js": {
     "max-lines": {
-      "count": 1
-    },
-    "no-undef": {
       "count": 1
     },
     "no-unused-vars": {

@@ -83,6 +83,18 @@ const parseSkills = (str) => {
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
+// Empty candidate in the shape normalizeResumeCandidateData returns.
+const EMPTY_RAW = {
+  personal: { fullName: "", email: "", phone: "", location: "", linkedin: "", github: "", portfolio: "" },
+  summary: "",
+  skills: { programmingLanguages: "", frameworks: "", tools: "", other: "" },
+  experience: [],
+  projects: [],
+  education: [],
+  certifications: [],
+  achievements: [],
+};
+
 const improveBullet = (text) => {
   if (!text || !text.trim()) return text;
   let t = text.trim();

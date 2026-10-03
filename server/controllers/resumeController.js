@@ -29,7 +29,7 @@ const {
   selectBestATSResume,
 } = require("../services/atsScoringService.js");
 const { runWithGeminiCascade } = require("../services/geminiCascade");
-const { splitOtherSkills } = require("../utils/skills");
+const { splitOtherSkills, mergeSkillStrings } = require("../utils/skills");
 const mongoose = require("mongoose");
 const atsPdfWorkflow = require("../services/atsPdfWorkflow");
 
@@ -1924,15 +1924,18 @@ const confirmParsedProfileHandler = async (req, res) => {
           ...currentSkills.toObject?.(),
           programmingLanguages: mergeSkillStrings(
             currentSkills.programmingLanguages || [],
-            splitSkills(parsedData.skills?.programmingLanguages)
+            splitSkills(parsedData.skills?.programmingLanguages),
+            { asObjects: true }
           ),
           frameworks: mergeSkillStrings(
             currentSkills.frameworks || [],
-            splitSkills(parsedData.skills?.frameworks)
+            splitSkills(parsedData.skills?.frameworks),
+            { asObjects: true }
           ),
           tools: mergeSkillStrings(
             currentSkills.tools || [],
-            splitSkills(parsedData.skills?.tools)
+            splitSkills(parsedData.skills?.tools),
+            { asObjects: true }
           ),
         };
       }
