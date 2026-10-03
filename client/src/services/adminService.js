@@ -139,6 +139,12 @@ export const getAdminEmployers = async (params = {}) => {
   return response.data;
 };
 
+// Platform admins only: status is "approved" or "rejected"; id is the EmployerProfile id
+export const setEmployerVerification = async (id, status, reason = "") => {
+  const response = await api.patch(`/admin/employers/${id}/verification`, { status, reason });
+  return response.data;
+};
+
 export const updateEmployerStatus = async (id, status) => {
   const response = await api.patch(`/admin/employers/${id}/status`, { status });
   return response.data;
@@ -149,6 +155,12 @@ export const updateEmployerStatus = async (id, status) => {
 // ==========================================
 export const getAdminOpportunities = async (params = {}) => {
   const response = await api.get("/admin/opportunities", { params });
+  return response.data;
+};
+
+// Super Admin: post a job or internship on behalf of an approved employer
+export const createOpportunityForEmployer = async (payload) => {
+  const response = await api.post("/admin/opportunities", payload);
   return response.data;
 };
 
@@ -343,6 +355,7 @@ export default {
   getAdminStudents,
   updateStudentStatus,
   getAdminEmployers,
+  setEmployerVerification,
   updateEmployerStatus,
   getAdminOpportunities,
   updateOpportunityStatus,

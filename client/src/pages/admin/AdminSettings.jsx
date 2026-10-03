@@ -3,6 +3,29 @@ import AdminLayout from "../../components/admin/AdminLayout";
 import { getAdminSettings, updateAdminSettings } from "../../services/adminService";
 import { Settings, Save, ShieldCheck, Bell, Database, Check } from "lucide-react";
 
+const PLATFORM_TOGGLES = [
+  {
+    key: "allowEmployerRegistration",
+    label: "Allow Employer Registration",
+    description: "When off, new employer sign-ups are refused.",
+  },
+  {
+    key: "autoApproveEmployers",
+    label: "Auto-Approve New Employers",
+    description: "New employers are verified immediately instead of waiting for admin review.",
+  },
+  {
+    key: "autoApproveJobs",
+    label: "Auto-Approve Listings From Verified Employers",
+    description: "Publish jobs and internships from verified employers without moderation.",
+  },
+  {
+    key: "maintenanceMode",
+    label: "Maintenance Mode",
+    description: "Block changes by students and employers (browsing still works); admins are unaffected.",
+  },
+];
+
 const AdminSettings = () => {
   const [settings, setSettings] = useState({});
   const [scope, setScope] = useState("GLOBAL");
@@ -85,57 +108,27 @@ const AdminSettings = () => {
 
         <form onSubmit={handleSave} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
           {scope === "GLOBAL" ? (
-            /* Super Admin Global Settings */
+            /* Super Admin Global Settings (stored in PlatformSetting) */
             <div className="space-y-4">
               <h2 className="text-sm font-bold text-slate-900 pb-2 border-b border-slate-100 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-indigo-600" />
                 Security & Platform Governance
               </h2>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <div>
-                  <span className="block text-xs font-bold text-slate-800">Enforce Email Verification</span>
-                  <span className="text-[11px] text-slate-500">Require candidates to verify email OTP before applying.</span>
+              {PLATFORM_TOGGLES.map(({ key, label, description }) => (
+                <div key={key} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div>
+                    <span className="block text-xs font-bold text-slate-800">{label}</span>
+                    <span className="text-[11px] text-slate-500">{description}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(settings[key])}
+                    onChange={(e) => setSettings({ ...settings, [key]: e.target.checked })}
+                    className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                  />
                 </div>
-                <input
-                  type="checkbox"
-                  checked={settings.enforceEmailVerification !== false}
-                  onChange={(e) =>
-                    setSettings({ ...settings, enforceEmailVerification: e.target.checked })
-                  }
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <div>
-                  <span className="block text-xs font-bold text-slate-800">Auto-Approve Company Opportunities</span>
-                  <span className="text-[11px] text-slate-500">Automatically publish jobs and internships without review.</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={Boolean(settings.autoApproveOpportunities)}
-                  onChange={(e) =>
-                    setSettings({ ...settings, autoApproveOpportunities: e.target.checked })
-                  }
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <div>
-                  <span className="block text-xs font-bold text-slate-800">Maintenance Mode</span>
-                  <span className="text-[11px] text-slate-500">Restrict student/employer login during system upgrades.</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={Boolean(settings.maintenanceMode)}
-                  onChange={(e) =>
-                    setSettings({ ...settings, maintenanceMode: e.target.checked })
-                  }
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
-                />
-              </div>
+              ))}
             </div>
           ) : (
             /* Company Admin Tenant Settings */
@@ -156,7 +149,8 @@ const AdminSettings = () => {
                   onChange={(e) =>
                     setSettings({ ...settings, emailNotifications: e.target.checked })
                   }
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                  disabled
+                  className="w-4 h-4 text-indigo-600 rounded"
                 />
               </div>
 
@@ -171,13 +165,20 @@ const AdminSettings = () => {
                   onChange={(e) =>
                     setSettings({ ...settings, autoShortlist: e.target.checked })
                   }
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                  disabled
+                  className="w-4 h-4 text-indigo-600 rounded"
                 />
               </div>
             </div>
           )}
 
-          <div className="pt-3 border-t border-slate-100 flex justify-end">
+          {scope !== "GLOBAL" && (
+            <p className="text-[11px] text-slate-500">
+              These settings are read-only. Only platform administrators can change settings.
+            </p>
+          )}
+
+          <div className={`pt-3 border-t border-slate-100 justify-end ${scope === "GLOBAL" ? "flex" : "hidden"}`}>
             <button
               type="submit"
               disabled={saving}

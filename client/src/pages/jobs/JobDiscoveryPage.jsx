@@ -1,11 +1,64 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
+import { FEATURES } from "../../config/features";
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import jobService from "../../services/jobService";
-import { applyOpportunity, saveOpportunity } from "../../services/studentDashboardService";
+import { saveOpportunity } from "../../services/studentDashboardService";
+import { applyToOpportunity } from "../../utils/opportunityApply";
+import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
+
+const CATEGORIES_LIST = [
+  "Software Development",
+  "Data Science",
+  "Machine Learning & AI",
+  "Web Development",
+  "DevOps & Cloud",
+  "UI/UX Design",
+  "Digital Marketing",
+  "Finance & Accounting",
+  "Human Resources (HR)",
+  "Sales & Business Dev",
+];
+
+const CITIES_LIST = [
+  "All",
+  "Bangalore",
+  "Delhi NCR",
+  "Mumbai",
+  "Hyderabad",
+  "Pune",
+  "Chennai",
+  "Remote",
+];
+
+const normalizeCity = (param) => {
+  if (!param) return "All";
+  const cleaned = param.replace(/-/g, " ").trim().toLowerCase();
+  const matched = CITIES_LIST.find(
+    (c) => c.toLowerCase() === cleaned || c.toLowerCase().includes(cleaned) || cleaned.includes(c.toLowerCase())
+  );
+  if (matched) return matched;
+  return cleaned
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+};
+
+const normalizeCategory = (param) => {
+  if (!param) return "All";
+  const cleaned = param.replace(/-/g, " ").trim().toLowerCase();
+  const matched = CATEGORIES_LIST.find(
+    (c) => c.toLowerCase() === cleaned || c.toLowerCase().includes(cleaned) || cleaned.includes(c.toLowerCase())
+  );
+  if (matched) return matched;
+  return cleaned
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+};
 
 const JobDiscoveryPage = () => {
   const { city: cityParam, category: categoryParam } = useParams();
@@ -29,8 +82,8 @@ const JobDiscoveryPage = () => {
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCity, setSelectedCity] = useState(cityParam ? cityParam.replace(/-/g, " ") : "All");
-  const [selectedCategory, setSelectedCategory] = useState(categoryParam ? categoryParam.replace(/-/g, " ") : "All");
+  const [selectedCity, setSelectedCity] = useState(cityParam ? normalizeCity(cityParam) : "All");
+  const [selectedCategory, setSelectedCategory] = useState(categoryParam ? normalizeCategory(categoryParam) : "All");
   const [selectedWorkMode, setSelectedWorkMode] = useState(isWorkFromHome ? "Remote" : "All");
   const [selectedEmpType, setSelectedEmpType] = useState("All");
   const [sortBy, setSortBy] = useState("latest");
@@ -42,10 +95,10 @@ const JobDiscoveryPage = () => {
 
   // Sync state when URL params change
   useEffect(() => {
-    if (cityParam) setSelectedCity(cityParam.replace(/-/g, " "));
+    if (cityParam) setSelectedCity(normalizeCity(cityParam));
     else if (!pathname.includes("/in/")) setSelectedCity("All");
 
-    if (categoryParam) setSelectedCategory(categoryParam.replace(/-/g, " "));
+    if (categoryParam) setSelectedCategory(normalizeCategory(categoryParam));
     else if (!pathname.includes("/category/")) setSelectedCategory("All");
 
     if (isWorkFromHome) setSelectedWorkMode("Remote");
@@ -112,13 +165,11 @@ const JobDiscoveryPage = () => {
     }
 
     try {
-      const res = await applyOpportunity({
-        opportunityId: jobItem._id || jobItem.id,
-        jobId: jobItem._id || jobItem.id,
-        title: jobItem.title,
-        company: jobItem.company || jobItem.companyName,
-        type: "Job",
-      });
+      const res = await applyToOpportunity(jobItem, "Job");
+      if (res.external) {
+        if (!res.opened) showToast("This listing has no apply link.", "error");
+        return;
+      }
 
       if (res?.success) {
         showToast(res.message || `Application submitted for "${jobItem.title}"!`, "success");
@@ -159,30 +210,6 @@ const JobDiscoveryPage = () => {
     if (categoryParam) return `${categoryParam.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")} Jobs`;
     return "Explore All Jobs & Openings";
   }, [isWorkFromHome, isLatest, cityParam, categoryParam]);
-
-  const categoriesList = [
-    "Software Development",
-    "Data Science",
-    "Machine Learning & AI",
-    "Web Development",
-    "DevOps & Cloud",
-    "UI/UX Design",
-    "Digital Marketing",
-    "Finance & Accounting",
-    "Human Resources (HR)",
-    "Sales & Business Dev",
-  ];
-
-  const citiesList = [
-    "All",
-    "Bangalore",
-    "Delhi NCR",
-    "Mumbai",
-    "Hyderabad",
-    "Pune",
-    "Chennai",
-    "Remote",
-  ];
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800">
@@ -305,11 +332,19 @@ const JobDiscoveryPage = () => {
               </label>
               <select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCategory(val);
+                  if (val === "All") {
+                    if (pathname.includes("/category/")) navigate("/jobs");
+                  } else {
+                    navigate(`/jobs/category/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+                  }
+                }}
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:border-blue-500"
               >
                 <option value="All">All Categories</option>
-                {categoriesList.map((c) => (
+                {CATEGORIES_LIST.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -323,10 +358,18 @@ const JobDiscoveryPage = () => {
               </label>
               <select
                 value={selectedCity}
-                onChange={(e) => setSelectedCity(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCity(val);
+                  if (val === "All") {
+                    if (pathname.includes("/in/")) navigate("/jobs");
+                  } else {
+                    navigate(`/jobs/in/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+                  }
+                }}
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:border-blue-500"
               >
-                {citiesList.map((c) => (
+                {CITIES_LIST.map((c) => (
                   <option key={c} value={c}>
                     {c === "All" ? "All Locations" : c}
                   </option>
@@ -386,7 +429,7 @@ const JobDiscoveryPage = () => {
             {jobs.map((jobItem) => {
               const isSaved = savedIds.includes(jobItem.id || jobItem._id);
               const compName = jobItem.employerId?.companyName || jobItem.company || jobItem.companyName || "Partner Employer";
-              const salaryStr = jobItem.salary || (jobItem.salaryRange?.min ? `₹${(jobItem.salaryRange.min / 100000).toFixed(1)}L - ₹${(jobItem.salaryRange.max / 100000).toFixed(1)}L / yr` : "Competitive Package");
+              const salaryStr = jobItem.salary || (jobItem.salaryRange?.min ? `₹${(jobItem.salaryRange.min / 100000).toFixed(1)}L - ₹${(jobItem.salaryRange.max / 100000).toFixed(1)}L / yr` : "Not disclosed");
 
               return (
                 <div
@@ -403,7 +446,11 @@ const JobDiscoveryPage = () => {
                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
                         {jobItem.employmentType || "Full-Time"}
                       </span>
-                      <h3 className="text-base font-bold text-slate-900">{jobItem.title}</h3>
+                      <h3 className="text-base font-bold text-slate-900">
+                        <OpportunityTitleLink item={jobItem} type="Job" className="hover:text-blue-700 hover:underline">
+                          {jobItem.title}
+                        </OpportunityTitleLink>
+                      </h3>
                       <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
                         {jobItem.workMode}
                       </span>
@@ -441,17 +488,20 @@ const JobDiscoveryPage = () => {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-                    <button
-                      onClick={() => handleSaveToggle(jobItem)}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                        isSaved
-                          ? "bg-amber-50 border-amber-300 text-amber-600"
-                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                      title={isSaved ? "Saved" : "Save Job"}
-                    >
-                      {isSaved ? "★ Saved" : "☆ Save"}
-                    </button>
+                    {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                    {FEATURES.savedJobs && (
+                      <button
+                        onClick={() => handleSaveToggle(jobItem)}
+                        className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                          isSaved
+                            ? "bg-amber-50 border-amber-300 text-amber-600"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                        }`}
+                        title={isSaved ? "Saved" : "Save Job"}
+                      >
+                        {isSaved ? "★ Saved" : "☆ Save"}
+                      </button>
+                    )}
 
                     {jobItem.applyLink ? (
                       <a

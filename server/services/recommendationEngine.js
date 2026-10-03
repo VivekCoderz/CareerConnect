@@ -4,6 +4,7 @@ const Course = require("../models/Course");
 const Application = require("../models/Application");
 const FresherProfile = require("../models/FresherProfile");
 const User = require("../models/User");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 // Industry standard baseline skill matrix by role
 const ROLE_SKILL_BENCHMARKS = {
@@ -376,7 +377,7 @@ const generateFresherRecommendations = async (userId) => {
   );
 
   // 3. Fetch Active Published Jobs & calculate dynamic skill demand
-  const activeJobs = await Job.find({ status: "Published" })
+  const activeJobs = await Job.find(openListingQuery())
     .sort({ isFeatured: -1, createdAt: -1 })
     .limit(50)
     .lean();
@@ -468,7 +469,7 @@ const generateFresherRecommendations = async (userId) => {
     .slice(0, 10);
 
   // 6. Internship Recommendations
-  const activeInternships = await Internship.find({ status: "Published" })
+  const activeInternships = await Internship.find(openListingQuery())
     .sort({ createdAt: -1 })
     .limit(20)
     .lean();

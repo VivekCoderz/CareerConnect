@@ -1,0 +1,452 @@
+{
+  "__tests__/integration/employerDashboardSecurity.test.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "__tests__/integration/jobs.test.js": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "__tests__/integration/security.test.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "check_offers.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "config/db.js": {
+    "no-empty": {
+      "count": 2
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "controllers/adminController.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-empty": {
+      "count": 8
+    },
+    "no-unused-vars": {
+      "count": 13
+    }
+  },
+  "controllers/applicationController.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "controllers/authController.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-empty": {
+      "count": 5
+    },
+    "no-unused-vars": {
+      "count": 9
+    }
+  },
+  "controllers/candidateController.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "controllers/courseContentController.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-undef": {
+      "count": 18
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "controllers/courseController.js": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "controllers/employerAnalyticsController.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "controllers/employerController.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 6
+    }
+  },
+  "controllers/fresherController.js": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "controllers/internshipController.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 6
+    }
+  },
+  "controllers/interviewController.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "controllers/jobController.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "controllers/offerController.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "controllers/opportunityController.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "controllers/paymentController.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "controllers/professionalController.js": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "controllers/resumeController.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "controllers/studentController.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "middleware/authMiddleware.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "middleware/captchaMiddleware.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "middleware/cookieOriginMiddleware.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "models/FresherProfile.js": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "models/ProfessionalProfile.js": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "routes/courseRoutes.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/check-app-details.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "scripts/check-eligible.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 6
+    }
+  },
+  "scripts/check-recent-activity.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/create-imran-interview.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/createAdmin.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/inspect-admin-db.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/inspect-interviews.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/migrate-public-resumes.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/seed-admin-portal.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 3
+    }
+  },
+  "scripts/seed-admin.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/test-admin-endpoints.js": {
+    "no-useless-assignment": {
+      "count": 2
+    }
+  },
+  "scripts/test-admin-rbac-isolation.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "scripts/test-all-students-query.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 6
+    }
+  },
+  "scripts/test-connect-company-flow.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/test-e2e-mvp.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "scripts/test-email-protection.js": {
+    "no-unused-vars": {
+      "count": 5
+    }
+  },
+  "scripts/test-employer-org-approval.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "scripts/test-imran-query.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "scripts/test-interview-lifecycle.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "scripts/test-interview-rounds-flow.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/test-interview-system.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/test-multitenant-e2e.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 6
+    },
+    "no-useless-assignment": {
+      "count": 5
+    }
+  },
+  "scripts/test-opportunity-moderation.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "scripts/test-rbac-security.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "scripts/test-resume-upload-options.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "scripts/test-student-application-e2e.js": {
+    "no-unused-vars": {
+      "count": 2
+    },
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "preserve-caught-error": {
+      "count": 3
+    }
+  },
+  "scripts/test-student-query.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "services/aiResumeservice.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    },
+    "no-useless-assignment": {
+      "count": 3
+    },
+    "no-useless-escape": {
+      "count": 9
+    }
+  },
+  "services/jobScraperService.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 2
+    }
+  },
+  "services/marketAnalyticsService.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "services/ragAiService.js": {
+    "no-useless-assignment": {
+      "count": 2
+    }
+  },
+  "services/recommendationEngine.js": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "utils/generateJobApplicantsPdf.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "utils/interviewTimeUtils.js": {
+    "no-useless-assignment": {
+      "count": 2
+    }
+  }
+}

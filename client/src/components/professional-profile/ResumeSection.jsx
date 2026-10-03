@@ -77,7 +77,7 @@ const ResumeSection = ({ profile, user, onChange }) => {
           <div>
             <h3 className="text-sm font-bold text-slate-900">Custom Executive Resume</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Upload your custom resume file (PDF, DOC, DOCX up to 10MB) or link your hosted resume URL.
+              Upload your custom resume file (PDF up to 10MB) or link your hosted resume URL.
             </p>
           </div>
 

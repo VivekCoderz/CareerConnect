@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import { getProfessionalDashboardData } from "../../services/professionalDashboardService";
+import { FEATURES } from "../../config/features";
 
 // Subcomponents
 import ProfessionalSidebar from "../../components/professional-dashboard/ProfessionalSidebar";
@@ -84,7 +85,9 @@ const ProfessionalDashboard = () => {
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // Start on the tab named in ?tab= (email links open e.g. ?tab=applications).
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
@@ -502,7 +505,7 @@ const ProfessionalDashboard = () => {
           )}
 
           {/* ==================== COURSES ==================== */}
-          {activeTab === "courses" && (
+          {activeTab === "courses" && FEATURES.courses && (
             <div className="animate-fade-in">
               {coursesView === "catalog" && (
                 <StudentCoursesPage

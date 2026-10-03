@@ -5,6 +5,8 @@ const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const User = require("../models/User");
 const notificationService = require("../services/notificationService");
+const { notifyInterviewEvent } = require("../services/accountNotifications");
+const { notifyApplicationUpdates } = require("../services/applicationNotifications");
 const socketService = require("../services/socketService");
 
 // Helper to get or create EmployerProfile for the authenticated user
@@ -954,6 +956,7 @@ exports.scheduleInterview = async (req, res, next) => {
     // Real-time socket broadcast
     socketService.emitInterviewScheduled(application.candidateId, interview);
     socketService.emitApplicationUpdated(application);
+    notifyInterviewEvent({ type: "scheduled", interview, application });
 
     return res.status(201).json({
       success: true,
@@ -1040,6 +1043,8 @@ exports.rescheduleInterview = async (req, res, next) => {
       interview.duration = dur;
       interview.durationMinutes = dur;
     }
+    const scheduleChanged = prevDate !== scheduledDate || prevTime !== newTime ||
+      Boolean(meetingLink && meetingLink !== interview.meetingLink);
     if (meetingMode) interview.meetingMode = meetingMode;
     if (meetingLink) interview.meetingLink = meetingLink;
     if (location) interview.location = location;
@@ -1092,6 +1097,7 @@ exports.rescheduleInterview = async (req, res, next) => {
 
     // Real-time socket broadcast
     socketService.emitInterviewRescheduled(interview.candidateId, interview);
+    if (scheduleChanged) notifyInterviewEvent({ type: "rescheduled", interview });
 
     return res.status(200).json({
       success: true,
@@ -1124,6 +1130,7 @@ exports.cancelInterview = async (req, res, next) => {
 
     const finalReason = cancellationReason || "Interviewer unavailable";
     const finalMessage = cancellationMessage || "";
+    const wasCancelled = interview.status === "cancelled";
 
     interview.status = "cancelled";
     interview.cancelledAt = new Date();
@@ -1192,6 +1199,7 @@ exports.cancelInterview = async (req, res, next) => {
 
     // Real-time socket broadcast
     socketService.emitInterviewCancelled(interview.candidateId, interview);
+    if (!wasCancelled) notifyInterviewEvent({ type: "cancelled", interview });
 
     return res.status(200).json({
       success: true,
@@ -1491,8 +1499,11 @@ exports.updateInterviewResult = async (req, res, next) => {
 
     await interview.save();
 
+    let decidedStatus = null;
+    let previousApplication = null;
     if (selectCandidate && interview.result === "passed") {
-      await Application.findByIdAndUpdate(interview.applicationId, {
+      decidedStatus = "Selected";
+      previousApplication = await Application.findByIdAndUpdate(interview.applicationId, {
         status: "Selected",
         stage: "Selected / Eligible for Offer",
         $push: {
@@ -1504,7 +1515,8 @@ exports.updateInterviewResult = async (req, res, next) => {
         },
       });
     } else if (rejectCandidate && interview.result === "failed") {
-      await Application.findByIdAndUpdate(interview.applicationId, {
+      decidedStatus = "Rejected";
+      previousApplication = await Application.findByIdAndUpdate(interview.applicationId, {
         status: "Rejected",
         stage: "Rejected",
         $push: {
@@ -1515,6 +1527,11 @@ exports.updateInterviewResult = async (req, res, next) => {
           },
         },
       });
+    }
+    if (previousApplication && decidedStatus && previousApplication.status !== decidedStatus) {
+      // In-app notice; "Selected" is emailed now, "Rejected" goes into the daily summary.
+      notifyApplicationUpdates([previousApplication], decidedStatus)
+        .catch((err) => console.warn("Interview result notification failed:", err.message));
     }
 
     return res.status(200).json({

@@ -2,6 +2,7 @@ const JobOffer = require("../models/JobOffer");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
+const { notifyOfferSent } = require("../services/accountNotifications");
 
 const getEmployerProfileId = async (user) => {
   let profile = await EmployerProfile.findOne({ userId: user._id });
@@ -135,6 +136,8 @@ exports.createOffer = async (req, res, next) => {
         },
       });
     }
+
+    notifyOfferSent({ offer });
 
     return res.status(201).json({
       success: true,

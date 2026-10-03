@@ -17,10 +17,5 @@ export const saveOpportunity = async (opportunityData) => {
   return response.data;
 };
 
-/**
- * Submits an application for a job or internship.
- */
-export const applyOpportunity = async (applicationData) => {
-  const response = await api.post("/student/apply", applicationData);
-  return response.data;
-};
+// Applications go through /api/applications/... (see utils/opportunityApply.js);
+// the old POST /student/apply endpoint is retired.

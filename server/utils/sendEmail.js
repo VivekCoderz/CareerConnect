@@ -1,4 +1,8 @@
 const SibApiV3Sdk = require("sib-api-v3-sdk");
+const { maskEmail } = require("../services/emailValidationService");
+
+// Logs never contain full recipient addresses (personal data); only masked ones.
+const maskedRecipients = (recipients) => recipients.map((r) => maskEmail(r?.email)).join(", ");
 
 /**
  * Send email utility via Brevo (Sendinblue) HTTP API
@@ -13,7 +17,6 @@ const SibApiV3Sdk = require("sib-api-v3-sdk");
  */
 const sendEmail = async ({ to, subject, html, text }) => {
   try {
-    console.log("[Brevo sendEmail] Initiating email send to:", to);
 
     const apiKey = process.env.BREVO_API_KEY;
     const senderEmail = process.env.EMAIL_USER;
@@ -71,11 +74,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
       sendSmtpEmail.textContent = text;
     }
 
-    console.log(
-      `[Brevo sendEmail] Sending transactional email with subject: "${subject}" to ${recipients
-        .map((r) => r.email)
-        .join(", ")}...`
-    );
+    console.log(`[Brevo sendEmail] Sending "${subject}" to ${maskedRecipients(recipients)}`);
 
     const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
 

@@ -5,6 +5,7 @@ import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import recommendationService from "../../services/recommendationService";
 import api from "../../api/api";
+import { FEATURES } from "../../config/features";
 
 // Layout
 import FresherSidebar from "../../components/fresher-dashboard/FresherSidebar";
@@ -65,7 +66,7 @@ const CareerRecommendationsPage = () => {
           setPrefForm({
             targetRole: res.data.careerSummary.targetRole || "Full Stack Developer",
             careerGoal: res.data.careerSummary.careerGoal || "Get my first full-time job",
-            preferredLocations: res.data.careerSummary.preferredLocations || "Bangalore, Remote",
+            preferredLocations: res.data.careerSummary.preferredLocations || "",
             workMode: res.data.careerSummary.workMode?.split(" / ")[0] || "Remote",
             expectedSalaryMin: 4,
           });
@@ -251,7 +252,7 @@ const CareerRecommendationsPage = () => {
             {[
               { id: "overview", label: "Overview Summary" },
               { id: "jobs", label: `Recommended Jobs (${recommendedJobs.length})` },
-              { id: "skills", label: "Skill Gaps & Courses" },
+              { id: "skills", label: FEATURES.courses ? "Skill Gaps & Courses" : "Skill Gaps" },
               { id: "projects", label: "Project Ideas & Resume" },
               { id: "paths", label: "Career Paths" },
             ].map((tab) => (
@@ -320,7 +321,7 @@ const CareerRecommendationsPage = () => {
                     <div className="text-left md:text-right space-y-2 shrink-0">
                       <div className="flex items-baseline md:justify-end gap-2">
                         <span className="text-3xl font-black text-emerald-400">
-                          {topOverallMatch.matchScore || 87}%
+                          {topOverallMatch.matchScore ?? 0}%
                         </span>
                         <span className="text-xs text-slate-300">Match Score</span>
                       </div>
@@ -370,12 +371,15 @@ const CareerRecommendationsPage = () => {
                                 Required by {item.demandPercentage}% of matching jobs
                               </p>
                             </div>
+                           {FEATURES.courses && (
                             <Link
                               to={`/courses?search=${encodeURIComponent(item.skill)}`}
                               className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 text-xs font-bold transition shrink-0"
                             >
                               Learn
                             </Link>
+                           )}
+
                           </div>
                         ))}
                       </div>
@@ -622,12 +626,16 @@ const CareerRecommendationsPage = () => {
                                 In {item.demandPercentage}% of matching jobs
                               </span>
                             </div>
+
+                             {FEATURES.courses && (
                             <Link
                               to={`/courses?search=${encodeURIComponent(item.skill)}`}
                               className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-blue-600 text-xs font-bold hover:bg-blue-50"
                             >
                               Learn
                             </Link>
+                             )}
+
                           </div>
                         ))}
                       </div>
@@ -635,6 +643,7 @@ const CareerRecommendationsPage = () => {
                   </div>
 
                   {/* Recommended Courses */}
+                  {FEATURES.courses && (
                   <div className="space-y-3">
                     <h3 className="text-sm font-bold text-slate-900">
                       🎓 Targeted Learning Courses
@@ -664,6 +673,7 @@ const CareerRecommendationsPage = () => {
                       ))}
                     </div>
                   </div>
+                  )}
                 </div>
               )}
 

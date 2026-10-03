@@ -4,9 +4,22 @@ const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
-// const Company = require("../models/Company");
-const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
-const { getAggregatedOpportunities, clearSearchCache } = require("../services/jobScraperService");
+const { isListingExpired, withOpenDeadline } = require("../utils/listingExpiry");
+const {
+  pickListingUpdate,
+  requiresReapproval,
+  escapeRegex,
+  resolveNewListingModeration,
+  checkEmployerStatusChange,
+  toPublicListing,
+} = require("../utils/listingSecurity");
+
+// S07: job listings are served from the database only. clearSearchCache stays
+// so the student dashboard and opportunities feeds refresh when a job changes.
+const { clearSearchCache } = require("../services/jobScraperService");
+const { getPlatformSettings } = require("../services/platformSettings");
+const { isEmployerApproved } = require("../middleware/employerVerification");
+const { notifyListingClosedInBackground } = require("../services/listingClosure");
 
 /**
  * Helper to ensure employer profile exists for logged in user
@@ -106,7 +119,6 @@ exports.getJobs = async (req, res, next) => {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const defaultPageSize = isMyJobs ? 100 : 10;
     const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || defaultPageSize));
-    const windowSize = pageNum * pageSize;
     const query = {};
 
     if (isMyJobs) {
@@ -172,137 +184,106 @@ exports.getJobs = async (req, res, next) => {
     if (workMode && workMode !== "All") query.workMode = workMode;
     const locFilter = (city || location || "").trim();
     if (locFilter && locFilter !== "All") {
-      query[city ? "city" : "location"] = { $regex: escapeRegex(locFilter), $options: "i" };
+      const locRegex = new RegExp(escapeRegex(locFilter), "i");
+      const locConditions = [{ city: locRegex }, { location: locRegex }];
+      if (locFilter.toLowerCase() === "remote") {
+        locConditions.push({ workMode: /Remote/i });
+      }
+      if (query.$and) {
+        query.$and.push({ $or: locConditions });
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: locConditions }];
+        delete query.$or;
+      } else {
+        query.$or = locConditions;
+      }
     }
 
-    let campusJobs = [];
-    let campusTotal = 0;
-    if (source !== "external" && mongoose.connection.readyState === 1) {
+    // S07: Source filter mapped to MongoDB (campus = internal only, external = external only, or specific source)
+    if (source && source !== "all" && source !== "All") {
+      if (source.toLowerCase() === "campus") {
+        query.isExternal = false;
+      } else if (source.toLowerCase() === "external") {
+        query.isExternal = true;
+      } else {
+        query.source = { $regex: new RegExp(`^${escapeRegex(source)}$`, "i") };
+      }
+    }
+
+    const dbSort = sort === "salary_high" ? { "salaryRange.min": -1, _id: -1 }
+      : sort === "salary_low" ? { "salaryRange.min": 1, _id: -1 }
+        : { createdAt: -1, _id: -1 };
+
+    const skip = (pageNum - 1) * pageSize;
+    let total = 0;
+    let rawJobs = [];
+    // Candidates never see listings whose deadline has passed, even before the sweep closes them.
+    if (!isMyJobs) withOpenDeadline(query);
+
+    if (mongoose.connection.readyState === 1) {
       try {
-        const dbSort = sort === "salary_high" ? { "salaryRange.min": -1, _id: -1 }
-          : sort === "salary_low" ? { "salaryRange.min": 1, _id: -1 }
-            : { createdAt: -1, _id: -1 };
-        const [rawJobs, totalMatches] = await Promise.all([Job.find(query)
-          .populate("employerId", "companyName logo headquarters industry")
-          .sort(dbSort).limit(windowSize)
-          .lean(), Job.countDocuments(query)]);
-        campusTotal = totalMatches;
-
-        campusJobs = rawJobs.map((j) => {
-          const salaryStr =
-            j.salaryRange?.max > 0
-              ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
-              : "Competitive Package";
-
-          return {
-            ...j,
-            _id: j._id,
-            id: j._id.toString(),
-            jobId: j._id.toString(),
-            title: j.title,
-            company: j.employerId?.companyName || "CareerConnect Partner",
-            companyName: j.employerId?.companyName || "CareerConnect Partner",
-            companyId: j.employerId?._id || "",
-            location: j.location,
-            city: j.city,
-            salary: salaryStr,
-            type: j.employmentType || "Full-Time",
-            opportunityType: j.employmentType || "Full-Time",
-            workMode: j.workMode || "On-Site",
-            requiredSkills: j.requiredSkills || [],
-            skillsRequired: j.requiredSkills || [],
-            skills: j.requiredSkills || [],
-            postedAt: j.createdAt ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Recently",
-            deadline: j.deadline ? new Date(j.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
-            isExclusive: true,
-            isExternal: false,
-          };
-        });
+        [rawJobs, total] = await Promise.all([
+          Job.find(query)
+            .populate("employerId", "companyName logo headquarters industry")
+            .sort(dbSort)
+            .skip(skip)
+            .limit(pageSize)
+            .lean(),
+          Job.countDocuments(query),
+        ]);
       } catch (dbErr) {
         console.warn("MongoDB Job.find error:", dbErr.message);
       }
     }
 
-    let allJobs = campusJobs;
-    if (!isMyJobs && source !== "campus") {
-      try {
-        const scraped = await getAggregatedOpportunities({
-          opportunityType: employmentType && employmentType !== "All" ? employmentType.toLowerCase() : "job",
-          workMode: workMode && workMode !== "All" ? workMode : "all",
-          region: locFilter && locFilter !== "All" ? locFilter : "all",
-          search: searchTerm || (category && category !== "All" ? category : ""),
-        });
-
-        const formattedScraped = (scraped.data || [])
-          .filter((item) => !city || String(item.location || "").toLowerCase().includes(String(city).toLowerCase()))
-          .map((item, idx) => ({
-          _id: `scraped-job-${idx}`,
-          id: `scraped-job-${idx}`,
-          jobId: `scraped-job-${idx}`,
-          title: item.title,
-          company: item.company,
-          employerId: {
-            companyName: item.company,
-            headquarters: item.location,
-          },
-          location: item.location,
-          city: item.location,
-          employmentType: item.opportunityType || "Full-Time",
-          workMode: item.workMode || "On-Site",
-          salary: "Competitive Package",
-          salaryRange: { min: 400000, max: 1200000, currency: "INR" },
-          description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
-          responsibilities: ["Deliver on project requirements", "Collaborate with cross-functional engineering team"],
-          requiredSkills: [item.title.split(" ")[0] || "Engineering", "Problem Solving"],
-          applyLink: item.applyLink,
-          isExternal: true,
-          platformSource: item.platformSource,
-          source: item.platformSource,
-          status: "Published",
-          postedAt: item.postedDate || "Recently",
-          postedDate: item.postedDate,
-          createdAt: item.postedDate && !isNaN(new Date(item.postedDate).getTime()) ? new Date(item.postedDate) : new Date(),
-        }));
-
-        if (source === "external") {
-          allJobs = formattedScraped;
-        } else {
-          allJobs = [...campusJobs, ...formattedScraped];
-        }
-      } catch (e) {
-        console.error("Live jobs scraper error:", e.message);
+    const formattedJobs = rawJobs.map((j) => {
+      let salaryStr = null;
+      if (j.salaryRange?.max > 0) {
+        salaryStr = `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`;
+      } else if (j.salaryRange?.min > 0) {
+        salaryStr = `₹${(j.salaryRange.min / 100000).toFixed(1)}+ LPA`;
+      } else if (j.stipend) {
+        salaryStr = j.stipend;
       }
-    }
 
-    // Sort by latest first (createdAt / postedDate descending) or salary
-    const getTimestamp = (item) => {
-      if (item.createdAt) {
-        const t = new Date(item.createdAt).getTime();
-        if (!isNaN(t)) return t;
-      }
-      if (item.postedDate) {
-        const t = new Date(item.postedDate).getTime();
-        if (!isNaN(t)) return t;
-      }
-      return 0;
-    };
+      const compName = j.employerId?.companyName || j.companyName || "CareerConnect Partner";
 
-    if (sort === "salary_high") {
-      allJobs.sort((a, b) => (b.salaryRange?.min || 0) - (a.salaryRange?.min || 0));
-    } else if (sort === "salary_low") {
-      allJobs.sort((a, b) => (a.salaryRange?.min || 0) - (b.salaryRange?.min || 0));
-    } else {
-      allJobs.sort((a, b) => getTimestamp(b) - getTimestamp(a));
-    }
-
-    const total = allJobs.length;
-    const paginatedJobs = allJobs.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+      return {
+        ...j,
+        // Lets the employer's own list mark listings past their deadline.
+        isExpired: isListingExpired(j),
+        _id: j._id,
+        id: j._id.toString(),
+        jobId: j._id.toString(),
+        title: j.title,
+        company: compName,
+        companyName: compName,
+        companyId: j.employerId?._id || "",
+        location: j.location,
+        city: j.city,
+        salary: salaryStr,
+        type: j.employmentType || "Full-Time",
+        opportunityType: j.employmentType || "Full-Time",
+        workMode: j.workMode || "On-Site",
+        requiredSkills: j.requiredSkills || [],
+        skillsRequired: j.requiredSkills || [],
+        skills: j.requiredSkills || [],
+        responsibilities: j.responsibilities || [],
+        postedAt: j.createdAt ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Recently",
+        deadline: j.deadline ? new Date(j.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
+        isExclusive: !j.isExternal,
+        isExternal: Boolean(j.isExternal),
+        source: j.source || (j.isExternal ? "External" : "CareerConnect"),
+        platformSource: j.source || (j.isExternal ? "External" : "CareerConnect"),
+        applyLink: j.applyUrl || `/jobs/${j._id}`,
+      };
+    });
 
     return res.status(200).json({
       success: true,
-      count: paginatedJobs.length,
-      jobs: paginatedJobs,
-      data: paginatedJobs,
+      count: formattedJobs.length,
+      jobs: formattedJobs,
+      data: formattedJobs,
       pagination: {
         total,
         page: pageNum,
@@ -326,7 +307,8 @@ exports.getJobById = async (req, res, next) => {
       "companyName logo headquarters industry description website"
     );
 
-    if (!job || (job.status !== "Published" && (!req.user ||
+    const publiclyVisible = job && job.status === "Published" && !isListingExpired(job);
+    if (!job || (!publiclyVisible && (!req.user ||
       !(String(job.createdBy) === String(req.user._id) || await EmployerProfile.exists({
         _id: job.employerId?._id || job.employerId, userId: req.user._id,
       }))))) {
@@ -337,11 +319,11 @@ exports.getJobById = async (req, res, next) => {
     }
 
     // Increment view count
-    if (job.status === "Published") await Job.updateOne({ _id: job._id }, { $inc: { viewsCount: 1 } });
+    if (publiclyVisible) await Job.updateOne({ _id: job._id }, { $inc: { viewsCount: 1 } });
 
     return res.status(200).json({
       success: true,
-      job,
+      job: toPublicListing(job, req.user),
     });
   } catch (error) {
     next(error);
@@ -400,9 +382,13 @@ exports.createJob = async (req, res, next) => {
       if (comp) companyName = comp.name;
     }
 
-    // Determine initial moderation status
-    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
-    const initialStatus = status || (isSuperAdmin ? "Published" : "Pending Approval");
+    // Employers can only submit for approval (or save a draft); only platform admins publish directly
+    const settings = await getPlatformSettings();
+    const moderation = resolveNewListingModeration(req.user, status, {
+      autoApproveJobs: settings.autoApproveJobs,
+      employerApproved: isEmployerApproved(req.employerProfile),
+    });
+    const initialStatus = moderation.status;
 
     // Format and sanitize interview rounds if provided
     let formattedRounds;
@@ -449,7 +435,7 @@ exports.createJob = async (req, res, next) => {
       bonusSkills: Array.isArray(bonusSkills) ? bonusSkills : [],
       openings: openings ? Number(openings) : 1,
       deadline: deadline ? new Date(deadline) : null,
-      status: status || "Published",
+      ...moderation,
       recruitmentStages: stages,
     });
 
@@ -457,7 +443,9 @@ exports.createJob = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: "Job posted successfully",
+      message: initialStatus === "Pending Approval"
+        ? "Job submitted for approval"
+        : "Job saved successfully",
       job,
     });
   } catch (error) {
@@ -486,13 +474,18 @@ exports.updateJob = async (req, res, next) => {
       updates.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     }
 
+    // A published job whose content changes must be approved again (BUG-02).
+    const sentForReview = requiresReapproval(job, updates);
     Object.assign(job, updates);
+    if (sentForReview) job.status = "Pending Approval";
     await job.save();
     clearSearchCache();
 
     return res.status(200).json({
       success: true,
-      message: "Job updated successfully",
+      message: sentForReview
+        ? "Job updated and sent for approval again. It will be visible once an admin approves it."
+        : "Job updated successfully",
       job,
     });
   } catch (error) {
@@ -500,19 +493,15 @@ exports.updateJob = async (req, res, next) => {
   }
 };
 
-// PATCH /api/jobs/:id/status (Toggle Status: Published / Paused / Closed)
+// PATCH /api/jobs/:id/status (Draft / Pending Approval / Paused / Closed; Published only to re-open an approved job)
 exports.updateJobStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
 
-    const job = await Job.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        createdBy: req.user._id,
-      },
-      { status },
-      { new: true }
-    );
+    const job = await Job.findOne({
+      _id: req.params.id,
+      createdBy: req.user._id,
+    });
 
     if (!job) {
       return res.status(404).json({
@@ -521,6 +510,16 @@ exports.updateJobStatus = async (req, res, next) => {
       });
     }
 
+    const denied = checkEmployerStatusChange(job, status);
+    if (denied) {
+      return res.status(denied.code).json({ success: false, message: denied.message });
+    }
+
+    const wasClosed = job.status === "Closed";
+    job.status = status;
+    if (status !== "Closed") job.closedReason = null;
+    await job.save();
+    if (status === "Closed" && !wasClosed) notifyListingClosedInBackground("job", job._id, { senderId: req.user._id });
     clearSearchCache();
 
     return res.status(200).json({
@@ -551,6 +550,15 @@ exports.duplicateJob = async (req, res, next) => {
     delete duplicateData.updatedAt;
     duplicateData.title = `${original.title} (Copy)`;
     duplicateData.status = "Draft";
+    // The copy is a new listing and needs its own moderation decision
+    duplicateData.approvedBy = null;
+    duplicateData.approvedAt = null;
+    duplicateData.approvalMethod = null;
+    duplicateData.rejectedBy = null;
+    duplicateData.rejectedAt = null;
+    duplicateData.rejectionReason = null;
+    duplicateData.adminNote = null;
+    duplicateData.isFeatured = false;
     duplicateData.viewsCount = 0;
     duplicateData.applicantsCount = 0;
     if (Array.isArray(original.recruitmentStages)) {

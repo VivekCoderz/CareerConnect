@@ -11,6 +11,8 @@ import {
 } from "../../services/applicationService";
 import { createInterview } from "../../services/interviewService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
+import { openResume } from "../../utils/resumeAccess";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 const DEFAULT_STAGES = [
   { name: "Resume Screening", type: "Resume Screening", order: 0 },
@@ -115,8 +117,8 @@ export default function EmployerApplicationDetailPage() {
   const studentName = application.studentName || appData.fullName || application.candidateId?.fullName || "Applicant";
   const studentEmail = application.studentEmail || appData.email || application.candidateId?.email || "";
   const studentPhone = application.studentPhone || appData.phone || application.candidateId?.phone || "";
-  const education = application.education || appData.education || appData.degree || "B.Tech";
-  const college = appData.college || "CareerConnect";
+  const education = application.education || appData.education || appData.degree || "Not provided";
+  const college = appData.college || "Not provided";
   const graduationYear = appData.graduationYear || "";
   const skills = Array.isArray(application.skills) && application.skills.length > 0
     ? application.skills
@@ -363,15 +365,14 @@ export default function EmployerApplicationDetailPage() {
 
                 {resumeUrl && (
                   <div className="pt-3 border-t border-slate-100">
-                    <a
-                      href={resumeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => openResume(resumeUrl)}
                       className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
                     >
                       <span>📄</span>
                       <span>Review Candidate Resume ↗</span>
-                    </a>
+                    </button>
                   </div>
                 )}
               </div>
@@ -579,7 +580,7 @@ export default function EmployerApplicationDetailPage() {
                             <span className="text-slate-400 block text-[10px]">Meeting Link</span>
                             {interview?.meetingLink || historyItem?.meetingLink ? (
                               <a
-                                href={interview?.meetingLink || historyItem?.meetingLink}
+                                href={safeHttpUrl(interview?.meetingLink || historyItem?.meetingLink)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-700 font-bold hover:underline truncate block"

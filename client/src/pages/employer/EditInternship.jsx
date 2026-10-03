@@ -24,7 +24,7 @@ export default function EditInternship({ id, onCancel, onSuccess }) {
   const [responsibilitiesText, setResponsibilitiesText] = useState("");
   const [skillsText, setSkillsText] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [status, setStatus] = useState("Published");
+  const [status, setStatus] = useState("");
 
   useEffect(() => {
     const fetchInternship = async () => {
@@ -43,7 +43,7 @@ export default function EditInternship({ id, onCancel, onSuccess }) {
           setEligibility(item.eligibility || "");
           setEducation(item.education || "");
           setDescription(item.description || "");
-          setStatus(item.status || "Published");
+          setStatus(item.status || "");
           
           if (item.deadline) {
             // format to YYYY-MM-DD
@@ -100,7 +100,6 @@ export default function EditInternship({ id, onCancel, onSuccess }) {
         responsibilities,
         requiredSkills,
         deadline: deadline || null,
-        status,
       };
 
       const res = await update(internshipId, payload);
@@ -308,16 +307,10 @@ export default function EditInternship({ id, onCancel, onSuccess }) {
               <label className="text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
                 Listing Status
               </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="h-11 px-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#f59e0b] focus:ring-2 focus:ring-[#f59e0b]/20 text-sm text-slate-800 bg-white"
-              >
-                <option value="Draft">Draft</option>
-                <option value="Published">Published</option>
-                <option value="Paused">Paused</option>
-                <option value="Closed">Closed</option>
-              </select>
+              {/* Status changes go through the moderation-aware status endpoint, not this form */}
+              <div className="h-11 px-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 flex items-center gap-2">
+                <span>{status === "Pending Approval" ? "Pending approval" : status || "—"}</span>
+              </div>
             </div>
           </div>
 

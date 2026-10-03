@@ -345,7 +345,7 @@ const ResumeSection = ({ profile, user, onChange }) => {
             }}
             required={true}
             label="Upload Resume File or Provide Link"
-            helperText="Upload PDF, DOC, or DOCX (up to 10MB) or paste an accessible URL."
+            helperText="Upload a PDF (up to 10MB) or paste an accessible URL."
           />
 
           <div className="flex items-center justify-between pt-2">

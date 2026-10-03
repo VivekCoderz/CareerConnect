@@ -218,7 +218,8 @@ const jobSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["Draft", "Pending Approval", "Published", "Paused", "Closed", "Rejected"],
-      default: "Published",
+      // Listings must be approved before they are public; publishers set status explicitly.
+      default: "Pending Approval",
       index: true,
     },
     approvedBy: {
@@ -227,6 +228,22 @@ const jobSchema = new mongoose.Schema(
       default: null,
     },
     approvedAt: {
+      type: Date,
+      default: null,
+    },
+    // "auto" when published by the autoApproveJobs setting (approvedBy stays null).
+    approvalMethod: {
+      type: String,
+      enum: ["admin", "auto", "legacy", null],
+      default: null,
+    },
+    // Why the platform closed the listing (deadline passed, or its employer was rejected).
+    closedReason: {
+      type: String,
+      enum: ["expired", "employer_rejected", null],
+      default: null,
+    },
+    closedAt: {
       type: Date,
       default: null,
     },
@@ -276,6 +293,17 @@ const jobSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+    },
+    // Credit line shown with feed listings, e.g. "Job listing from Remotive (remotive.com)"
+    attribution: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    // Last time the scheduled feed sync saw this listing (external listings only)
+    lastSyncedAt: {
+      type: Date,
+      default: null,
     },
 
     // ---------- Interview & Selection Rounds ----------
@@ -363,6 +391,10 @@ const jobSchema = new mongoose.Schema(
 
 // ---------- Indexes (no duplicates) ----------
 jobSchema.index({ employerId: 1, status: 1 });
+// Expiry sweep and public "still open" filter
+jobSchema.index({ status: 1, deadline: 1 });
+// Public job list: Published listings, newest first (GET /api/jobs default sort).
+jobSchema.index({ status: 1, createdAt: -1, _id: -1 });
 jobSchema.index({ category: 1, status: 1 });
 jobSchema.index({ city: 1, status: 1 });
 jobSchema.index({ workMode: 1, status: 1 });

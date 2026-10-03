@@ -3,13 +3,18 @@ const StudentProfile = require("../models/StudentProfile.js");
 const FresherProfile = require("../models/FresherProfile.js");
 const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const jwt = require("jsonwebtoken");
+const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies.js");
 const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP.js");
 const sendEmail = require("../utils/sendEmail.js");
 const EmployerProfile = require("../models/EmployerProfile.js");
+const { getPlatformSettings } = require("../services/platformSettings.js");
+const { initialVerificationFields } = require("../middleware/employerVerification.js");
 const getFirebaseAdmin = require("../config/firebaseAdmin.js");
 const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
+const { deleteAccount } = require("../services/accountDeletion.js");
+const { recordOtpEmail } = require("../services/emailBudget.js");
 
 // ==========================================
 // PASSWORD VALIDATION & HELPERS
@@ -43,12 +48,7 @@ const setTokenCookie = (res, token, keepSignedIn = false) => {
     ? 7 * 24 * 60 * 60 * 1000   // 7 days in ms
     : 25 * 60 * 60 * 1000;       // 25 hours in ms
 
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-    maxAge,
-  });
+  res.cookie("token", token, authCookieOptions(maxAge));
 };
 
 // Helper: Generate username from email
@@ -62,6 +62,12 @@ const generateUsername = (email) => {
 };
 
 const { validatePhoneFormat } = require("../middleware/validationMiddleware");
+
+const EMPLOYER_REGISTRATION_CLOSED = {
+  success: false,
+  code: "EMPLOYER_REGISTRATION_CLOSED",
+  message: "Employer registration is closed",
+};
 
 // Helper: Generate unique username (ensures no collision)
 const generateUniqueUsername = async (email) => {
@@ -155,7 +161,7 @@ module.exports.sendOTP = async (req, res, next) => {
       const validationResult = await validateEmail(email);
       
       if (!validationResult.isValid) {
-        console.log("❌ [Email Validation Failed]:", validationResult);
+        console.log("❌ [Email Validation Failed]:", maskEmail(email), validationResult?.reason);
         return res.status(400).json({
           success: false,
           field: "email",
@@ -183,6 +189,7 @@ module.exports.sendOTP = async (req, res, next) => {
     const { code: otp, otpHash } = await issueOtp(normalizedEmail, "verification");
 
     // Send email
+    recordOtpEmail();
     const delivery = await sendEmail({
       to: normalizedEmail,
       subject: "Your CareerConnect verification code",
@@ -230,7 +237,14 @@ module.exports.verifyOTP = async (req, res, next) => {
     }
 
     const normalizedEmail = normalizeEmail(email);
-    const verificationToken = await verifyOtp(normalizedEmail, "verification", String(otp).trim());
+    const result = await verifyOtp(normalizedEmail, "verification", String(otp).trim(), { returnLockStatus: true });
+    if (result && result.locked) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many failed attempts. Please request a new OTP.",
+      });
+    }
+    const verificationToken = typeof result === "string" ? result : result?.verificationToken;
     if (!verificationToken) {
       return res.status(400).json({
         success: false,
@@ -912,10 +926,11 @@ module.exports.googleAuth = async (req, res, next) => {
     if (!uid || !normalizedEmail || !isGoogleProvider || !isEmailVerified) {
       console.warn("[GoogleAuth] Rejected Google sign-in claims:", {
         uid: Boolean(uid),
-        email: normalizedEmail,
+        email: maskEmail(normalizedEmail),
         email_verified: decoded.email_verified,
         sign_in_provider: decoded.firebase?.sign_in_provider,
-        identities: decoded.firebase?.identities,
+        // Identity providers only; the identities object itself lists the user's emails.
+        identities: Object.keys(decoded.firebase?.identities || {}),
         isGoogleProvider,
         isEmailVerified,
       });
@@ -1007,6 +1022,9 @@ module.exports.googleAuth = async (req, res, next) => {
 
       // Determine role/userType from request (employer vs candidate)
       const isEmployer = role === "employer";
+      if (isEmployer && !(await getPlatformSettings()).allowEmployerRegistration) {
+        return res.status(403).json(EMPLOYER_REGISTRATION_CLOSED);
+      }
 
       user = new User({
         fullName: name || normalizedEmail.split("@")[0],
@@ -1075,18 +1093,8 @@ module.exports.cancelGoogleSignup = async (req, res, next) => {
       }));
     }
 
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
-    });
-
-    res.clearCookie("sid", {
-      path: "/",
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
-    });
+    res.clearCookie("token", authCookieBaseOptions());
+    res.clearCookie("sid", authCookieBaseOptions());
 
     if (req.session) {
       req.session.destroy(() => {});
@@ -1212,23 +1220,54 @@ module.exports.completePasswordSetup = async (req, res, next) => {
 };
 
 // ==========================================
+// DELETE MY ACCOUNT
+// DELETE /api/auth/account
+// body: { password } for accounts with a password, { confirm: "DELETE" } for Google-only accounts
+// ==========================================
+module.exports.deleteMyAccount = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select("+password");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Account not found" });
+    }
+    if (["SUPER_ADMIN", "COMPANY_ADMIN", "admin"].includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin accounts are removed by a CareerConnect administrator.",
+      });
+    }
+
+    const { password, confirm } = req.body || {};
+    if (user.password) {
+      if (typeof password !== "string" || !password || !(await user.comparePassword(password))) {
+        return res.status(401).json({ success: false, code: "INVALID_PASSWORD", message: "Password is incorrect." });
+      }
+    } else if (confirm !== "DELETE") {
+      return res.status(400).json({ success: false, code: "CONFIRMATION_REQUIRED", message: 'Type "DELETE" to confirm.' });
+    }
+
+    await deleteAccount(user);
+
+    const cookieOptions = { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax" };
+    res.clearCookie("token", cookieOptions);
+    res.clearCookie("sid", { ...cookieOptions, path: "/" });
+    if (req.session) req.session.destroy(() => {});
+
+    return res.status(200).json({ success: true, message: "Your account and personal data have been deleted." });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
 // LOGOUT
 // ==========================================
 module.exports.logoutUser = async (req, res) => {
   // 1. Clear token cookie
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-  });
+  res.clearCookie("token", authCookieBaseOptions());
 
   // 2. Clear session cookie
-  res.clearCookie("sid", {
-    path: "/",
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-  });
+  res.clearCookie("sid", authCookieBaseOptions());
 
   // 3. Destroy session in Redis
   if (req.session) {
@@ -1321,6 +1360,7 @@ module.exports.forgotPassword = async (req, res, next) => {
 
     const { code: otp, otpHash } = await issueOtp(normalizedEmail, "reset-password");
 
+    recordOtpEmail();
     const delivery = await sendEmail({
       to: normalizedEmail,
       subject: "Reset your CareerConnect password",
@@ -1361,7 +1401,14 @@ module.exports.verifyResetOTP = async (req, res, next) => {
         .json({ success: false, message: "Email and OTP are required" });
     }
 
-    const verificationToken = await verifyOtp(normalizeEmail(email), "reset-password", String(otp).trim());
+    const result = await verifyOtp(normalizeEmail(email), "reset-password", String(otp).trim(), { returnLockStatus: true });
+    if (result && result.locked) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many failed attempts. Please request a new OTP.",
+      });
+    }
+    const verificationToken = typeof result === "string" ? result : result?.verificationToken;
     if (!verificationToken) {
       return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
     }
@@ -1450,6 +1497,11 @@ module.exports.resetPassword = async (req, res, next) => {
 // ==========================================
 module.exports.registerEmployer = async (req, res, next) => {
   try {
+    const settings = await getPlatformSettings();
+    if (!settings.allowEmployerRegistration) {
+      return res.status(403).json(EMPLOYER_REGISTRATION_CLOSED);
+    }
+
     const {
       companyName,
       email,
@@ -1635,6 +1687,7 @@ module.exports.registerEmployer = async (req, res, next) => {
         },
         currentStep: 1,
         profileCompletion: 20,
+        ...initialVerificationFields(settings),
       });
     } catch (profileErr) {
       console.error("EmployerProfile creation error:", profileErr);
@@ -1957,6 +2010,13 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
 
     const userId = req.user.id;
 
+    // Creating a new employer profile is an employer signup.
+    const settings = await getPlatformSettings();
+    const existingProfile = await EmployerProfile.findOne({ userId });
+    if (!existingProfile && !settings.allowEmployerRegistration) {
+      return res.status(403).json(EMPLOYER_REGISTRATION_CLOSED);
+    }
+
     // -------- Validation --------
     if (!phone?.trim()) {
       return res.status(400).json({ success: false, field: "phone", message: "Mobile number is required" });
@@ -2019,8 +2079,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
 
     // -------- Create EmployerProfile (idempotent) --------
     try {
-      const existing = await EmployerProfile.findOne({ userId });
-      if (!existing) {
+      if (!existingProfile) {
         await EmployerProfile.create({
           userId,
           companyName: companyName.trim(),
@@ -2042,6 +2101,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
           },
           currentStep: 1,
           profileCompletion: 40,
+          ...initialVerificationFields(settings),
         });
       }
     } catch (profileErr) {

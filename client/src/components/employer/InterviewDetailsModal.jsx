@@ -1,7 +1,8 @@
 import JourneyLoader from "../common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import recruitmentService from "../../services/recruitmentService";
-import { getResumeHref } from "../../utils/resumeAccess";
+import { openResume } from "../../utils/resumeAccess";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 const InterviewDetailsModal = ({
   isOpen,
@@ -184,15 +185,14 @@ const InterviewDetailsModal = ({
                 </div>
 
                 {resumeUrl && (
-                  <a
-                    href={getResumeHref(resumeUrl)}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => openResume(resumeUrl)}
                     className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-blue-700 hover:bg-blue-50 text-xs font-bold transition shadow-2xs flex items-center gap-1.5 shrink-0"
                   >
                     <span>📄</span>
                     <span>View Resume ↗</span>
-                  </a>
+                  </button>
                 )}
               </div>
 
@@ -282,7 +282,7 @@ const InterviewDetailsModal = ({
 
                   {!isCancelled && interview?.meetingLink ? (
                     <a
-                      href={interview.meetingLink}
+                      href={safeHttpUrl(interview.meetingLink)}
                       target="_blank"
                       rel="noreferrer"
                       className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5"

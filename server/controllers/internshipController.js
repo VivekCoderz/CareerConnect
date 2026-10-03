@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const Internship = require("../models/Internship");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
-const { syncExternalInternships } = require("../services/externalInternships");
+const { runExternalJobSync } = require("../services/externalJobSync");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const StudentProfile = require("../models/StudentProfile");
@@ -11,8 +11,19 @@ const FresherProfile = require("../models/FresherProfile");
 const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require("../services/jobScraperService");
-const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
+const {
+  pickListingUpdate,
+  requiresReapproval,
+  escapeRegex,
+  resolveNewListingModeration,
+  checkEmployerStatusChange,
+  toPublicListing,
+} = require("../utils/listingSecurity");
 const { sanitizeRecruitmentStages } = require("./jobController");
+const { isListingExpired, withOpenDeadline, openListingQuery } = require("../utils/listingExpiry");
+const { getPlatformSettings } = require("../services/platformSettings");
+const { isEmployerApproved } = require("../middleware/employerVerification");
+const { notifyListingClosedInBackground } = require("../services/listingClosure");
 
 // Helper to normalize URL slugs to category names
 const formatCategorySlug = (slug = "") => {
@@ -66,8 +77,13 @@ exports.createInternship = async (req, res, next) => {
       if (comp) companyName = comp.name;
     }
 
-    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
-    const initialStatus = req.body.status || (isSuperAdmin ? "Published" : "Pending Approval");
+    // Employers can only submit for approval (or save a draft); only platform admins publish directly
+    const settings = await getPlatformSettings();
+    const moderation = resolveNewListingModeration(req.user, req.body.status, {
+      autoApproveJobs: settings.autoApproveJobs,
+      employerApproved: isEmployerApproved(req.employerProfile),
+    });
+    const initialStatus = moderation.status;
 
     const internship = await Internship.create({
       ...pickListingUpdate(req.body),
@@ -78,7 +94,7 @@ exports.createInternship = async (req, res, next) => {
       companyName,
       source: "CareerConnect",
       isExternal: false,
-      status: initialStatus,
+      ...moderation,
     });
 
     // Real-time Mail Notification trigger
@@ -94,7 +110,9 @@ exports.createInternship = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: "Internship posted successfully",
+      message: initialStatus === "Pending Approval"
+        ? "Internship submitted for approval"
+        : "Internship saved successfully",
       internship,
       data: internship,
     });
@@ -293,6 +311,11 @@ exports.getInternships = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Please narrow your search to view more results" });
     }
 
+    // Candidates never see listings whose deadline has passed, even before the sweep closes them.
+    if (myPosts !== "true") withOpenDeadline(filter);
+    // Feed listings (isExternal) are added below as the external list, so they are not campus listings.
+    if (filter.isExternal === undefined) filter.isExternal = { $ne: true };
+
     // 1. Fetch Campus Internships from MongoDB (unless source is explicitly "external")
     let campusList = [];
     let campusTotal = 0;
@@ -359,6 +382,7 @@ exports.getInternships = async (req, res, next) => {
             isInternational: !!int.isInternational,
             isExclusive: int.isExclusive !== undefined ? int.isExclusive : true,
             isExternal: false,
+            isExpired: isListingExpired(int),
             requiredSkills: int.requiredSkills || int.skillsRequired || [],
             skillsRequired: int.skillsRequired || int.requiredSkills || [],
             skills: int.requiredSkills || int.skillsRequired || [],
@@ -407,10 +431,11 @@ exports.getInternships = async (req, res, next) => {
             const key = `${(item.title || "").toLowerCase().trim()}_${(item.company || "").toLowerCase().trim()}`;
             return !campusKeys.has(key);
           })
-          .map((item, idx) => ({
-            _id: `scraped-int-${idx}`,
-            id: `scraped-int-${idx}`,
-            jobId: `scraped-int-${idx}`,
+          .map((item) => ({
+            // Stored feed listings have a stable MongoDB id
+            _id: item._id,
+            id: item.id,
+            jobId: item.id,
             title: item.title,
             company: item.company,
             companyName: item.company,
@@ -431,12 +456,13 @@ exports.getInternships = async (req, res, next) => {
             isInternational: !!item.location?.toLowerCase().includes("worldwide") || !item.location?.toLowerCase().includes("india"),
             isExclusive: false,
             isExternal: true,
-            skillsRequired: [item.title.split(" ")[0] || "Development", "Problem Solving"],
-            requiredSkills: [item.title.split(" ")[0] || "Development", "Problem Solving"],
+            skillsRequired: item.skills?.length ? item.skills : [item.title.split(" ")[0] || "Development", "Problem Solving"],
+            requiredSkills: item.skills?.length ? item.skills : [item.title.split(" ")[0] || "Development", "Problem Solving"],
             postedAt: item.postedDate || "Recently Posted",
-            createdAt: new Date(),
+            createdAt: item.createdAt || new Date(),
             deadline: "Open until filled",
-            description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
+            description: item.description || `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
+            attribution: item.attribution || "",
             responsibilities: ["Contribute to ongoing development", "Collaborate with mentors and team"],
             openings: 2,
             applicantsCount: 5,
@@ -484,7 +510,7 @@ exports.getInternships = async (req, res, next) => {
 // GET /api/internships/categories (Dynamic category & location counts aggregated from database)
 exports.getInternshipCategories = async (req, res, next) => {
   try {
-    const baseQuery = { status: "Published" };
+    const baseQuery = openListingQuery();
 
     const [
       internshipCount,
@@ -580,59 +606,10 @@ exports.getInternshipById = async (req, res, next) => {
   try {
     const id = req.params.id;
 
-    // Handle scraped / external opportunity IDs
+    // Every listing, including synced feed listings, has a stable MongoDB id (I04). The old
+    // positional "scraped-*" ids pointed at different listings as results changed, so they
+    // are no longer resolved.
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      try {
-        const aggregated = await getAggregatedOpportunities({ opportunityType: "all" });
-        const match = (aggregated.data || []).find(
-          (item, idx) =>
-            `scraped-int-${idx}` === id ||
-            `scraped-job-${idx}` === id ||
-            `scraped-rec-int-${idx}` === id ||
-            `scraped-rec-job-${idx}` === id ||
-            item.title === id
-        ) || (aggregated.data || [])[0];
-
-        if (match) {
-          const formatted = {
-            _id: id,
-            id: id,
-            title: match.title,
-            company: match.company,
-            companyName: match.company,
-            location: match.location,
-            workMode: match.workMode || "Remote",
-            type: match.opportunityType || "Internship",
-            stipend: "Competitive Stipend / Package",
-            salary: "Competitive Package",
-            duration: "3-6 Months",
-            isPaid: true,
-            isExternal: true,
-            applyLink: match.applyLink,
-            applyUrl: match.applyLink,
-            platformSource: match.platformSource,
-            source: match.platformSource,
-            description: `${match.title} at ${match.company}. Real-time verified opportunity aggregated from ${match.platformSource}. Click below to apply directly on the source platform.`,
-            responsibilities: [
-              "Collaborate with the engineering and product team",
-              "Execute tasks and features as per requirements",
-              "Participate in design and code reviews"
-            ],
-            requiredSkills: [match.title.split(" ")[0] || "Engineering", "Communication", "Problem Solving"],
-            openings: 2,
-            deadline: "Open until filled",
-            postedAt: match.postedDate || "Recently Posted",
-          };
-          return res.status(200).json({
-            success: true,
-            internship: formatted,
-            data: formatted,
-          });
-        }
-      } catch (e) {
-        console.warn("Scraped ID lookup error in getInternshipById:", e.message);
-      }
-
       return res.status(404).json({ success: false, message: "Internship opportunity not found" });
     }
 
@@ -651,21 +628,23 @@ exports.getInternshipById = async (req, res, next) => {
       );
     }
 
-    if (!internship || (internship.status !== "Published" && (!req.user ||
+    const publiclyVisible = internship && internship.status === "Published" && !isListingExpired(internship);
+    if (!internship || (!publiclyVisible && (!req.user ||
       !(String(internship.createdBy) === String(req.user._id) || await EmployerProfile.exists({
         _id: internship.employerId, userId: req.user._id,
       }))))) {
       return res.status(404).json({ success: false, message: "Internship opportunity not found" });
     }
 
-    if (internship.status === "Published") {
+    if (publiclyVisible) {
       await internship.constructor.updateOne({ _id: internship._id }, { $inc: { viewsCount: 1 } });
     }
 
+    const publicInternship = toPublicListing(internship, req.user);
     return res.status(200).json({
       success: true,
-      internship,
-      data: internship,
+      internship: publicInternship,
+      data: publicInternship,
     });
   } catch (error) {
     next(error);
@@ -685,14 +664,23 @@ exports.updateInternship = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Internship not found or access denied" });
     }
 
-    Object.assign(internship, pickListingUpdate(req.body));
+    const updates = pickListingUpdate(req.body);
+    // A published internship whose content changes must be approved again (BUG-02).
+    const sentForReview = requiresReapproval(internship, updates);
+    Object.assign(internship, updates);
+    if (sentForReview) internship.status = "Pending Approval";
     if (Array.isArray(req.body.recruitmentStages)) {
       internship.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     }
     await internship.save();
     clearSearchCache();
 
-    return res.json({ success: true, message: "Updated", internship, data: internship });
+    return res.json({
+      success: true,
+      message: sentForReview ? "Updated and sent for approval again" : "Updated",
+      internship,
+      data: internship,
+    });
   } catch (error) {
     next(error);
   }
@@ -702,25 +690,27 @@ exports.updateInternship = async (req, res, next) => {
 exports.updateInternshipStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
-    const allowed = ["Draft", "Published", "Paused", "Closed"];
-    if (!allowed.includes(status)) {
-      return res.status(400).json({ success: false, message: "Invalid status" });
-    }
 
     const ownerQuery = {
       _id: req.params.id,
       createdBy: req.user._id,
     };
-    const internship = await Internship.findOneAndUpdate(
-      ownerQuery,
-      { status },
-      { new: true }
-    );
+    const internship = await Internship.findOne(ownerQuery);
 
     if (!internship) {
       return res.status(404).json({ success: false, message: "Internship not found or access denied" });
     }
 
+    const denied = checkEmployerStatusChange(internship, status);
+    if (denied) {
+      return res.status(denied.code).json({ success: false, message: denied.message });
+    }
+
+    const wasClosed = internship.status === "Closed";
+    internship.status = status;
+    if (status !== "Closed") internship.closedReason = null;
+    await internship.save();
+    if (status === "Closed" && !wasClosed) notifyListingClosedInBackground("internship", internship._id, { senderId: req.user._id });
     clearSearchCache();
 
     return res.json({ success: true, internship, data: internship });
@@ -762,13 +752,13 @@ exports.deleteInternship = async (req, res, next) => {
   }
 };
 
-// POST /api/internships/sync/external (Sync external APIs)
+// POST /api/internships/sync/external (older alias of POST /api/admin/jobs/sync)
 exports.syncFromExternalAPIs = async (req, res, next) => {
   try {
-    const result = await syncExternalInternships();
+    const result = await runExternalJobSync();
     return res.json({
       success: true,
-      message: "External internships synced",
+      message: "External job feeds synced",
       ...result,
     });
   } catch (error) {

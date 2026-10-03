@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { FEATURES } from "../../config/features";
 import { Link } from "react-router-dom";
 
 const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], appliedJobIds = new Set(), limit = 1 }) => {
@@ -91,12 +92,12 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
                   </div>
 
                   <p className="text-xs font-medium text-slate-600">
-                    <span className="font-semibold text-slate-800">{job.company || job.companyName}</span> • {job.location || "India"}
+                    <span className="font-semibold text-slate-800">{job.company || job.companyName}</span> {job.location ? ` • ${job.location}` : ""}
                   </p>
 
                   <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
                     <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                      {job.salary || "Competitive CTC"}
+                      {job.salary || "Salary not disclosed"}
                     </span>
                     <span>• {job.postedAt || "Actively hiring"}</span>
                   </div>
@@ -116,17 +117,20 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
                 </div>
 
                 <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-                  <button
-                    onClick={() => onSave(job)}
-                    className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                      isSaved
-                        ? "bg-amber-50 border-amber-300 text-amber-600"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                    }`}
-                    title={isSaved ? "Saved" : "Save Job"}
-                  >
-                    {isSaved ? "★ Saved" : "☆ Save"}
-                  </button>
+                  {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                  {FEATURES.savedJobs && (
+                    <button
+                      onClick={() => onSave(job)}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                        isSaved
+                          ? "bg-amber-50 border-amber-300 text-amber-600"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                      }`}
+                      title={isSaved ? "Saved" : "Save Job"}
+                    >
+                      {isSaved ? "★ Saved" : "☆ Save"}
+                    </button>
+                  )}
 
                   {isApplied ? (
                     <button type="button" disabled className="px-4 py-2.5 bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl cursor-not-allowed">

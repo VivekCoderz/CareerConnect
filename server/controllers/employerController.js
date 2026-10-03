@@ -21,6 +21,7 @@ const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
 const Course = require("../models/Course");
 const { getEmployerDashboardData } = require("../services/employerDashboardService");
+const { ipKeyGenerator } = require("express-rate-limit");
 
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
@@ -451,9 +452,9 @@ exports.getEmployerDashboard = async (req, res, next) => {
       type: app.opportunityType || (app.internshipId ? "Internship" : "Full-time"),
       status: app.status || "Reviewing",
       appliedDate: app.createdAt ? new Date(app.createdAt).toISOString().split("T")[0] : "Recent",
-      matchScore: app.matchScore || 85,
-      cgpa: app.cgpa || "8.5",
-      degree: app.degree || "Geeta University Student",
+      matchScore: app.matchScore ?? null,
+      cgpa: app.cgpa || "",
+      degree: app.degree || "",
     }));
 
     const activeListings = [
@@ -862,7 +863,7 @@ exports.requestCompanyApproval = async (req, res, next) => {
         module: "Settings",
         target: trimmedCompanyName,
         details: `Employee ${cleanEmployeeName} (${cleanEmployeeEmail}) submitted connection request for "${trimmedCompanyName}" (${cleanCompanyEmail}).`,
-        ipAddress: req.ip || req.headers["x-forwarded-for"] || "127.0.0.1",
+        ipAddress: ipKeyGenerator(req.ip || "127.0.0.1"),
       });
     } catch (auditErr) {
       console.warn("AuditLog warning:", auditErr.message);

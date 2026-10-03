@@ -9,16 +9,39 @@ const Notification = require("../models/Notification");
 // ==========================================
 // CONFIGURATION & CREDENTIALS
 // ==========================================
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_test_TbSS4kb8G70xwq";
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "1H85VDA2KxKTpE1MMa8Rs26w";
+// Read at request time so credentials only ever come from the environment.
+function getRazorpayConfig() {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  return keyId && keySecret ? { keyId, keySecret } : null;
+}
+
+function paymentsNotConfigured(res) {
+  return res.status(503).json({
+    success: false,
+    message: "Payments are not configured",
+  });
+}
+
+/**
+ * Constant-time check of Razorpay's HMAC SHA256 signature
+ */
+function isValidRazorpaySignature(orderId, paymentId, signature, secret) {
+  const expected = Buffer.from(
+    crypto.createHmac("sha256", secret).update(`${orderId}|${paymentId}`).digest("hex")
+  );
+  const received = Buffer.from(String(signature));
+  if (received.length !== expected.length) return false;
+  return crypto.timingSafeEqual(expected, received);
+}
 
 /**
  * Helper to call Razorpay Orders API via Axios
  */
-async function callRazorpayCreateOrder(amountInPaise, currency = "INR", receipt, notes = {}) {
+async function callRazorpayCreateOrder(config, amountInPaise, currency = "INR", receipt, notes = {}) {
   try {
     const authHeader =
-      "Basic " + Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+      "Basic " + Buffer.from(`${config.keyId}:${config.keySecret}`).toString("base64");
 
     const response = await axios.post(
       "https://api.razorpay.com/v1/orders",
@@ -172,10 +195,16 @@ exports.createOrder = async (req, res) => {
     // ------------------------------------------
     // CASE B: PAID COURSE (Create Razorpay Order)
     // ------------------------------------------
+    const razorpayConfig = getRazorpayConfig();
+    if (!razorpayConfig) {
+      return paymentsNotConfigured(res);
+    }
+
     const amountInPaise = Math.round(coursePrice * 100);
     const receiptId = `rcpt_${Date.now().toString().slice(-8)}`;
 
     const rzpResult = await callRazorpayCreateOrder(
+      razorpayConfig,
       amountInPaise,
       "INR",
       receiptId,
@@ -186,17 +215,13 @@ exports.createOrder = async (req, res) => {
       }
     );
 
-    let razorpayOrderId = "";
-    let isSimulated = false;
-    if (rzpResult.success && rzpResult.data?.id) {
-      razorpayOrderId = rzpResult.data.id;
-    } else {
-      isSimulated = true;
-      razorpayOrderId = `order_test_${Date.now().toString(36)}_${Math.random()
-        .toString(36)
-        .substring(2, 6)}`;
-      console.warn("Using simulated sandbox Razorpay order ID:", razorpayOrderId);
+    if (!rzpResult.success || !rzpResult.data?.id) {
+      return res.status(502).json({
+        success: false,
+        message: "Could not create payment order with Razorpay. Please try again.",
+      });
     }
+    const razorpayOrderId = rzpResult.data.id;
 
     // Save pending CourseOrder
     await CourseOrder.create({
@@ -210,17 +235,15 @@ exports.createOrder = async (req, res) => {
       razorpayOrderId,
       metadata: {
         amountInPaise,
-        isSimulated,
       },
     });
 
     return res.status(200).json({
       success: true,
       orderId: razorpayOrderId,
-      isSimulated,
       amount: amountInPaise,
       currency: "INR",
-      keyId: RAZORPAY_KEY_ID,
+      keyId: razorpayConfig.keyId,
       courseTitle: course.title,
       prefill: {
         name: user.fullName || "",
@@ -254,7 +277,18 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    if (!razorpayOrderId || !razorpayPaymentId || !courseId) {
+    const razorpayConfig = getRazorpayConfig();
+    if (!razorpayConfig) {
+      return paymentsNotConfigured(res);
+    }
+
+    const isNonEmptyString = (value) => typeof value === "string" && value.length > 0;
+    if (
+      !isNonEmptyString(razorpayOrderId) ||
+      !isNonEmptyString(razorpayPaymentId) ||
+      !isNonEmptyString(razorpaySignature) ||
+      !courseId
+    ) {
       return res.status(400).json({
         success: false,
         message: "Missing required payment verification parameters",
@@ -272,25 +306,8 @@ exports.verifyPayment = async (req, res) => {
     // ------------------------------------------
     // Verify Cryptographic Signature
     // ------------------------------------------
-    const isSandboxOrder = razorpayOrderId.startsWith("order_test_");
-    let isValidSignature = false;
-
-    if (isSandboxOrder) {
-      // Simulated sandbox orders pass verification
-      isValidSignature = true;
-    } else if (razorpaySignature && RAZORPAY_KEY_SECRET) {
-      const generatedSignature = crypto
-        .createHmac("sha256", RAZORPAY_KEY_SECRET)
-        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-        .digest("hex");
-
-      isValidSignature = generatedSignature === razorpaySignature;
-    } else {
-      // In test mode without secret or signature, allow if paymentId is provided
-      isValidSignature = Boolean(razorpayPaymentId);
-    }
-
-    if (!isValidSignature) {
+    const { keySecret } = razorpayConfig;
+    if (!isValidRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature, keySecret)) {
       console.warn("Payment signature verification failed for order:", razorpayOrderId);
       return res.status(400).json({
         success: false,
@@ -299,31 +316,33 @@ exports.verifyPayment = async (req, res) => {
     }
 
     // ------------------------------------------
-    // Update or Create Completed Order
+    // Complete the user's own pending order (never create one here)
     // ------------------------------------------
-    let order = await CourseOrder.findOne({
-      user: user._id,
-      razorpayOrderId,
-    });
+    const orderFilter = { razorpayOrderId, user: user._id, course: course._id };
+    const order = await CourseOrder.findOneAndUpdate(
+      { ...orderFilter, status: "created" },
+      { status: "completed", razorpayPaymentId, razorpaySignature, paidAt: new Date() },
+      { returnDocument: "after" }
+    );
 
-    if (order) {
-      order.status = "completed";
-      order.razorpayPaymentId = razorpayPaymentId;
-      order.razorpaySignature = razorpaySignature || "";
-      order.paidAt = new Date();
-      await order.save();
-    } else {
-      order = await CourseOrder.create({
-        user: user._id,
-        course: course._id,
-        amount: course.price || 0,
-        currency: "INR",
-        status: "completed",
-        isFree: false,
-        razorpayOrderId,
-        razorpayPaymentId,
-        razorpaySignature: razorpaySignature || "",
-        paidAt: new Date(),
+    if (!order) {
+      const existingOrder = await CourseOrder.findOne(orderFilter);
+      if (existingOrder?.status === "completed") {
+        return res.status(200).json({
+          success: true,
+          message: "Payment already verified.",
+          payment: {
+            id: existingOrder.razorpayPaymentId,
+            orderId: existingOrder.razorpayOrderId,
+            amount: existingOrder.amount,
+          },
+        });
+      }
+
+      console.warn("No pending order found for verified payment:", razorpayOrderId);
+      return res.status(400).json({
+        success: false,
+        message: "No matching payment order found.",
       });
     }
 

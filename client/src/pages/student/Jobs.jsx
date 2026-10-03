@@ -1,9 +1,11 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
+import { FEATURES } from "../../config/features";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
 import { getJobs } from "../../services/jobService";
-import { applyOpportunity } from "../../services/studentDashboardService";
+import { applyToOpportunity } from "../../utils/opportunityApply";
+import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
 
 export default function Jobs({
   embedded = false,
@@ -66,13 +68,11 @@ export default function Jobs({
     }
 
     try {
-      const res = await applyOpportunity({
-        opportunityId: item._id || item.id,
-        jobId: item._id || item.id,
-        title: item.title,
-        company: item.company || item.companyName,
-        type: item.type || "Full-Time",
-      });
+      const res = await applyToOpportunity(item, "Job");
+      if (res.external) {
+        if (!res.opened) showToast("This listing has no apply link.", "error");
+        return;
+      }
       if (res?.success) {
         setAppliedIds((prev) => [...prev, item._id || item.id]);
         showToast(res.message || `Applied for "${item.title}"!`, "success");
@@ -221,7 +221,7 @@ export default function Jobs({
                       </div>
 
                       <h2 className="text-base font-bold text-slate-900 group-hover:text-[#1e3a8a] transition line-clamp-1">
-                        {item.title}
+                        <OpportunityTitleLink item={item} type="Job">{item.title}</OpportunityTitleLink>
                       </h2>
                       <p className="text-sm font-semibold text-slate-600 mt-0.5">
                         {item.company || item.companyName || item.employerId?.companyName || "Company"}
@@ -230,7 +230,7 @@ export default function Jobs({
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <span className="text-sm font-bold text-[#1e3a8a]">
-                          {item.salary || "Competitive Package"}
+                          {item.salary || "Not disclosed"}
                         </span>
                         {item.requiredSkills?.slice(0, 4).map((skill) => (
                           <span
@@ -244,18 +244,21 @@ export default function Jobs({
                     </div>
 
                     <div className="flex items-center sm:flex-col sm:items-stretch gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleSaveClick(item)}
-                        className={`h-10 px-3.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 ${
-                          isSaved
-                            ? "bg-amber-50 border-amber-300 text-amber-600"
-                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                        title={isSaved ? "Saved" : "Save Job"}
-                      >
-                        {isSaved ? "★ Saved" : "☆ Save"}
-                      </button>
+                      {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                      {FEATURES.savedJobs && (
+                        <button
+                          type="button"
+                          onClick={() => handleSaveClick(item)}
+                          className={`h-10 px-3.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 ${
+                            isSaved
+                              ? "bg-amber-50 border-amber-300 text-amber-600"
+                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                          }`}
+                          title={isSaved ? "Saved" : "Save Job"}
+                        >
+                          {isSaved ? "★ Saved" : "☆ Save"}
+                        </button>
+                      )}
 
                       {item.applyLink ? (
                         <a

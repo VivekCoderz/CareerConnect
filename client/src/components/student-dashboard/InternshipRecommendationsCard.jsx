@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import OpportunityTitleLink from "../common/OpportunityTitleLink";
 
 const InternshipRecommendationsCard = ({
   internships = [],
@@ -49,7 +50,9 @@ const InternshipRecommendationsCard = ({
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
                       🔥 Trending Now
                     </span>
-                    <h3 className="text-base font-bold text-slate-900">{int.title}</h3>
+                    <h3 className="text-base font-bold text-slate-900">
+                      <OpportunityTitleLink item={int} type="Internship">{int.title}</OpportunityTitleLink>
+                    </h3>
                     <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
                       {int.workMode}
                     </span>
