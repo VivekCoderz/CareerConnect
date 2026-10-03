@@ -50,6 +50,8 @@ const sendViaBrevo = async ({ recipients, subject, html, text }) => {
     // Configure Brevo API Client
     const defaultClient = SibApiV3Sdk.ApiClient.instance;
     defaultClient.authentications["api-key"].apiKey = apiKey;
+    // The SDK waits 60 s by default; fail fast so the fallback can run and requests don't hang.
+    defaultClient.timeout = 10000;
 
     const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
     const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
