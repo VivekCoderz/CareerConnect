@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import {FEATURES} from "./config/features";
 import JourneyLoader from "./components/common/JourneyLoader";
 import { lazyWithRetry } from "./utils/lazyWithRetry";
+import { getSafeRedirect } from "./utils/authRedirect";
 import ErrorBoundary from "./components/common/ErrorBoundary";
 // Guards & Common Modals
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
@@ -31,6 +32,7 @@ import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
 const Home = lazyWithRetry(() => import("./pages/Home.jsx"));
 const SelectRole = lazyWithRetry(() => import("./pages/SelectRole"));
 const JobDiscoveryPage = lazyWithRetry(() => import("./pages/jobs/JobDiscoveryPage"));
+const JobDetailPage = lazyWithRetry(() => import("./pages/jobs/JobDetailPage"));
 const InternshipDiscoveryPage = lazyWithRetry(
   () => import("./pages/internships/InternshipDiscoveryPage"),
 );
@@ -159,6 +161,7 @@ const RootRoute = () => {
 
 const PublicOnlyRoute = ({ children }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
+  const location = useLocation();
   if (!isInitialized) return null;
   if (user) {
     if (user.role === "SUPER_ADMIN" || user.role === "COMPANY_ADMIN" || user.role === "admin") {
@@ -181,7 +184,7 @@ const PublicOnlyRoute = ({ children }) => {
     }
     return (
       <Navigate
-        to={getDashboardPath(user.userType || user.role, user)}
+        to={getSafeRedirect(location.search) || getDashboardPath(user.userType || user.role, user)}
         replace
       />
     );
@@ -306,6 +309,7 @@ function AppRoutes() {
               path="/jobs/category/:category"
               element={<JobDiscoveryPage />}
             />
+            <Route path="/jobs/:id" element={<JobDetailPage />} />
 
             {/* =================================================
               LIVE OPPORTUNITIES MATRIX & DISCOVERY
@@ -345,6 +349,7 @@ function AppRoutes() {
               path="/internships/category/:category"
               element={<InternshipDiscoveryPage />}
             />
+            <Route path="/internships/:id" element={<InternshipDetail />} />
 
             {/* =================================================
               GOOGLE ONBOARDING
@@ -368,7 +373,6 @@ function AppRoutes() {
                 />
               }
             >
-              <Route path="/internships/:id" element={<InternshipDetail />} />
               <Route path="/applications" element={<MyApplications />} />
 
               {FEATURES.courses && (
@@ -382,7 +386,6 @@ function AppRoutes() {
                 </>
               )}
            
-            <Route path="/internships/:id" element={<InternshipDetail />} />
             <Route path="/student/jobs/:id" element={<InternshipDetail />} />
             <Route path="/applications" element={<MyApplications />} />
             <Route path="/student/applications" element={<MyApplications />} />

@@ -58,6 +58,12 @@ const EmployerDashboard = () => {
 
   // Layout & Tab State
   const [activeTab, setActiveTab] = useState("overview");
+  // Job the ATS tab opens filtered to ("All" = every job); set by "View applications".
+  const [atsJobId, setAtsJobId] = useState("All");
+  const selectTab = (tab) => {
+    setAtsJobId("All");
+    setActiveTab(tab);
+  };
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -976,7 +982,7 @@ const EmployerDashboard = () => {
         profileCompletion={dashboardData?.profileCompletion || completion}
         unreadNotifications={dashboardData?.unreadNotificationsCount || 0}
         activity={dashboardData?.activity || []}
-        onSelectTab={setActiveTab}
+        onSelectTab={selectTab}
       />
 
       {/* Main Container */}
@@ -984,7 +990,7 @@ const EmployerDashboard = () => {
         {/* Sidebar */}
         <EmployerSidebar
           activeTab={activeTab}
-          onSelectTab={setActiveTab}
+          onSelectTab={selectTab}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           stats={stats}
@@ -1009,6 +1015,10 @@ const EmployerDashboard = () => {
                 setInternshipView("new");
               }}
               onViewApplications={() => setActiveTab("ats")}
+              onViewJobApplications={(jobId) => {
+                setAtsJobId(String(jobId));
+                setActiveTab("ats");
+              }}
               onScheduleInterview={() => {
                 setInterviewCandidate(null);
                 setIsInterviewModalOpen(true);
@@ -1234,6 +1244,8 @@ const EmployerDashboard = () => {
               </div>
 
               <ATSPipelineView
+                key={atsJobId}
+                initialJobId={atsJobId}
                 jobs={jobs}
                 applications={applications}
                 jobs={jobs}

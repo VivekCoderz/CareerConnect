@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
 import { getJobs } from "../../services/jobService";
 import { applyToOpportunity } from "../../utils/opportunityApply";
+import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
 
 export default function Jobs({
   embedded = false,
@@ -220,7 +221,7 @@ export default function Jobs({
                       </div>
 
                       <h2 className="text-base font-bold text-slate-900 group-hover:text-[#1e3a8a] transition line-clamp-1">
-                        {item.title}
+                        <OpportunityTitleLink item={item} type="Job">{item.title}</OpportunityTitleLink>
                       </h2>
                       <p className="text-sm font-semibold text-slate-600 mt-0.5">
                         {item.company || item.companyName || item.employerId?.companyName || "Company"}

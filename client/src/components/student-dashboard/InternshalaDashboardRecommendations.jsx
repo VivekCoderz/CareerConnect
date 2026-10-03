@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FEATURES } from "../../config/features";
+import OpportunityTitleLink from "../common/OpportunityTitleLink";
 
 const EmptyOpportunityCard = ({ type, href }) => (
   <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between min-h-[290px]">
@@ -257,7 +258,7 @@ const InternshalaDashboardRecommendations = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 min-w-0">
                     <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition line-clamp-1">
-                      {topJob.title}
+                      <OpportunityTitleLink item={topJob} type="Job">{topJob.title}</OpportunityTitleLink>
                     </h3>
                     <p className="text-xs font-semibold text-slate-600 line-clamp-1">
                       {topJob.company}
@@ -403,7 +404,7 @@ const InternshalaDashboardRecommendations = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 min-w-0">
                     <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition line-clamp-1">
-                      {topInternship.title}
+                      <OpportunityTitleLink item={topInternship} type="Internship">{topInternship.title}</OpportunityTitleLink>
                     </h3>
                     <p className="text-xs font-semibold text-slate-600 line-clamp-1">
                       {topInternship.company}

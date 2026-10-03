@@ -32,9 +32,10 @@ const ATSPipelineView = ({
   onCreateOffer,
   onAddNote,
   onBulkStatus,
+  initialJobId = "All", // open filtered to one job, e.g. from "View applications" on the dashboard
 }) => {
   // State
-  const [selectedJobId, setSelectedJobId] = useState("All");
+  const [selectedJobId, setSelectedJobId] = useState(initialJobId ? String(initialJobId) : "All");
   const [activeStageFilter, setActiveStageFilter] = useState("All");
   const [viewMode, setViewMode] = useState("list"); // "list" | "kanban"
   const [checkedIds, setCheckedIds] = useState(() => new Set());
