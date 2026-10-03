@@ -93,6 +93,18 @@ const ROLE_SKILL_BENCHMARKS = {
   ],
 };
 
+const PROFILE_USER_FIELDS = "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks";
+
+// A fresher without a profile gets an empty one: only schema defaults, never sample
+// education, skills or salary (those would show up as the fresher's own data).
+// Upsert so two concurrent first requests don't race to create duplicates.
+const createEmptyFresherProfile = (userId) =>
+  FresherProfile.findOneAndUpdate(
+    { userId },
+    { $setOnInsert: { userId } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).populate("userId", PROFILE_USER_FIELDS);
+
 // ==========================================
 // DYNAMIC PROFILE COMPLETION (Weighted logic)
 // Allows reaching 100% even without internship
@@ -313,6 +325,8 @@ const calculateJobMatch = (
     );
   });
 
+  // No skills on the profile yet: no basis for a match score.
+  if (allProfileSkills.length === 0) return 0;
   if (jobRequiredSkills.length === 0) return 85;
 
   let matched = 0;
@@ -353,70 +367,7 @@ module.exports.getFresherProfile = async (req, res, next) => {
     );
 
     if (!profile) {
-      // Auto initialize sensible fresher profile template
-      profile = await FresherProfile.create({
-        userId,
-        professionalHeadline:
-          "Software Engineering Graduate | Seeking Entry-Level Opportunities",
-        targetRole: "Full Stack Developer",
-        targetIndustry: "Information Technology",
-        careerObjective:
-          "Passionate graduate seeking an entry-level software engineering role where I can apply my problem-solving abilities and full-stack development skills.",
-        education: [
-          {
-            qualificationType: "B.Tech",
-            degree: "B.Tech Computer Science & Engineering",
-            institution: "University / Institute of Technology",
-            university: "State Technical University",
-            graduationYear: 2024,
-            percentageOrCgpa: "8.2 CGPA",
-            isHighest: true,
-          },
-        ],
-        skills: {
-          programmingLanguages: [
-            { name: "JavaScript", proficiency: "Intermediate" },
-            { name: "Python", proficiency: "Intermediate" },
-          ],
-          frameworks: [
-            { name: "React", proficiency: "Intermediate" },
-            { name: "Node.js", proficiency: "Intermediate" },
-            { name: "Express", proficiency: "Intermediate" },
-          ],
-          databases: [{ name: "MongoDB", proficiency: "Intermediate" }],
-          tools: [
-            { name: "Git", proficiency: "Intermediate" },
-            { name: "Postman", proficiency: "Beginner" },
-          ],
-          softSkills: [
-            { name: "Problem Solving", proficiency: "Advanced" },
-            { name: "Teamwork", proficiency: "Advanced" },
-            { name: "Communication", proficiency: "Intermediate" },
-          ],
-          technical: [],
-        },
-        jobPreferences: {
-          preferredRoles: [
-            "Full Stack Developer",
-            "Frontend Developer",
-            "Junior Software Engineer",
-          ],
-          employmentTypes: ["Full-time", "Internship", "Graduate Trainee"],
-          preferredLocations: ["Bangalore", "Hyderabad", "Pune", "Remote"],
-          workMode: ["Hybrid", "Remote", "On-site"],
-          expectedSalary: { min: 4.5, max: 8.5, currency: "INR (LPA)" },
-        },
-        availability: {
-          status: "Immediately Available",
-          currentEmploymentStatus: "Looking for Job",
-        },
-        profileVisibility: "public",
-      });
-
-      profile = await profile.populate(
-        "userId",
-        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks",
-      );
+      profile = await createEmptyFresherProfile(userId);
     }
 
     const completion = calculateFresherProfileCompletion(profile, req.user);
@@ -526,36 +477,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     );
 
     if (!profile) {
-      profile = await FresherProfile.create({
-        userId,
-        professionalHeadline: "Software Engineering Graduate",
-        targetRole: "Full Stack Developer",
-        education: [
-          {
-            qualificationType: "B.Tech",
-            degree: "B.Tech Computer Science",
-            institution: "University / College",
-            graduationYear: 2024,
-            isHighest: true,
-          },
-        ],
-        skills: {
-          programmingLanguages: [
-            { name: "JavaScript", proficiency: "Intermediate" },
-          ],
-          frameworks: [{ name: "React", proficiency: "Intermediate" }],
-          databases: [{ name: "MongoDB", proficiency: "Intermediate" }],
-          tools: [{ name: "Git", proficiency: "Intermediate" }],
-          softSkills: [
-            { name: "Problem Solving", proficiency: "Intermediate" },
-          ],
-          technical: [],
-        },
-      });
-      profile = await profile.populate(
-        "userId",
-        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks",
-      );
+      profile = await createEmptyFresherProfile(userId);
     }
 
     // Fallback sync: if profile has no resumeUrl, but req.user has resumeUrl, sync it now
@@ -787,7 +709,9 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       recent: recentApps,
     };
 
-    // Calculate Target Role & Benchmarks
+    // Calculate Target Role & Benchmarks. targetRole falls back to a default for
+    // skill benchmarks only; text shown as the fresher's own choice uses chosenRole.
+    const chosenRole = profile?.targetRole || profile?.jobPreferences?.preferredRoles?.[0] || "";
     const targetRole =
       profile.targetRole ||
       profile.targetRoles?.[0] ||
@@ -927,8 +851,12 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     if (missingSkills.length > 0) {
       careerRecommendations.push({
         id: "rec-skill-1",
-        title: `Add ${missingSkills[0]} to strengthen your ${targetRole} profile`,
-        description: `Entry-level ${targetRole} postings often list ${missingSkills[0]} as a key requirement.`,
+        title: chosenRole
+          ? `Add ${missingSkills[0]} to strengthen your ${chosenRole} profile`
+          : `Add ${missingSkills[0]} to your skills`,
+        description: chosenRole
+          ? `Entry-level ${chosenRole} postings often list ${missingSkills[0]} as a key requirement.`
+          : `${missingSkills[0]} is often listed in entry-level ${targetRole} postings. Set a target role for advice that fits you.`,
         ctaText: "Explore Learning",
         ctaAction: `/courses?search=${encodeURIComponent(missingSkills[0])}`,
         type: "skill",
@@ -939,8 +867,12 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     if (matchingCount > 0) {
       careerRecommendations.push({
         id: "rec-jobs-1",
-        title: `${matchingCount} new entry-level roles match your target role`,
-        description: `Verified opportunities seeking ${targetRole} candidates with your skill profile.`,
+        title: chosenRole
+          ? `${matchingCount} new entry-level roles match your target role`
+          : `${matchingCount} new entry-level roles to explore`,
+        description: chosenRole
+          ? `Verified opportunities seeking ${chosenRole} candidates with your skill profile.`
+          : "Set a target role to see roles matched to you.",
         ctaText: "View Matching Jobs",
         ctaAction: "jobs",
         type: "job",
@@ -973,7 +905,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
 
     careerRecommendations.push({
       id: "rec-course-1",
-      title: `Explore courses related to ${targetRole}`,
+      title: chosenRole ? `Explore courses related to ${chosenRole}` : "Explore courses",
       description:
         "Upgrade your technical credentials with verified certifications.",
       ctaText: "Browse Courses",
@@ -987,7 +919,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         id: "act-1",
         type: "profile",
         title: "Fresher Profile Created",
-        subtitle: `Configured target role as ${targetRole}`,
+        subtitle: chosenRole ? `Configured target role as ${chosenRole}` : "Target role not set yet",
         timestamp: "Recently",
       },
       ...(profile.projects && profile.projects.length > 0
@@ -1022,7 +954,6 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     ];
 
     // What the fresher actually set (targetRole above falls back to a default for matching only).
-    const chosenRole = profile?.targetRole || profile?.jobPreferences?.preferredRoles?.[0] || "";
     const careerTarget = {
       targetRole: chosenRole,
       targetRoles:
@@ -1087,13 +1018,14 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
     const userId = req.user._id;
     const profile = await FresherProfile.findOne({ userId });
 
+    // targetRole is what the fresher chose ("" when not set); benchmarkRole is what the
+    // skill gap is measured against, falling back to a default role.
     const targetRole =
       profile?.targetRole ||
       profile?.jobPreferences?.preferredRoles?.[0] ||
-      "Full Stack Developer";
-    const benchmarkSkills =
-      ROLE_SKILL_BENCHMARKS[targetRole] ||
-      ROLE_SKILL_BENCHMARKS["Full Stack Developer"];
+      "";
+    const benchmarkRole = ROLE_SKILL_BENCHMARKS[targetRole] ? targetRole : "Full Stack Developer";
+    const benchmarkSkills = ROLE_SKILL_BENCHMARKS[benchmarkRole];
 
     const allProfileSkills = [];
     const categories = [
@@ -1123,7 +1055,7 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
     const skillGapCourses = [
       {
         id: "crs-f1",
-        title: `Industry-Ready ${targetRole} FastTrack`,
+        title: `Industry-Ready ${targetRole || benchmarkRole} FastTrack`,
         provider: "CareerConnect Pro",
         duration: "4 Weeks",
         rating: 4.9,
@@ -1145,6 +1077,7 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
       success: true,
       data: {
         targetRole,
+        benchmarkRole,
         masteredSkills: mastered,
         skillsToLearn: missing,
         matchPercentage: Math.round(

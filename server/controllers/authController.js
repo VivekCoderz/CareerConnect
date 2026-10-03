@@ -592,9 +592,10 @@ module.exports.registerUser = async (req, res, next) => {
           },
           skills: userData.interests,
           currentEmployment: {
-            company: currentCompany?.trim() || resolvedCollege || "Industry",
-            jobTitle: jobTitle?.trim() || "Working Professional",
-            industry: industry?.trim() || "Information Technology",
+            // Only what the user entered; blanks stay blank (no invented employer).
+            company: currentCompany?.trim() || "",
+            jobTitle: jobTitle?.trim() || "",
+            industry: industry?.trim() || "",
           },
           ...(initialResumeData ? { resume: initialResumeData } : {}),
           education: [
@@ -1960,9 +1961,10 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
             },
             skills: updateData.interests,
             currentEmployment: {
-              company: currentCompany?.trim() || resolvedCollege || "Industry",
-              jobTitle: jobTitle?.trim() || "Working Professional",
-              industry: industry?.trim() || "Information Technology",
+              // Only what the user entered; blanks stay blank (no invented employer).
+              company: currentCompany?.trim() || "",
+              jobTitle: jobTitle?.trim() || "",
+              industry: industry?.trim() || "",
             },
             education: [
               {

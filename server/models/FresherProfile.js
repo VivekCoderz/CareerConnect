@@ -372,7 +372,7 @@ const fresherProfileSchema = new mongoose.Schema(
     careerGoal: {
       type: String,
       trim: true,
-      default: "Get my first job",
+      default: "",
     },
 
     targetRole: {
@@ -405,7 +405,7 @@ const fresherProfileSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [100, "Target industry cannot exceed 100 characters"],
-      default: "Information Technology",
+      default: "",
     },
 
     // ==================================================
@@ -568,7 +568,6 @@ const fresherProfileSchema = new mongoose.Schema(
       status: {
         type: String,
         enum: ["Immediately Available", "Available Soon (15-30 Days)", "Available After Notice Period", "Not Looking"],
-        default: "Immediately Available",
       },
       expectedJoiningDate: {
         type: Date,
@@ -576,14 +575,13 @@ const fresherProfileSchema = new mongoose.Schema(
       currentEmploymentStatus: {
         type: String,
         enum: ["Unemployed", "Looking for Job", "Intern", "Freelancing", "Other"],
-        default: "Looking for Job",
       },
     },
 
     workAuthorization: {
       status: {
         type: String,
-        default: "Authorized to work in India",
+        default: "",
         trim: true,
       },
       willingToRelocate: {

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 const WelcomeSection = ({
   name = "Professional",
   fullName,
-  currentRole = "Senior Software Engineer",
+  currentRole = "Not set yet",
   profileStrength = 92,
   careerStrength = 82,
 }) => {

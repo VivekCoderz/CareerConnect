@@ -24,14 +24,14 @@ const EMPLOYMENT_TYPES = ["Full-time", "Contract", "Freelance", "Consultant"];
 
 const JobPreferencesSection = ({ jobPreferences = {}, onChange }) => {
   const [preferredRoles, setPreferredRoles] = useState(
-    jobPreferences?.preferredRoles || ["Engineering Lead", "Staff Software Engineer"]
+    jobPreferences?.preferredRoles || []
   );
   const [preferredLocations, setPreferredLocations] = useState(
-    jobPreferences?.locations || ["Bangalore", "Remote (India)"]
+    jobPreferences?.locations || []
   );
-  const [workModes, setWorkModes] = useState(jobPreferences?.workModes || ["Hybrid", "Remote"]);
+  const [workModes, setWorkModes] = useState(jobPreferences?.workModes || []);
   const [employmentTypes, setEmploymentTypes] = useState(
-    jobPreferences?.employmentTypes || ["Full-time"]
+    jobPreferences?.employmentTypes || []
   );
 
   const [roleInput, setRoleInput] = useState("");

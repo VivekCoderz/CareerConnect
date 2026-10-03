@@ -33,12 +33,26 @@ const ROLE_SKILL_BENCHMARKS = {
   ],
 };
 
+const PROFILE_USER_FIELDS =
+  "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks resumeUrl resumeName";
+
+// A professional without a profile gets an empty one: only schema defaults, never a
+// sample employer, job history, skills or salary (those would show up as their own data).
+// Upsert so two concurrent first requests don't race to create duplicates.
+const createEmptyProfessionalProfile = (userId) =>
+  ProfessionalProfile.findOneAndUpdate(
+    { userId },
+    { $setOnInsert: { userId } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).populate("userId", PROFILE_USER_FIELDS);
+
 // ==========================================
 // CALCULATE TOTAL EXPERIENCE FROM RECORDS
 // ==========================================
 const calculateTotalExperience = (experienceList = []) => {
+  // No work history yet: no experience band (not "1-3 years").
   if (!experienceList || experienceList.length === 0) {
-    return { years: 0, months: 0, category: "1-3 years" };
+    return { years: 0, months: 0, category: undefined };
   }
 
   let totalMonths = 0;
@@ -229,6 +243,8 @@ const calculateJobMatch = (professionalProfile, jobRequiredSkills = [], jobTitle
     (professionalProfile?.skills?.[cat] || []).forEach((s) => allProfileSkills.push(s.name.toLowerCase()));
   });
 
+  // No skills on the profile yet: no basis for a match score.
+  if (allProfileSkills.length === 0) return 0;
   if (jobRequiredSkills.length === 0) return 90;
 
   let matched = 0;
@@ -264,140 +280,7 @@ module.exports.getProfessionalProfile = async (req, res, next) => {
     );
 
     if (!profile) {
-      // Auto initialize sensible professional profile template
-      profile = await ProfessionalProfile.create({
-        userId,
-        professionalHeadline: "Senior Full Stack Developer | Distributed Cloud & Web Architecture",
-        professionalSummary:
-          "Experienced Software Engineer with 4+ years of expertise designing and delivering high-concurrency microservices, scalable frontend systems, and resilient cloud architectures.",
-        careerSpecialization: "Full Stack & Distributed Systems",
-        currentLevel: "Senior",
-        targetLevel: "Lead / Staff",
-        currentEmployment: {
-          company: "Enterprise Cloud Systems",
-          jobTitle: "Senior Software Engineer",
-          department: "Platform Engineering",
-          employmentType: "Full-time",
-          industry: "Information Technology",
-          location: "Bangalore",
-          workMode: "Hybrid",
-          joiningDate: new Date(2022, 5, 1),
-          currentlyWorking: true,
-          description: "Architecting customer-facing APIs and leading microservices migration.",
-          responsibilities: "Leading backend sprint planning, system architecture reviews, and mentoring junior engineers.",
-        },
-        experience: [
-          {
-            companyName: "Enterprise Cloud Systems",
-            jobTitle: "Senior Software Engineer",
-            department: "Platform Engineering",
-            employmentType: "Full-time",
-            location: "Bangalore",
-            workMode: "Hybrid",
-            startDate: new Date(2022, 5, 1),
-            currentlyWorking: true,
-            description: "Led development of core billing and authentication microservices.",
-            responsibilities: "Designed REST/GraphQL APIs, reduced server response latency by 35%.",
-            achievements: "Spearheaded AWS ECS migration saving $20K monthly cloud costs.",
-            technologiesUsed: ["Node.js", "React", "MongoDB", "AWS", "Docker", "Redis"],
-            teamSize: 6,
-            managerialRole: true,
-          },
-          {
-            companyName: "InnovateX Solutions",
-            jobTitle: "Software Engineer",
-            department: "Engineering",
-            employmentType: "Full-time",
-            location: "Pune",
-            workMode: "On-site",
-            startDate: new Date(2020, 6, 1),
-            endDate: new Date(2022, 4, 30),
-            currentlyWorking: false,
-            description: "Built scalable web interfaces and backend services for e-commerce clients.",
-            technologiesUsed: ["React", "Express", "PostgreSQL", "Tailwind CSS"],
-            teamSize: 4,
-          },
-        ],
-        totalExperienceYears: 4,
-        totalExperienceMonths: 2,
-        experienceLevelCategory: "3-5 years",
-        skills: {
-          programmingLanguages: [
-            { name: "JavaScript", proficiency: "Expert", yearsOfExperience: 5 },
-            { name: "TypeScript", proficiency: "Expert", yearsOfExperience: 4 },
-            { name: "Python", proficiency: "Intermediate", yearsOfExperience: 3 },
-          ],
-          frameworks: [
-            { name: "React", proficiency: "Expert", yearsOfExperience: 5 },
-            { name: "Node.js", proficiency: "Expert", yearsOfExperience: 5 },
-            { name: "Express", proficiency: "Advanced", yearsOfExperience: 4 },
-            { name: "Next.js", proficiency: "Advanced", yearsOfExperience: 3 },
-          ],
-          databases: [
-            { name: "MongoDB", proficiency: "Expert", yearsOfExperience: 5 },
-            { name: "PostgreSQL", proficiency: "Advanced", yearsOfExperience: 4 },
-            { name: "Redis", proficiency: "Advanced", yearsOfExperience: 3 },
-          ],
-          cloud: [
-            { name: "AWS (S3, EC2, ECS, Lambda)", proficiency: "Advanced", yearsOfExperience: 3 },
-            { name: "Docker", proficiency: "Advanced", yearsOfExperience: 4 },
-          ],
-          devOps: [
-            { name: "CI/CD (GitHub Actions)", proficiency: "Advanced", yearsOfExperience: 3 },
-            { name: "Kubernetes Basics", proficiency: "Intermediate", yearsOfExperience: 2 },
-          ],
-          tools: [
-            { name: "Git", proficiency: "Expert", yearsOfExperience: 5 },
-            { name: "Postman", proficiency: "Expert", yearsOfExperience: 5 },
-          ],
-          domain: [
-            { name: "FinTech & Payments", proficiency: "Advanced", yearsOfExperience: 3 },
-            { name: "SaaS Platforms", proficiency: "Expert", yearsOfExperience: 4 },
-          ],
-          management: [
-            { name: "System Architecture", proficiency: "Advanced", yearsOfExperience: 3 },
-            { name: "Technical Mentorship", proficiency: "Advanced", yearsOfExperience: 2 },
-            { name: "Agile / Scrum Sprint Leadership", proficiency: "Advanced", yearsOfExperience: 3 },
-          ],
-          softSkills: [
-            { name: "Stakeholder Management", proficiency: "Advanced", yearsOfExperience: 4 },
-            { name: "Cross-functional Leadership", proficiency: "Advanced", yearsOfExperience: 4 },
-          ],
-          technical: [],
-        },
-        careerGoal: {
-          goal: "Transition to Engineering Lead / Staff Architect role overseeing high-throughput cloud platforms.",
-          targetRole: "Engineering Lead / Staff Engineer",
-          targetIndustry: "Information Technology & SaaS",
-          targetLevel: "Lead / Staff",
-          timeline: "Next 6 Months",
-        },
-        jobPreferences: {
-          preferredRoles: ["Engineering Lead", "Staff Software Engineer", "Senior Backend Architect"],
-          industries: ["Fintech & Banking", "SaaS & Enterprise Tech", "AI Platforms"],
-          locations: ["Bangalore", "Hyderabad", "Remote (India)"],
-          workModes: ["Hybrid", "Remote"],
-          employmentTypes: ["Full-time"],
-        },
-        availability: {
-          status: "Employed (Passive / Open)",
-          noticePeriod: "30 Days",
-        },
-        compensation: {
-          currentSalary: 24,
-          expectedMinSalary: 32,
-          expectedMaxSalary: 45,
-          currency: "INR (LPA)",
-          isCurrentSalaryConfidential: true,
-        },
-        jobSearchStatus: "Open to Opportunities",
-        profileVisibility: "recruiter-only",
-      });
-
-      profile = await profile.populate(
-        "userId",
-        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks resumeUrl resumeName"
-      );
+      profile = await createEmptyProfessionalProfile(userId);
     }
 
     // Fallback sync: if profile has no resumeUrl, but User has resumeUrl, sync it now
@@ -475,16 +358,21 @@ module.exports.updateProfessionalProfile = async (req, res, next) => {
     }
 
     // Auto-calculate total experience if experience records modified
+    const unsetFields = {};
     if (updateData.experience) {
       const expCalc = calculateTotalExperience(updateData.experience);
       updateData.totalExperienceYears = expCalc.years;
       updateData.totalExperienceMonths = expCalc.months;
-      updateData.experienceLevelCategory = expCalc.category;
+      if (expCalc.category) updateData.experienceLevelCategory = expCalc.category;
+      else {
+        delete updateData.experienceLevelCategory;
+        unsetFields.experienceLevelCategory = "";
+      }
     }
 
     let profile = await ProfessionalProfile.findOneAndUpdate(
       { userId },
-      { $set: updateData },
+      { $set: updateData, ...(Object.keys(unsetFields).length ? { $unset: unsetFields } : {}) },
       { new: true, upsert: true, runValidators: true }
     ).populate(
       "userId",
@@ -533,20 +421,7 @@ module.exports.getProfessionalDashboard = async (req, res, next) => {
     );
 
     if (!profile) {
-      profile = await ProfessionalProfile.create({
-        userId,
-        professionalHeadline: "Senior Software Engineer",
-        currentEmployment: {
-          company: "Enterprise Cloud Systems",
-          jobTitle: "Senior Software Engineer",
-          location: "Bangalore",
-          workMode: "Hybrid",
-        },
-      });
-      profile = await profile.populate(
-        "userId",
-        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks"
-      );
+      profile = await createEmptyProfessionalProfile(userId);
     }
 
     const completion = calculateProfessionalProfileCompletion(profile, req.user);
@@ -725,13 +600,14 @@ module.exports.getProfessionalRecommendations = async (req, res, next) => {
     const userId = req.user._id;
     const profile = await ProfessionalProfile.findOne({ userId });
 
+    // targetRole is what the professional chose ("" when not set); benchmarkRole is what
+    // the skill gap is measured against, falling back to a default role.
     const targetRole =
       profile?.careerGoal?.targetRole ||
       profile?.jobPreferences?.preferredRoles?.[0] ||
-      "Engineering Lead / Staff Engineer";
-
-    const benchmarkSkills =
-      ROLE_SKILL_BENCHMARKS[targetRole] || ROLE_SKILL_BENCHMARKS["Engineering Lead / Staff Engineer"];
+      "";
+    const benchmarkRole = ROLE_SKILL_BENCHMARKS[targetRole] ? targetRole : "Engineering Lead / Staff Engineer";
+    const benchmarkSkills = ROLE_SKILL_BENCHMARKS[benchmarkRole];
 
     const allProfileSkills = [];
     const categories = ["programmingLanguages", "frameworks", "databases", "cloud", "devOps", "tools", "management", "technical"];
@@ -773,6 +649,7 @@ module.exports.getProfessionalRecommendations = async (req, res, next) => {
       success: true,
       data: {
         targetRole,
+        benchmarkRole,
         masteredSkills: mastered,
         skillsToDevelop,
         matchPercentage: Math.round((mastered.length / benchmarkSkills.length) * 100),
