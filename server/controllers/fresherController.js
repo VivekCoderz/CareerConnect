@@ -7,6 +7,7 @@ const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 // Skill benchmarks for target roles for Job Matching & Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -579,18 +580,12 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     if (mongoose.connection.readyState === 1) {
       try {
         [dbJobs, dbInternships] = await Promise.all([
-          Job.find({
-            status: "Published",
-            employmentType: { $ne: "Internship" },
-          })
+          Job.find(openListingQuery({ employmentType: { $ne: "Internship" } }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
             .lean(),
-          Job.find({
-            status: "Published",
-            employmentType: "Internship",
-          })
+          Job.find(openListingQuery({ employmentType: "Internship" }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)

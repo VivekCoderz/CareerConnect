@@ -4,6 +4,7 @@ const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
+const { isListingExpired, withOpenDeadline } = require("../utils/listingExpiry");
 const {
   pickListingUpdate,
   requiresReapproval,
@@ -216,6 +217,8 @@ exports.getJobs = async (req, res, next) => {
     const skip = (pageNum - 1) * pageSize;
     let total = 0;
     let rawJobs = [];
+    // Candidates never see listings whose deadline has passed, even before the sweep closes them.
+    if (!isMyJobs) withOpenDeadline(query);
 
     if (mongoose.connection.readyState === 1) {
       try {
@@ -247,6 +250,8 @@ exports.getJobs = async (req, res, next) => {
 
       return {
         ...j,
+        // Lets the employer's own list mark listings past their deadline.
+        isExpired: isListingExpired(j),
         _id: j._id,
         id: j._id.toString(),
         jobId: j._id.toString(),
@@ -302,7 +307,8 @@ exports.getJobById = async (req, res, next) => {
       "companyName logo headquarters industry description website"
     );
 
-    if (!job || (job.status !== "Published" && (!req.user ||
+    const publiclyVisible = job && job.status === "Published" && !isListingExpired(job);
+    if (!job || (!publiclyVisible && (!req.user ||
       !(String(job.createdBy) === String(req.user._id) || await EmployerProfile.exists({
         _id: job.employerId?._id || job.employerId, userId: req.user._id,
       }))))) {
@@ -313,7 +319,7 @@ exports.getJobById = async (req, res, next) => {
     }
 
     // Increment view count
-    if (job.status === "Published") await Job.updateOne({ _id: job._id }, { $inc: { viewsCount: 1 } });
+    if (publiclyVisible) await Job.updateOne({ _id: job._id }, { $inc: { viewsCount: 1 } });
 
     return res.status(200).json({
       success: true,

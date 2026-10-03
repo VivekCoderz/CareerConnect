@@ -92,10 +92,10 @@ const internshipSchema = new mongoose.Schema(
       enum: ["admin", "auto", "legacy", null],
       default: null,
     },
-    // Why the listing was closed by the platform (e.g. its employer was rejected).
+    // Why the platform closed the listing (deadline passed, or its employer was rejected).
     closedReason: {
       type: String,
-      enum: ["employer_rejected", null],
+      enum: ["expired", "employer_rejected", null],
       default: null,
     },
     closedAt: {
@@ -200,6 +200,8 @@ const internshipSchema = new mongoose.Schema(
 );
 
 internshipSchema.index({ employerId: 1, status: 1 });
+// Expiry sweep and public "still open" filter
+internshipSchema.index({ status: 1, deadline: 1 });
 internshipSchema.index({ status: 1, isExternal: 1 });
 internshipSchema.index({ requiredSkills: 1 });
 internshipSchema.index(

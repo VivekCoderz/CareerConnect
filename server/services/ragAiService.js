@@ -3,6 +3,7 @@ const Internship = require("../models/Internship");
 const Course = require("../models/Course");
 const StudentProfile = require("../models/StudentProfile");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { withOpenDeadline } = require("../utils/listingExpiry");
 
 let geminiModel = null;
 if (process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes("your_gemini")) {
@@ -55,7 +56,7 @@ const retrievePlatformContext = async (queryText, userId = null) => {
   // Search Jobs
   try {
     const jobRegex = tokens.length > 0 ? new RegExp(tokens.join("|"), "i") : /developer|engineer|analyst/i;
-    const jobs = await Job.find({
+    const jobs = await Job.find(withOpenDeadline({
       status: "Published",
       $or: [
         { title: { $regex: jobRegex } },
@@ -63,7 +64,7 @@ const retrievePlatformContext = async (queryText, userId = null) => {
         { skillsRequired: { $in: tokens } },
         { location: { $regex: jobRegex } },
       ],
-    })
+    }))
       .sort({ createdAt: -1 })
       .limit(3)
       .lean();
@@ -87,25 +88,25 @@ const retrievePlatformContext = async (queryText, userId = null) => {
   try {
     const intRegex = tokens.length > 0 ? new RegExp(tokens.join("|"), "i") : /web|frontend|backend|data|python/i;
     const [internships1, internships2] = await Promise.all([
-      Internship.find({
+      Internship.find(withOpenDeadline({
         status: "Published",
         $or: [
           { title: { $regex: intRegex } },
           { company: { $regex: intRegex } },
           { skillsRequired: { $in: tokens } },
         ],
-      })
+      }))
         .sort({ createdAt: -1 })
         .limit(3)
         .lean(),
-      Job.find({
+      Job.find(withOpenDeadline({
         status: "Published",
         employmentType: "Internship",
         $or: [
           { title: { $regex: intRegex } },
           { company: { $regex: intRegex } },
         ],
-      })
+      }))
         .sort({ createdAt: -1 })
         .limit(2)
         .lean(),

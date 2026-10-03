@@ -1,3 +1,4 @@
+const { isListingExpired } = require("./listingExpiry");
 const { sanitizeProfileUpdate } = require("./profileUpdate");
 
 // Status is intentionally absent: it only changes through the moderation-aware
@@ -66,6 +67,9 @@ const checkEmployerStatusChange = (listing, nextStatus) => {
     return { code: 400, message: `Invalid status. Allowed: ${EMPLOYER_SETTABLE_STATUSES.join(", ")}` };
   }
   if (nextStatus !== "Published" || listing.status === "Published") return null;
+  if (isListingExpired(listing)) {
+    return { code: 400, message: "This listing's deadline has passed. Set a future deadline before re-opening it." };
+  }
   // Approving clears rejectedAt, so a set rejectedAt means the last moderation decision was a rejection.
   const approved = Boolean(listing.approvedAt) && !listing.rejectedAt;
   if (REOPENABLE_STATUSES.includes(listing.status) && approved) return null;
