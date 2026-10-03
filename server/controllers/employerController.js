@@ -11,6 +11,7 @@ const sanitizeEmployerUpdate = (body) => {
 const EmployerProfile = require("../models/EmployerProfile");
 const User = require("../models/User");
 const Company = require("../models/Company");
+const { escapeRegex } = require("../utils/listingSecurity");
 const OrganizationRequest = require("../models/OrganizationRequest");
 const AuditLog = require("../models/AuditLog");
 const Job = require("../models/Job");
@@ -346,7 +347,7 @@ exports.getEmployerDashboard = async (req, res, next) => {
     }
 
     // Resolve effective companyId
-    let effectiveCompanyId = req.user.companyId || null;
+    const effectiveCompanyId = req.user.companyId || null;
 
     let profile = await EmployerProfile.findOne({ userId });
     if (!profile) {
@@ -361,20 +362,9 @@ exports.getEmployerDashboard = async (req, res, next) => {
       });
     }
 
-    if (!effectiveCompanyId) {
-      // Check if Company exists matching profile or user
-      const matchedCompany = await Company.findOne({
-        $or: [
-          { email: profile.officialEmail || req.user.email },
-          { name: profile.companyName },
-        ],
-      });
-      if (matchedCompany) {
-        effectiveCompanyId = matchedCompany._id;
-        req.user.companyId = matchedCompany._id;
-        await User.findByIdAndUpdate(userId, { companyId: matchedCompany._id });
-      }
-    }
+    // An employer joins a company only through a Super Admin-approved organization request
+    // or a company admin's invite. Matching by company name or email let anyone attach
+    // themselves to another company and read its applicants.
 
     const completion = calculateEmployerCompletion(profile, req.user);
 
@@ -760,19 +750,17 @@ exports.requestCompanyApproval = async (req, res, next) => {
     const existingActiveCompany = await Company.findOne({
       $or: [
         { email: cleanCompanyEmail },
-        { name: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+        { name: { $regex: `^${escapeRegex(trimmedCompanyName)}$`, $options: "i" } },
       ],
       status: "active",
     });
 
     if (existingActiveCompany) {
-      req.user.companyId = existingActiveCompany._id;
-      await req.user.save();
-      return res.status(200).json({
-        success: true,
-        status: "APPROVED",
-        message: `Your company "${existingActiveCompany.name}" is already verified on CareerConnect! Your account is connected.`,
-        company: existingActiveCompany,
+      // Never connect automatically: a matching name or email doesn't prove the person works there.
+      return res.status(409).json({
+        success: false,
+        status: "COMPANY_EXISTS",
+        message: "This company is already on CareerConnect. Ask your company admin to invite you, or contact support.",
       });
     }
 
