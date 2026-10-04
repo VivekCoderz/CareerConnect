@@ -22,6 +22,7 @@ const {
 // S07: job listings are served from the database only. clearSearchCache stays
 // so the student dashboard and opportunities feeds refresh when a job changes.
 const { clearSearchCache } = require("../services/jobScraperService");
+const { categoryClauses } = require("../utils/categoryKeywords");
 const { getPlatformSettings } = require("../services/platformSettings");
 const { isEmployerApproved } = require("../middleware/employerVerification");
 const { notifyListingClosedInBackground } = require("../services/listingClosure");
@@ -160,13 +161,12 @@ exports.getJobs = async (req, res, next) => {
 
     if (department && department !== "All") query.department = department;
     if (category && category !== "All") {
-      const catRegex = new RegExp(escapeRegex(category), "i");
+      // Pushed under $and so an existing $or (search) and $and (open-deadline) are both kept.
       if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: [{ category: catRegex }, { department: catRegex }, { title: catRegex }] }];
+        query.$and = [...(query.$and || []), { $or: query.$or }];
         delete query.$or;
-      } else {
-        query.$or = [{ category: catRegex }, { department: catRegex }, { title: catRegex }];
       }
+      query.$and = [...(query.$and || []), { $or: categoryClauses(category) }];
     }
     if (employmentType && employmentType !== "All") query.employmentType = employmentType;
     if (workMode && workMode !== "All") query.workMode = workMode;
