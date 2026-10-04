@@ -21,7 +21,7 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const clientUrl = () => parseClientUrls()[0] || "https://careerconnect-v1.vercel.app";
+const clientUrl = () => parseClientUrls()[0] || "https://www.e2job.com";
 
 /** Takes one slot from today's shared non-OTP email budget. */
 async function reserveDailySlot() {

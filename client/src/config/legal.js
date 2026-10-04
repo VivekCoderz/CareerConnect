@@ -15,11 +15,11 @@ export const LEGAL = {
   // Placeholder inboxes on the company domain until the real ones are set up; each
   // must be a monitored mailbox before launch (grievance is a DPDP requirement).
   emails: {
-    grievance: "grievance@codeformode.in",
-    support: "support@codeformode.in",
-    report: "report@codeformode.in",
-    employers: "employers@codeformode.in",
-    partnerships: "partnerships@codeformode.in",
+    grievance: "grievance@e2job.com",
+    support: "support@e2job.com",
+    report: "report@e2job.com",
+    employers: "employers@e2job.com",
+    partnerships: "partnerships@e2job.com",
   },
 
   deletionDays: 30, // days to delete profile and resumes after account deletion

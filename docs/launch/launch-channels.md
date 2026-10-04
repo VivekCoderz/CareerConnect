@@ -2,7 +2,7 @@
 
 **Owner:** Ram · **Design/review:** Sneha · **Ready by:** 9 Oct · **Launch:** Sun 11 Oct · **Cost:** ₹0
 
-Site link for all posts: **https://www.codeformode.in**
+Site link for all posts: **https://www.e2job.com**
 
 ## 1. Channels to set up (by 8 Oct)
 
@@ -37,26 +37,26 @@ Use only true claims. **Don't** write numbers we don't have ("10,000 jobs", "500
 
 ### 3.1 WhatsApp / Telegram channel — launch day
 
-> 🚀 *CareerConnect is live!*
+> *CareerConnect is live!*
 >
 > A job portal for students, freshers and early professionals[, built at Geeta University].
 >
 > *(Keep the bracket part only if the university approves it in writing.)*
 >
-> ✅ Jobs and internships from *verified* employers
-> ✅ Apply in one click with your profile + resume
-> ✅ Track every application. You're notified when the status changes
-> ✅ *Free for students.* We never ask for money, and neither do genuine employers
+> - Jobs and internships from *verified* employers
+> - Apply in one click with your profile + resume
+> - Track every application. You're notified when the status changes
+> - *Free for students.* We never ask for money, and neither do genuine employers
 >
-> 👉 Sign up with Google in 30 seconds: https://www.codeformode.in
+> Sign up with Google in 30 seconds: https://www.e2job.com
 >
 > Follow this channel for 2 new jobs every day.
 
 ### 3.2 WhatsApp class groups (for ambassadors to forward)
 
-> Hey everyone 👋 *CareerConnect*, a job portal for students and freshers, is live today.
+> Hey everyone, *CareerConnect*, a job portal for students and freshers, is live today.
 > Internships + fresher jobs, free to use. Sign up with Google:
-> https://www.codeformode.in
+> https://www.e2job.com
 > If anyone asks you to pay for a job, don't. Report it on the site.
 
 ### 3.3 LinkedIn — launch day (company page; team members reshare)
@@ -72,22 +72,22 @@ Use only true claims. **Don't** write numbers we don't have ("10,000 jobs", "500
 >
 > **Employers:** our first companies join as Founding Employers, with free job posting for life and a verified badge. Send us your JD and we'll set it up for you.
 >
-> 🔗 www.codeformode.in
+> www.e2job.com
 >
 > #Jobs #Internships #Freshers #Hiring #CareerConnect
 
 ### 3.4 Daily job post format (channels)
 
-> 💼 *[Job title]*, [Company]
-> 📍 [City / Remote] · [Full-time / Internship] · [Salary or stipend if given]
-> 🗓️ Apply by [deadline]
-> 👉 https://www.codeformode.in/jobs/[id]
+> *[Job title]*, [Company]
+> [City / Remote] · [Full-time / Internship] · [Salary or stipend if given]
+> Apply by [deadline]
+> https://www.e2job.com/jobs/[id]
 
 (Use the **Share → Copy link** button on the job page for the exact link.)
 
 ### 3.5 Employer post (LinkedIn / founder network)
 
-> Hiring freshers or interns? Post on **CareerConnect** for free. Founding Employers get free posting for life and a verified badge, plus a simple dashboard to shortlist, interview and send offers. Just send us the JD: employers@codeformode.in
+> Hiring freshers or interns? Post on **CareerConnect** for free. Founding Employers get free posting for life and a verified badge, plus a simple dashboard to shortlist, interview and send offers. Just send us the JD: employers@e2job.com
 
 ## 4. College ambassadors
 

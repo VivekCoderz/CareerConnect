@@ -7,7 +7,7 @@
 | | Render (API) | Vercel (frontend) |
 |---|---|---|
 | Service | CareerConnect web service (Free) | careerconnect project (Hobby) |
-| Domain | api.codeformode.in | www.codeformode.in, careerconnect-v1.vercel.app |
+| Domain | api.e2job.com (old: api.codeformode.in) | www.e2job.com (old: www.codeformode.in, careerconnect-v1.vercel.app) |
 | Branch | `main` | `main` |
 | Root / commands | `server/` · build `npm install` · start `npm start` | default |
 | Auto-deploy | **After CI checks pass** | **Every push to `main`, does not wait for CI** |

@@ -6,22 +6,22 @@ Who answers, how fast, and what to say. Use the replies in section 4 as a starti
 
 ## 1. Support inbox setup (one time, about 20 minutes)
 
-We use **Cloudflare Email Routing** (free) on `codeformode.in`. It forwards mail to one team Gmail. No paid mailbox is needed.
+We use **Cloudflare Email Routing** (free) on `e2job.com`. It forwards mail to one team Gmail. No paid mailbox is needed.
 
 1. Create a Gmail for the team, e.g. `careerconnect.help@gmail.com`. Ram and Tripti both have the login, with 2-step verification on.
-2. Cloudflare → `codeformode.in` → **Email** → **Email Routing** → Enable. Cloudflare adds the MX and SPF records itself.
+2. Cloudflare → `e2job.com` → **Email** → **Email Routing** → Enable. Cloudflare adds the MX and SPF records itself.
 3. Add these addresses, all forwarding to the team Gmail:
 
    | Address | Used for |
    |---|---|
-   | `support@codeformode.in` | Account and application help |
-   | `report@codeformode.in` | Fake jobs, anyone asking for money |
-   | `employers@codeformode.in` | Employer verification, posting help |
-   | `grievance@codeformode.in` | Privacy requests (DPDP Grievance Officer) |
-   | `partnerships@codeformode.in` | Colleges and placement cells |
+   | `support@e2job.com` | Account and application help |
+   | `report@e2job.com` | Fake jobs, anyone asking for money |
+   | `employers@e2job.com` | Employer verification, posting help |
+   | `grievance@e2job.com` | Privacy requests (DPDP Grievance Officer) |
+   | `partnerships@e2job.com` | Colleges and placement cells |
 
 4. In the Gmail, create a **label** and **filter** per address (`To: report@…` → label `REPORT`, star it). Reports are urgent.
-5. Replies go out from the Gmail. To reply *as* `support@codeformode.in`, add it under Gmail → Settings → Accounts → "Send mail as". This needs Brevo SMTP or another sender, so leave it for after launch; replying from the Gmail is fine for now.
+5. Replies go out from the Gmail. To reply *as* `support@e2job.com`, add it under Gmail → Settings → Accounts → "Send mail as". This needs Brevo SMTP or another sender, so leave it for after launch; replying from the Gmail is fine for now.
 6. Put these addresses into `client/src/config/legal.js` (G05) and the Contact page.
 
 **Don't** use the Brevo account for support replies. Its 300/day limit is for signup OTPs.
@@ -77,7 +77,7 @@ Free. The first companies to join are **Founding Employers**, with free posting 
 Every employer is verified by our team before posting (usually within 24 hours). We check that the company and your role are real. Then every listing is reviewed before it goes live (usually within 12 hours).
 
 **Can you post the job for me?**
-Yes. Send the JD to `employers@codeformode.in` or on WhatsApp. Once your company is verified, we post it under your account and you manage the applicants.
+Yes. Send the JD to `employers@e2job.com` or on WhatsApp. Once your company is verified, we post it under your account and you manage the applicants.
 
 **How do I handle many applicants?**
 In **Applicant Tracking → list view**, tick the candidates (or "Select all") and choose Shortlist, Under review, Move to interview or Reject. Candidates are notified automatically.

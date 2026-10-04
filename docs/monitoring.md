@@ -27,7 +27,7 @@ Vite reads these **at build time**, so redeploy after changing them.
 | `VITE_SENTRY_ENVIRONMENT` | no | `production` | Environment shown in Sentry (default: Vite mode) |
 | `VITE_SENTRY_RELEASE` | no | `careerconnect-web@1.4.0` | Release name |
 | `VITE_UMAMI_WEBSITE_ID` | yes, to turn analytics on | `5f1c...-...` (UUID) | Website ID from Umami |
-| `VITE_UMAMI_DOMAINS` | recommended | `careerconnect-v1.vercel.app` | Count only these hostnames (comma-separated), so preview deploys and localhost are not counted |
+| `VITE_UMAMI_DOMAINS` | recommended | `www.e2job.com,e2job.com` | Count only these hostnames (comma-separated), so preview deploys and localhost are not counted |
 | `VITE_UMAMI_SCRIPT_URL` | no | `https://cloud.umami.is/script.js` | Tracker script (default shown; change only for self-hosted Umami) |
 | `VITE_UMAMI_HOST_URL` | no | `https://umami.example.com` | Collector URL for self-hosted Umami |
 
