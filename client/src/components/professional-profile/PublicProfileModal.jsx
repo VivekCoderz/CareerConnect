@@ -1,3 +1,4 @@
+import { externalHref } from "../../utils/safeUrl";
 const PublicProfileModal = ({ isOpen, profile, user, onClose }) => {
   if (!isOpen) return null;
 
@@ -67,7 +68,7 @@ const PublicProfileModal = ({ isOpen, profile, user, onClose }) => {
             <div className="flex flex-wrap gap-2">
               {socialLinks.linkedin && (
                 <a
-                  href={socialLinks.linkedin}
+                  href={externalHref(socialLinks.linkedin)}
                   target="_blank"
                   rel="noreferrer"
                   className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-xs border border-white/10 transition"
@@ -77,7 +78,7 @@ const PublicProfileModal = ({ isOpen, profile, user, onClose }) => {
               )}
               {socialLinks.github && (
                 <a
-                  href={socialLinks.github}
+                  href={externalHref(socialLinks.github)}
                   target="_blank"
                   rel="noreferrer"
                   className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-xs border border-white/10 transition"

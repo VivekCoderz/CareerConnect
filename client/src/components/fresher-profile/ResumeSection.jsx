@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ResumeUploadInput from "../common/ResumeUploadInput";
+import { externalHref } from "../../utils/safeUrl";
 
 const ResumeSection = ({ profile, user, onChange }) => {
   const [resumeData, setResumeData] = useState({
@@ -161,12 +162,12 @@ const ResumeSection = ({ profile, user, onChange }) => {
 
               <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-blue-700 font-semibold pt-1">
                 {socialLinks.linkedin && (
-                  <a href={socialLinks.linkedin} target="_blank" rel="noreferrer">
+                  <a href={externalHref(socialLinks.linkedin)} target="_blank" rel="noreferrer">
                     LinkedIn ↗
                   </a>
                 )}
                 {socialLinks.github && (
-                  <a href={socialLinks.github} target="_blank" rel="noreferrer">
+                  <a href={externalHref(socialLinks.github)} target="_blank" rel="noreferrer">
                     GitHub ↗
                   </a>
                 )}
@@ -260,12 +261,12 @@ const ResumeSection = ({ profile, user, onChange }) => {
                         </span>
                         <div className="flex gap-2 text-[11px] text-blue-700 font-semibold">
                           {proj.githubUrl && (
-                            <a href={proj.githubUrl} target="_blank" rel="noreferrer">
+                            <a href={externalHref(proj.githubUrl)} target="_blank" rel="noreferrer">
                               Source ↗
                             </a>
                           )}
                           {proj.liveUrl && (
-                            <a href={proj.liveUrl} target="_blank" rel="noreferrer">
+                            <a href={externalHref(proj.liveUrl)} target="_blank" rel="noreferrer">
                               Live Demo ↗
                             </a>
                           )}

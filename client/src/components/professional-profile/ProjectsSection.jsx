@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { externalHref } from "../../utils/safeUrl";
 
 const ProjectsSection = ({ projects = [], onChange }) => {
   const [projectList, setProjectList] = useState(projects || []);
@@ -163,7 +164,7 @@ const ProjectsSection = ({ projects = [], onChange }) => {
                 <div className="flex items-center gap-3 text-xs font-semibold">
                   {proj.githubUrl && (
                     <a
-                      href={proj.githubUrl}
+                      href={externalHref(proj.githubUrl)}
                       target="_blank"
                       rel="noreferrer"
                       className="text-slate-700 hover:text-teal-700"
@@ -173,7 +174,7 @@ const ProjectsSection = ({ projects = [], onChange }) => {
                   )}
                   {proj.liveUrl && (
                     <a
-                      href={proj.liveUrl}
+                      href={externalHref(proj.liveUrl)}
                       target="_blank"
                       rel="noreferrer"
                       className="text-teal-600 hover:text-teal-800"

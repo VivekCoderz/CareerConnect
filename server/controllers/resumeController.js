@@ -30,6 +30,7 @@ const {
 } = require("../services/atsScoringService.js");
 const { runWithGeminiCascade } = require("../services/geminiCascade");
 const { splitOtherSkills, mergeSkillStrings } = require("../utils/skills");
+const { webUrlOrEmpty } = require("../utils/webUrl");
 const mongoose = require("mongoose");
 const atsPdfWorkflow = require("../services/atsPdfWorkflow");
 const { openListingQuery } = require("../utils/listingExpiry");
@@ -565,8 +566,8 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
 
   profile.socialLinks = {
     ...profile.socialLinks?.toObject?.(),
-    linkedin: String(rawData.personal?.linkedin || user.socialLinks?.linkedin || "").trim(),
-    github: String(rawData.personal?.github || user.socialLinks?.github || "").trim(),
+    linkedin: webUrlOrEmpty(rawData.personal?.linkedin) || webUrlOrEmpty(user.socialLinks?.linkedin),
+    github: webUrlOrEmpty(rawData.personal?.github) || webUrlOrEmpty(user.socialLinks?.github),
     portfolio: String(rawData.personal?.portfolio || user.socialLinks?.portfolio || "").trim(),
   };
 
@@ -613,8 +614,8 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
         item.description?.trim() ||
         "Developed full-stack web application with responsive UI, secure authentication, and database integration.",
       technologies: splitSkills(item.technologies),
-      githubUrl: item.github?.trim() || item.githubUrl?.trim() || "",
-      liveUrl: item.live?.trim() || item.liveUrl?.trim() || "",
+      githubUrl: webUrlOrEmpty(item.github) || webUrlOrEmpty(item.githubUrl),
+      liveUrl: webUrlOrEmpty(item.live) || webUrlOrEmpty(item.liveUrl),
       projectType: "Personal",
     }));
 
@@ -734,8 +735,8 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
       isProfileComplete: true,
       profileCompletion: 100,
       socialLinks: {
-        linkedin: String(rawData.personal?.linkedin || user.socialLinks?.linkedin || "").trim(),
-        github: String(rawData.personal?.github || user.socialLinks?.github || "").trim(),
+        linkedin: webUrlOrEmpty(rawData.personal?.linkedin) || webUrlOrEmpty(user.socialLinks?.linkedin),
+        github: webUrlOrEmpty(rawData.personal?.github) || webUrlOrEmpty(user.socialLinks?.github),
         portfolio: String(rawData.personal?.portfolio || user.socialLinks?.portfolio || "").trim(),
       },
       ...(effectiveResumeUrl
@@ -1746,8 +1747,8 @@ const confirmParsedProfileHandler = async (req, res) => {
     }
 
     const mergedSocialLinks = {
-      linkedin: parsedData.personal?.linkedin || user.socialLinks?.linkedin || "",
-      github: parsedData.personal?.github || user.socialLinks?.github || "",
+      linkedin: webUrlOrEmpty(parsedData.personal?.linkedin) || webUrlOrEmpty(user.socialLinks?.linkedin),
+      github: webUrlOrEmpty(parsedData.personal?.github) || webUrlOrEmpty(user.socialLinks?.github),
       portfolio: parsedData.personal?.portfolio || user.socialLinks?.portfolio || "",
     };
     userUpdates.socialLinks = mergedSocialLinks;
@@ -1835,8 +1836,8 @@ const confirmParsedProfileHandler = async (req, res) => {
             name: title,
             description: rawDesc.trim() || "Project details",
             technologies: splitSkills(np.technologies),
-            githubUrl: np.github?.trim() || "",
-            liveUrl: np.live?.trim() || "",
+            githubUrl: webUrlOrEmpty(np.github),
+            liveUrl: webUrlOrEmpty(np.live),
           });
         }
       }
