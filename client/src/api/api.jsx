@@ -1,6 +1,7 @@
 import axios from "axios";
 import { store } from "../redux/store";
 import { logout, setSessionExpired } from "../redux/features/authSlice";
+import { reportApiError } from "../monitoring/sentry";
 
 const PUBLIC_PREFIXES = [
   "/home", "/login", "/admin/login", "/register", "/forgot-password",
@@ -85,6 +86,9 @@ api.interceptors.response.use(
         new CustomEvent("rate_limit_alert", { detail: alertPayload })
       );
     }
+
+    // Server errors (5xx) and requests with no response go to Sentry (I08).
+    reportApiError(error);
 
     return Promise.reject(error);
   }
