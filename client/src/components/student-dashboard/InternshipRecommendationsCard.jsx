@@ -47,26 +47,27 @@ const InternshipRecommendationsCard = ({
               >
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                      🔥 Trending Now
-                    </span>
                     <h3 className="text-base font-bold text-slate-900">
                       <OpportunityTitleLink item={int} type="Internship">{int.title}</OpportunityTitleLink>
                     </h3>
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
-                      {int.workMode}
-                    </span>
+                    {int.workMode && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
+                        {int.workMode}
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-xs font-medium text-slate-600">
-                    <span className="font-semibold text-slate-800">{int.company}</span> • {int.location}
+                    <span className="font-semibold text-slate-800">{int.company}</span>{int.location ? ` • ${int.location}` : ""}
                   </p>
 
                   <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                    <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                      {int.stipend}
-                    </span>
-                    <span>• Duration: {int.duration}</span>
+                    {int.stipend && (
+                      <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                        {int.stipend}
+                      </span>
+                    )}
+                    {int.duration && <span>• Duration: {int.duration}</span>}
                     {int.deadline && <span>• Apply before: {int.deadline}</span>}
                   </div>
 

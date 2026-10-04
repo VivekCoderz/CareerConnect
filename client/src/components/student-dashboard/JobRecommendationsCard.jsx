@@ -82,13 +82,12 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
               >
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                      🔥 Trending Now
-                    </span>
                     <h3 className="text-base font-bold text-slate-900">{job.title}</h3>
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
-                      {job.type || "Full Time"} • {job.workMode || "On-site"}
-                    </span>
+                    {(job.type || job.workMode) && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        {[job.type, job.workMode].filter(Boolean).join(" • ")}
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-xs font-medium text-slate-600">
@@ -99,7 +98,7 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
                     <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
                       {job.salary || "Salary not disclosed"}
                     </span>
-                    <span>• {job.postedAt || "Actively hiring"}</span>
+                    {job.postedAt && <span>• {job.postedAt}</span>}
                   </div>
 
                   {(job.skillsRequired || job.skills) && (
