@@ -137,7 +137,7 @@ export default function EditInternship({ id, onCancel, onSuccess }) {
               CAREERCONNECT
             </h1>
             <h2 className="text-2xl font-extrabold text-[#f59e0b] tracking-tight">
-              Employer Hub &bull; CareerConnect
+              Employer Hub &bull; E2Job
             </h2>
           </div>
           <Link

@@ -233,6 +233,26 @@ const assessContentPreservation = (source = {}, candidate = {}) => {
   };
 };
 
+// Shown when the job description gives nothing to compare the resume against.
+const SCORE_UNAVAILABLE_REASON =
+  "The job description doesn't list skills or keywords we can match, so no score was calculated.";
+
+/**
+ * Overall score from the sections that could be measured, scaled to 100. Sections that
+ * couldn't be measured are null and don't count (no default credit). Null when the job
+ * gives nothing to match against.
+ */
+const scoreFromSections = (sections, maximums, measurable) => {
+  if (!measurable) return null;
+  const measured = Object.keys(sections).filter((key) => sections[key] !== null);
+  const earned = measured.reduce((sum, key) => sum + sections[key], 0);
+  const possible = measured.reduce((sum, key) => sum + maximums[key], 0);
+  return possible ? Math.round((earned / possible) * 100) : null;
+};
+
+const ratingFor = (score) => (score === null ? "Score unavailable"
+  : score >= 80 ? "Strong match" : score >= 60 ? "Good match" : score >= 40 ? "Partial match" : "Needs improvement");
+
 const analyzeATSMatch = (resumeData, opportunity) => {
   const { tailoredMeta: _tailoredMeta, template: _template, ...scorableResume } = resumeData || {};
   const resumeText = normalize(flattenValues(scorableResume).join(" "));
@@ -253,8 +273,9 @@ const analyzeATSMatch = (resumeData, opportunity) => {
   const matchedKeywords = keywords.filter((keyword) => phraseExists(resumeText, keyword));
   const missingKeywords = keywords.filter((keyword) => !matchedKeywords.includes(keyword));
 
-  const skillRatio = targetSkills.length ? matchedSkills.length / targetSkills.length : 0.5;
-  const keywordRatio = keywords.length ? matchedKeywords.length / keywords.length : 0.5;
+  // No target skills / keywords: that part can't be measured (null), not half credit.
+  const skillRatio = targetSkills.length ? matchedSkills.length / targetSkills.length : null;
+  const keywordRatio = keywords.length ? matchedKeywords.length / keywords.length : null;
   const experienceText = normalize(flattenValues([
     scorableResume.experience || [],
     scorableResume.workExperience || [],
@@ -280,14 +301,16 @@ const analyzeATSMatch = (resumeData, opportunity) => {
     .filter(hasItems).length / 4;
 
   const sections = {
-    skills: Math.round(skillRatio * 40),
-    keywords: Math.round(keywordRatio * 25),
+    skills: skillRatio === null ? null : Math.round(skillRatio * 40),
+    keywords: keywordRatio === null ? null : Math.round(keywordRatio * 25),
     experience: Math.round(experienceRatio * 15),
     completeness: Math.round(contentRatio * 10),
     impact: Math.round(impactRatio * 5),
     readability: Math.round(readabilityRatio * 5),
   };
-  const overallScore = Object.values(sections).reduce((sum, value) => sum + value, 0);
+  const sectionMaximums = { skills: 40, keywords: 25, experience: 15, completeness: 10, impact: 5, readability: 5 };
+  const scoreUnavailable = skillRatio === null && keywordRatio === null;
+  const overallScore = scoreFromSections(sections, sectionMaximums, !scoreUnavailable);
 
   const suggestions = [];
   if (missingSkills.length) suggestions.push({
@@ -315,15 +338,17 @@ const analyzeATSMatch = (resumeData, opportunity) => {
 
   return {
     overallScore,
-    rating: overallScore >= 80 ? "Strong match" : overallScore >= 60 ? "Good match" : overallScore >= 40 ? "Partial match" : "Needs improvement",
+    scoreUnavailable,
+    ...(scoreUnavailable ? { scoreUnavailableReason: SCORE_UNAVAILABLE_REASON } : {}),
+    rating: ratingFor(overallScore),
     sections,
-    sectionMaximums: { skills: 40, keywords: 25, experience: 15, completeness: 10, impact: 5, readability: 5 },
+    sectionMaximums,
     matchedSkills,
     missingSkills,
     matchedKeywords,
     missingKeywords,
     suggestions,
-    disclaimer: "CareerConnect match score is an estimate. Hiring platforms and employers may score resumes differently.",
+    disclaimer: "E2Job match score is an estimate. Hiring platforms and employers may score resumes differently.",
   };
 };
 
@@ -338,6 +363,22 @@ const selectBestATSResume = (
 ) => {
   const originalAnalysis = analyzeATSMatch(originalResume, opportunity);
   const originalFormat = assessATSResumeFormat(originalResume);
+  if (originalAnalysis.scoreUnavailable) {
+    return {
+      source: "original",
+      data: originalResume,
+      analysis: originalAnalysis,
+      formatAssessment: originalFormat,
+      preservation: { passed: true, missing: [], checks: [] },
+      originalAnalysis,
+      evaluatedCandidates: [],
+      scoreUnavailable: true,
+      comparison: {
+        originalScore: null, tailoredScore: null, targetScore, targetReached: false,
+        minimumScoreImprovement, scoreImprovement: null,
+      },
+    };
+  }
   const evaluated = (tailoredCandidates || [])
     .filter((candidate) => candidate?.data && typeof candidate.data === "object")
     .map((candidate) => ({
@@ -386,6 +427,8 @@ const selectBestATSResume = (
 };
 
 module.exports = {
+  SCORE_UNAVAILABLE_REASON,
+  scoreFromSections,
   analyzeATSMatch,
   assessATSResumeFormat,
   assessContentPreservation,

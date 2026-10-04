@@ -28,11 +28,15 @@ function PdfInput({ id, title, file, onChange, disabled = false }) {
   );
 }
 
+// A null score means the server couldn't compute one; show that, never a number.
 function ScoreCard({ label, score, className = "" }) {
+  const hasScore = typeof score === "number";
   return (
     <div className={`rounded-2xl border p-5 text-center ${className}`}>
       <p className="text-xs font-semibold uppercase tracking-wide">{label}</p>
-      <p className="mt-1 text-4xl font-extrabold">{score}<span className="text-xl">/100</span></p>
+      {hasScore
+        ? <p className="mt-1 text-4xl font-extrabold">{score}<span className="text-xl">/100</span></p>
+        : <p className="mt-2 text-lg font-bold">Score unavailable</p>}
     </div>
   );
 }
@@ -189,12 +193,15 @@ export default function ATSCheckerAndFixer() {
             </div>
             <ScoreCard label="Current resume" score={audit.atsScore} className="min-w-44 border-blue-200 bg-blue-50 text-blue-950" />
           </div>
+          {audit.scoreUnavailable && (
+            <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">{audit.scoreUnavailableReason}</p>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             {audit.scoreParameters.map((item) => (
               <div key={item.key} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex justify-between gap-3 text-sm font-semibold text-slate-800"><span>{item.label}</span><span>{item.earned}/{item.maximum}</span></div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600" style={{ width: `${100 * item.earned / item.maximum}%` }} /></div>
+                <div className="flex justify-between gap-3 text-sm font-semibold text-slate-800"><span>{item.label}</span><span>{item.earned === null ? "Not scored" : `${item.earned}/${item.maximum}`}</span></div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600" style={{ width: `${100 * (item.earned || 0) / item.maximum}%` }} /></div>
               </div>
             ))}
           </div>
@@ -233,7 +240,7 @@ export default function ATSCheckerAndFixer() {
           <div className="mt-5 flex flex-wrap gap-3">
             <a href={downloadUrl} download={optimized.fileName} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"><Download className="h-4 w-4" /> Download PDF</a>
             <a href={downloadUrl} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-xl border border-emerald-300 px-5 py-3 text-sm font-bold text-emerald-900 hover:bg-white">Preview PDF</a>
-            <a href={`data:text/x-tex;charset=utf-8,${encodeURIComponent(optimized.latex)}`} download="CareerConnect_ATS_Resume.tex" className="inline-flex items-center rounded-xl border border-emerald-300 px-5 py-3 text-sm font-bold text-emerald-900 hover:bg-white">Download LaTeX source</a>
+            <a href={`data:text/x-tex;charset=utf-8,${encodeURIComponent(optimized.latex)}`} download="E2Job_ATS_Resume.tex" className="inline-flex items-center rounded-xl border border-emerald-300 px-5 py-3 text-sm font-bold text-emerald-900 hover:bg-white">Download LaTeX source</a>
           </div>
         </div>
       )}

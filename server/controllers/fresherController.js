@@ -328,7 +328,8 @@ const calculateJobMatch = (
 
   // No skills on the profile yet: no basis for a match score.
   if (allProfileSkills.length === 0) return 0;
-  if (jobRequiredSkills.length === 0) return 85;
+  // The job lists no skills: nothing to match against, so no score (not a default 85%).
+  if (jobRequiredSkills.length === 0) return null;
 
   let matched = 0;
   jobRequiredSkills.forEach((reqSkill) => {
@@ -353,7 +354,8 @@ const calculateJobMatch = (
     matchPct = Math.min(100, matchPct + 10);
   }
 
-  return Math.min(98, Math.max(45, matchPct));
+  // The real percentage: no 45% floor, no 98% cap.
+  return Math.min(100, Math.max(0, matchPct));
 };
 
 // ==========================================
@@ -804,7 +806,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       {
         id: "crs-f1",
         name: `Complete ${targetRole} Bootcamp 2026`,
-        platform: "CareerConnect Academy",
+        platform: "E2Job Academy",
         skill: missingSkills[0] || "Full Stack Architecture",
         difficulty: "Beginner to Intermediate",
         duration: "6 Weeks (Self-paced)",
@@ -828,7 +830,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       {
         id: "crs-f3",
         name: `Modern RESTful APIs & Backend Architecture with ${missingSkills[0] || "Node.js"}`,
-        platform: "Coursera / CareerConnect",
+        platform: "Coursera / E2Job",
         skill: missingSkills[0] || "Backend Development",
         difficulty: "Intermediate",
         duration: "4 Weeks",
@@ -1061,7 +1063,7 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
       {
         id: "crs-f1",
         title: `Industry-Ready ${targetRole || benchmarkRole} FastTrack`,
-        provider: "CareerConnect Pro",
+        provider: "E2Job Pro",
         duration: "4 Weeks",
         rating: 4.9,
         skillsCovered: missing.slice(0, 3),

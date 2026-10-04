@@ -41,13 +41,13 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
   const [expandedStageIdx, setExpandedStageIdx] = useState(null);
   const [formData, setFormData] = useState({
     title: "",
-    category: "Web Development",
-    subCategory: "Frontend Development",
+    category: "",
+    subCategory: "",
     department: "Engineering",
     employmentType: "Full-time",
     workMode: "Remote",
-    location: "Bangalore",
-    city: "Bangalore",
+    location: "",
+    city: "",
     country: "India",
     isPaid: true,
     hasJobOffer: true,
@@ -55,7 +55,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
     salaryMin: "600000",
     salaryMax: "1200000",
     currency: "INR",
-    experienceLevel: "Fresher / Entry-Level",
+    experienceLevel: "",
     minYears: 0,
     maxYears: 1,
     education: "B.Tech / BCA / MCA / Any Graduate",
@@ -76,13 +76,13 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
     if (jobToEdit) {
       setFormData({
         title: jobToEdit.title || "",
-        category: jobToEdit.category || "Web Development",
-        subCategory: jobToEdit.subCategory || "Frontend Development",
+        category: jobToEdit.category || "",
+        subCategory: jobToEdit.subCategory || "",
         department: jobToEdit.department || "Engineering",
         employmentType: jobToEdit.employmentType || "Full-time",
         workMode: jobToEdit.workMode || "Remote",
-        location: jobToEdit.location || "Bangalore",
-        city: jobToEdit.city || "Bangalore",
+        location: jobToEdit.location || "",
+        city: jobToEdit.city || "",
         country: jobToEdit.country || "India",
         isPaid: jobToEdit.isPaid !== false,
         hasJobOffer: !!jobToEdit.hasJobOffer,
@@ -90,7 +90,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         salaryMin: jobToEdit.salaryRange?.min || "",
         salaryMax: jobToEdit.salaryRange?.max || "",
         currency: jobToEdit.salaryRange?.currency || "INR",
-        experienceLevel: jobToEdit.experience?.level || "Fresher / Entry-Level",
+        experienceLevel: jobToEdit.experience?.level || "",
         minYears: jobToEdit.experience?.minYears || 0,
         maxYears: jobToEdit.experience?.maxYears || 1,
         education: jobToEdit.education || "B.Tech / BCA / MCA",
@@ -126,13 +126,13 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
     } else {
       setFormData({
         title: "",
-        category: "Web Development",
-        subCategory: "Frontend Development",
+        category: "",
+        subCategory: "",
         department: "Engineering",
         employmentType: "Full-time",
         workMode: "Remote",
-        location: "Bangalore",
-        city: "Bangalore",
+        location: "",
+        city: "",
         country: "India",
         isPaid: true,
         hasJobOffer: true,
@@ -140,7 +140,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         salaryMin: "600000",
         salaryMax: "1200000",
         currency: "INR",
-        experienceLevel: "Fresher / Entry-Level",
+        experienceLevel: "",
         minYears: 0,
         maxYears: 1,
         education: "B.Tech / BCA / MCA / Any Graduate",
@@ -355,7 +355,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
           isNegotiable: !formData.salaryMin && !formData.salaryMax,
         },
         experience: {
-          level: formData.experienceLevel,
+          ...(formData.experienceLevel ? { level: formData.experienceLevel } : {}),
           minYears: Number(formData.minYears) || 0,
           maxYears: Number(formData.maxYears) || 2,
         },
@@ -476,6 +476,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                 onChange={handleChange}
                 className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
               >
+                <option value="">Select category</option>
                 <option value="Web Development">Web Development</option>
                 <option value="App Development">App Development (Mobile)</option>
                 <option value="Software Development">Software Development</option>
@@ -534,6 +535,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                 onChange={handleChange}
                 className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
               >
+                <option value="">Select city</option>
                 <option value="Bangalore">Bangalore</option>
                 <option value="Delhi">Delhi / NCR</option>
                 <option value="Gurugram">Gurugram</option>

@@ -1,38 +1,5 @@
-const DEFAULT_OPPORTUNITIES = [
-  {
-    id: "opp-1",
-    title: "Staff Software Engineer — Distributed Systems",
-    company: "Stripe",
-    location: "Remote",
-    experience: "5+ Years",
-    salary: "₹35–50 LPA",
-    matchPercentage: 92,
-    tags: ["System Design", "AWS", "Distributed Systems"],
-  },
-  {
-    id: "opp-2",
-    title: "Engineering Lead (Platform & Architecture)",
-    company: "Razorpay",
-    location: "Bangalore (Hybrid)",
-    experience: "5+ Years",
-    salary: "₹45–60 LPA",
-    matchPercentage: 95,
-    tags: ["System Architecture", "Microservices", "Team Leadership"],
-  },
-  {
-    id: "opp-3",
-    title: "Senior Backend Architect",
-    company: "Atlassian",
-    location: "Remote (India)",
-    experience: "6+ Years",
-    salary: "₹50–70 LPA",
-    matchPercentage: 88,
-    tags: ["Distributed Systems", "Kubernetes", "Cloud Architecture"],
-  },
-];
-
 const CuratedOpportunitiesCard = ({
-  opportunities = DEFAULT_OPPORTUNITIES,
+  opportunities = [],
   onExploreRole,
 }) => {
   const displayList = opportunities.slice(0, 3);

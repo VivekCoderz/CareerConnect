@@ -16,6 +16,8 @@ import {
 import api from "../../api/api";
 import { getCaptchaToken } from "../../utils/captcha";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
+import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
+import { TERMS_VERSION } from "../../config/legal";
 
 // ======================================================
 // Helper: Generate Strong Password
@@ -123,6 +125,7 @@ const EmployerRegister = () => {
   // ======================================================
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaError, setCaptchaError] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
@@ -616,6 +619,10 @@ const EmployerRegister = () => {
       return;
     }
     setCaptchaError("");
+    if (!acceptedTerms) {
+      dispatch(signupFailure("Please agree to the Terms and Privacy Policy to create your account."));
+      return;
+    }
 
     dispatch(signupStart());
 
@@ -639,6 +646,8 @@ const EmployerRegister = () => {
 
         keepSignedIn,
         captchaToken: finalCaptchaToken,
+        acceptedTerms: true,
+        termsVersion: TERMS_VERSION,
       };
 
       const res = await api.post(
@@ -718,7 +727,7 @@ const EmployerRegister = () => {
           <h2 className="text-4xl font-bold leading-tight tracking-tight mb-4">
             Hire top talent on
             <br />
-            <span className="text-[#fde68a]">CareerConnect</span>
+            <span className="text-[#fde68a]">E2Job</span>
           </h2>
 
           <p className="text-amber-50/90 text-[15px] leading-relaxed max-w-sm">
@@ -805,7 +814,7 @@ const EmployerRegister = () => {
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1.5">
-                  Employer registration · CareerConnect
+                  Employer registration · E2Job
                 </p>
               </div>
 
@@ -1407,10 +1416,12 @@ const EmployerRegister = () => {
                   />
                 </div>
 
+                <TermsConsentCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} />
+
                 {/* Submit */}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !acceptedTerms}
                   className="w-full h-11 mt-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm"
                 >
                   {loading ? (

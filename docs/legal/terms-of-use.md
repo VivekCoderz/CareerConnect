@@ -4,7 +4,7 @@
 
 **Last updated:** [date of publishing]
 
-These terms are an agreement between you and **[legal entity name]** ("CareerConnect", "we", "us") for your use of the CareerConnect website and services. By creating an account or using CareerConnect, you agree to these terms and to our [Privacy Policy](/privacy).
+These terms are an agreement between you and **[legal entity name]** ("E2Job", "we", "us") for your use of the E2Job website and services. By creating an account or using E2Job, you agree to these terms and to our [Privacy Policy](/privacy).
 
 ## 1. Eligibility and accounts
 
@@ -13,9 +13,9 @@ These terms are an agreement between you and **[legal entity name]** ("CareerCon
 - Keep your password private. You are responsible for activity on your account.
 - One person or company per account. Don't create accounts for someone else without their permission.
 
-## 2. What CareerConnect is
+## 2. What E2Job is
 
-CareerConnect is a platform that connects candidates with employers. **We are not the employer** and we are not a party to any job offer or employment contract. We do not guarantee that any candidate will get a job, or that any employer will find a candidate.
+E2Job is a platform that connects candidates with employers. **We are not the employer** and we are not a party to any job offer or employment contract. We do not guarantee that any candidate will get a job, or that any employer will find a candidate.
 
 Some listings come from **other job sites or company career pages**. They are marked as external and link to the original source. We are not responsible for the content of those sites.
 
@@ -50,11 +50,11 @@ You keep ownership of the content you upload, such as your resume and profile. Y
 
 ## 8. Fees
 
-Using CareerConnect is **free for candidates**. We may introduce paid features for employers or optional paid features for candidates in future. If we do, the price will be shown clearly before you pay.
+Using E2Job is **free for candidates**. We may introduce paid features for employers or optional paid features for candidates in future. If we do, the price will be shown clearly before you pay.
 
 ## 9. Limitation of liability
 
-CareerConnect is provided "as is". To the extent the law allows, we are not liable for indirect or consequential losses, or for the actions of employers, candidates or third-party sites. Nothing in these terms limits any right you have under applicable consumer law.
+E2Job is provided "as is". To the extent the law allows, we are not liable for indirect or consequential losses, or for the actions of employers, candidates or third-party sites. Nothing in these terms limits any right you have under applicable consumer law.
 
 ## 10. Ending your account
 
@@ -62,7 +62,7 @@ You can delete your account at any time from **Account settings → Delete accou
 
 ## 11. Changes
 
-We may update these terms. If a change is significant, we will tell you by email or on the site before it takes effect. Continuing to use CareerConnect afterwards means you accept the updated terms.
+We may update these terms. If a change is significant, we will tell you by email or on the site before it takes effect. Continuing to use E2Job afterwards means you accept the updated terms.
 
 ## 12. Governing law
 

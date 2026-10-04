@@ -67,16 +67,18 @@ const jobSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    // No defaults for category, city, experience level or education: an empty value stays
+    // empty rather than being saved as something the employer never chose.
     category: {
       type: String,
       trim: true,
-      default: "Web Development",
+      default: "",
       index: true,
     },
     subCategory: {
       type: String,
       trim: true,
-      default: "Full Stack Development",
+      default: "",
     },
     department: {
       type: String,
@@ -103,13 +105,13 @@ const jobSchema = new mongoose.Schema(
     city: {
       type: String,
       trim: true,
-      default: "Bangalore",
+      default: "",
       index: true,
     },
     state: {
       type: String,
       trim: true,
-      default: "Karnataka",
+      default: "",
     },
     country: {
       type: String,
@@ -169,12 +171,11 @@ const jobSchema = new mongoose.Schema(
           "Mid-Level (3-5 yrs)",
           "Senior (5+ yrs)",
         ],
-        default: "Fresher / Entry-Level",
       },
     },
     education: {
       type: String,
-      default: "Any Graduate / B.Tech / BCA / MCA",
+      default: "",
     },
     eligibility: {
       type: String,
@@ -278,7 +279,7 @@ const jobSchema = new mongoose.Schema(
     source: {
       type: String,
       enum: ["CareerConnect", "LinkedIn", "Internshala", "Remotive", "Arbeitnow", "GU Drives", "Jooble", "Other"],
-      default: "CareerConnect",
+      default: "CareerConnect", // stored value for own listings (old brand); shown as E2Job
       index: true,
     },
     isExternal: {

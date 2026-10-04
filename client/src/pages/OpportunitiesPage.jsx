@@ -233,7 +233,7 @@ export default function OpportunitiesPage() {
     if (src.includes("internshala")) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
-          Internshala Partner
+          Internshala
         </span>
       );
     }
@@ -288,7 +288,7 @@ export default function OpportunitiesPage() {
                 CAREERCONNECT
               </h1>
               <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
-                CareerConnect · Matrix Gateway
+                E2Job · Matrix Gateway
               </p>
             </div>
           </Link>
@@ -342,7 +342,7 @@ export default function OpportunitiesPage() {
                 Live Job & Internship Aggregator Matrix
               </span>
               <span className="text-xs text-blue-200/80">
-                · LinkedIn + Internshala + Remotive + Arbeitnow + GU Drives
+                · E2Job employers + Remotive + Arbeitnow + campus drives
               </span>
             </div>
 
@@ -350,7 +350,7 @@ export default function OpportunitiesPage() {
               Opportunities tailored for your Degree & Domain
             </h2>
             <p className="text-xs sm:text-sm text-blue-100/90 max-w-2xl leading-relaxed">
-              Real-time multi-source crawler scraping top job boards, remote platforms, and campus placement drives calibrated specifically to CareerConnect curriculum & specializations.
+              Real-time multi-source crawler scraping top job boards, remote platforms, and campus placement drives calibrated specifically to E2Job curriculum & specializations.
             </p>
 
             {/* Quick stats pills */}
@@ -359,7 +359,7 @@ export default function OpportunitiesPage() {
                 🎯 {opportunities.length} Results Available
               </div>
               <div className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold text-white border border-white/10">
-                🏛️ CareerConnect Placement Cell
+                🏛️ E2Job Placement Cell
               </div>
               <div className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold text-white border border-white/10">
                 ⚡ 30-min Auto-Refreshed Cache
@@ -476,8 +476,6 @@ export default function OpportunitiesPage() {
                 className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium outline-none focus:border-blue-600"
               >
                 <option value="all">All Platforms</option>
-                <option value="linkedin">LinkedIn Verified</option>
-                <option value="internshala">Internshala Portal</option>
                 <option value="remotive">Remotive Remote</option>
                 <option value="arbeitnow">Arbeitnow Global</option>
                 <option value="campus">GU Campus Drives Only</option>
@@ -551,7 +549,7 @@ export default function OpportunitiesPage() {
               Scraping and Aggregating Live Multi-Source Feed...
             </p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Querying LinkedIn, Internshala, Remotive, Arbeitnow APIs and CareerConnect placement drives for "{program} · {specialization}".
+              Checking E2Job listings, Remotive, Arbeitnow and campus drives for "{program} · {specialization}".
             </p>
           </div>
         ) : opportunities.length > 0 ? (
@@ -625,7 +623,7 @@ export default function OpportunitiesPage() {
                       {isCampusDrive && (
                         <div className="text-[11px] font-medium text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200/80 flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                          <span>Exclusive on-campus recruitment drive for enrolled CareerConnect students.</span>
+                          <span>Exclusive on-campus recruitment drive for enrolled E2Job students.</span>
                         </div>
                       )}
                     </div>

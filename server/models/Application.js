@@ -358,4 +358,21 @@ applicationSchema.pre("validate", function () {
   }
 });
 
+// An application that ends (Rejected or Withdrawn) can't take an offer: withdraw any offer
+// still waiting for an answer. Covers every endpoint that saves the document; the
+// updateOne/updateMany paths call JobOffer.withdrawPending themselves
+// (utils/applicationStatus.js guardedStatusUpdate, bulk status update).
+const ENDING_STATUSES = ["Rejected", "rejected", "Withdrawn", "withdrawn"];
+
+applicationSchema.pre("save", function () {
+  this.$locals.ended = !this.isNew && this.isModified("status") && ENDING_STATUSES.includes(this.status);
+});
+
+applicationSchema.post("save", async function () {
+  // Loaded here so neither model file depends on the other being loaded first.
+  if (this.$locals.ended) await require("./JobOffer").withdrawPending([this._id]);
+});
+
+applicationSchema.statics.ENDING_STATUSES = ENDING_STATUSES;
+
 module.exports = mongoose.model("Application", applicationSchema);

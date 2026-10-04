@@ -261,7 +261,7 @@ const ReviewActions = ({
                   <label htmlFor="setPrimaryCheck" className="text-xs cursor-pointer select-none">
                     <span className="font-bold text-slate-800 block">Set as Primary / Default Resume ⭐</span>
                     <span className="text-slate-500 block mt-0.5">
-                      This resume will be automatically attached when you apply to internships and jobs on CareerConnect.
+                      This resume will be automatically attached when you apply to internships and jobs on E2Job.
                     </span>
                   </label>
                 </div>

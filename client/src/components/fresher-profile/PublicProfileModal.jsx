@@ -1,3 +1,4 @@
+import { externalHref } from "../../utils/safeUrl";
 const PublicProfileModal = ({ isOpen, onClose, profile, user }) => {
   if (!isOpen) return null;
 
@@ -71,7 +72,7 @@ const PublicProfileModal = ({ isOpen, onClose, profile, user }) => {
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-2">
                 {socialLinks.linkedin && (
                   <a
-                    href={socialLinks.linkedin}
+                    href={externalHref(socialLinks.linkedin)}
                     target="_blank"
                     rel="noreferrer"
                     className="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold text-slate-700 transition"
@@ -81,7 +82,7 @@ const PublicProfileModal = ({ isOpen, onClose, profile, user }) => {
                 )}
                 {socialLinks.github && (
                   <a
-                    href={socialLinks.github}
+                    href={externalHref(socialLinks.github)}
                     target="_blank"
                     rel="noreferrer"
                     className="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold text-slate-700 transition"
@@ -144,12 +145,12 @@ const PublicProfileModal = ({ isOpen, onClose, profile, user }) => {
                         </div>
                         <div className="flex gap-2 text-xs font-semibold text-emerald-600">
                           {p.githubUrl && (
-                            <a href={p.githubUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                            <a href={externalHref(p.githubUrl)} target="_blank" rel="noreferrer" className="hover:underline">
                               Source ↗
                             </a>
                           )}
                           {p.liveUrl && (
-                            <a href={p.liveUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                            <a href={externalHref(p.liveUrl)} target="_blank" rel="noreferrer" className="hover:underline">
                               Live Demo ↗
                             </a>
                           )}

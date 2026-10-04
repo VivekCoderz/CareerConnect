@@ -753,9 +753,11 @@ const professionalProfileSchema = new mongoose.Schema(
     },
 
     recruiterPreferences: {
+      // Opt-in (DPDP): recruiters see the email only after the professional allows it.
+      // Existing profiles keep their stored value.
       allowContact: {
         type: Boolean,
-        default: true,
+        default: false,
       },
       preferredContactMethod: {
         type: String,

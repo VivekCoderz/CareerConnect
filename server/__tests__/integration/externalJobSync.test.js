@@ -7,6 +7,7 @@ const Internship = require("../../models/Internship");
 const {
   normalizeFeedJob,
   runExternalJobSync,
+  deleteOldClosedFeedListings,
   runScheduledSyncIfDue,
   startExternalJobSyncSchedule,
   getSyncIntervalMs,
@@ -44,15 +45,15 @@ const remotiveFeed = () => ({
 const arbeitnowFeed = () => ({
   data: [
     {
-      slug: "data-analyst-berlin-123",
+      slug: "data-analyst-bengaluru-123",
       company_name: "Data GmbH",
       title: "Data Analyst",
       description: "<p>SQL dashboards</p>",
       remote: false,
-      url: "https://www.arbeitnow.com/jobs/companies/data-gmbh/data-analyst-berlin-123",
+      url: "https://www.arbeitnow.com/jobs/companies/data-gmbh/data-analyst-bengaluru-123",
       tags: ["SQL"],
       job_types: ["full time"],
-      location: "Berlin",
+      location: "Bengaluru, India",
       created_at: Math.floor((Date.now() - DAY_MS) / 1000),
     },
   ],
@@ -136,7 +137,33 @@ describe("I04 scheduled external job feed sync", () => {
 
       const internship = await Internship.findOne({ source: "Remotive", externalId: "1002" }).lean();
       expect(internship).toMatchObject({ title: "Frontend Intern", isExternal: true, status: "Published" });
-      expect(await Job.countDocuments({ source: "Arbeitnow", externalId: "data-analyst-berlin-123" })).toBe(1);
+      expect(await Job.countDocuments({ source: "Arbeitnow", externalId: "data-analyst-bengaluru-123" })).toBe(1);
+    });
+
+    it("keeps only postings open to candidates in India and closes old ones that aren't", async () => {
+      const stale = await Job.create({
+        title: "Old Zurich role", description: "x", location: "Zurich", source: "Remotive",
+        isExternal: true, externalId: "old-zurich", status: "Published",
+      });
+      mockFeeds({
+        remotive: () => ({
+          jobs: [
+            remotiveJob({ id: 2001, candidate_required_location: "Worldwide" }),
+            remotiveJob({ id: 2002, candidate_required_location: "USA Only" }),
+            remotiveJob({ id: 2003, candidate_required_location: "APAC" }),
+          ],
+        }),
+        arbeitnow: () => ({ data: [{ ...arbeitnowFeed().data[0], slug: "zug-1", location: "Zug", remote: true }], links: { next: null } }),
+      });
+
+      const result = await runExternalJobSync();
+
+      expect(result).toMatchObject({ inserted: 2, skipped: 2 });
+      expect(await Job.exists({ externalId: "2001" })).toBeTruthy();
+      expect(await Job.exists({ externalId: "2003" })).toBeTruthy();
+      expect(await Job.exists({ externalId: "2002" })).toBeNull();
+      expect(await Job.exists({ externalId: "zug-1" })).toBeNull();
+      expect((await Job.findById(stale._id).lean()).status).toBe("Closed");
     });
 
     it("running twice updates the same records instead of duplicating them", async () => {
@@ -221,6 +248,80 @@ describe("I04 scheduled external job feed sync", () => {
       await runExternalJobSync();
 
       expect((await Job.findOne({ externalId: "1001" }).lean()).status).toBe("Rejected");
+    });
+  });
+
+  describe("cleanup of old closed feed listings", () => {
+    const now = new Date("2026-10-04T12:00:00Z");
+    const daysAgo = (days) => new Date(now.getTime() - days * DAY_MS);
+    const closed = (days, closedReason = "expired") => ({ status: "Closed", closedReason, closedAt: daysAgo(days) });
+    const external = (externalId) => ({ isExternal: true, source: "Remotive", externalId });
+
+    const createInternship = (overrides) =>
+      Internship.create({
+        title: "Test Internship",
+        location: "Remote",
+        description: "Internship description",
+        source: "CareerConnect",
+        ...overrides,
+      });
+
+    /** One listing per case for the given model; returns their ids by case name. */
+    const seed = async (create) => {
+      const docs = {
+        active: await create({ ...external("active"), status: "Published" }),
+        closed13: await create({ ...external("closed13"), ...closed(13) }),
+        closed15: await create({ ...external("closed15"), ...closed(15) }),
+        company15: await create({ ...closed(15) }),
+        adminClosed15: await create({ ...external("adminClosed15"), ...closed(15, null) }),
+        rejected15: await create({ ...external("rejected15"), ...closed(15, "employer_rejected") }),
+      };
+      return Object.fromEntries(Object.entries(docs).map(([k, d]) => [k, d._id]));
+    };
+
+    it.each([
+      ["Job", Job, (o) => createTestJob(null, { title: "Cleanup Job", ...o })],
+      ["Internship", Internship, createInternship],
+    ])("deletes only %s feed listings closed as expired more than 14 days ago", async (_name, Model, create) => {
+      const ids = await seed(create);
+
+      const result = await deleteOldClosedFeedListings({ now });
+
+      const remaining = new Set((await Model.find({}).select("_id").lean()).map((d) => String(d._id)));
+      expect(remaining.has(String(ids.closed15))).toBe(false);
+      for (const kept of ["active", "closed13", "company15", "adminClosed15", "rejected15"]) {
+        expect(remaining.has(String(ids[kept]))).toBe(true);
+      }
+      expect(result.jobs + result.internships).toBe(1);
+    });
+
+    it("is idempotent: a second run deletes nothing", async () => {
+      await seed((o) => createTestJob(null, { title: "Cleanup Job", ...o }));
+      await seed(createInternship);
+
+      expect(await deleteOldClosedFeedListings({ now })).toEqual({ jobs: 1, internships: 1 });
+      expect(await deleteOldClosedFeedListings({ now })).toEqual({ jobs: 0, internships: 0 });
+    });
+
+    it("runs as part of the sync and a cleanup failure does not fail the sync", async () => {
+      mockFeeds();
+      // The sync uses the real clock, so closedAt is relative to Date.now() here.
+      await createTestJob(null, {
+        title: "Old Feed Job",
+        ...external("old"),
+        ...closed(0),
+        closedAt: new Date(Date.now() - 30 * DAY_MS),
+      });
+
+      const ok = await runExternalJobSync();
+      expect(ok.cleanup).toEqual({ jobs: 1, internships: 0 });
+      expect(await Job.countDocuments({ externalId: "old" })).toBe(0);
+
+      jest.spyOn(Job, "deleteMany").mockRejectedValueOnce(new Error("db down"));
+      const error = jest.spyOn(console, "error").mockImplementation(() => {});
+      const failed = await runExternalJobSync();
+      expect(failed).toMatchObject({ cleanup: null, updated: 3 });
+      expect(error).toHaveBeenCalledWith("[job-sync] I04 cleanup failed:", "db down");
     });
   });
 
@@ -316,6 +417,19 @@ describe("I04 scheduled external job feed sync", () => {
 
       process.env.ENABLE_EXTERNAL_JOB_SYNC = "false";
       expect(startExternalJobSyncSchedule()).toBeNull();
+    });
+
+    it("unrefs both schedule timers so they don't keep the process alive", () => {
+      const timeout = jest.spyOn(global, "setTimeout");
+      const interval = startExternalJobSyncSchedule();
+      const first = timeout.mock.results[timeout.mock.calls.findIndex(([fn]) => fn === runScheduledSyncIfDue)].value;
+      try {
+        expect(interval.hasRef()).toBe(false);
+        expect(first.hasRef()).toBe(false);
+      } finally {
+        clearInterval(interval);
+        clearTimeout(first);
+      }
     });
   });
 

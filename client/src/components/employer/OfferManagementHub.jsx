@@ -10,7 +10,7 @@ const OfferManagementHub = ({
   jobs = [],
   onRefresh,
   showToast,
-  companyName = "CareerConnect Partner Organization",
+  companyName = "E2Job Partner Organization",
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");

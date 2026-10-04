@@ -112,7 +112,7 @@ const ProfessionalApplicationsView = ({
               filterType === "direct" ? "bg-white text-purple-700 shadow-xs" : "text-slate-500 hover:text-slate-800"
             }`}
           >
-            🟢 CareerConnect Direct ({applications.filter((a) => a.source === "direct").length})
+            🟢 E2Job Direct ({applications.filter((a) => a.source === "direct").length})
           </button>
           <button
             type="button"
@@ -169,7 +169,7 @@ const ProfessionalApplicationsView = ({
                         : "bg-blue-50 text-blue-800 border-blue-200"
                     }`}
                   >
-                    {isDirect ? "🟢 CareerConnect Direct" : "🔵 Applied on Company Portal"}
+                    {isDirect ? "🟢 E2Job Direct" : "🔵 Applied on Company Portal"}
                   </span>
                 </div>
 

@@ -446,8 +446,8 @@ const generateFresherRecommendations = async (userId) => {
         id: job._id,
         title: job.title,
         company: job.companyName || "Technology Partner",
-        location: job.location || `${job.city || "Bangalore"}, ${job.country || "India"}`,
-        city: job.city || "Bangalore",
+        location: job.location || [job.city, job.country].filter(Boolean).join(", "),
+        city: job.city || "",
         workMode: job.workMode || "Hybrid",
         salary: job.salaryRange?.min
           ? `₹${job.salaryRange.min / 100000}–${job.salaryRange.max / 100000} LPA`
@@ -461,7 +461,7 @@ const generateFresherRecommendations = async (userId) => {
         postedDate: job.createdAt,
         deadline: job.deadline || null,
         openings: job.openings || 1,
-        source: job.source || "CareerConnect Verified",
+        source: job.source || "E2Job Verified",
         employmentType: job.employmentType || "Full-time",
       };
     })
@@ -519,7 +519,7 @@ const generateFresherRecommendations = async (userId) => {
           _id: c._id,
           id: c._id,
           title: c.title,
-          provider: "CareerConnect Academy",
+          provider: "E2Job Academy",
           duration: `${c.duration || 4} ${c.durationUnit || "weeks"}`,
           difficulty: c.level ? c.level.charAt(0).toUpperCase() + c.level.slice(1) : "Beginner",
           skillsCovered: c.skills || [],
@@ -545,7 +545,7 @@ const generateFresherRecommendations = async (userId) => {
       {
         id: "crs-rec-1",
         title: `Industry-Ready ${targetRole} FastTrack & ${topMissingSkill}`,
-        provider: "CareerConnect Pro Learning",
+        provider: "E2Job Pro Learning",
         duration: "4 Weeks (Self-paced)",
         difficulty: "Intermediate",
         skillsCovered: [topMissingSkill, secondMissingSkill, "REST APIs"],
@@ -763,7 +763,7 @@ const generateFresherRecommendations = async (userId) => {
         week: "Week 4",
         focus: "Resume Upgrade & Targeted Applications",
         tasks: [
-          "Add newly deployed project and metrics to CareerConnect profile & resume",
+          "Add newly deployed project and metrics to E2Job profile & resume",
           "Apply to top 5 high-match (85%+) Fresher positions",
           "Follow up on pending applications and practice mock technical interviews",
         ],

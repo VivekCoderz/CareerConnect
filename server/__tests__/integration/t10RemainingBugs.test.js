@@ -390,6 +390,8 @@ describe("BUG-05..13 offers", () => {
 
     expect((await offer(employer, selected, { joiningDate: daysFromNow(-1) })).statusCode).toBe(400);
     expect((await offer(employer, selected, { expiryDate: daysFromNow(-1) })).statusCode).toBe(400);
+    // QA bug 13: the answer deadline can't be after the joining date.
+    expect((await offer(employer, selected, { joiningDate: daysFromNow(5), expiryDate: daysFromNow(10) })).statusCode).toBe(400);
     expect((await offer(employer, applied)).body.code).toBe("INVALID_STATUS_TRANSITION");
 
     const first = await offer(employer, selected);

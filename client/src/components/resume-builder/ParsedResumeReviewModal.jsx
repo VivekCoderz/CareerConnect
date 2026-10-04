@@ -324,7 +324,7 @@ export default function ParsedResumeReviewModal({
               Review Your Imported Information
             </h2>
             <p className="text-xs sm:text-sm text-blue-100/90 mt-1 max-w-2xl">
-              We automatically extracted your resume details. Check the fields below, make any corrections, and confirm to update your CareerConnect profile.
+              We automatically extracted your resume details. Check the fields below, make any corrections, and confirm to update your E2Job profile.
             </p>
           </div>
           {(onCancel || onClose) && (

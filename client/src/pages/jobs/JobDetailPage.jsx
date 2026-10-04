@@ -6,6 +6,7 @@ import { getMyAppliedIds } from "../../services/applicationService";
 import { applyToOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
 import { isCandidateUser } from "../../utils/userRoles";
 import ShareButtons from "../../components/common/ShareButtons";
+import ReportListingButton from "../../components/common/ReportListingButton";
 import useSeo from "../../hooks/useSeo";
 import { buildJobPostingSchema, toJsonLd } from "../../utils/jobPostingSchema";
 
@@ -199,9 +200,9 @@ export default function JobDetailPage() {
 
   const companyName = job?.employerId?.companyName || job?.companyName || "Hiring company";
   const shareUrl = `${window.location.origin}/jobs/${id}`;
-  const shareText = job ? `${job.title} at ${companyName} – apply on CareerConnect: ${shareUrl}` : shareUrl;
+  const shareText = job ? `${job.title} at ${companyName} – apply on E2Job: ${shareUrl}` : shareUrl;
 
-  // "<Job title> at <Company>, <City> | CareerConnect"; closed or missing jobs stay out of search.
+  // "<Job title> at <Company>, <City> | E2Job"; closed or missing jobs stay out of search.
   const openJob = job && !isClosed(job) ? job : null;
   const jobCity = openJob ? openJob.city || openJob.location : "";
   useSeo({
@@ -330,9 +331,15 @@ export default function JobDetailPage() {
           </Section>
         )}
 
-        <p className="text-[11px] text-slate-400 text-center px-4">
-          CareerConnect never asks candidates to pay for a job. If an employer asks you for money, don't pay.
-        </p>
+        <div className="text-center px-4 space-y-2">
+          <p className="text-[11px] text-slate-400">
+            E2Job never asks candidates to pay for a job. If an employer asks you for money, don't pay.
+          </p>
+          {/* Visitors (asked to log in) and candidates can report; employers and admins can't. */}
+          {!job.isExternal && (!user || isCandidate) && (
+            <ReportListingButton opportunityType="Job" opportunityId={String(job._id)} />
+          )}
+        </div>
       </div>
     );
   };

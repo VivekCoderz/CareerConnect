@@ -22,6 +22,8 @@ const MAX_ITEMS_PER_FEED = 300;
 const REQUEST_TIMEOUT_MS = 15000;
 // Remotive asks API users to fetch only a few times a day, so the default is every 6 hours.
 const DEFAULT_INTERVAL_HOURS = 6;
+// Feed listings closed as expired for longer than this are deleted to keep storage small.
+const CLOSED_RETENTION_DAYS = 14;
 
 const FEEDS = {
   Remotive: {
@@ -102,9 +104,15 @@ const classifyType = (hints, title) => {
   return { isInternship: false, employmentType: "Full-time" };
 };
 
+// Our users are students in India: keep postings located in India, or remote roles open
+// worldwide / in Asia. A remote job "in Zurich" or "USA only" is not shown (QA, 5 Oct).
+const OPEN_TO_INDIA = /\b(india|worldwide|anywhere|global|apac|asia)\b/i;
+const isOpenToIndia = (location) => OPEN_TO_INDIA.test(location || "");
+
 /**
  * Turns one raw feed posting into the fields stored on Job/Internship, or returns
- * { error } when a required field is missing or invalid.
+ * { error } when a required field is missing or invalid, or { skip } when the posting
+ * isn't open to candidates in India.
  */
 const normalizeFeedJob = (source, raw, now = new Date()) => {
   const feed = FEEDS[source];
@@ -119,6 +127,7 @@ const normalizeFeedJob = (source, raw, now = new Date()) => {
   if (!isHttpUrl(item.applyUrl)) return { error: `invalid applyUrl (${externalId})` };
 
   const location = clean(item.location, 150) || "Not specified";
+  if (!isOpenToIndia(location)) return { skip: `not open to India (${location})` };
   const isIndia = /\bindia\b/i.test(location);
   const { isInternship, employmentType } = classifyType(item.typeHints || [], title);
 
@@ -166,7 +175,7 @@ const fetchFeed = async (source) => {
       params,
       timeout: REQUEST_TIMEOUT_MS,
       maxContentLength: 20 * 1024 * 1024,
-      headers: { Accept: "application/json", "User-Agent": "CareerConnectJobSync/1.0" },
+      headers: { Accept: "application/json", "User-Agent": "E2JobJobSync/1.0" },
     });
     return res.data;
   };
@@ -204,7 +213,7 @@ const upsertListing = async (Model, fields) => {
 };
 
 const syncSource = async (source, now) => {
-  const stats = { fetched: 0, inserted: 0, updated: 0, invalid: 0, failed: 0, error: null };
+  const stats = { fetched: 0, inserted: 0, updated: 0, invalid: 0, skipped: 0, failed: 0, error: null };
   let rawItems;
   try {
     rawItems = await fetchFeed(source);
@@ -219,6 +228,10 @@ const syncSource = async (source, now) => {
   const unique = new Map();
   for (const raw of rawItems) {
     const normalized = normalizeFeedJob(source, raw, now);
+    if (normalized.skip) {
+      stats.skipped++;
+      continue;
+    }
     if (normalized.error) {
       stats.invalid++;
       continue;
@@ -253,7 +266,39 @@ const syncSource = async (source, now) => {
   );
   await Promise.all([reopen(Job, seen.job), reopen(Internship, seen.internship)]);
 
+  // Listings stored before the "open to India" rule are closed now instead of waiting to
+  // expire. closedReason "expired" lets the 14-day cleanup delete them later.
+  const notOpen = {
+    source,
+    isExternal: true,
+    status: "Published",
+    location: { $not: OPEN_TO_INDIA },
+  };
+  const update = { $set: { status: "Closed", closedReason: "expired", closedAt: now } };
+  await Promise.all([Job.updateMany(notOpen, update), Internship.updateMany(notOpen, update)]);
+
   return stats;
+};
+
+/**
+ * Deletes feed listings (jobs and internships) the expiry sweep closed more than
+ * CLOSED_RETENTION_DAYS ago. E2Job listings, open listings and listings closed for
+ * any other reason (e.g. by an admin) are kept. Safe to run repeatedly.
+ */
+const deleteOldClosedFeedListings = async ({ now = new Date() } = {}) => {
+  const filter = {
+    isExternal: true,
+    source: { $in: APPROVED_SOURCES },
+    status: "Closed",
+    closedReason: "expired",
+    closedAt: { $ne: null, $lt: new Date(now.getTime() - CLOSED_RETENTION_DAYS * DAY_MS) },
+  };
+  const [jobs, internships] = await Promise.all([Job.deleteMany(filter), Internship.deleteMany(filter)]);
+  const result = { jobs: jobs.deletedCount, internships: internships.deletedCount };
+  console.log(
+    `[job-sync] I04 cleanup: deleted ${result.jobs + result.internships} expired feed listings (jobs: ${result.jobs}, internships: ${result.internships})`
+  );
+  return result;
 };
 
 let running = null;
@@ -276,10 +321,18 @@ const runExternalJobSync = ({ now = new Date() } = {}) => {
         inserted: acc.inserted + s.inserted,
         updated: acc.updated + s.updated,
         invalid: acc.invalid + s.invalid,
+        skipped: acc.skipped + s.skipped,
         failed: acc.failed + s.failed,
       }),
-      { fetched: 0, inserted: 0, updated: 0, invalid: 0, failed: 0 }
+      { fetched: 0, inserted: 0, updated: 0, invalid: 0, skipped: 0, failed: 0 }
     );
+    // A cleanup failure is logged but never fails the sync.
+    let cleanup = null;
+    try {
+      cleanup = await deleteOldClosedFeedListings({ now });
+    } catch (err) {
+      console.error("[job-sync] I04 cleanup failed:", err.message);
+    }
     // Cached feed results would otherwise hide new listings for up to 30 minutes.
     require("./jobScraperService").clearSearchCache();
     const result = {
@@ -287,13 +340,14 @@ const runExternalJobSync = ({ now = new Date() } = {}) => {
       finishedAt: new Date(),
       ...totals,
       upserted: totals.inserted + totals.updated,
+      cleanup,
       sources,
     };
     const perSource = Object.entries(sources)
       .map(([name, s]) => `${name} ${s.error ? `error: ${s.error}` : `${s.fetched} fetched`}`)
       .join("; ");
     console.log(
-      `[job-sync] done: ${result.inserted} new, ${result.updated} updated, ${result.invalid} invalid, ${result.failed} failed (${perSource})`
+      `[job-sync] done: ${result.inserted} new, ${result.updated} updated, ${result.invalid} invalid, ${result.skipped} not open to India, ${result.failed} failed (${perSource})`
     );
     return result;
   })().finally(() => {
@@ -338,14 +392,17 @@ const startExternalJobSyncSchedule = () => {
     console.log("[job-sync] scheduled external job sync is disabled");
     return null;
   }
-  setTimeout(runScheduledSyncIfDue, 60 * 1000);
-  return setInterval(runScheduledSyncIfDue, 30 * 60 * 1000);
+  // unref: the HTTP server keeps the process alive; these timers alone shouldn't.
+  setTimeout(runScheduledSyncIfDue, 60 * 1000).unref();
+  return setInterval(runScheduledSyncIfDue, 30 * 60 * 1000).unref();
 };
 
 module.exports = {
   APPROVED_SOURCES,
   normalizeFeedJob,
+  isOpenToIndia,
   runExternalJobSync,
+  deleteOldClosedFeedListings,
   runScheduledSyncIfDue,
   startExternalJobSyncSchedule,
   getSyncIntervalMs,

@@ -1,4 +1,4 @@
-import { SITE_URL } from "../config/site";
+import { SITE_NAME, SITE_URL } from "../config/site";
 
 // Google for Jobs structured data (G02): https://developers.google.com/search/docs/appearance/structured-data/job-posting
 const EMPLOYMENT_TYPES = {
@@ -13,7 +13,7 @@ const EMPLOYMENT_TYPES = {
 const isHttpUrl = (url) => typeof url === "string" && /^https?:\/\//i.test(url);
 
 /**
- * Builds a schema.org JobPosting for a job posted on CareerConnect by an employer.
+ * Builds a schema.org JobPosting for a job posted on E2Job by an employer (stored with source "CareerConnect").
  * Returns null for external or scraped listings: Google penalises JobPosting markup
  * on jobs the site doesn't own.
  * @param {object} job - job from GET /api/jobs/:id (employerId populated)
@@ -31,12 +31,12 @@ export const buildJobPostingSchema = (job) => {
     description: (job.description || job.title || "").replace(/\n/g, "<br>"),
     datePosted: job.createdAt,
     employmentType: EMPLOYMENT_TYPES[job.employmentType] || "FULL_TIME",
-    identifier: { "@type": "PropertyValue", name: "CareerConnect", value: String(job._id) },
+    identifier: { "@type": "PropertyValue", name: SITE_NAME, value: String(job._id) },
     url: `${SITE_URL}/jobs/${job._id}`,
     directApply: true,
     hiringOrganization: {
       "@type": "Organization",
-      name: company.companyName || job.companyName || "CareerConnect employer",
+      name: company.companyName || job.companyName || `${SITE_NAME} employer`,
       ...(isHttpUrl(company.website) ? { sameAs: company.website } : {}),
       ...(isHttpUrl(company.logo) ? { logo: company.logo } : {}),
     },

@@ -13,6 +13,7 @@
 // - Only the candidate (or a platform admin) can set Withdrawn.
 
 const Application = require("../models/Application");
+const JobOffer = require("../models/JobOffer");
 
 // Old lowercase / snake_case values still exist in stored applications.
 const LEGACY_STATUS = {
@@ -95,7 +96,9 @@ const statusesThatCanMoveTo = (to, options) => {
 /**
  * Atomically sets status `to` (plus `update`) only if the application's current status may
  * move there. If it may not, `update` is still applied without the status fields (so notes
- * are kept) and `applied` is false. Returns { applied, previous } with the document as it was.
+ * are kept) and `applied` is false; pass { keepUpdate: false } to apply nothing instead.
+ * Ending an application (Rejected / Withdrawn) withdraws its pending offers.
+ * Returns { applied, previous } with the document as it was.
  */
 const guardedStatusUpdate = async (applicationId, to, update = {}, options = {}) => {
   const { $set = {}, ...rest } = update;
@@ -103,7 +106,11 @@ const guardedStatusUpdate = async (applicationId, to, update = {}, options = {})
     { _id: applicationId, status: { $in: statusesThatCanMoveTo(to, options) } },
     { ...rest, $set: { ...$set, status: to } },
   );
-  if (previous) return { applied: true, previous };
+  if (previous) {
+    if (Application.ENDING_STATUSES.includes(to)) await JobOffer.withdrawPending([previous._id]);
+    return { applied: true, previous };
+  }
+  if (options.keepUpdate === false) return { applied: false, previous: await Application.findById(applicationId) };
 
   const statusFields = new Set(["status", "stage", "overallStatus"]);
   const keptSet = Object.fromEntries(Object.entries($set).filter(([key]) => !statusFields.has(key)));

@@ -1,4 +1,4 @@
-# CareerConnect (G02). Public job, internship, company and legal pages may be indexed;
+# E2Job (G02). Public job, internship, company and legal pages may be indexed;
 # accounts, dashboards and admin pages may not.
 User-agent: *
 Allow: /
@@ -14,4 +14,4 @@ Disallow: /set-password
 Disallow: /select-role
 Disallow: /api/
 
-Sitemap: https://www.codeformode.in/sitemap.xml
+Sitemap: https://www.e2job.com/sitemap.xml

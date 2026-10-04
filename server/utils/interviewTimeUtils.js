@@ -1,6 +1,6 @@
 /**
  * interviewTimeUtils.js
- * Comprehensive date & time parser and validator for CareerConnect Interview Management.
+ * Comprehensive date & time parser and validator for E2Job Interview Management.
  * Handles ISO dates (YYYY-MM-DD), month name strings, 12h/24h time formats,
  * range strings ("02:00 PM - 02:45 PM"), and duration-based end time calculation.
  */

@@ -95,6 +95,14 @@ const userSchema = new mongoose.Schema(
 
     authVersion: { type: Number, default: 0, min: 0 },
 
+    // Terms and Privacy Policy the user agreed to at signup (G05, DPDP Act consent).
+    // No default: accounts created before consent was collected have none and can
+    // still log in.
+    consent: {
+      termsVersion: { type: String, trim: true, maxlength: 32 },
+      acceptedAt: { type: Date },
+    },
+
 
     // ==========================================
     // COMMON ACCOUNT INFORMATION

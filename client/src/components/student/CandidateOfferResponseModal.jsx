@@ -279,7 +279,7 @@ const CandidateOfferResponseModal = ({
         isOpen={showFullLetter}
         onClose={() => setShowFullLetter(false)}
         offer={offer}
-        companyName={offer.employerId?.companyName || "CareerConnect Partner"}
+        companyName={offer.employerId?.companyName || "E2Job Partner"}
       />
     </>
   );

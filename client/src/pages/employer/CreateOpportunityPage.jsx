@@ -138,13 +138,13 @@ export default function CreateOpportunityPage() {
 
   const [formData, setFormData] = useState({
     title: "",
-    category: "Web Development",
-    subCategory: "Full Stack Development",
+    category: "",
+    subCategory: "",
     department: "Engineering",
     employmentType: "Full-time",
     workMode: "Hybrid",
-    location: "Bangalore",
-    city: "Bangalore",
+    location: "",
+    city: "",
     country: "India",
     isPaid: true,
     hasJobOffer: true,
@@ -155,7 +155,7 @@ export default function CreateOpportunityPage() {
     isNegotiable: false,
     stipend: "₹20,000/month",
     duration: "3 months",
-    experienceLevel: "Fresher / Entry-Level",
+    experienceLevel: "",
     minYears: 0,
     maxYears: 1,
     education: "B.Tech / BCA / MCA / Any Graduate",
@@ -180,13 +180,13 @@ export default function CreateOpportunityPage() {
             const j = res.job;
             setFormData({
               title: j.title || "",
-              category: j.category || "Web Development",
-              subCategory: j.subCategory || "Full Stack Development",
+              category: j.category || "",
+              subCategory: j.subCategory || "",
               department: j.department || "Engineering",
               employmentType: j.employmentType || "Full-time",
               workMode: j.workMode || "Hybrid",
-              location: j.location || "Bangalore",
-              city: j.city || "Bangalore",
+              location: j.location || "",
+              city: j.city || "",
               country: j.country || "India",
               isPaid: j.isPaid !== false,
               hasJobOffer: Boolean(j.hasJobOffer),
@@ -197,7 +197,7 @@ export default function CreateOpportunityPage() {
               isNegotiable: Boolean(j.salaryRange?.isNegotiable),
               stipend: j.stipend || "",
               duration: j.duration || "",
-              experienceLevel: j.experience?.level || "Fresher / Entry-Level",
+              experienceLevel: j.experience?.level || "",
               minYears: j.experience?.minYears ?? 0,
               maxYears: j.experience?.maxYears ?? 1,
               education: j.education || "",
@@ -238,13 +238,13 @@ export default function CreateOpportunityPage() {
             const i = res.internship || res.data;
             setFormData({
               title: i.title || "",
-              category: i.category || "Web Development",
-              subCategory: i.subCategory || "Full Stack Development",
+              category: i.category || "",
+              subCategory: i.subCategory || "",
               department: i.department || "General",
               employmentType: "Internship",
               workMode: i.workMode || "Hybrid",
-              location: i.location || "Bangalore",
-              city: i.city || "Bangalore",
+              location: i.location || "",
+              city: i.city || "",
               country: i.country || "India",
               isPaid: i.isPaid !== false,
               hasJobOffer: Boolean(i.hasJobOffer),
@@ -255,7 +255,7 @@ export default function CreateOpportunityPage() {
               isNegotiable: false,
               stipend: i.stipend || "₹15,000/month",
               duration: i.duration || "3 months",
-              experienceLevel: "Fresher / Entry-Level",
+              experienceLevel: "",
               minYears: 0,
               maxYears: 0,
               education: i.education || "Any Graduate",
@@ -490,7 +490,7 @@ export default function CreateOpportunityPage() {
             isNegotiable: Boolean(formData.isNegotiable),
           },
           experience: {
-            level: formData.experienceLevel,
+            ...(formData.experienceLevel ? { level: formData.experienceLevel } : {}),
             minYears: Number(formData.minYears) || 0,
             maxYears: Number(formData.maxYears) || 1,
           },
@@ -565,7 +565,7 @@ export default function CreateOpportunityPage() {
               {isEditing && <ModerationBadge status={formData.status} />}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              New listings are reviewed by the CareerConnect team and go live once approved.
+              New listings are reviewed by the E2Job team and go live once approved.
             </p>
           </div>
 
@@ -661,6 +661,7 @@ export default function CreateOpportunityPage() {
                 <div>
                   <label className={labelClass}>Domain / Category</label>
                   <select name="category" value={formData.category} onChange={handleChange} className={inputClass}>
+                    <option value="">Select category</option>
                     <option>Web Development</option>
                     <option>Mobile App Development</option>
                     <option>Artificial Intelligence / ML</option>

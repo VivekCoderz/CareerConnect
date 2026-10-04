@@ -20,6 +20,8 @@ import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
 import { generateStrongPassword } from "../../utils/passwordGenerator";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
+import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
+import { TERMS_VERSION } from "../../config/legal";
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
@@ -157,6 +159,7 @@ const Signup = () => {
   const [extraInterests, setExtraInterests] = useState([]);
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaError, setCaptchaError] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -481,7 +484,8 @@ const Signup = () => {
     } else {
       const digits = formData.phone.replace(/\D/g, "");
       if (formData.countryCode === "+91") {
-        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+        // Exactly 10 digits starting 6-9 (an extra leading 0 used to pass: QA bug 1).
+        if (!/^[6-9]\d{9}$/.test(digits)) {
           errors.phone = "Please enter a valid 10-digit mobile number";
         }
       } else if (digits.length < 6 || digits.length > 15) {
@@ -589,6 +593,8 @@ const Signup = () => {
   const [resumeError, setResumeError] = useState("");
   const [resumeSuccess, setResumeSuccess] = useState(false);
   const [parsedSkillsCount, setParsedSkillsCount] = useState(0);
+  // false when the upload worked but the AI was busy, so nothing was filled in automatically
+  const [resumeAutoFilled, setResumeAutoFilled] = useState(true);
   const [parsedResultData, setParsedResultData] = useState(null);
   const [resumeUploadStepText, setResumeUploadStepText] = useState("");
 
@@ -606,6 +612,10 @@ const Signup = () => {
       return;
     }
     setCaptchaError("");
+    if (!acceptedTerms) {
+      dispatch(signupFailure("Please agree to the Terms and Privacy Policy to create your account."));
+      return;
+    }
 
     dispatch(signupStart());
 
@@ -638,6 +648,8 @@ const Signup = () => {
         github: formData.github?.trim() || "",
         keepSignedIn,
         captchaToken: finalCaptchaToken,
+        acceptedTerms: true,
+        termsVersion: TERMS_VERSION,
       };
 
       const res = await api.post("/auth/register", payload);
@@ -704,7 +716,9 @@ const Signup = () => {
 
       if (res.data?.success) {
         setResumeSuccess(true);
-        setParsedResultData(res.data?.parsedData || null);
+        const autoFilled = res.data?.aiParsed !== false;
+        setResumeAutoFilled(autoFilled);
+        setParsedResultData(autoFilled ? res.data?.parsedData || null : null);
         const extractedSkills =
           (res.data?.parsedData?.skills?.programmingLanguages?.length || 0) +
           (res.data?.parsedData?.skills?.frameworks?.length || 0) +
@@ -781,7 +795,7 @@ const Signup = () => {
           <div className="mb-6 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
             <div className="flex items-center justify-between">
               {[
-                { num: 1, label: "Verify Email" },
+                { num: 1, label: "Create Account" },
                 { num: 2, label: "Profile Info" },
                 { num: 3, label: "Interests" },
                 { num: 4, label: "AI Resume" },
@@ -837,7 +851,7 @@ const Signup = () => {
                   Step 1 of 4 · Create your account
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                  Welcome to CareerConnect
+                  Welcome to E2Job
                 </h1>
                 <p className="text-sm text-slate-500 mt-1.5">
                   Sign up in one click with your Google account
@@ -1807,6 +1821,8 @@ const Signup = () => {
                   />
                 </div>
 
+                <TermsConsentCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} className="pt-2" />
+
                 {/* Submit button */}
                 <div className="pt-3 flex items-center justify-between">
                   <button
@@ -1820,7 +1836,7 @@ const Signup = () => {
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={loading}
+                    disabled={loading || !acceptedTerms}
                     className="h-11 px-8 rounded-lg bg-[#008bdc] hover:bg-[#0077ba] disabled:bg-blue-300 text-white text-sm font-semibold transition shadow-sm flex items-center gap-2 cursor-pointer"
                   >
                     {loading ? (
@@ -1851,7 +1867,7 @@ const Signup = () => {
                   Upload Your Resume
                 </h2>
                 <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
-                  Our CareerConnect AI will automatically parse your PDF resume and save your education, experience, projects, and skills into your profile!
+                  Our E2Job AI will automatically parse your PDF resume and save your education, experience, projects, and skills into your profile!
                 </p>
               </div>
 
@@ -1868,12 +1884,14 @@ const Signup = () => {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-slate-900">
-                      Resume Parsed & Profile Auto-Filled!
+                      {resumeAutoFilled ? "Resume Parsed & Profile Auto-Filled!" : "Resume Uploaded"}
                     </h3>
                     <p className="text-xs text-slate-500 mt-1">
-                      {parsedSkillsCount > 0
-                        ? `AI successfully extracted ${parsedSkillsCount} skills, education & experience into your profile.`
-                        : "Your resume details have been synchronized directly into your profile."}
+                      {!resumeAutoFilled
+                        ? "Our AI is busy right now, so your profile was not filled in automatically. You can add your skills and education from your profile page."
+                        : parsedSkillsCount > 0
+                          ? `AI successfully extracted ${parsedSkillsCount} skills, education & experience into your profile.`
+                          : "Your resume details have been synchronized directly into your profile."}
                     </p>
                   </div>
 
@@ -2018,7 +2036,7 @@ const Signup = () => {
 
       {/* Footer */}
       <footer className="py-4 text-center text-xs text-slate-400">
-        CareerConnect · All rights reserved
+        E2Job · All rights reserved
       </footer>
     </div>
   );

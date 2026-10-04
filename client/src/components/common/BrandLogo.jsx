@@ -1,13 +1,16 @@
-/** Crop the transparent canvas around the uploaded wordmark without altering the asset. */
+/**
+ * E2Job logo (client/public/e2job-logo.png, 2172x724). The viewBox crops the white margin
+ * around the artwork; markOnly shows just the icon for tight spaces such as the mobile header.
+ */
 const BrandLogo = ({ markOnly = false, className = "" }) => (
   <svg
-    viewBox={markOnly ? "65 165 600 370" : "65 165 1950 370"}
+    viewBox={markOnly ? "80 115 762 480" : "80 115 2020 480"}
     className={className}
     role="img"
-    aria-label="CareerConnect"
+    aria-label="E2Job"
     preserveAspectRatio="xMidYMid meet"
   >
-    <image href="/careerconnect-logo.png" width="2124" height="740" />
+    <image href="/e2job-logo.png" width="2172" height="724" />
   </svg>
 );
 

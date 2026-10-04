@@ -14,6 +14,10 @@ const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require("../services/jobScraperService");
 const {
   pickListingUpdate,
+  checkListingInput,
+  hasLocation,
+  LOCATION_REQUIRED,
+  mergePayRanges,
   requiresReapproval,
   escapeRegex,
   resolveNewListingModeration,
@@ -69,6 +73,13 @@ exports.createInternship = async (req, res, next) => {
       });
     }
 
+    const fields = pickListingUpdate(req.body);
+    if (!hasLocation(fields.location)) {
+      return res.status(400).json({ success: false, message: LOCATION_REQUIRED });
+    }
+    const invalid = checkListingInput(fields);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
+
     const stages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     const companyId = req.user.companyId || null;
     let companyName = profile.companyName;
@@ -87,7 +98,7 @@ exports.createInternship = async (req, res, next) => {
     const initialStatus = moderation.status;
 
     const internship = await Internship.create({
-      ...pickListingUpdate(req.body),
+      ...fields,
       recruitmentStages: stages,
       employerId: profile._id,
       createdBy: req.user._id,
@@ -369,7 +380,7 @@ exports.getInternships = async (req, res, next) => {
             companyId: int.employerId?._id || "",
             logo: int.employerId?.logo || "",
             location: int.location,
-            city: int.city || "Bangalore",
+            city: int.city || "",
             category: int.category || "Web Development",
             subCategory: int.subCategory || "Full Stack",
             stipend: stipendStr,
@@ -666,6 +677,9 @@ exports.updateInternship = async (req, res, next) => {
     }
 
     const updates = pickListingUpdate(req.body);
+    const invalid = checkListingInput(updates, internship);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
+    mergePayRanges(updates, internship);
     // A published internship whose content changes must be approved again (BUG-02).
     const sentForReview = requiresReapproval(internship, updates);
     Object.assign(internship, updates);

@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 
-const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "CareerConnect Partner Organization" }) => {
+const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "E2Job Partner Organization" }) => {
   const printRef = useRef(null);
 
   if (!isOpen || !offer) return null;
@@ -34,7 +34,7 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "Career
 
   const signatoryName = offer.signatoryName || "Dr. Rajesh Verma";
   const signatoryTitle = offer.signatoryTitle || "Head of Talent Acquisition & Campus Partnerships";
-  const signatoryOrg = offer.signatoryOrganization || "CareerConnect Placement & Career Center";
+  const signatoryOrg = offer.signatoryOrganization || "E2Job Placement & Career Center";
 
   const benefitsList = Array.isArray(offer.benefits) && offer.benefits.length > 0
     ? offer.benefits
@@ -142,7 +142,7 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "Career
               </p>
 
               <p className="text-slate-700 text-justify">
-                On behalf of <strong className="text-slate-900">{companyName}</strong> and the placement governing board at CareerConnect, CareerConnect, we are exceptionally delighted to extend this formal offer of employment to you. We were thoroughly impressed by your academic record, technical competencies, and interview performance, and we are confident that you will make significant contributions to our team.
+                On behalf of <strong className="text-slate-900">{companyName}</strong> and the placement governing board at E2Job, E2Job, we are exceptionally delighted to extend this formal offer of employment to you. We were thoroughly impressed by your academic record, technical competencies, and interview performance, and we are confident that you will make significant contributions to our team.
               </p>
             </div>
 
@@ -267,7 +267,7 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "Career
                   "This offer is contingent upon successful verification of your educational transcripts, background checks, and identity verification. By accepting this offer, you confirm your adherence to company non-disclosure agreements, IP ownership clauses, and code of conduct."}
               </p>
               <div className="p-3 bg-red-50/70 border border-red-200/80 rounded-xl text-red-800 text-[12px]">
-                <strong>Important:</strong> This offer is valid until <span className="font-bold underline">{expiryDate}</span>. Kindly confirm your acceptance digitally via your CareerConnect portal prior to this deadline.
+                <strong>Important:</strong> This offer is valid until <span className="font-bold underline">{expiryDate}</span>. Kindly confirm your acceptance digitally via your E2Job portal prior to this deadline.
               </div>
             </div>
 

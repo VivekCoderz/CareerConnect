@@ -65,7 +65,7 @@ const ApplyReviewModal = ({
                     : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                 }`}
               >
-                {isExternal ? "🔵 Apply on Company Website" : "🟢 Direct Apply via CareerConnect"}
+                {isExternal ? "🔵 Apply on Company Website" : "🟢 Direct Apply via E2Job"}
               </span>
               <span className="text-xs text-slate-400">· {opportunity.location || "Remote"}</span>
             </div>
@@ -103,7 +103,7 @@ const ApplyReviewModal = ({
                 </p>
               </div>
               <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">
-                {opportunity.matchPercentage || 92}% Match
+                {typeof opportunity.matchPercentage === "number" ? `${opportunity.matchPercentage}% Match` : "Not enough data"}
               </span>
             </div>
           </div>

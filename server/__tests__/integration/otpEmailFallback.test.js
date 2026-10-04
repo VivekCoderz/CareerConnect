@@ -23,11 +23,12 @@ const app = require("../../app");
 const EmailUsage = require("../../models/EmailUsage");
 const PendingOTP = require("../../models/PendingOTP");
 const { istDay } = require("../../services/emailBudget");
+const { warnOnFallbackEmailConfig } = require("../../utils/sendEmail");
 const BREVO_KEY = "test-brevo-api-key-not-real";
 const RESEND_KEY = "test-resend-api-key-not-real";
 const MJ_USER = ["test", "user"].join("-");
 const MJ_PASS = ["test", "pass"].join("-");
-const STUDENT = "priya.sharma@gmail.com";
+const STUDENT = "student@example.test";
 const BUSY_MESSAGE =
   "Email sign-up is busy right now. Please use Continue with Google or try again later.";
 
@@ -41,6 +42,8 @@ const brevoQuotaError = () =>
       },
     },
   });
+const brevoRateLimitError = () =>
+  Object.assign(new Error("Too Many Requests"), { status: 429 });
 const resendError = () =>
   Object.assign(new Error("Request failed with status code 500"), {
     config: { headers: { Authorization: `Bearer ${RESEND_KEY}` } },
@@ -53,7 +56,7 @@ const resendError = () =>
 const sendOtp = () =>
   request(app)
     .post("/api/auth/send-otp")
-    .send({ email: STUDENT, fullName: "Priya" });
+    .send({ email: STUDENT, fullName: "Fake Student" });
 const otpUsage = async () =>
   EmailUsage.findOne({ day: istDay(), kind: "otp" }).lean();
 
@@ -66,6 +69,7 @@ describe("signup OTP email fallback (C01)", () => {
     "FALLBACK_EMAIL_FROM",
     "BREVO_DAILY_LIMIT",
     "RATE_LIMIT_OTP_SEND_MAX",
+    "BREVO_RATE_LIMIT_RETRY_MS",
   ];
   const savedEnv = {};
   let logs;
@@ -80,6 +84,7 @@ describe("signup OTP email fallback (C01)", () => {
     process.env.FALLBACK_EMAIL_FROM = "otp@mail.careerconnect.test";
     delete process.env.BREVO_DAILY_LIMIT;
     process.env.RATE_LIMIT_OTP_SEND_MAX = "100"; // this file sends more OTPs than the per-IP limit
+    process.env.BREVO_RATE_LIMIT_RETRY_MS = "0"; // no real wait before the 429 retry
 
     brevoSend.mockReset().mockResolvedValue({ messageId: "brevo-1" });
     axiosPost = jest
@@ -137,7 +142,7 @@ describe("signup OTP email fallback (C01)", () => {
     const [url, body, config] = axiosPost.mock.calls[0];
     expect(url).toBe("https://api.resend.com/emails");
     expect(body).toMatchObject({
-      from: "CareerConnect <otp@mail.careerconnect.test>",
+      from: "E2Job <otp@mail.careerconnect.test>",
       to: [STUDENT],
     });
     expect(body.html).toMatch(/\d{6}/);
@@ -146,7 +151,7 @@ describe("signup OTP email fallback (C01)", () => {
       count: 1,
       providers: { brevo: 0, resend: 1 },
     });
-    expect(logs.join("\n")).toContain("p***a@gmail.com");
+    expect(logs.join("\n")).toContain("s***t@example.test");
   });
 
   it("skips Brevo once today's Brevo quota is used up", async () => {
@@ -203,8 +208,10 @@ describe("signup OTP email fallback (C01)", () => {
     expect(brevoSend).toHaveBeenCalledTimes(1);
   });
 
-  it("returns 503 when both providers fail", async () => {
-    brevoSend.mockRejectedValueOnce(brevoQuotaError());
+  it("when the fallback fails, retries Brevo once, then returns 503", async () => {
+    brevoSend
+      .mockRejectedValueOnce(brevoQuotaError())
+      .mockRejectedValueOnce(brevoQuotaError());
     axiosPost.mockRejectedValueOnce(resendError());
 
     const res = await sendOtp();
@@ -214,10 +221,45 @@ describe("signup OTP email fallback (C01)", () => {
       code: "EMAIL_SIGNUP_BUSY",
       message: BUSY_MESSAGE,
     });
-    expect(brevoSend).toHaveBeenCalledTimes(1);
+    expect(brevoSend).toHaveBeenCalledTimes(2);
     expect(axiosPost).toHaveBeenCalledTimes(1);
     expect(await PendingOTP.countDocuments({})).toBe(0);
     expect(await otpUsage()).toBeNull();
+  });
+
+  it("when the fallback fails, Brevo's last try can still send the OTP", async () => {
+    brevoSend.mockRejectedValueOnce(brevoQuotaError());
+    axiosPost.mockRejectedValueOnce(resendError());
+
+    const res = await sendOtp();
+
+    expect(res.status).toBe(200);
+    expect(brevoSend).toHaveBeenCalledTimes(2);
+    expect(await otpUsage()).toMatchObject({ count: 1, providers: { brevo: 1, resend: 0 } });
+  });
+
+  it("a 429 rate limit retries Brevo once and does not use the fallback", async () => {
+    brevoSend.mockRejectedValueOnce(brevoRateLimitError());
+
+    const res = await sendOtp();
+
+    expect(res.status).toBe(200);
+    expect(brevoSend).toHaveBeenCalledTimes(2);
+    expect(axiosPost).not.toHaveBeenCalled();
+    expect(await otpUsage()).toMatchObject({ providers: { brevo: 1, resend: 0 } });
+  });
+
+  it("a 429 on the retry too gives 503, still without the fallback", async () => {
+    brevoSend
+      .mockRejectedValueOnce(brevoRateLimitError())
+      .mockRejectedValueOnce(brevoRateLimitError());
+
+    const res = await sendOtp();
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("EMAIL_SIGNUP_BUSY");
+    expect(brevoSend).toHaveBeenCalledTimes(2);
+    expect(axiosPost).not.toHaveBeenCalled();
   });
 
   it("does not use the fallback for non-quota Brevo errors", async () => {
@@ -239,9 +281,7 @@ describe("signup OTP email fallback (C01)", () => {
   it("supports Mailjet as the fallback", async () => {
     process.env.FALLBACK_EMAIL_PROVIDER = "mailjet";
     process.env.FALLBACK_EMAIL_API_KEY = `${MJ_USER}:${MJ_PASS}`;
-    brevoSend.mockRejectedValueOnce(
-      Object.assign(new Error("Too Many Requests"), { status: 429 }),
-    );
+    brevoSend.mockRejectedValueOnce(brevoQuotaError());
     axiosPost.mockResolvedValueOnce({
       data: { Messages: [{ Status: "success", To: [{ MessageID: 42 }] }] },
     });
@@ -258,5 +298,56 @@ describe("signup OTP email fallback (C01)", () => {
     });
     expect(await otpUsage()).toMatchObject({ providers: { mailjet: 1 } });
     expect(logs.join("\n")).not.toContain(MJ_PASS);
+  });
+});
+
+describe("fallback email config warning at startup (C01)", () => {
+  const NAMES = ["FALLBACK_EMAIL_PROVIDER", "FALLBACK_EMAIL_API_KEY", "FALLBACK_EMAIL_FROM"];
+  const FAKE_KEY = "test-fallback-key-not-real";
+  const saved = {};
+  let warnings;
+
+  beforeEach(() => {
+    for (const name of NAMES) {
+      saved[name] = process.env[name];
+      delete process.env[name];
+    }
+    warnings = [];
+    jest.spyOn(console, "warn").mockImplementation((...args) => warnings.push(args.join(" ")));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    for (const name of NAMES) {
+      if (saved[name] === undefined) delete process.env[name];
+      else process.env[name] = saved[name];
+    }
+  });
+
+  it("says nothing when the fallback is fully set or not set at all", () => {
+    expect(warnOnFallbackEmailConfig()).toBeNull();
+    process.env.FALLBACK_EMAIL_PROVIDER = "resend";
+    process.env.FALLBACK_EMAIL_API_KEY = FAKE_KEY;
+    process.env.FALLBACK_EMAIL_FROM = "otp@mail.careerconnect.test";
+    expect(warnOnFallbackEmailConfig()).toBeNull();
+    expect(warnings).toEqual([]);
+  });
+
+  it("warns once, naming what is missing, without logging the key", () => {
+    process.env.FALLBACK_EMAIL_API_KEY = FAKE_KEY;
+    expect(() => warnOnFallbackEmailConfig()).not.toThrow();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/missing FALLBACK_EMAIL_PROVIDER, FALLBACK_EMAIL_FROM/);
+    expect(warnings[0]).not.toContain(FAKE_KEY);
+  });
+
+  it("warns about an unknown provider name", () => {
+    process.env.FALLBACK_EMAIL_PROVIDER = "fake-mailer";
+    process.env.FALLBACK_EMAIL_API_KEY = FAKE_KEY;
+    process.env.FALLBACK_EMAIL_FROM = "otp@mail.careerconnect.test";
+    warnOnFallbackEmailConfig();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/must be one of: resend, mailjet/);
+    expect(warnings[0]).not.toContain(FAKE_KEY);
   });
 });

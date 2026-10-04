@@ -8,7 +8,7 @@ const OpportunityDetailModal = ({ isOpen, onClose, opportunity, onApply }) => {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                {opportunity.matchPercentage || 92}% Match
+                {typeof opportunity.matchPercentage === "number" ? `${opportunity.matchPercentage}% Match` : "Not enough data"}
               </span>
               <span className="text-xs font-semibold text-slate-500">{opportunity.location}</span>
             </div>

@@ -30,7 +30,7 @@ const sendPendingDigests = async ({ maxUsers = 500 } = {}) => {
     if (!(await reserveNotificationEmail())) break; // today's budget is used; continue tomorrow
     try {
       const items = group.items.slice(-MAX_ITEMS_PER_EMAIL);
-      const result = await sendEmail({ to: user.email, subject: "Updates on your CareerConnect applications", html: emailHtml(user.fullName, items) });
+      const result = await sendEmail({ to: user.email, subject: "Updates on your E2Job applications", html: emailHtml(user.fullName, items) });
       if (result?.error) throw new Error(String(result.error));
       await Notification.updateMany({ _id: { $in: group.ids } }, { $set: { "metadata.digestSent": true } });
       sent += 1;

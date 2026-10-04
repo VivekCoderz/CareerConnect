@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { externalHref } from "../../utils/safeUrl";
 
 const ProjectsPortfolioCard = ({ projects = [] }) => {
   return (
@@ -52,7 +53,7 @@ const ProjectsPortfolioCard = ({ projects = [] }) => {
               <div className="flex items-center gap-3 mt-4 pt-3 border-t border-slate-200/60 text-xs font-semibold">
                 {proj.githubUrl && (
                   <a
-                    href={proj.githubUrl}
+                    href={externalHref(proj.githubUrl)}
                     target="_blank"
                     rel="noreferrer"
                     className="text-slate-700 hover:text-slate-900 inline-flex items-center gap-1"
@@ -62,7 +63,7 @@ const ProjectsPortfolioCard = ({ projects = [] }) => {
                 )}
                 {proj.liveUrl && (
                   <a
-                    href={proj.liveUrl}
+                    href={externalHref(proj.liveUrl)}
                     target="_blank"
                     rel="noreferrer"
                     className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"

@@ -162,7 +162,7 @@ const StudentDashboard = () => {
   };
 
   const handleApply = (item) => {
-    // External listings are applied to on the employer's site, not through CareerConnect.
+    // External listings are applied to on the employer's site, not through E2Job.
     if (isExternalOpportunity(item)) {
       const url = externalApplyUrl(item);
       if (url) window.open(url, "_blank", "noopener,noreferrer");
