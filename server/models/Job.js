@@ -279,7 +279,7 @@ const jobSchema = new mongoose.Schema(
     source: {
       type: String,
       enum: ["CareerConnect", "LinkedIn", "Internshala", "Remotive", "Arbeitnow", "GU Drives", "Jooble", "Other"],
-      default: "CareerConnect",
+      default: "CareerConnect", // stored value for own listings (old brand); shown as E2Job
       index: true,
     },
     isExternal: {

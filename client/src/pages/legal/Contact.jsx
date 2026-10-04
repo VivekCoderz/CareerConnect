@@ -52,7 +52,7 @@ export default function Contact() {
       </div>
 
       <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
-        <strong>Remember:</strong> CareerConnect and genuine employers <strong>never ask candidates for money</strong>. If
+        <strong>Remember:</strong> E2Job and genuine employers <strong>never ask candidates for money</strong>. If
         anyone does, report it straight away.
       </div>
 

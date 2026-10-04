@@ -110,7 +110,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
               email: prev.email || p.userId?.email || user.email || "",
               phone: prev.phone || p.userId?.phone || user.phone || "",
               education: prev.education || p.education?.[0]?.degree || "",
-              college: prev.college || p.education?.[0]?.institution || "CareerConnect",
+              college: prev.college || p.education?.[0]?.institution || "E2Job",
               graduationYear: prev.graduationYear || (p.education?.[0]?.endYear ? String(p.education[0].endYear) : ""),
               skills: prev.skills || (p.technicalSkills || []).join(", "),
               experience: prev.experience || (p.experience?.[0] ? `${p.experience[0].title || ""} - ${p.experience[0].company || ""}`.trim() : ""),
@@ -291,7 +291,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
               <ShareButtons
                 className="mt-4"
                 url={shareUrl}
-                text={`${internship.title} internship at ${internship.companyName || internship.employerId?.companyName || "a top company"} – apply on CareerConnect: ${shareUrl}`}
+                text={`${internship.title} internship at ${internship.companyName || internship.employerId?.companyName || "a top company"} – apply on E2Job: ${shareUrl}`}
                 onNotify={showShareNotice}
               />
               {shareNotice && <p role="status" className="mt-2 text-xs font-semibold text-blue-100">{shareNotice}</p>}
@@ -442,7 +442,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
               </div>
             ) : !user ? (
               <div className="text-center space-y-3">
-                <h4 className="text-sm font-bold text-slate-900">Apply via CareerConnect</h4>
+                <h4 className="text-sm font-bold text-slate-900">Apply via E2Job</h4>
                 <p className="text-xs text-slate-500">Log in or create a free account to apply. You'll come straight back here.</p>
                 <button
                   type="button"
@@ -458,7 +458,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
               !successMsg && !isApplied && !hasStandaloneApplied && (
                 <form onSubmit={handleApply} className="space-y-4">
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">Apply via CareerConnect</h4>
+                    <h4 className="text-sm font-bold text-slate-900">Apply via E2Job</h4>
                     <p className="text-[11px] text-slate-500 mt-0.5">
                       Verify your details. Exact submitted data will be sent directly to the employer.
                     </p>
@@ -547,7 +547,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
                           type="text"
                           value={formData.college}
                           onChange={(e) => handleChange("college", e.target.value)}
-                          placeholder="CareerConnect"
+                          placeholder="E2Job"
                           className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
                         />
                       </div>
@@ -657,7 +657,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
           {!internship.isExternal && (!user || isCandidate) && (
             <div className="text-center space-y-1.5 px-2">
               <p className="text-[11px] text-slate-400">
-                CareerConnect never asks candidates to pay. If an employer asks you for money, don't pay.
+                E2Job never asks candidates to pay. If an employer asks you for money, don't pay.
               </p>
               <ReportListingButton opportunityType="Internship" opportunityId={String(internship._id || internshipId)} />
             </div>

@@ -43,11 +43,11 @@ export const List = ({ children }) => <ul className="list-disc pl-5 space-y-1.5"
 export default function LegalLayout({ title, intro, children }) {
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800">
-      <title>{`${title} | CareerConnect`}</title>
+      <title>{`${title} | E2Job`}</title>
 
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-          <Link to="/home" aria-label="CareerConnect home">
+          <Link to="/home" aria-label="E2Job home">
             <BrandLogo className="h-9 w-40 sm:w-44" />
           </Link>
           <Link to="/jobs" className="text-xs font-bold text-[#1e3a8a] hover:underline shrink-0">
@@ -87,7 +87,7 @@ export default function LegalLayout({ title, intro, children }) {
               {page.label}
             </NavLink>
           ))}
-          <span className="sm:ml-auto">© {new Date().getFullYear()} CareerConnect</span>
+          <span className="sm:ml-auto">© {new Date().getFullYear()} E2Job</span>
         </nav>
       </footer>
     </div>

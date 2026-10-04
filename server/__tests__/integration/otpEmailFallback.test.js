@@ -142,7 +142,7 @@ describe("signup OTP email fallback (C01)", () => {
     const [url, body, config] = axiosPost.mock.calls[0];
     expect(url).toBe("https://api.resend.com/emails");
     expect(body).toMatchObject({
-      from: "CareerConnect <otp@mail.careerconnect.test>",
+      from: "E2Job <otp@mail.careerconnect.test>",
       to: [STUDENT],
     });
     expect(body.html).toMatch(/\d{6}/);

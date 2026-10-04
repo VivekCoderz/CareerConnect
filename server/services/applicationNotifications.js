@@ -28,7 +28,7 @@ const describe = (status, role, company) => {
     case "Offered": return { title: "Offer on the way 🎉", message: `You've reached the offer stage for ${where}.` };
     case "Hired": return { title: "Hired 🎉", message: `Congratulations! You've been hired for ${where}.` };
     case "Rejected": return { title: "Application update", message: `Thank you for applying for ${where}. The employer has decided not to move forward with your application this time.` };
-    case "PositionFilled": return { title: "Position closed", message: `The ${where} position has been filled or closed. Keep exploring new opportunities on CareerConnect.` };
+    case "PositionFilled": return { title: "Position closed", message: `The ${where} position has been filled or closed. Keep exploring new opportunities on E2Job.` };
     default: return { title: "Application update", message: `Your application for ${where} is now: ${status}.` };
   }
 };
@@ -38,8 +38,8 @@ const appUrl = () => (process.env.CLIENT_URL || "").split(",")[0].trim().replace
 const emailHtml = (name, items) => `
   <p>Hi ${escapeHtml(name || "there")},</p>
   ${items.map((i) => `<p><strong>${escapeHtml(i.title)}</strong><br>${escapeHtml(i.message)}</p>`).join("")}
-  <p><a href="${appUrl()}/applications">View your applications on CareerConnect</a></p>
-  <p style="color:#64748b;font-size:12px">CareerConnect never asks candidates for money. Report anyone who does.</p>`;
+  <p><a href="${appUrl()}/applications">View your applications on E2Job</a></p>
+  <p style="color:#64748b;font-size:12px">E2Job never asks candidates for money. Report anyone who does.</p>`;
 
 const sendGoodNewsEmails = async (items) => {
   for (const item of items) {
@@ -84,7 +84,7 @@ const notifyApplicationUpdates = async (applications, status, { senderId = null,
         recipient: a.candidateId,
         recipientId: a.candidateId,
         senderId,
-        sender: "CareerConnect",
+        sender: "E2Job",
         senderRole: "system",
         title,
         preview: message,

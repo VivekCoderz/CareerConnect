@@ -235,7 +235,7 @@ const AuthInitializer = ({ children }) => {
   if (initializing) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <JourneyLoader size="hero" variant="access" message="Opening your CareerConnect" detail="Your next step is coming together." />
+        <JourneyLoader size="hero" variant="access" message="Opening your E2Job" detail="Your next step is coming together." />
       </div>
     );
   }

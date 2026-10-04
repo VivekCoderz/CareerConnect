@@ -13,8 +13,8 @@ export default function Terms() {
       intro={
         <p>
           These terms are an agreement between you and <strong><Fill value={LEGAL.entityName} label="legal entity name" /></strong>{" "}
-          ("CareerConnect", "we", "us") for your use of the CareerConnect website and services. By creating an account or
-          using CareerConnect, you agree to these terms and to our <Link to="/privacy" className={link}>Privacy Policy</Link>.
+          ("E2Job", "we", "us") for your use of the E2Job website and services. By creating an account or
+          using E2Job, you agree to these terms and to our <Link to="/privacy" className={link}>Privacy Policy</Link>.
         </p>
       }
     >
@@ -27,9 +27,9 @@ export default function Terms() {
         </List>
       </Section>
 
-      <Section title="2. What CareerConnect is">
+      <Section title="2. What E2Job is">
         <p>
-          CareerConnect is a platform that connects candidates with employers. <strong>We are not the employer</strong> and
+          E2Job is a platform that connects candidates with employers. <strong>We are not the employer</strong> and
           we are not a party to any job offer or employment contract. We do not guarantee that any candidate will get a job,
           or that any employer will find a candidate.
         </p>
@@ -91,14 +91,14 @@ export default function Terms() {
 
       <Section title="8. Fees">
         <p>
-          Using CareerConnect is <strong>free for candidates</strong>. We may introduce paid features for employers or
+          Using E2Job is <strong>free for candidates</strong>. We may introduce paid features for employers or
           optional paid features for candidates in future. If we do, the price will be shown clearly before you pay.
         </p>
       </Section>
 
       <Section title="9. Limitation of liability">
         <p>
-          CareerConnect is provided "as is". To the extent the law allows, we are not liable for indirect or consequential
+          E2Job is provided "as is". To the extent the law allows, we are not liable for indirect or consequential
           losses, or for the actions of employers, candidates or third-party sites. Nothing in these terms limits any right
           you have under applicable consumer law.
         </p>
@@ -115,7 +115,7 @@ export default function Terms() {
       <Section title="11. Changes">
         <p>
           We may update these terms. If a change is significant, we will tell you by email or on the site before it takes
-          effect. Continuing to use CareerConnect afterwards means you accept the updated terms.
+          effect. Continuing to use E2Job afterwards means you accept the updated terms.
         </p>
       </Section>
 

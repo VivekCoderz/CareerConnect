@@ -565,7 +565,7 @@ export default function CreateOpportunityPage() {
               {isEditing && <ModerationBadge status={formData.status} />}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              New listings are reviewed by the CareerConnect team and go live once approved.
+              New listings are reviewed by the E2Job team and go live once approved.
             </p>
           </div>
 

@@ -36,7 +36,7 @@ const ProfileReview = ({
           Review & publish company profile
         </h2>
         <p className="text-sm text-slate-500 mt-1.5">
-          Verify all information before making your profile visible to CareerConnect candidates
+          Verify all information before making your profile visible to E2Job candidates
         </p>
       </div>
 

@@ -191,7 +191,7 @@ const ProfessionalDashboard = () => {
     }
   };
 
-  // Direct Apply via CareerConnect: goes through the real application flow (it used to
+  // Direct Apply via E2Job: goes through the real application flow (it used to
   // only add a local "submitted" card without sending anything).
   const handleDirectSubmit = (opp) => {
     setShowApplyReviewModal(false);

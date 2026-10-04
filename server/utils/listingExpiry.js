@@ -64,7 +64,7 @@ const closeExpiredListings = async ({ now = new Date(), onChange } = {}) => {
   const Internship = require("../models/Internship");
   const filter = expiredPublishedClause(now);
   const update = { $set: { status: "Closed", closedReason: "expired", closedAt: now } };
-  // Only CareerConnect listings take applications, so only they need "position closed" notices.
+  // Only E2Job listings take applications, so only they need "position closed" notices.
   const ownListings = { ...filter, isExternal: { $ne: true } };
   const [jobIds, internshipIds] = await Promise.all([
     Job.distinct("_id", ownListings),

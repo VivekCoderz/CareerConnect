@@ -22,7 +22,7 @@ async function createAdmin() {
 
   if (!admin) {
     admin = new User({
-      fullName: "CareerConnect Administrator",
+      fullName: "E2Job Administrator",
       username: "admin_master",
       email: adminEmail,
       password: adminPassword, // pre("save") hook in User model securely hashes with bcrypt

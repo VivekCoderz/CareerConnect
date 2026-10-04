@@ -727,7 +727,7 @@ const EmployerRegister = () => {
           <h2 className="text-4xl font-bold leading-tight tracking-tight mb-4">
             Hire top talent on
             <br />
-            <span className="text-[#fde68a]">CareerConnect</span>
+            <span className="text-[#fde68a]">E2Job</span>
           </h2>
 
           <p className="text-amber-50/90 text-[15px] leading-relaxed max-w-sm">
@@ -814,7 +814,7 @@ const EmployerRegister = () => {
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1.5">
-                  Employer registration · CareerConnect
+                  Employer registration · E2Job
                 </p>
               </div>
 

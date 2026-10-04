@@ -240,7 +240,7 @@ export default function ATSCheckerAndFixer() {
           <div className="mt-5 flex flex-wrap gap-3">
             <a href={downloadUrl} download={optimized.fileName} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"><Download className="h-4 w-4" /> Download PDF</a>
             <a href={downloadUrl} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-xl border border-emerald-300 px-5 py-3 text-sm font-bold text-emerald-900 hover:bg-white">Preview PDF</a>
-            <a href={`data:text/x-tex;charset=utf-8,${encodeURIComponent(optimized.latex)}`} download="CareerConnect_ATS_Resume.tex" className="inline-flex items-center rounded-xl border border-emerald-300 px-5 py-3 text-sm font-bold text-emerald-900 hover:bg-white">Download LaTeX source</a>
+            <a href={`data:text/x-tex;charset=utf-8,${encodeURIComponent(optimized.latex)}`} download="E2Job_ATS_Resume.tex" className="inline-flex items-center rounded-xl border border-emerald-300 px-5 py-3 text-sm font-bold text-emerald-900 hover:bg-white">Download LaTeX source</a>
           </div>
         </div>
       )}

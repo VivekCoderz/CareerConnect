@@ -508,7 +508,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
-                        Create a resume using your existing CareerConnect profile information
+                        Create a resume using your existing E2Job profile information
                       </p>
                     </div>
                   </div>

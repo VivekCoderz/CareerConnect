@@ -388,7 +388,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         _id: c._id,
         id: c._id.toString(),
         title: c.title,
-        provider: "CareerConnect Academy",
+        provider: "E2Job Academy",
         level: c.level || "Intermediate",
         duration: `${c.duration || 6} ${c.durationUnit || "Weeks"}`,
         rating: 4.9,
@@ -451,7 +451,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     const notifications = [
       {
         id: "notif-1",
-        title: "Welcome to Geeta University CareerConnect 🎉",
+        title: "Welcome to Geeta University E2Job 🎉",
         message: "Explore live internship opportunities directly posted by verified employers.",
         date: "Today",
         isRead: false,

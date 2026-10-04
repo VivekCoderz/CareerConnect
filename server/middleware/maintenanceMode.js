@@ -31,7 +31,7 @@ const maintenanceMode = async (req, res, next) => {
   return res.status(503).json({
     success: false,
     code: "MAINTENANCE_MODE",
-    message: "CareerConnect is undergoing maintenance. Please try again shortly.",
+    message: "E2Job is undergoing maintenance. Please try again shortly.",
   });
 };
 

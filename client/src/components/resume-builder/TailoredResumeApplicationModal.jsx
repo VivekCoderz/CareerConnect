@@ -447,13 +447,13 @@ export default function TailoredResumeApplicationModal({
                       Use My Own Resume
                     </h4>
                     <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                      Select one of your existing saved resumes from CareerConnect or upload a new PDF resume from your computer.
+                      Select one of your existing saved resumes from E2Job or upload a new PDF resume from your computer.
                     </p>
 
                     <div className="mt-4 space-y-2 pt-3 border-t border-slate-100 text-[11px] text-slate-600">
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500 font-bold">•</span>
-                        <span>Select from your saved CareerConnect resumes</span>
+                        <span>Select from your saved E2Job resumes</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500 font-bold">•</span>
@@ -824,7 +824,7 @@ export default function TailoredResumeApplicationModal({
                                 {user.resumeName || "Main Profile Resume"}
                               </h5>
                               <p className="text-[11px] text-slate-500">
-                                Attached to your CareerConnect profile
+                                Attached to your E2Job profile
                               </p>
                             </div>
                             <input
@@ -885,7 +885,7 @@ export default function TailoredResumeApplicationModal({
                                   </span>
                                 </div>
                                 <h5 className="text-xs font-bold text-slate-900 mt-1">
-                                  {resume.title || "CareerConnect Resume"}
+                                  {resume.title || "E2Job Resume"}
                                 </h5>
                                 <p className="text-[11px] text-slate-500">
                                   Updated: {new Date(resume.updatedAt || resume.createdAt).toLocaleDateString()}

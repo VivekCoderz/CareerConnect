@@ -441,12 +441,12 @@ const Login = () => {
             </button>
 
             <p className="mt-2 text-center text-[11px] text-slate-400">
-              New to CareerConnect? Google sign-in sets up your account automatically.
+              New to E2Job? Google sign-in sets up your account automatically.
             </p>
           </>
 
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-            <p className="text-sm text-slate-500 mb-3">New to CareerConnect?</p>
+            <p className="text-sm text-slate-500 mb-3">New to E2Job?</p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link
                 to="/register/student"

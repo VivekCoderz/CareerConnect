@@ -1275,7 +1275,7 @@ const EmployerDashboard = () => {
             <div className="space-y-5 animate-fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">CareerConnect Talent Pool</h2>
+                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">E2Job Talent Pool</h2>
                   <p className="text-xs text-slate-500">Live candidate matching with strong & missing skill analysis</p>
                 </div>
               </div>
@@ -1390,7 +1390,7 @@ const EmployerDashboard = () => {
             <OfferManagementHub
               offers={offers}
               jobs={jobs}
-              companyName={user?.fullName || "CareerConnect Partner"}
+              companyName={user?.fullName || "E2Job Partner"}
               onRefresh={async () => {
                 const offersRes = await recruitmentService.getOffers().catch(() => ({ offers: [] }));
                 setOffers(offersRes?.offers || []);
@@ -1662,7 +1662,7 @@ const EmployerDashboard = () => {
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                      Connect Company with CareerConnect
+                      Connect Company with E2Job
                     </h2>
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
@@ -1685,7 +1685,7 @@ const EmployerDashboard = () => {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Connect your organization to CareerConnect to unlock verified enterprise workspace status, post jobs, and manage candidates.
+                    Connect your organization to E2Job to unlock verified enterprise workspace status, post jobs, and manage candidates.
                   </p>
                 </div>
 
@@ -1854,7 +1854,7 @@ const EmployerDashboard = () => {
                             </span>
                           </div>
                           <p className="text-xs text-amber-100/80 mt-1 max-w-xl">
-                            Your organization approval request was received and forwarded to the CareerConnect Super Admin team for compliance verification and enterprise tenant provisioning.
+                            Your organization approval request was received and forwarded to the E2Job Super Admin team for compliance verification and enterprise tenant provisioning.
                           </p>
                         </div>
                       </div>
@@ -2025,7 +2025,7 @@ const EmployerDashboard = () => {
                   <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h3 className="text-base font-bold text-slate-900">
-                        {isEditingOrgRequest ? "Update Company Connection Details" : "Connect Company with CareerConnect"}
+                        {isEditingOrgRequest ? "Update Company Connection Details" : "Connect Company with E2Job"}
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Submit your organization credentials below. Super Admin will verify and activate your enterprise connection.
@@ -2289,7 +2289,7 @@ const EmployerDashboard = () => {
                             </>
                           ) : (
                             <>
-                              <span>Connect Company with CareerConnect</span>
+                              <span>Connect Company with E2Job</span>
                               <span>→</span>
                             </>
                           )}
@@ -2540,7 +2540,7 @@ const EmployerDashboard = () => {
         jobs={jobs}
         applications={applications}
         initialJobId={exportJobId}
-        companyName={user?.companyName || dashboardData?.company?.name || user?.name || "CareerConnect Partner"}
+        companyName={user?.companyName || dashboardData?.company?.name || user?.name || "E2Job Partner"}
       />
     </div>
   );

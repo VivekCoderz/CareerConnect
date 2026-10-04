@@ -4,7 +4,7 @@ const platformSettingSchema = new mongoose.Schema(
   {
     platformName: {
       type: String,
-      default: "CareerConnect",
+      default: "E2Job",
       trim: true,
     },
     supportEmail: {

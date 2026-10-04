@@ -198,7 +198,7 @@ export default function JobDetailPage() {
 
   const companyName = job?.employerId?.companyName || job?.companyName || "Hiring company";
   const shareUrl = `${window.location.origin}/jobs/${id}`;
-  const shareText = job ? `${job.title} at ${companyName} – apply on CareerConnect: ${shareUrl}` : shareUrl;
+  const shareText = job ? `${job.title} at ${companyName} – apply on E2Job: ${shareUrl}` : shareUrl;
 
   const renderApply = () => {
     if (job.isExternal) {
@@ -315,7 +315,7 @@ export default function JobDetailPage() {
 
         <div className="text-center px-4 space-y-2">
           <p className="text-[11px] text-slate-400">
-            CareerConnect never asks candidates to pay for a job. If an employer asks you for money, don't pay.
+            E2Job never asks candidates to pay for a job. If an employer asks you for money, don't pay.
           </p>
           {/* Visitors (asked to log in) and candidates can report; employers and admins can't. */}
           {!job.isExternal && (!user || isCandidate) && (

@@ -806,7 +806,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       {
         id: "crs-f1",
         name: `Complete ${targetRole} Bootcamp 2026`,
-        platform: "CareerConnect Academy",
+        platform: "E2Job Academy",
         skill: missingSkills[0] || "Full Stack Architecture",
         difficulty: "Beginner to Intermediate",
         duration: "6 Weeks (Self-paced)",
@@ -830,7 +830,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       {
         id: "crs-f3",
         name: `Modern RESTful APIs & Backend Architecture with ${missingSkills[0] || "Node.js"}`,
-        platform: "Coursera / CareerConnect",
+        platform: "Coursera / E2Job",
         skill: missingSkills[0] || "Backend Development",
         difficulty: "Intermediate",
         duration: "4 Weeks",
@@ -1063,7 +1063,7 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
       {
         id: "crs-f1",
         title: `Industry-Ready ${targetRole || benchmarkRole} FastTrack`,
-        provider: "CareerConnect Pro",
+        provider: "E2Job Pro",
         duration: "4 Weeks",
         rating: 4.9,
         skillsCovered: missing.slice(0, 3),

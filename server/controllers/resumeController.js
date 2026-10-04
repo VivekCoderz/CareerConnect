@@ -158,7 +158,7 @@ const updateResumeHandler = async (req, res) => {
 
 const syncPrimaryResumeWithProfile = async (userId, resume) => {
   try {
-    const resumeName = resume.title || "CareerConnect Resume";
+    const resumeName = resume.title || "E2Job Resume";
     const userUpdates = { resumeName };
     if (resume.resumeUrl) {
       userUpdates.resumeUrl = resume.resumeUrl;
@@ -2688,7 +2688,7 @@ const mergeVerifiedATSReport = (richReport, deterministic, candidateData, target
     totalJdSkillsCount: deterministic.matchedSkills.length + deterministic.missingSkills.length,
     matchedCount: deterministic.matchedSkills.length,
   },
-  scoreMethod: "CareerConnect deterministic ATS matcher",
+  scoreMethod: "E2Job deterministic ATS matcher",
   scoreDisclaimer: deterministic.disclaimer,
   scoreParameters,
   formatAssessment,
@@ -3078,7 +3078,7 @@ const atsPdfOptimizeHandler = async (req, res) => {
       metTarget: true,
       latex,
       pdfBase64: pdf.toString("base64"),
-      fileName: "CareerConnect_ATS_Resume.pdf",
+      fileName: "E2Job_ATS_Resume.pdf",
     });
   } catch (error) {
     console.error("atsPdfOptimizeHandler failed:", error.code || error.name || "unknown error");

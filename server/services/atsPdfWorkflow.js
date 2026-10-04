@@ -120,7 +120,7 @@ function scorePdfText(resumeText, jdText) {
     matchedKeywords,
     missingKeywords,
     requiresFix: overallScore !== null && overallScore < 70,
-    scoreDisclaimer: "CareerConnect estimates alignment from selectable PDF text. Employers use different screening methods.",
+    scoreDisclaimer: "E2Job estimates alignment from selectable PDF text. Employers use different screening methods.",
   };
 }
 
@@ -212,7 +212,7 @@ ${body}
 let activeCompilations = 0;
 function createFallbackPdf(sourceText, jdText) {
   return new Promise((resolve, reject) => {
-    const document = new PDFDocument({ size: "A4", margin: 48, info: { Title: "CareerConnect Resume" } });
+    const document = new PDFDocument({ size: "A4", margin: 48, info: { Title: "E2Job Resume" } });
     const chunks = [];
     document.on("data", (chunk) => chunks.push(chunk));
     document.on("end", () => resolve(Buffer.concat(chunks)));

@@ -403,7 +403,7 @@ const Home = () => {
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#fff7ed] border border-[#fed7aa] text-[12px] font-semibold text-[#c2410c] mb-5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b]" />
-                Official Career Platform · CareerConnect
+                Official Career Platform · E2Job
               </div>
 
               <h1 className="text-[2.35rem] sm:text-5xl lg:text-[3.25rem] font-bold tracking-tight text-slate-900 leading-[1.15]">
@@ -620,7 +620,7 @@ const Home = () => {
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-100 pb-4">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Latest internships on CareerConnect
+                Latest internships on E2Job
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
                 POPULAR CATEGORIES:{" "}
@@ -708,7 +708,7 @@ const Home = () => {
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-200/80 pb-4">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Latest jobs on CareerConnect
+                Latest jobs on E2Job
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
                 POPULAR STREAMS:{" "}
@@ -958,10 +958,10 @@ const Home = () => {
             {/* Col 5: About & Campus */}
             <div className="space-y-2.5">
               <p className="font-bold text-white uppercase tracking-wider text-[11px]">
-                About CareerConnect
+                About E2Job
               </p>
               <ul className="space-y-1.5 text-slate-400">
-                <li><Link to="/contact" className="hover:text-white">About CareerConnect</Link></li>
+                <li><Link to="/contact" className="hover:text-white">About E2Job</Link></li>
                 <li><Link to="/opportunities?source=campus" className="hover:text-white">Opportunities</Link></li>
                 {FEATURES.courses && <li><Link to="/courses" className="hover:text-white">Training & Certifications</Link></li>}
                 <li><Link to="/register/employer" className="hover:text-white">Hire Talent</Link></li>
@@ -971,7 +971,7 @@ const Home = () => {
           </div>
 
           <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
-            <p>© {new Date().getFullYear()} CareerConnect. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} E2Job. All rights reserved.</p>
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
               <Link to="/privacy" className="hover:text-slate-300">Privacy Policy</Link>
               <span>•</span>

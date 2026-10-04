@@ -53,7 +53,7 @@ exports.sendRecommendationMail = async (req, res) => {
 
     const isInternship = topPick.type === "internship";
     const title = `AI Recommendation: Top Pick ${topPick.title} at ${topPick.company}`;
-    const preview = `CareerConnect AI matched your profile with ${topPick.title} based on your technical competencies.`;
+    const preview = `E2Job AI matched your profile with ${topPick.title} based on your technical competencies.`;
     const content = `
 Hello,
 

@@ -348,7 +348,7 @@ const analyzeATSMatch = (resumeData, opportunity) => {
     matchedKeywords,
     missingKeywords,
     suggestions,
-    disclaimer: "CareerConnect match score is an estimate. Hiring platforms and employers may score resumes differently.",
+    disclaimer: "E2Job match score is an estimate. Hiring platforms and employers may score resumes differently.",
   };
 };
 

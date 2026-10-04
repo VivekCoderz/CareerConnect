@@ -65,7 +65,7 @@ const ApplyReviewModal = ({
                     : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                 }`}
               >
-                {isExternal ? "🔵 Apply on Company Website" : "🟢 Direct Apply via CareerConnect"}
+                {isExternal ? "🔵 Apply on Company Website" : "🟢 Direct Apply via E2Job"}
               </span>
               <span className="text-xs text-slate-400">· {opportunity.location || "Remote"}</span>
             </div>

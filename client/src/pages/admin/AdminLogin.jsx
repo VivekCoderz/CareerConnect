@@ -196,7 +196,7 @@ const AdminLogin = () => {
 
         {/* Footer */}
         <p className="text-center text-[11px] text-slate-500">
-          CareerConnect Platform Administration · v2.4
+          E2Job Platform Administration · v2.4
         </p>
       </div>
     </div>
