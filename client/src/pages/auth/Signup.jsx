@@ -781,7 +781,7 @@ const Signup = () => {
           <div className="mb-6 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
             <div className="flex items-center justify-between">
               {[
-                { num: 1, label: "Verify Email" },
+                { num: 1, label: "Create Account" },
                 { num: 2, label: "Profile Info" },
                 { num: 3, label: "Interests" },
                 { num: 4, label: "AI Resume" },

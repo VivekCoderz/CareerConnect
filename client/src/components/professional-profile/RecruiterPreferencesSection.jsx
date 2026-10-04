@@ -25,7 +25,8 @@ const RecruiterPreferencesSection = ({
   onChange,
 }) => {
   const [allowContact, setAllowContact] = useState(
-    recruiterPreferences?.allowContact ?? true
+    // Off unless the professional turned it on (opt-in).
+    recruiterPreferences?.allowContact ?? false
   );
   const [preferredContactMethod, setPreferredContactMethod] = useState(
     recruiterPreferences?.preferredContactMethod || "Email"

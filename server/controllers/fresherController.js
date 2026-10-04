@@ -328,7 +328,8 @@ const calculateJobMatch = (
 
   // No skills on the profile yet: no basis for a match score.
   if (allProfileSkills.length === 0) return 0;
-  if (jobRequiredSkills.length === 0) return 85;
+  // The job lists no skills: nothing to match against, so no score (not a default 85%).
+  if (jobRequiredSkills.length === 0) return null;
 
   let matched = 0;
   jobRequiredSkills.forEach((reqSkill) => {
@@ -353,7 +354,8 @@ const calculateJobMatch = (
     matchPct = Math.min(100, matchPct + 10);
   }
 
-  return Math.min(98, Math.max(45, matchPct));
+  // The real percentage: no 45% floor, no 98% cap.
+  return Math.min(100, Math.max(0, matchPct));
 };
 
 // ==========================================
