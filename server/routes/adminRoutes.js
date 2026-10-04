@@ -128,6 +128,12 @@ router.delete("/companies/:id", requireSuperAdmin, deleteAdminCompany);
 // External job feeds: run the scheduled sync now (SUPER_ADMIN)
 router.post("/jobs/sync", requireSuperAdmin, syncExternalJobs);
 
+// Monitoring check (I08): throws a test error so it shows up in Sentry. The client gets the
+// normal 500 response. SUPER_ADMIN only, so ordinary users cannot trigger it.
+router.post("/debug/sentry-test", requireSuperAdmin, (req) => {
+  throw new Error(`Sentry test error (backend) ${new Date().toISOString()} by admin ${req.user._id}`);
+});
+
 // Company Admins Management
 router.get("/company-admins", requireSuperAdmin, getCompanyAdmins);
 router.post("/company-admins", requireSuperAdmin, sanitizeInputs, createCompanyAdmin);
