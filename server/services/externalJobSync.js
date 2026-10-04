@@ -22,6 +22,8 @@ const MAX_ITEMS_PER_FEED = 300;
 const REQUEST_TIMEOUT_MS = 15000;
 // Remotive asks API users to fetch only a few times a day, so the default is every 6 hours.
 const DEFAULT_INTERVAL_HOURS = 6;
+// Feed listings closed as expired for longer than this are deleted to keep storage small.
+const CLOSED_RETENTION_DAYS = 14;
 
 const FEEDS = {
   Remotive: {
@@ -256,6 +258,27 @@ const syncSource = async (source, now) => {
   return stats;
 };
 
+/**
+ * Deletes feed listings (jobs and internships) the expiry sweep closed more than
+ * CLOSED_RETENTION_DAYS ago. CareerConnect listings, open listings and listings closed for
+ * any other reason (e.g. by an admin) are kept. Safe to run repeatedly.
+ */
+const deleteOldClosedFeedListings = async ({ now = new Date() } = {}) => {
+  const filter = {
+    isExternal: true,
+    source: { $in: APPROVED_SOURCES },
+    status: "Closed",
+    closedReason: "expired",
+    closedAt: { $ne: null, $lt: new Date(now.getTime() - CLOSED_RETENTION_DAYS * DAY_MS) },
+  };
+  const [jobs, internships] = await Promise.all([Job.deleteMany(filter), Internship.deleteMany(filter)]);
+  const result = { jobs: jobs.deletedCount, internships: internships.deletedCount };
+  console.log(
+    `[job-sync] I04 cleanup: deleted ${result.jobs + result.internships} expired feed listings (jobs: ${result.jobs}, internships: ${result.internships})`
+  );
+  return result;
+};
+
 let running = null;
 
 /**
@@ -280,6 +303,13 @@ const runExternalJobSync = ({ now = new Date() } = {}) => {
       }),
       { fetched: 0, inserted: 0, updated: 0, invalid: 0, failed: 0 }
     );
+    // A cleanup failure is logged but never fails the sync.
+    let cleanup = null;
+    try {
+      cleanup = await deleteOldClosedFeedListings({ now });
+    } catch (err) {
+      console.error("[job-sync] I04 cleanup failed:", err.message);
+    }
     // Cached feed results would otherwise hide new listings for up to 30 minutes.
     require("./jobScraperService").clearSearchCache();
     const result = {
@@ -287,6 +317,7 @@ const runExternalJobSync = ({ now = new Date() } = {}) => {
       finishedAt: new Date(),
       ...totals,
       upserted: totals.inserted + totals.updated,
+      cleanup,
       sources,
     };
     const perSource = Object.entries(sources)
@@ -338,14 +369,16 @@ const startExternalJobSyncSchedule = () => {
     console.log("[job-sync] scheduled external job sync is disabled");
     return null;
   }
-  setTimeout(runScheduledSyncIfDue, 60 * 1000);
-  return setInterval(runScheduledSyncIfDue, 30 * 60 * 1000);
+  // unref: the HTTP server keeps the process alive; these timers alone shouldn't.
+  setTimeout(runScheduledSyncIfDue, 60 * 1000).unref();
+  return setInterval(runScheduledSyncIfDue, 30 * 60 * 1000).unref();
 };
 
 module.exports = {
   APPROVED_SOURCES,
   normalizeFeedJob,
   runExternalJobSync,
+  deleteOldClosedFeedListings,
   runScheduledSyncIfDue,
   startExternalJobSyncSchedule,
   getSyncIntervalMs,
