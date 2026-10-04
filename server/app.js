@@ -38,6 +38,7 @@ const opportunityRoutes = require("./routes/opportunityRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
 const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
+const reportRoutes = require("./routes/reportRoutes.js");
 const { configureTrustProxy } = require("./config/trustProxy");
 const { globalLimiter } = require("./middleware/rateLimitMiddleware");
 const dbStatus = require("./utils/dbStatus");
@@ -175,6 +176,7 @@ app.use("/api/fresher/recommendations", recommendationRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiAssistantRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/reports", reportRoutes);
 
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
 

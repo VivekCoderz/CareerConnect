@@ -6,6 +6,7 @@ import { getMyAppliedIds } from "../../services/applicationService";
 import { applyToOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
 import { isCandidateUser } from "../../utils/userRoles";
 import ShareButtons from "../../components/common/ShareButtons";
+import ReportListingButton from "../../components/common/ReportListingButton";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
@@ -312,9 +313,12 @@ export default function JobDetailPage() {
           </Section>
         )}
 
-        <p className="text-[11px] text-slate-400 text-center px-4">
-          CareerConnect never asks candidates to pay for a job. If an employer asks you for money, don't pay.
-        </p>
+        <div className="text-center px-4 space-y-2">
+          <p className="text-[11px] text-slate-400">
+            CareerConnect never asks candidates to pay for a job. If an employer asks you for money, don't pay.
+          </p>
+          {!job.isExternal && <ReportListingButton opportunityType="Job" opportunityId={String(job._id)} />}
+        </div>
       </div>
     );
   };

@@ -9,6 +9,7 @@ import { getStudentProfile } from "../../services/studentProfileService";
 import ResumeUploadInput from "../../components/common/ResumeUploadInput";
 import BrandLogo from "../../components/common/BrandLogo";
 import ShareButtons from "../../components/common/ShareButtons";
+import ReportListingButton from "../../components/common/ReportListingButton";
 import { isCandidateUser } from "../../utils/userRoles";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
@@ -652,6 +653,15 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
               )
             )}
           </section>
+
+          {!internship.isExternal && (
+            <div className="text-center space-y-1.5 px-2">
+              <p className="text-[11px] text-slate-400">
+                CareerConnect never asks candidates to pay. If an employer asks you for money, don't pay.
+              </p>
+              <ReportListingButton opportunityType="Internship" opportunityId={String(internship._id || internshipId)} />
+            </div>
+          )}
         </div>
       </div>
 
