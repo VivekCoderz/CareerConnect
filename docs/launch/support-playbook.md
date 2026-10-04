@@ -18,6 +18,7 @@ We use **Cloudflare Email Routing** (free) on `codeformode.in`. It forwards mail
    | `report@codeformode.in` | Fake jobs, anyone asking for money |
    | `employers@codeformode.in` | Employer verification, posting help |
    | `grievance@codeformode.in` | Privacy requests (DPDP Grievance Officer) |
+   | `partnerships@codeformode.in` | Colleges and placement cells |
 
 4. In the Gmail, create a **label** and **filter** per address (`To: report@…` → label `REPORT`, star it). Reports are urgent.
 5. Replies go out from the Gmail. To reply *as* `support@codeformode.in`, add it under Gmail → Settings → Accounts → "Send mail as". This needs Brevo SMTP or another sender, so leave it for after launch; replying from the Gmail is fine for now.
