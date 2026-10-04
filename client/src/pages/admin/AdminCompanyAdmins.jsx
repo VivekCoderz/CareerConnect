@@ -33,6 +33,12 @@ const AdminCompanyAdmins = () => {
   if (!isSuperAdmin) {
     return <Navigate to="/admin/company" replace />;
   }
+
+  return <AdminCompanyAdminsContent />;
+};
+
+// Hooks live here so they always run in the same order; the guard above returns early.
+const AdminCompanyAdminsContent = () => {
   const [admins, setAdmins] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);

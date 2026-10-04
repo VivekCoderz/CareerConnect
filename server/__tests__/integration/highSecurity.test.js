@@ -58,6 +58,8 @@ describe("recruitment authorization", () => {
 
   it("only creates offers for an owned job and matching application; response is one-use", async () => {
     const data = await setup();
+    // Offers go to candidates past screening (T10 transition rules).
+    await Application.updateOne({ _id: data.application._id }, { $set: { status: "Selected" } });
     const payload = {
       candidateId: data.candidate.user._id, jobId: data.job._id, applicationId: data.application._id,
       salary: 600000, joiningDate: "2027-01-01", expiryDate: "2027-02-01",

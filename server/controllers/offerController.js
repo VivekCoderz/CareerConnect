@@ -3,6 +3,20 @@ const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
 const { notifyOfferSent } = require("../services/accountNotifications");
+const { checkTransition, guardedStatusUpdate } = require("../utils/applicationStatus");
+const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
+const { startOfTodayIST } = require("../utils/listingExpiry");
+
+// An offer is active while it is waiting for an answer (and not expired) or accepted.
+const activeOfferClause = (now = new Date()) => ({
+  $or: [
+    { status: { $in: ["Accepted", "accepted"] } },
+    {
+      status: { $in: ["Sent", "sent", "Pending", "pending"] },
+      $or: [{ expiryDate: null }, { expiryDate: { $gt: now } }],
+    },
+  ],
+});
 
 const getEmployerProfileId = async (user) => {
   let profile = await EmployerProfile.findOne({ userId: user._id });
@@ -20,21 +34,13 @@ exports.getOffers = async (req, res, next) => {
   try {
     let query = {};
     if (req.user.role === "employer" || req.user.userType === "employer") {
-      const employerProfile = await EmployerProfile.findOne({ userId: req.user._id });
-      const myJobs = await Job.find(
-        {
-          $or: [
-            { createdBy: req.user._id },
-            ...(employerProfile ? [{ employerId: employerProfile._id }] : []),
-          ],
-        },
-        "_id"
-      );
-      const jobIds = myJobs.map((j) => j._id);
-      const orCond = [{ createdBy: req.user._id }];
-      if (jobIds.length > 0) orCond.push({ jobId: { $in: jobIds } });
-      if (employerProfile) orCond.push({ employerId: employerProfile._id });
-      query.$or = orCond;
+      const scope = await getOwnerScope(req.user);
+      const jobIds = await Job.distinct("_id", { $or: listingOwnerClauses(scope) });
+      query.$or = [
+        { createdBy: req.user._id },
+        ...(scope.profileId ? [{ employerId: scope.profileId }] : []),
+        ...(jobIds.length ? [{ jobId: { $in: jobIds } }] : []),
+      ];
     } else {
       query.candidateId = req.user._id;
     }
@@ -84,57 +90,91 @@ exports.createOffer = async (req, res, next) => {
       });
     }
 
-    const job = await Job.findOne({ _id: jobId, $or: [
-      { employerId }, { createdBy: req.user._id },
-    ] }).select("_id").lean();
-    const application = job && await Application.findOne({
-      _id: applicationId, candidateId, jobId: job._id,
-      status: { $nin: ["Withdrawn", "Rejected"] },
-    }).select("_id").lean();
+    const scope = await getOwnerScope(req.user);
+    const job = await Job.findOne({ _id: jobId, $or: listingOwnerClauses(scope) }).select("_id").lean();
+    const application = job && await Application.findOne({ _id: applicationId, candidateId, jobId: job._id })
+      .select("_id status").lean();
     if (!application) {
       return res.status(403).json({ success: false, message: "This application does not belong to your job." });
     }
+
+    const now = new Date();
     const parsedSalary = Number(salary);
     const parsedJoiningDate = new Date(joiningDate);
     const parsedExpiryDate = new Date(expiryDate);
     if (!Number.isFinite(parsedSalary) || parsedSalary <= 0 ||
-        Number.isNaN(parsedJoiningDate.getTime()) || Number.isNaN(parsedExpiryDate.getTime()) ||
-        parsedExpiryDate <= new Date()) {
+        Number.isNaN(parsedJoiningDate.getTime()) || Number.isNaN(parsedExpiryDate.getTime())) {
       return res.status(400).json({ success: false, message: "Invalid salary or dates" });
     }
+    // Joining can be today (IST) or later; the offer must still be open when it arrives.
+    if (parsedJoiningDate < startOfTodayIST(now)) {
+      return res.status(400).json({ success: false, message: "Joining date cannot be in the past" });
+    }
+    if (parsedExpiryDate <= now) {
+      return res.status(400).json({ success: false, message: "Offer expiry cannot be in the past" });
+    }
 
-    const offer = await JobOffer.create({
-      employerId,
-      createdBy: req.user._id,
-      candidateId,
-      jobId,
-      applicationId: application._id,
-      designation: designation || "Associate Engineer",
-      department: department || "Engineering",
-      employmentType: employmentType || "Full-time",
-      salary: parsedSalary,
-      salaryPeriod: salaryPeriod || "Per Annum (LPA)",
-      currency: currency || "INR (₹)",
-      joiningDate: parsedJoiningDate,
-      location: location || "Gurugram / Hybrid",
-      benefits: Array.isArray(benefits) ? benefits : ["Health Insurance", "Performance Bonus"],
-      expiryDate: parsedExpiryDate,
-      additionalTerms: additionalTerms || "",
-      status: "Sent",
-    });
-
-    if (applicationId) {
-      await Application.updateOne({ _id: application._id, candidateId, jobId: job._id }, {
-        status: "Offered",
-        $push: {
-          stageHistory: {
-            stage: "Offer",
-            notes: `Formal job offer sent (${salary} ${salaryPeriod})`,
-            changedBy: req.user._id,
-            changedAt: new Date(),
-          },
-        },
+    const problem = checkTransition(application.status, "Offered");
+    if (problem) {
+      return res.status(409).json({ success: false, code: "INVALID_STATUS_TRANSITION", message: problem });
+    }
+    if (await JobOffer.exists({ applicationId: application._id, ...activeOfferClause(now) })) {
+      return res.status(409).json({
+        success: false,
+        code: "ACTIVE_OFFER_EXISTS",
+        message: "This candidate already has an active offer for this application",
       });
+    }
+
+    // Claim the application first: if another request changed it meanwhile (e.g. a second
+    // offer sent at the same moment), this one stops here.
+    const claimed = await Application.updateOne({ _id: application._id, status: application.status }, {
+      $set: { status: "Offered" },
+      $push: {
+        stageHistory: {
+          stage: "Offer",
+          notes: `Formal job offer sent (${salary} ${salaryPeriod})`,
+          changedBy: req.user._id,
+          changedAt: now,
+        },
+      },
+    });
+    if (claimed.matchedCount === 0) {
+      return res.status(409).json({
+        success: false,
+        code: "ACTIVE_OFFER_EXISTS",
+        message: "This application changed while the offer was being sent. Refresh and try again.",
+      });
+    }
+
+    let offer;
+    try {
+      offer = await JobOffer.create({
+        employerId,
+        createdBy: req.user._id,
+        candidateId,
+        jobId,
+        applicationId: application._id,
+        designation: designation || "Associate Engineer",
+        department: department || "Engineering",
+        employmentType: employmentType || "Full-time",
+        salary: parsedSalary,
+        salaryPeriod: salaryPeriod || "Per Annum (LPA)",
+        currency: currency || "INR (₹)",
+        joiningDate: parsedJoiningDate,
+        location: location || "Gurugram / Hybrid",
+        benefits: Array.isArray(benefits) ? benefits : ["Health Insurance", "Performance Bonus"],
+        expiryDate: parsedExpiryDate,
+        additionalTerms: additionalTerms || "",
+        status: "Sent",
+      });
+    } catch (error) {
+      // Undo the claim so the employer can try again.
+      await Application.updateOne({ _id: application._id, status: "Offered" }, {
+        $set: { status: application.status },
+        $pop: { stageHistory: 1 },
+      });
+      throw error;
     }
 
     notifyOfferSent({ offer });
@@ -165,8 +205,7 @@ exports.respondToOffer = async (req, res, next) => {
     if (!offer) return res.status(409).json({ success: false, message: "Offer is unavailable or already answered" });
 
     if (offer.applicationId) {
-      await Application.updateOne({ _id: offer.applicationId, candidateId: req.user._id, jobId: offer.jobId }, {
-        status: status === "Accepted" ? "Hired" : "Rejected",
+      await guardedStatusUpdate(offer.applicationId, status === "Accepted" ? "Hired" : "Rejected", {
         $push: {
           stageHistory: {
             stage: status === "Accepted" ? "Hired" : "Offer Rejected",
@@ -175,7 +214,7 @@ exports.respondToOffer = async (req, res, next) => {
             changedAt: new Date(),
           },
         },
-      });
+      }, { actor: "candidate" });
     }
 
     return res.status(200).json({

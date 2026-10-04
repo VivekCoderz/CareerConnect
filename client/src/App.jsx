@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import {FEATURES} from "./config/features";
 import JourneyLoader from "./components/common/JourneyLoader";
 import { lazyWithRetry } from "./utils/lazyWithRetry";
+import { getSafeRedirect } from "./utils/authRedirect";
 import ErrorBoundary from "./components/common/ErrorBoundary";
 // Guards & Common Modals
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
@@ -22,6 +23,7 @@ const AdminOpportunities = lazyWithRetry(() => import("./pages/admin/AdminOpport
 const AdminApplications = lazyWithRetry(() => import("./pages/admin/AdminApplications"));
 const AdminReports = lazyWithRetry(() => import("./pages/admin/AdminReports"));
 const AdminSettings = lazyWithRetry(() => import("./pages/admin/AdminSettings"));
+const AdminSentryTest = lazyWithRetry(() => import("./pages/admin/AdminSentryTest"));
 
 // Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
@@ -31,6 +33,7 @@ import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
 const Home = lazyWithRetry(() => import("./pages/Home.jsx"));
 const SelectRole = lazyWithRetry(() => import("./pages/SelectRole"));
 const JobDiscoveryPage = lazyWithRetry(() => import("./pages/jobs/JobDiscoveryPage"));
+const JobDetailPage = lazyWithRetry(() => import("./pages/jobs/JobDetailPage"));
 const InternshipDiscoveryPage = lazyWithRetry(
   () => import("./pages/internships/InternshipDiscoveryPage"),
 );
@@ -162,6 +165,7 @@ const RootRoute = () => {
 
 const PublicOnlyRoute = ({ children }) => {
   const { user, isInitialized } = useSelector((state) => state.auth);
+  const location = useLocation();
   if (!isInitialized) return null;
   if (user) {
     if (user.role === "SUPER_ADMIN" || user.role === "COMPANY_ADMIN" || user.role === "admin") {
@@ -184,7 +188,7 @@ const PublicOnlyRoute = ({ children }) => {
     }
     return (
       <Navigate
-        to={getDashboardPath(user.userType || user.role, user)}
+        to={getSafeRedirect(location.search) || getDashboardPath(user.userType || user.role, user)}
         replace
       />
     );
@@ -316,6 +320,7 @@ function AppRoutes() {
               path="/jobs/category/:category"
               element={<JobDiscoveryPage />}
             />
+            <Route path="/jobs/:id" element={<JobDetailPage />} />
 
             {/* =================================================
               LIVE OPPORTUNITIES MATRIX & DISCOVERY
@@ -355,6 +360,7 @@ function AppRoutes() {
               path="/internships/category/:category"
               element={<InternshipDiscoveryPage />}
             />
+            <Route path="/internships/:id" element={<InternshipDetail />} />
 
             {/* =================================================
               GOOGLE ONBOARDING
@@ -378,7 +384,6 @@ function AppRoutes() {
                 />
               }
             >
-              <Route path="/internships/:id" element={<InternshipDetail />} />
               <Route path="/applications" element={<MyApplications />} />
 
               {FEATURES.courses && (
@@ -392,7 +397,6 @@ function AppRoutes() {
                 </>
               )}
            
-            <Route path="/internships/:id" element={<InternshipDetail />} />
             <Route path="/student/jobs/:id" element={<InternshipDetail />} />
             <Route path="/applications" element={<MyApplications />} />
             <Route path="/student/applications" element={<MyApplications />} />
@@ -505,6 +509,8 @@ function AppRoutes() {
             <Route element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}>
               <Route path="/admin/companies" element={<AdminCompanies />} />
               <Route path="/admin/company-admins" element={<AdminCompanyAdmins />} />
+              {/* Monitoring check (I08): sends test errors to Sentry */}
+              <Route path="/admin/sentry-test" element={<AdminSentryTest />} />
             </Route>
 
             {/* COMPANY_ADMIN ONLY: Own Assigned Organization Profile & Settings */}

@@ -91,7 +91,9 @@ export default function MyInternships() {
                     {["Pending Approval", "Rejected", "Draft"].includes(item.status) ? (
                       <ModerationBadge status={item.status} className="text-xs" />
                     ) : (
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100">{item.status}</span>
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100">
+                        {item.isExpired || item.closedReason === "expired" ? "Expired" : item.status}
+                      </span>
                     )}
                     <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-slate-50 text-slate-600">{item.workMode}</span>
                   </div>

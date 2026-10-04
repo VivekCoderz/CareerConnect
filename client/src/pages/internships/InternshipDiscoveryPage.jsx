@@ -1,4 +1,5 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
+import { FEATURES } from "../../config/features";
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -8,6 +9,7 @@ import InternshipDiscoveryMenu from "../../components/internships/InternshipDisc
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { getMyAppliedIds } from "../../services/applicationService";
+import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
 
 const INTERNSHIP_CITIES = [
   { value: "All", label: "All Locations" },
@@ -413,7 +415,7 @@ const InternshipDiscoveryPage = () => {
               onChange={(e) => setSelectedOppType(e.target.value)}
               className="h-9 rounded-xl border border-blue-200 bg-blue-50/50 px-2.5 text-xs font-bold text-blue-900 outline-none focus:border-blue-600"
             >
-              <option value="All">🌟 All Opportunities (160+)</option>
+              <option value="All">🌟 All Opportunities</option>
               <option value="internship">🎓 Internships</option>
               <option value="fulltime">💼 Full-Time Jobs</option>
               <option value="parttime">⏰ Part-Time</option>
@@ -445,7 +447,7 @@ const InternshipDiscoveryPage = () => {
           <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Quick:</span>
             {[
-              { label: "🌟 All 160+ Opportunities", value: "All", type: "opp" },
+              { label: "🌟 All Opportunities", value: "All", type: "opp" },
               { label: "🎓 Internships Only", value: "internship", type: "opp" },
               { label: "💼 Full-Time Jobs", value: "fulltime", type: "opp" },
               { label: "🏠 Remote / WFH", value: "Remote", type: "work" },
@@ -505,7 +507,11 @@ const InternshipDiscoveryPage = () => {
                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
                         {intItem.type || "Opportunity"}
                       </span>
-                      <h3 className="text-base font-bold text-slate-900">{intItem.title}</h3>
+                      <h3 className="text-base font-bold text-slate-900">
+                        <OpportunityTitleLink item={intItem} type="Internship" className="hover:text-blue-700 hover:underline">
+                          {intItem.title}
+                        </OpportunityTitleLink>
+                      </h3>
                       <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
                         {intItem.workMode}
                       </span>
@@ -547,17 +553,20 @@ const InternshipDiscoveryPage = () => {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-                    <button
-                      onClick={() => handleSaveToggle(intItem)}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                        isSaved
-                          ? "bg-amber-50 border-amber-300 text-amber-600"
-                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                      title={isSaved ? "Saved" : "Save Internship"}
-                    >
-                      {isSaved ? "★ Saved" : "☆ Save"}
-                    </button>
+                    {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                    {FEATURES.savedJobs && (
+                      <button
+                        onClick={() => handleSaveToggle(intItem)}
+                        className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                          isSaved
+                            ? "bg-amber-50 border-amber-300 text-amber-600"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                        }`}
+                        title={isSaved ? "Saved" : "Save Internship"}
+                      >
+                        {isSaved ? "★ Saved" : "☆ Save"}
+                      </button>
+                    )}
 
                     {appliedInternshipIds.has(String(intItem._id || intItem.id)) ? (
                       <button type="button" disabled className="px-5 py-2.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">

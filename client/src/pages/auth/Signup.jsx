@@ -23,6 +23,15 @@ import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
 import { TERMS_VERSION } from "../../config/legal";
 
+const GoogleIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+  </svg>
+);
+
 const EyeIcon = ({ hidden = false }) => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     {hidden ? (
@@ -120,6 +129,10 @@ const Signup = () => {
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState("");
+  // Google is the main sign-up; the email + OTP form opens on request.
+  const [showEmailSignup, setShowEmailSignup] = useState(false);
+  // Server answered EMAIL_SIGNUP_BUSY: no email provider could send the OTP.
+  const [emailBusyMessage, setEmailBusyMessage] = useState("");
 
   // OTP verification state
   const [checkingEmail, setCheckingEmail] = useState(false);
@@ -264,6 +277,7 @@ const Signup = () => {
 
       setOtpError("");
       setOtpSuccessMsg("");
+      setEmailBusyMessage("");
 
       await api.post("/auth/send-otp", {
         email: emailToVerify,
@@ -287,10 +301,16 @@ const Signup = () => {
           return prev - 1;
         });
       }, 1000);
+      return true;
     } catch (err) {
       const msg =
         err.response?.data?.message ||
         "Failed to send OTP. Try again.";
+
+      if (err.response?.data?.code === "EMAIL_SIGNUP_BUSY") {
+        setEmailBusyMessage(msg);
+        return false;
+      }
 
       const field = err.response?.data?.field || "email";
 
@@ -298,6 +318,7 @@ const Signup = () => {
         ...prev,
         [field]: msg,
       }));
+      return false;
     } finally {
       setCheckingEmail(false);
     }
@@ -434,11 +455,13 @@ const Signup = () => {
     // Strict Gating: Email MUST be verified with OTP before proceeding to Step 2
     if (!emailVerified) {
       if (!otpSent) {
-        await handleSendEmailOTP();
-        setFieldErrors((prev) => ({
-          ...prev,
-          email: "Verification OTP sent! Enter the 6-digit code below to verify your email.",
-        }));
+        // Only on success: on failure the send error stays visible.
+        if (await handleSendEmailOTP()) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            email: "Verification OTP sent! Enter the 6-digit code below to verify your email.",
+          }));
+        }
       } else if (otp.trim().length === 6) {
         await handleVerifyInlineOTP();
       } else {
@@ -820,17 +843,56 @@ const Signup = () => {
               {/* Header */}
               <div className="text-center mb-6">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-[12px] font-semibold text-[#008bdc] mb-2">
-                  Step 1 of 4 · Account & Email OTP Verification
+                  Step 1 of 4 · Create your account
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                   Welcome to CareerConnect
                 </h1>
                 <p className="text-sm text-slate-500 mt-1.5">
-                  Verify your email and create a password to get started
+                  Sign up in one click with your Google account
                 </p>
               </div>
 
               <div className="space-y-4">
+                {/* Primary sign-up: Google (no OTP email needed) */}
+                {googleError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700">
+                    {googleError}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleGoogleSignup}
+                  disabled={googleLoading}
+                  className="w-full h-12 rounded-xl border border-slate-300 bg-white text-slate-800 text-[15px] font-semibold transition flex items-center justify-center gap-3 hover:bg-slate-50 hover:border-[#008bdc] disabled:opacity-60 shadow-md cursor-pointer"
+                >
+                  {googleLoading ? (
+                    <span className="w-5 h-5 border-2 border-slate-300 border-t-[#008bdc] rounded-full animate-spin" />
+                  ) : (
+                    <GoogleIcon />
+                  )}
+                  Continue with Google
+                </button>
+
+                <div className="flex items-center gap-3 my-2">
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-xs text-slate-400 font-medium">OR</span>
+                  <div className="flex-1 h-px bg-slate-200" />
+                </div>
+
+                {!showEmailSignup ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailSignup(true)}
+                    className="w-full h-11 rounded-xl border border-slate-200 bg-white text-slate-600 text-sm font-semibold transition hover:bg-slate-50 cursor-pointer"
+                  >
+                    Sign up with email
+                  </button>
+                ) : (
+                <>
+                <h2 className="text-sm font-bold text-slate-800">Sign up with email</h2>
+
                 {/* Email Input with Verify OTP */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
@@ -930,7 +992,7 @@ const Signup = () => {
                         ) : (
                           <button
                             type="button"
-                            onClick={handleResendOTP}
+                            onClick={handleSendEmailOTP}
                             disabled={checkingEmail}
                             className="text-[11px] font-bold text-[#008bdc] hover:underline"
                           >
@@ -984,6 +1046,21 @@ const Signup = () => {
 
                   {fieldErrors.email && (
                     <p className="text-xs text-red-500 mt-1.5">{fieldErrors.email}</p>
+                  )}
+
+                  {emailBusyMessage && (
+                    <div role="alert" className="mt-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 space-y-2.5">
+                      <p className="text-xs font-medium text-amber-800">{emailBusyMessage}</p>
+                      <button
+                        type="button"
+                        onClick={handleGoogleSignup}
+                        disabled={googleLoading}
+                        className="w-full h-10 rounded-lg border border-slate-300 bg-white text-slate-800 text-sm font-semibold transition flex items-center justify-center gap-2.5 hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
+                      >
+                        <GoogleIcon />
+                        Continue with Google
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -1102,38 +1179,8 @@ const Signup = () => {
                     ? "✓ Email verified successfully! Click the button above to proceed to Step 2."
                     : "🔒 Email verification via 6-digit OTP is required before proceeding to Step 2."}
                 </p>
-
-                {/* Google Sign-in Alternative */}
-                <div className="flex items-center gap-3 my-2">
-                  <div className="flex-1 h-px bg-slate-200" />
-
-                  <span className="text-xs text-slate-400 font-medium">
-                    OR
-                  </span>
-
-                  <div className="flex-1 h-px bg-slate-200" />
-                </div>
-
-                {googleError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700">
-                    {googleError}
-                  </div>
+                </>
                 )}
-
-                <button
-                  type="button"
-                  onClick={handleGoogleSignup}
-                  disabled={googleLoading}
-                  className="w-full h-11 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold transition flex items-center justify-center gap-3 hover:bg-slate-50 shadow-sm"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                  </svg>
-                  Continue with Google
-                </button>
 
                 <p className="text-center text-xs text-slate-500 pt-2">
                   Already have an account?{" "}

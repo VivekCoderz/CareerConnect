@@ -26,7 +26,7 @@ const ProfessionalHeader = ({
     propRole ||
     profile?.currentEmployment?.jobTitle ||
     profile?.professionalHeadline ||
-    "Senior Software Engineer";
+    "Not set yet";
   const profileImage = user?.profileImage || profile?.userId?.profileImage;
   const initial = professionalName.charAt(0).toUpperCase();
   const unreadCount = notifications.filter((n) => !n.isRead).length;

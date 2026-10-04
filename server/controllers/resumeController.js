@@ -29,9 +29,10 @@ const {
   selectBestATSResume,
 } = require("../services/atsScoringService.js");
 const { runWithGeminiCascade } = require("../services/geminiCascade");
-const { splitOtherSkills } = require("../utils/skills");
+const { splitOtherSkills, mergeSkillStrings } = require("../utils/skills");
 const mongoose = require("mongoose");
 const atsPdfWorkflow = require("../services/atsPdfWorkflow");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 /**
  * POST /api/resume/generate
@@ -1924,15 +1925,18 @@ const confirmParsedProfileHandler = async (req, res) => {
           ...currentSkills.toObject?.(),
           programmingLanguages: mergeSkillStrings(
             currentSkills.programmingLanguages || [],
-            splitSkills(parsedData.skills?.programmingLanguages)
+            splitSkills(parsedData.skills?.programmingLanguages),
+            { asObjects: true }
           ),
           frameworks: mergeSkillStrings(
             currentSkills.frameworks || [],
-            splitSkills(parsedData.skills?.frameworks)
+            splitSkills(parsedData.skills?.frameworks),
+            { asObjects: true }
           ),
           tools: mergeSkillStrings(
             currentSkills.tools || [],
-            splitSkills(parsedData.skills?.tools)
+            splitSkills(parsedData.skills?.tools),
+            { asObjects: true }
           ),
         };
       }
@@ -2182,7 +2186,7 @@ const analyzeATSResumeHandler = async (req, res) => {
       }
       const isInternship = String(opportunityType || "").toLowerCase() === "internship";
       const Model = isInternship ? Internship : Job;
-      const record = await Model.findOne({ _id: opportunityId, status: "Published" }).lean();
+      const record = await Model.findOne(openListingQuery({ _id: opportunityId })).lean();
       if (!record) return res.status(404).json({ success: false, message: "Published opportunity not found" });
       opportunity = {
         title: record.title,

@@ -42,8 +42,8 @@ const CareerRecommendationsPage = () => {
     targetRole: "",
     careerGoal: "",
     preferredLocations: "",
-    workMode: "Remote",
-    expectedSalaryMin: 4,
+    workMode: "",
+    expectedSalaryMin: "",
   });
 
   const showToast = (message, type = "success") => {
@@ -64,11 +64,11 @@ const CareerRecommendationsPage = () => {
         setData(res.data);
         if (res.data.careerSummary) {
           setPrefForm({
-            targetRole: res.data.careerSummary.targetRole || "Full Stack Developer",
-            careerGoal: res.data.careerSummary.careerGoal || "Get my first full-time job",
-            preferredLocations: res.data.careerSummary.preferredLocations || "Bangalore, Remote",
-            workMode: res.data.careerSummary.workMode?.split(" / ")[0] || "Remote",
-            expectedSalaryMin: 4,
+            targetRole: res.data.careerSummary.targetRole || "",
+            careerGoal: res.data.careerSummary.careerGoal || "",
+            preferredLocations: res.data.careerSummary.preferredLocations || "",
+            workMode: res.data.careerSummary.workMode?.split(" / ")[0] || "",
+            expectedSalaryMin: "",
           });
         }
       }
@@ -99,15 +99,20 @@ const CareerRecommendationsPage = () => {
       await api.patch("/fresher/profile", {
         targetRole: prefForm.targetRole,
         careerGoal: prefForm.careerGoal,
+        // Only what was filled in: blank role, work mode or salary isn't saved.
         jobPreferences: {
-          preferredRoles: [prefForm.targetRole],
+          preferredRoles: prefForm.targetRole ? [prefForm.targetRole] : [],
           preferredLocations: locArray,
-          workMode: [prefForm.workMode],
-          expectedSalary: {
-            min: Number(prefForm.expectedSalaryMin) * 100000,
-            max: (Number(prefForm.expectedSalaryMin) + 4) * 100000,
-            currency: "INR (LPA)",
-          },
+          workMode: prefForm.workMode ? [prefForm.workMode] : [],
+          ...(prefForm.expectedSalaryMin !== ""
+            ? {
+                expectedSalary: {
+                  min: Number(prefForm.expectedSalaryMin) * 100000,
+                  max: (Number(prefForm.expectedSalaryMin) + 4) * 100000,
+                  currency: "INR (LPA)",
+                },
+              }
+            : {}),
         },
       });
 
@@ -231,13 +236,13 @@ const CareerRecommendationsPage = () => {
             {/* Quick Profile Summary Bar */}
             <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 text-xs font-medium text-slate-600">
               <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800">
-                🎯 <strong>{careerSummary.targetRole || "Full Stack Developer"}</strong>
+                🎯 <strong>{careerSummary.targetRole || "Target role not set yet"}</strong>
               </span>
               <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800">
-                📍 {careerSummary.preferredLocations || "Remote / Pan-India"}
+                📍 {careerSummary.preferredLocations || "Locations not set yet"}
               </span>
               <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800">
-                💼 {careerSummary.workMode || "Remote"}
+                💼 {careerSummary.workMode || "Work mode not set yet"}
               </span>
               <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800">
                 🎓 Fresher (0–1 yr)
@@ -321,7 +326,7 @@ const CareerRecommendationsPage = () => {
                     <div className="text-left md:text-right space-y-2 shrink-0">
                       <div className="flex items-baseline md:justify-end gap-2">
                         <span className="text-3xl font-black text-emerald-400">
-                          {topOverallMatch.matchScore || 87}%
+                          {topOverallMatch.matchScore ?? 0}%
                         </span>
                         <span className="text-xs text-slate-300">Match Score</span>
                       </div>
@@ -845,6 +850,7 @@ const CareerRecommendationsPage = () => {
                   onChange={(e) => setPrefForm({ ...prefForm, workMode: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600 focus:outline-none"
                 >
+                  <option value="">Select work mode</option>
                   <option value="Remote">Remote</option>
                   <option value="Hybrid">Hybrid</option>
                   <option value="On-site">On-site</option>

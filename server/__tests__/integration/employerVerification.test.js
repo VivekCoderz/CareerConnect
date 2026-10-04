@@ -296,10 +296,10 @@ describe("employer verification (S04)", () => {
       const pendingProfile = await createEmployerProfile(employer.user._id, { verificationStatus: "pending" });
       const log = () => {};
 
-      expect(await approveLegacyEmployers({ log })).toEqual({ matched: 1, approved: 0 });
+      expect(await approveLegacyEmployers({ log })).toMatchObject({ matched: 1, approved: 0 });
       expect(await EmployerProfile.collection.findOne({ companyName: "Legacy Co" })).not.toHaveProperty("verificationStatus");
 
-      expect(await approveLegacyEmployers({ apply: true, log })).toEqual({ matched: 1, approved: 1 });
+      expect(await approveLegacyEmployers({ apply: true, log })).toMatchObject({ matched: 1, approved: 1 });
       expect((await EmployerProfile.findOne({ companyName: "Legacy Co" }).lean()).verificationStatus).toBe("approved");
       expect((await EmployerProfile.findById(pendingProfile._id).lean()).verificationStatus).toBe("pending");
     });

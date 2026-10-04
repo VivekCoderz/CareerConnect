@@ -219,7 +219,24 @@ function isOngoingInterview(interview, referenceTime = new Date()) {
   return getInterviewTimeDetails(interview, referenceTime).isOngoing;
 }
 
+/**
+ * Start instant for an interview (scheduledDate + start time), falling back to the bare
+ * date. Returns null when the date can't be parsed. Used to fill Interview.scheduledAt.
+ */
+function computeScheduledAt(interview) {
+  if (!interview?.scheduledDate) return null;
+  try {
+    const times = getInterviewDateTimes(interview);
+    if (times?.startDateTime && !isNaN(times.startDateTime.getTime())) return times.startDateTime;
+  } catch {
+    // fall back to the bare date below
+  }
+  const parsed = new Date(interview.scheduledDate);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
 module.exports = {
+  computeScheduledAt,
   parseTimeString,
   parseDateParts,
   extractTimeStrings,

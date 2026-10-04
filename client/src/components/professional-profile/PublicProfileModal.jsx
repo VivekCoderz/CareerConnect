@@ -55,10 +55,11 @@ const PublicProfileModal = ({ isOpen, profile, user, onClose }) => {
                   {user?.fullName || profile?.fullName || "Senior Professional"}
                 </h1>
                 <p className="text-purple-200 text-xs sm:text-sm mt-0.5">
-                  {profile?.currentEmployment?.jobTitle || profile?.professionalHeadline || "Senior Software Engineer"}
+                  {profile?.currentEmployment?.jobTitle || profile?.professionalHeadline || "Role not provided"}
                 </p>
                 <p className="text-[11px] text-purple-300 mt-1">
-                  📍 {profile?.location?.city || "Bangalore"}, {profile?.location?.country || "India"} • {currentEmp.workMode || "Hybrid"}
+                  📍 {[profile?.location?.city, profile?.location?.country].filter(Boolean).join(", ") || "Location not provided"}
+                  {currentEmp.company && currentEmp.workMode ? ` • ${currentEmp.workMode}` : ""}
                 </p>
               </div>
             </div>
@@ -91,19 +92,19 @@ const PublicProfileModal = ({ isOpen, profile, user, onClose }) => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-white/10 text-center">
             <div className="p-2.5 rounded-xl bg-white/5">
               <span className="text-[10px] text-purple-200 block">Total Experience</span>
-              <span className="text-xs font-bold">{profile?.totalExperienceYears || 4}+ Years</span>
+              <span className="text-xs font-bold">{profile?.totalExperienceYears ? `${profile.totalExperienceYears}+ Years` : "Not provided"}</span>
             </div>
             <div className="p-2.5 rounded-xl bg-white/5">
               <span className="text-[10px] text-purple-200 block">Current Role</span>
-              <span className="text-xs font-bold truncate block">{currentEmp.jobTitle || "Senior Software Engineer"}</span>
+              <span className="text-xs font-bold truncate block">{currentEmp.jobTitle || "Not provided"}</span>
             </div>
             <div className="p-2.5 rounded-xl bg-white/5">
               <span className="text-[10px] text-purple-200 block">Notice Period</span>
-              <span className="text-xs font-bold">{profile?.availability?.noticePeriod || "30 Days"}</span>
+              <span className="text-xs font-bold">{profile?.availability?.noticePeriod || "Not provided"}</span>
             </div>
             <div className="p-2.5 rounded-xl bg-white/5">
               <span className="text-[10px] text-purple-200 block">Target Role</span>
-              <span className="text-xs font-bold truncate block">{profile?.careerGoal?.targetRole || "Engineering Lead / Staff"}</span>
+              <span className="text-xs font-bold truncate block">{profile?.careerGoal?.targetRole || "Not provided"}</span>
             </div>
           </div>
         </div>

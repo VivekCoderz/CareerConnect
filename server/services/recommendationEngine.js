@@ -4,6 +4,7 @@ const Course = require("../models/Course");
 const Application = require("../models/Application");
 const FresherProfile = require("../models/FresherProfile");
 const User = require("../models/User");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 // Industry standard baseline skill matrix by role
 const ROLE_SKILL_BENCHMARKS = {
@@ -376,7 +377,7 @@ const generateFresherRecommendations = async (userId) => {
   );
 
   // 3. Fetch Active Published Jobs & calculate dynamic skill demand
-  const activeJobs = await Job.find({ status: "Published" })
+  const activeJobs = await Job.find(openListingQuery())
     .sort({ isFeatured: -1, createdAt: -1 })
     .limit(50)
     .lean();
@@ -468,7 +469,7 @@ const generateFresherRecommendations = async (userId) => {
     .slice(0, 10);
 
   // 6. Internship Recommendations
-  const activeInternships = await Internship.find({ status: "Published" })
+  const activeInternships = await Internship.find(openListingQuery())
     .sort({ createdAt: -1 })
     .limit(20)
     .lean();
@@ -775,28 +776,33 @@ const generateFresherRecommendations = async (userId) => {
   const topOverallMatch = {
     roleTitle: targetRole,
     matchScore: Math.min(94, Math.round((masteredSkills.length / Math.max(1, benchmarkSkills.length)) * 100 + 20)),
+    // Only reasons backed by what is on the profile.
     reasons: [
-      `${masteredSkills.slice(0, 3).join(", ") || "Your core skills"} match entry requirements for ${targetRole}`,
-      `${profile.education?.[0]?.degree || "Your degree"} provides strong eligibility for technology roles`,
-      `${existingProjects.length > 0 ? "You have project evidence in your portfolio" : "Eligible for entry-level fresher hiring programs"}`,
-      `Matches your preference for ${profile.jobPreferences?.workMode?.join(" / ") || "Remote / Hybrid"} opportunities`,
-    ],
+      masteredSkills.length > 0 &&
+        `${masteredSkills.slice(0, 3).join(", ")} match entry requirements for ${targetRole}`,
+      profile.education?.[0]?.degree &&
+        `${profile.education[0].degree} provides strong eligibility for technology roles`,
+      existingProjects.length > 0 ? "You have project evidence in your portfolio" : "Eligible for entry-level fresher hiring programs",
+      profile.jobPreferences?.workMode?.length > 0 &&
+        `Matches your preference for ${profile.jobPreferences.workMode.join(" / ")} opportunities`,
+    ].filter(Boolean),
     missingSkills: missingSkillsList.slice(0, 2).map((m) => m.skill),
   };
 
   // Compact Summary for Top Section
+  // What the fresher set; "" when not set (targetRole above has a default for matching only).
   const careerSummary = {
-    targetRole,
+    targetRole: profile.targetRole || profile.jobPreferences?.preferredRoles?.[0] || "",
     experienceLevel: "Fresher (0–1 Year)",
     preferredLocations: profile.jobPreferences?.preferredLocations?.length > 0
       ? profile.jobPreferences.preferredLocations.join(", ")
-      : "Remote / Pan-India",
+      : "",
     workMode: profile.jobPreferences?.workMode?.length > 0
       ? profile.jobPreferences.workMode.join(" / ")
-      : "Remote / Hybrid",
+      : "",
     topSkills: masteredSkills.length > 0 ? masteredSkills.slice(0, 5) : ["Add Skills"],
-    careerGoal: profile.careerGoal || "Get my first full-time job",
-    profileCompleteness: profile.profileCompletion || 65,
+    careerGoal: profile.careerGoal || "",
+    profileCompleteness: profile.profileCompletion || 0,
     lastUpdated: new Date().toISOString(),
   };
 

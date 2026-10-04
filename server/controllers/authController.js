@@ -14,7 +14,6 @@ const getFirebaseAdmin = require("../config/firebaseAdmin.js");
 const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
 const { deleteAccount } = require("../services/accountDeletion.js");
-const { recordOtpEmail } = require("../services/emailBudget.js");
 const { CONSENT_REQUIRED, readConsent } = require("../utils/consent.js");
 
 // ==========================================
@@ -141,6 +140,8 @@ const userPayload = (user, extra = {}) => ({
   ...extra,
 });
 
+const EMAIL_SIGNUP_BUSY_MESSAGE = "Email sign-up is busy right now. Please use Continue with Google or try again later.";
+
 // ==========================================
 // SEND OTP (Step 1 Continue pe call hoga)
 // ==========================================
@@ -190,8 +191,8 @@ module.exports.sendOTP = async (req, res, next) => {
     const { code: otp, otpHash } = await issueOtp(normalizedEmail, "verification");
 
     // Send email
-    recordOtpEmail();
     const delivery = await sendEmail({
+      kind: "otp",
       to: normalizedEmail,
       subject: "Your CareerConnect verification code",
       html: `
@@ -209,7 +210,8 @@ module.exports.sendOTP = async (req, res, next) => {
     });
     if (delivery?.error || (isProduction && delivery?.messageId === "simulated-email")) {
       await PendingOTP.deleteOne({ email: normalizedEmail, otpHash });
-      return res.status(503).json({ success: false, message: "Verification email is temporarily unavailable." });
+      // Brevo and the fallback provider (if any) both failed: point the student to Google sign-up.
+      return res.status(503).json({ success: false, code: "EMAIL_SIGNUP_BUSY", message: EMAIL_SIGNUP_BUSY_MESSAGE });
     }
 
     return res.status(200).json({
@@ -597,9 +599,10 @@ module.exports.registerUser = async (req, res, next) => {
           },
           skills: userData.interests,
           currentEmployment: {
-            company: currentCompany?.trim() || resolvedCollege || "Industry",
-            jobTitle: jobTitle?.trim() || "Working Professional",
-            industry: industry?.trim() || "Information Technology",
+            // Only what the user entered; blanks stay blank (no invented employer).
+            company: currentCompany?.trim() || "",
+            jobTitle: jobTitle?.trim() || "",
+            industry: industry?.trim() || "",
           },
           ...(initialResumeData ? { resume: initialResumeData } : {}),
           education: [
@@ -1367,8 +1370,8 @@ module.exports.forgotPassword = async (req, res, next) => {
 
     const { code: otp, otpHash } = await issueOtp(normalizedEmail, "reset-password");
 
-    recordOtpEmail();
     const delivery = await sendEmail({
+      kind: "otp",
       to: normalizedEmail,
       subject: "Reset your CareerConnect password",
       html: `
@@ -1980,9 +1983,10 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
             },
             skills: updateData.interests,
             currentEmployment: {
-              company: currentCompany?.trim() || resolvedCollege || "Industry",
-              jobTitle: jobTitle?.trim() || "Working Professional",
-              industry: industry?.trim() || "Information Technology",
+              // Only what the user entered; blanks stay blank (no invented employer).
+              company: currentCompany?.trim() || "",
+              jobTitle: jobTitle?.trim() || "",
+              industry: industry?.trim() || "",
             },
             education: [
               {

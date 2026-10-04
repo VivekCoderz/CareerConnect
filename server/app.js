@@ -1,11 +1,13 @@
 require("dotenv").config({ override: true });
 const express = require("express");
 const cors = require("cors");
+const compression = require("compression");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
 
 const maintenanceMode = require("./middleware/maintenanceMode");
+const { requireTextFields } = require("./middleware/textFields");
 const { parseClientUrls, isLocalDevOrigin } = require("./utils/clientOrigins");
 
 const authRoutes = require("./routes/authRoutes.js");
@@ -39,9 +41,13 @@ const adminRoutes = require("./routes/adminRoutes.js");
 const { configureTrustProxy } = require("./config/trustProxy");
 const { globalLimiter } = require("./middleware/rateLimitMiddleware");
 const dbStatus = require("./utils/dbStatus");
+const Sentry = require("@sentry/node");
 
 const app = express();
 configureTrustProxy(app);
+
+// Gzip responses over 1 KB (job and internship lists in particular)
+app.use(compression());
 
 const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
 
@@ -124,6 +130,9 @@ if (process.env.ENABLE_IP_DEBUG === "true") {
 }
 
 // Base & User Profile Routes
+// Text fields must be text and meeting links http(s) on the job portal write routes.
+app.use(["/api/jobs", "/api/internships", "/api/applications", "/api/admin", "/api/interviews", "/api/offers"], requireTextFields);
+
 app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/profile/student", studentRoutes);
@@ -223,6 +232,10 @@ app.use((err, req, res, next) => {
   }
   console.error("Server Global Error:", err);
   const status = err.code === "LIMIT_FILE_SIZE" ? 413 : err.statusCode || err.status || 500;
+  // Server faults go to Sentry (a no-op without SENTRY_DSN). Rejected CORS origins are not bugs.
+  if (status >= 500 && !String(err.message).startsWith("Not allowed by CORS")) {
+    Sentry.captureException(err, { tags: { status_code: status, route: req.route?.path || req.baseUrl || req.path } });
+  }
   return res.status(status).json({
     success: false,
     message: status >= 500 && isProduction ? "Internal server error" : err.message || "Internal server error",

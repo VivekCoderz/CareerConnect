@@ -140,7 +140,8 @@ exports.getAnalytics = async (req, res, next) => {
         interviewCount,
         offerCount,
         hiredCount,
-        averageTimeToHireDays: totalApplications > 0 ? 14 : 0,
+        // Not measured yet; the client shows "—" rather than a made-up figure.
+        averageTimeToHireDays: null,
         funnel: hiringFunnel,
       },
       learning: {

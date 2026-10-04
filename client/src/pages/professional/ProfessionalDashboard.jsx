@@ -255,22 +255,24 @@ const ProfessionalDashboard = () => {
     profile?.userId?.fullName ||
     "Imran";
 
+  // Only what the professional entered; empty fields read "Not set yet".
   const currentRole =
     profile?.currentEmployment?.jobTitle ||
     profile?.professionalHeadline ||
-    "Senior Software Engineer";
+    "Not set yet";
 
   const experienceYears =
     profile?.totalExperienceYears
       ? `${profile.totalExperienceYears}+ Years`
-      : "4+ Years";
+      : profile?.experience?.length
+        ? "Under 1 Year"
+        : "Not set yet";
 
-  const targetRole =
-    profile?.careerGoal?.targetRole ||
-    "Engineering Lead / Staff Engineer";
+  const chosenTargetRole = profile?.careerGoal?.targetRole || "";
+  const targetRole = chosenTargetRole || "Not set yet";
 
-  const profileStrength = dashboardData?.profileCompletion ?? 92;
-  const careerStrengthScore = dashboardData?.careerStrength?.score ?? 82;
+  const profileStrength = dashboardData?.profileCompletion ?? 0;
+  const careerStrengthScore = dashboardData?.careerStrength?.score ?? 0;
 
   const focusAreas = ["System Design", "Cloud Architecture", "Leadership"];
 
@@ -728,7 +730,7 @@ const ProfessionalDashboard = () => {
           {/* Career & Company Insights Dedicated Tab */}
           {activeTab === "insights" && (
             <CareerCompanyInsights
-              initialTargetRole={targetRole}
+              initialTargetRole={chosenTargetRole || undefined}
               onApplyOpportunity={(job) => handleInitiateApply(job)}
             />
           )}

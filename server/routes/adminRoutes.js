@@ -5,6 +5,7 @@ const {
   requireAdmin,
   requireSuperAdmin,
   requireCompanyAdmin,
+  requireActiveCompany,
   scopeToCompany,
 } = require("../middleware/roleMiddleware");
 const { loginLimiter } = require("../middleware/rateLimitMiddleware");
@@ -73,6 +74,8 @@ const {
   reviewOrganizationRequest,
   approveOrganizationRequest,
   rejectOrganizationRequest,
+  // External job feeds
+  syncExternalJobs,
 } = require("../controllers/adminController");
 
 // ===================================================
@@ -96,6 +99,9 @@ router.use(protect, requireAdmin);
 // Current admin identity & permissions
 router.get("/me", getAdminMe);
 
+// Everything below needs an active company for a Company Admin (ADM-11/12).
+router.use(requireActiveCompany);
+
 // Role-Aware Dynamic Dashboard
 router.get("/dashboard", getAdminDashboard);
 router.get("/search", searchAdmin);
@@ -118,6 +124,15 @@ router.get("/companies/:id", requireSuperAdmin, getAdminCompanyById);
 router.put("/companies/:id", requireSuperAdmin, sanitizeInputs, updateAdminCompany);
 router.patch("/companies/:id/status", requireSuperAdmin, updateAdminCompanyStatus);
 router.delete("/companies/:id", requireSuperAdmin, deleteAdminCompany);
+
+// External job feeds: run the scheduled sync now (SUPER_ADMIN)
+router.post("/jobs/sync", requireSuperAdmin, syncExternalJobs);
+
+// Monitoring check (I08): throws a test error so it shows up in Sentry. The client gets the
+// normal 500 response. SUPER_ADMIN only, so ordinary users cannot trigger it.
+router.post("/debug/sentry-test", requireSuperAdmin, (req) => {
+  throw new Error(`Sentry test error (backend) ${new Date().toISOString()} by admin ${req.user._id}`);
+});
 
 // Company Admins Management
 router.get("/company-admins", requireSuperAdmin, getCompanyAdmins);

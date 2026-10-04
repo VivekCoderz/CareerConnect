@@ -15,6 +15,21 @@ export const externalApplyUrl = (item) => {
 };
 
 /**
+ * Where a listing card should link: the public detail page for CareerConnect listings, or
+ * the source site for external ones (scraped ids change on every request until I04).
+ * @param {object} item - listing from a discovery/dashboard feed
+ * @param {"Job"|"Internship"} type
+ * @returns {{ to: string } | { href: string } | null}
+ */
+export const opportunityLink = (item, type = "Job") => {
+  if (isExternalOpportunity(item)) {
+    const href = externalApplyUrl(item);
+    return href ? { href } : null;
+  }
+  return { to: `${type === "Internship" ? "/internships" : "/jobs"}/${opportunityId(item)}` };
+};
+
+/**
  * Applies the signed-in candidate to a CareerConnect job or internship, or opens an
  * external listing's apply link in a new tab.
  * @param {object} item - listing from a discovery/dashboard feed

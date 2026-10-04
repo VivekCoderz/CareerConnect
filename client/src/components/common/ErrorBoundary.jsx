@@ -1,5 +1,6 @@
 import { Component } from "react";
 import { Home, RefreshCw } from "lucide-react";
+import { Sentry } from "../../monitoring/sentry";
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -13,7 +14,8 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error(error, info);
-    // TODO: Sentry (I08) plugs in here
+    // Report render errors to Sentry with the component stack (no-op without VITE_SENTRY_DSN).
+    Sentry.captureException(error, { contexts: { react: { componentStack: info?.componentStack } } });
   }
 
   render() {

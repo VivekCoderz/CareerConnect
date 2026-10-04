@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import ApplicantExportModal from "./ApplicantExportModal";
 import { openResume } from "../../utils/resumeAccess";
 import BulkActionBar from "./BulkActionBar";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 // Helper for professional role casing
 const formatRoleTitle = (str) => {
@@ -31,9 +32,10 @@ const ATSPipelineView = ({
   onCreateOffer,
   onAddNote,
   onBulkStatus,
+  initialJobId = "All", // open filtered to one job, e.g. from "View applications" on the dashboard
 }) => {
   // State
-  const [selectedJobId, setSelectedJobId] = useState("All");
+  const [selectedJobId, setSelectedJobId] = useState(initialJobId ? String(initialJobId) : "All");
   const [activeStageFilter, setActiveStageFilter] = useState("All");
   const [viewMode, setViewMode] = useState("list"); // "list" | "kanban"
   const [checkedIds, setCheckedIds] = useState(() => new Set());
@@ -80,8 +82,8 @@ const ATSPipelineView = ({
     const email = app.studentEmail || appData.email || cand.email || "N/A";
     const phone = app.studentPhone || appData.phone || cand.phone || "N/A";
     const address = appData.address || "N/A";
-    const education = app.education || appData.education || appData.degree || "B.Tech CSE";
-    const college = appData.college || "CareerConnect";
+    const education = app.education || appData.education || appData.degree || "Not provided";
+    const college = appData.college || "Not provided";
     const graduationYear = appData.graduationYear || "";
 
     let skillsList = [];
@@ -95,7 +97,7 @@ const ATSPipelineView = ({
       skillsList = app.skills.split(",").map((s) => s.trim());
     }
 
-    const experience = app.experience || appData.experience || "Fresher";
+    const experience = app.experience || appData.experience || "Not provided";
     const portfolioUrl = app.portfolioUrl || appData.portfolioUrl || "";
     const resumeUrl = app.resumeUrl || appData.resumeUrl || "";
     const coverLetter = app.coverLetter || app.coverNote || appData.coverLetter || appData.coverNote || "";
@@ -949,7 +951,7 @@ const ATSPipelineView = ({
                       </div>
                       {app.latestInterview.meetingLink && (
                         <a
-                          href={app.latestInterview.meetingLink}
+                          href={safeHttpUrl(app.latestInterview.meetingLink)}
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}

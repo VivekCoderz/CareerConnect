@@ -1,9 +1,11 @@
 const mongoose = require("mongoose");
 const Job = require("../models/Job");
+const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
+const { isListingExpired, withOpenDeadline } = require("../utils/listingExpiry");
 const {
   pickListingUpdate,
   requiresReapproval,
@@ -124,12 +126,7 @@ exports.getJobs = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({ success: false, message: "Not authenticated" });
       }
-      const employerProfile = await EmployerProfile.findOne({ userId: req.user._id });
-      const orConditions = [{ createdBy: req.user._id }];
-      if (employerProfile) {
-        orConditions.push({ employerId: employerProfile._id });
-      }
-      query.$or = orConditions;
+      query.$or = listingOwnerClauses(await getOwnerScope(req.user));
       if (status && status !== "All") {
         query.status = status;
       }
@@ -137,20 +134,8 @@ exports.getJobs = async (req, res, next) => {
       query.status = "Published";
     }
 
-    const searchTerm = escapeRegex((search || q || "").trim());
-    if (searchTerm) {
-      const searchCond = [
-        { title: { $regex: searchTerm, $options: "i" } },
-        { description: { $regex: searchTerm, $options: "i" } },
-        { requiredSkills: { $in: [new RegExp(searchTerm, "i")] } },
-      ];
-      if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: searchCond }];
-        delete query.$or;
-      } else {
-        query.$or = searchCond;
-      }
-    }
+    // Keyword search is applied after the other filters are built (see findPage below).
+    const rawSearch = (search || q || "").trim();
 
     const reqType = req.query.employmentType || req.query.opportunityType || req.query.type;
     if (reqType && reqType !== "All" && reqType !== "all") {
@@ -216,18 +201,46 @@ exports.getJobs = async (req, res, next) => {
     const skip = (pageNum - 1) * pageSize;
     let total = 0;
     let rawJobs = [];
+    // Candidates never see listings whose deadline has passed, even before the sweep closes them.
+    if (!isMyJobs) withOpenDeadline(query);
+
+    // Search uses the job_text_search index (whole words, as a phrase). If that finds nothing,
+    // fall back to the substring regex so partial words such as "devel" still match.
+    const textPhrase = rawSearch.replace(/"/g, " ").trim();
+    const textQuery = textPhrase ? { ...query, $text: { $search: `"${textPhrase}"` } } : null;
+    let regexQuery = query;
+    if (rawSearch) {
+      const searchTerm = escapeRegex(rawSearch);
+      const searchCond = [
+        { title: { $regex: searchTerm, $options: "i" } },
+        { description: { $regex: searchTerm, $options: "i" } },
+        { requiredSkills: { $in: [new RegExp(searchTerm, "i")] } },
+      ];
+      regexQuery = { ...query, $and: [...(query.$and || []), { $or: searchCond }] };
+    }
+
+    const findPage = (filter) => Promise.all([
+      Job.find(filter)
+        .populate("employerId", "companyName logo headquarters industry")
+        .sort(dbSort)
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      Job.countDocuments(filter),
+    ]);
 
     if (mongoose.connection.readyState === 1) {
       try {
-        [rawJobs, total] = await Promise.all([
-          Job.find(query)
-            .populate("employerId", "companyName logo headquarters industry")
-            .sort(dbSort)
-            .skip(skip)
-            .limit(pageSize)
-            .lean(),
-          Job.countDocuments(query),
-        ]);
+        if (textQuery) {
+          try {
+            [rawJobs, total] = await findPage(textQuery);
+          } catch (textErr) {
+            console.warn("MongoDB Job text search error, using regex:", textErr.message);
+          }
+        }
+        if (!textQuery || total === 0) {
+          [rawJobs, total] = await findPage(regexQuery);
+        }
       } catch (dbErr) {
         console.warn("MongoDB Job.find error:", dbErr.message);
       }
@@ -247,6 +260,8 @@ exports.getJobs = async (req, res, next) => {
 
       return {
         ...j,
+        // Lets the employer's own list mark listings past their deadline.
+        isExpired: isListingExpired(j),
         _id: j._id,
         id: j._id.toString(),
         jobId: j._id.toString(),
@@ -302,7 +317,8 @@ exports.getJobById = async (req, res, next) => {
       "companyName logo headquarters industry description website"
     );
 
-    if (!job || (job.status !== "Published" && (!req.user ||
+    const publiclyVisible = job && job.status === "Published" && !isListingExpired(job);
+    if (!job || (!publiclyVisible && (!req.user ||
       !(String(job.createdBy) === String(req.user._id) || await EmployerProfile.exists({
         _id: job.employerId?._id || job.employerId, userId: req.user._id,
       }))))) {
@@ -313,7 +329,7 @@ exports.getJobById = async (req, res, next) => {
     }
 
     // Increment view count
-    if (job.status === "Published") await Job.updateOne({ _id: job._id }, { $inc: { viewsCount: 1 } });
+    if (publiclyVisible) await Job.updateOne({ _id: job._id }, { $inc: { viewsCount: 1 } });
 
     return res.status(200).json({
       success: true,
@@ -452,7 +468,7 @@ exports.updateJob = async (req, res, next) => {
   try {
     const job = await Job.findOne({
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     });
 
     if (!job) {
@@ -494,7 +510,7 @@ exports.updateJobStatus = async (req, res, next) => {
 
     const job = await Job.findOne({
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     });
 
     if (!job) {
@@ -511,6 +527,7 @@ exports.updateJobStatus = async (req, res, next) => {
 
     const wasClosed = job.status === "Closed";
     job.status = status;
+    if (status !== "Closed") job.closedReason = null;
     await job.save();
     if (status === "Closed" && !wasClosed) notifyListingClosedInBackground("job", job._id, { senderId: req.user._id });
     clearSearchCache();
@@ -530,7 +547,7 @@ exports.duplicateJob = async (req, res, next) => {
   try {
     const original = await Job.findOne({
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     });
 
     if (!original) {
@@ -579,7 +596,7 @@ exports.deleteJob = async (req, res, next) => {
   try {
     const ownerQuery = {
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     };
     let job = await Job.findOneAndDelete(ownerQuery);
     if (!job) {

@@ -89,7 +89,18 @@ const internshipSchema = new mongoose.Schema(
     // "auto" when published by the autoApproveJobs setting (approvedBy stays null).
     approvalMethod: {
       type: String,
-      enum: ["admin", "auto", null],
+      enum: ["admin", "auto", "legacy", null],
+      default: null,
+    },
+    // Why the platform closed the listing (deadline passed, its employer was rejected, or its
+    // company was deactivated or deleted).
+    closedReason: {
+      type: String,
+      enum: ["expired", "employer_rejected", "company_inactive", null],
+      default: null,
+    },
+    closedAt: {
+      type: Date,
       default: null,
     },
     rejectedBy: {
@@ -120,6 +131,9 @@ const internshipSchema = new mongoose.Schema(
     isExternal: { type: Boolean, default: false, index: true },
     externalId: { type: String, default: null },
     applyUrl: { type: String, default: "", trim: true },
+    // Feed credit line and last time the scheduled feed sync saw this listing (external only)
+    attribution: { type: String, default: "", trim: true },
+    lastSyncedAt: { type: Date, default: null },
 
     // ---------- Dynamic Recruitment Pipeline Stages ----------
     recruitmentStages: [
@@ -190,6 +204,10 @@ const internshipSchema = new mongoose.Schema(
 );
 
 internshipSchema.index({ employerId: 1, status: 1 });
+// Expiry sweep and public "still open" filter
+internshipSchema.index({ status: 1, deadline: 1 });
+// Public internship list: status filter + newest-first sort
+internshipSchema.index({ status: 1, createdAt: -1 });
 internshipSchema.index({ status: 1, isExternal: 1 });
 internshipSchema.index({ requiredSkills: 1 });
 internshipSchema.index(

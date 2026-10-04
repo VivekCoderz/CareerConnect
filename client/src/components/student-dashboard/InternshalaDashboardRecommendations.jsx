@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FEATURES } from "../../config/features";
+import OpportunityTitleLink from "../common/OpportunityTitleLink";
 
 const EmptyOpportunityCard = ({ type, href }) => (
   <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between min-h-[290px]">
@@ -62,13 +63,13 @@ const InternshalaDashboardRecommendations = ({
     topJob?.salary ||
     (topJob?.salaryRange?.min
       ? `₹${topJob.salaryRange.min.toLocaleString()} - ₹${(topJob.salaryRange.max || topJob.salaryRange.min).toLocaleString()}`
-      : "Competitive CTC");
+      : "Salary not disclosed");
 
   const internshipStipend =
     topInternship?.stipend ||
     (topInternship?.stipendAmount?.min
       ? `₹${topInternship.stipendAmount.min.toLocaleString()} / month`
-      : "Competitive Stipend");
+      : "Stipend not disclosed");
 
   // Format apply link for job
   const jobApplyHref = topJob?.applyLink || topJob?.applyUrl;
@@ -257,7 +258,7 @@ const InternshalaDashboardRecommendations = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 min-w-0">
                     <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition line-clamp-1">
-                      {topJob.title}
+                      <OpportunityTitleLink item={topJob} type="Job">{topJob.title}</OpportunityTitleLink>
                     </h3>
                     <p className="text-xs font-semibold text-slate-600 line-clamp-1">
                       {topJob.company}
@@ -287,7 +288,7 @@ const InternshalaDashboardRecommendations = ({
                   <div className="flex items-center gap-2">
                     <span className="text-slate-400 shrink-0">📍</span>
                     <span className="font-medium text-slate-700 line-clamp-1">
-                      {topJob.location || "Bangalore / Remote"}
+                      {topJob.location || "Location not specified"}
                     </span>
                     <span className="text-slate-300">•</span>
                     <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
@@ -326,18 +327,21 @@ const InternshalaDashboardRecommendations = ({
               {/* Bottom Actions Row */}
               <div>
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => onSave && onSave(topJob)}
-                    className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                      isJobSaved
-                        ? "bg-amber-50 border-amber-300 text-amber-600"
-                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                    }`}
-                    title={isJobSaved ? "Saved" : "Save Job"}
-                  >
-                    {isJobSaved ? "★" : "☆"}
-                  </button>
+                  {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                  {FEATURES.savedJobs && (
+                    <button
+                      type="button"
+                      onClick={() => onSave && onSave(topJob)}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                        isJobSaved
+                          ? "bg-amber-50 border-amber-300 text-amber-600"
+                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                      }`}
+                      title={isJobSaved ? "Saved" : "Save Job"}
+                    >
+                      {isJobSaved ? "★" : "☆"}
+                    </button>
+                  )}
 
                   {isJobApplied ? (
                     <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
@@ -400,7 +404,7 @@ const InternshalaDashboardRecommendations = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 min-w-0">
                     <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition line-clamp-1">
-                      {topInternship.title}
+                      <OpportunityTitleLink item={topInternship} type="Internship">{topInternship.title}</OpportunityTitleLink>
                     </h3>
                     <p className="text-xs font-semibold text-slate-600 line-clamp-1">
                       {topInternship.company}
@@ -430,7 +434,7 @@ const InternshalaDashboardRecommendations = ({
                   <div className="flex items-center gap-2">
                     <span className="text-slate-400 shrink-0">📍</span>
                     <span className="font-medium text-slate-700 line-clamp-1">
-                      {topInternship.location || "Delhi / Remote"}
+                      {topInternship.location || "Location not specified"}
                     </span>
                     <span className="text-slate-300">•</span>
                     <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
@@ -469,18 +473,21 @@ const InternshalaDashboardRecommendations = ({
               {/* Bottom Actions Row */}
               <div>
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => onSave && onSave(topInternship)}
-                    className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                      isInternshipSaved
-                        ? "bg-amber-50 border-amber-300 text-amber-600"
-                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                    }`}
-                    title={isInternshipSaved ? "Saved" : "Save Internship"}
-                  >
-                    {isInternshipSaved ? "★" : "☆"}
-                  </button>
+                  {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                  {FEATURES.savedJobs && (
+                    <button
+                      type="button"
+                      onClick={() => onSave && onSave(topInternship)}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                        isInternshipSaved
+                          ? "bg-amber-50 border-amber-300 text-amber-600"
+                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                      }`}
+                      title={isInternshipSaved ? "Saved" : "Save Internship"}
+                    >
+                      {isInternshipSaved ? "★" : "☆"}
+                    </button>
+                  )}
 
                   {isInternshipApplied ? (
                     <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
@@ -536,7 +543,7 @@ const InternshalaDashboardRecommendations = ({
                   </span>
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                     <span>★</span>
-                    <span>{topCourse.rating || "4.8"} Rating</span>
+                    <span>{topCourse.rating ? `${topCourse.rating} Rating` : "Not yet rated"}</span>
                   </span>
                 </div>
 

@@ -100,9 +100,16 @@ export default function PrivacyPolicy() {
             <List>
               <li>hosting and databases: Render, Vercel, MongoDB Atlas</li>
               <li>file storage: Cloudinary (resumes and images)</li>
-              <li>email delivery: Brevo</li>
+              <li>network and security: Cloudflare</li>
+              <li>email delivery: Brevo, with a backup email service for sign-up codes</li>
               <li>sign-in: Google Firebase</li>
               <li>AI features: Google Gemini, which processes resume and job-description text when you use our resume tools</li>
+              <li>
+                error monitoring: Sentry, which receives technical details when something breaks (browser and device
+                type, the page or API address without its query, and an internal account number). It does not receive
+                your name, email, password, resume or the text you type.
+              </li>
+              <li>visit statistics: Umami, which counts page views without cookies and without identifying you</li>
             </List>
           </li>
           <li><strong>Authorities</strong>, if the law requires it.</li>

@@ -107,7 +107,7 @@ const Sidebar = ({
 
           {/* Nav List */}
           <div className="py-4 px-2.5 space-y-1 overflow-y-auto max-h-[calc(100vh-140px)] scrollbar-thin">
-            {NAV_ITEMS.filter((item) => item.id !== "courses" || FEATURES.courses).map((item) =>{
+            {NAV_ITEMS.filter((item) => (item.id !== "courses" || FEATURES.courses) && (item.id !== "saved" || FEATURES.savedJobs)).map((item) =>{
               const isActive = activeTab === item.id;
               if (item.link) {
                 return (

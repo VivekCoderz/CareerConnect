@@ -22,8 +22,8 @@ const ApplyReviewModal = ({
   const professionalHeadline =
     profile?.currentEmployment?.jobTitle ||
     profile?.professionalHeadline ||
-    "Senior Software Engineer";
-  const experienceYears = profile?.totalExperienceYears ? `${profile.totalExperienceYears}+ Years` : "4+ Years";
+    "Not provided";
+  const experienceYears = profile?.totalExperienceYears ? `${profile.totalExperienceYears}+ Years` : "Not provided";
 
   const isExternal = opportunity.isExternal || opportunity.applyType === "external" || opportunity.url?.startsWith("http");
   const companyName = opportunity.company || opportunity.companyName || "Technology Enterprise";
