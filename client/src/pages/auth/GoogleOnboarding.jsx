@@ -1113,7 +1113,7 @@ const GoogleOnboarding = () => {
                   Upload Your Resume
                 </h2>
                 <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
-                  Our CareerConnect AI will automatically parse your skills, experience, projects, and education into your profile in seconds!
+                  Our E2Job AI will automatically parse your skills, experience, projects, and education into your profile in seconds!
                 </p>
               </div>
 
@@ -1255,7 +1255,7 @@ const GoogleOnboarding = () => {
       </div>
 
       <footer className="py-4 text-center text-xs text-slate-400">
-        CareerConnect · All rights reserved
+        E2Job · All rights reserved
       </footer>
     </div>
   );

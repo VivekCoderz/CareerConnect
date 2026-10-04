@@ -282,7 +282,8 @@ exports.getJobs = async (req, res, next) => {
         isExclusive: !j.isExternal,
         isExternal: Boolean(j.isExternal),
         source: j.source || (j.isExternal ? "External" : "CareerConnect"),
-        platformSource: j.source || (j.isExternal ? "External" : "CareerConnect"),
+        // Own listings are stored with source "CareerConnect" (the old brand); show E2Job.
+        platformSource: j.isExternal ? j.source || "External" : "E2Job",
         applyLink: j.applyUrl || `/jobs/${j._id}`,
       };
     });

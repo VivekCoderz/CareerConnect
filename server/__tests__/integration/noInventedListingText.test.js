@@ -19,7 +19,7 @@ let seq = 0;
 const uniq = (label) => `${label}-${Date.now()}-${++seq}`;
 
 // Phrases the feeds used to invent.
-const INVENTED = /Competitive|Partner Employer|CareerConnect Partner|3-6 Months|3 Months|Open until filled|Paid Stipend|Paid Internship|Recently|Not disclosed|4\.5 - 12\.0/;
+const INVENTED = /Competitive|Partner Employer|CareerConnect Partner|E2Job Partner|E2Job Verified|3-6 Months|3 Months|Open until filled|Paid Stipend|Paid Internship|Recently|Not disclosed|4\.5 - 12\.0/;
 
 // A published job and internship with no company name, pay, duration or deadline.
 const createBareListings = async () => {

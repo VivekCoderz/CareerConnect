@@ -140,7 +140,7 @@ const ApplicationFunnel = ({ applicationFunnel = {} }) => {
         </div>
 
         <p className="text-[11px] text-slate-400">
-          Source of truth: CareerConnect MongoDB <code className="text-slate-600">Application</code> collection
+          Source of truth: E2Job MongoDB <code className="text-slate-600">Application</code> collection
         </p>
       </div>
     </div>

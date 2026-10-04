@@ -85,7 +85,7 @@ setInterval(runListingExpirySweep, LISTING_EXPIRY_INTERVAL_MS);
 require("./services/externalJobSync").startExternalJobSyncSchedule();
 
 server.listen(PORT, () => {
-  console.log(`CareerConnect server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
+  console.log(`E2Job server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
   // Daily summary email of rejections / closed positions (6 PM IST)
   require("./services/emailDigest").startEmailDigestScheduler();
 });

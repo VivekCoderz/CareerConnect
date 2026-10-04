@@ -98,7 +98,7 @@ export default function Jobs({
         <div>
           {!embedded && (
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              CareerConnect · CareerConnect
+              E2Job · E2Job
             </p>
           )}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">

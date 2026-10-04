@@ -41,8 +41,8 @@ During launch week (11–17 Oct), Ram and Tripti split the day: Ram until 3 PM, 
 
 ### Students and job seekers
 
-**Is CareerConnect free for students?**
-Yes. Creating an account, building your profile and applying are free. **CareerConnect and genuine employers never ask you for money.** If anyone asks for a fee, deposit or "training charge", don't pay. Report the job.
+**Is E2Job free for students?**
+Yes. Creating an account, building your profile and applying are free. **E2Job and genuine employers never ask you for money.** If anyone asks for a fee, deposit or "training charge", don't pay. Report the job.
 
 **How do I sign up?**
 Click **Continue with Google**. It's the fastest way. You can also sign up with your email and a one-time code (OTP).
@@ -84,22 +84,22 @@ At the end of its deadline day (India time), or when you close it. Applicants st
 
 ## 4. Ready replies
 
-Replace the `[brackets]`. Keep the tone warm and short. Sign as "Team CareerConnect".
+Replace the `[brackets]`. Keep the tone warm and short. Sign as "Team E2Job".
 
 **R1. OTP not received**
-> Hi [Name], sorry about that. Please check your Spam/Promotions folder. The code can take up to 2 minutes. If it still hasn't arrived, the quickest way in is **Continue with Google** on the sign-up page, using the same email. – Team CareerConnect
+> Hi [Name], sorry about that. Please check your Spam/Promotions folder. The code can take up to 2 minutes. If it still hasn't arrived, the quickest way in is **Continue with Google** on the sign-up page, using the same email. – Team E2Job
 
 **R2. Can't log in**
 > Hi [Name], please try **Forgot password** on the login page, or **Continue with Google** if you signed up with Google. If it still fails, reply with the email you used and a screenshot of the error, and we'll fix it today.
 
 **R3. Scam / asked for money (reply within 2 hours)**
-> Hi [Name], thank you for reporting this. Please don't pay anything: CareerConnect and genuine employers never charge candidates. We've taken the listing down while we investigate. If you already paid, please also report it at cybercrime.gov.in or call 1930.
+> Hi [Name], thank you for reporting this. Please don't pay anything: E2Job and genuine employers never charge candidates. We've taken the listing down while we investigate. If you already paid, please also report it at cybercrime.gov.in or call 1930.
 
 **R4. "Why was I rejected?"**
 > Hi [Name], we're sorry it didn't work out this time. Employers make their own hiring decisions and don't share the reasons with us. Keep your profile and resume up to date: new jobs are added every day.
 
 **R5. Employer: verification pending**
-> Hi [Name], thanks for joining CareerConnect. Your company verification is in progress and usually takes up to 24 hours. If we need anything (company website, official email), we'll write to you. Meanwhile you can send me your JDs and I'll have them ready to publish.
+> Hi [Name], thanks for joining E2Job. Your company verification is in progress and usually takes up to 24 hours. If we need anything (company website, official email), we'll write to you. Meanwhile you can send me your JDs and I'll have them ready to publish.
 
 **R6. Employer: verification refused**
 > Hi [Name], we couldn't verify [Company] with the details provided: [reason]. Please reply with [official website / registration document / an email from your company domain] and we'll review it again.

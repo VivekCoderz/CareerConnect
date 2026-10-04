@@ -770,7 +770,7 @@ exports.requestCompanyApproval = async (req, res, next) => {
       return res.status(409).json({
         success: false,
         status: "COMPANY_EXISTS",
-        message: "This company is already on CareerConnect. Ask your company admin to invite you, or contact support.",
+        message: "This company is already on E2Job. Ask your company admin to invite you, or contact support.",
       });
     }
 

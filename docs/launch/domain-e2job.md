@@ -59,4 +59,4 @@ On www.e2job.com: open the home page, a job page and /privacy; Google sign-in; e
 
 ### 7. Outside the code (Ram)
 - Launch posts, WhatsApp/Telegram channel descriptions, LinkedIn page website field: www.e2job.com.
-- Brand name: the site still says **CareerConnect**. If the brand changes to E2Job, decide before the 6 Oct freeze; it touches page titles, emails, legal pages and the logo.
+- Brand name: **E2Job** (decided 5 Oct). Renamed in the app, emails and legal pages on launch/job-portal; the stored listing source value stays "CareerConnect" internally. A designed logo is still to come (text wordmark for now).

@@ -224,7 +224,7 @@ const FresherRecommendedJobs = ({
             to="/jobs"
             className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1e3a8a] hover:text-[#1e40af] hover:underline transition"
           >
-            Browse all entry-level openings on CareerConnect →
+            Browse all entry-level openings on E2Job →
           </Link>
         </div>
       )}

@@ -747,7 +747,7 @@ const FresherProfile = () => {
                           type="text"
                           value={edu.institution}
                           onChange={(e) => handleEducationChange(idx, "institution", e.target.value)}
-                          placeholder="e.g. CareerConnect / ABC Institute"
+                          placeholder="e.g. E2Job / ABC Institute"
                           className={`w-full h-11 px-3.5 rounded-xl border bg-white text-sm outline-none focus:ring-2 ${
                             fieldErrors[`edu_${idx}_institution`]
                               ? "border-red-400 focus:ring-red-100"
@@ -1085,7 +1085,7 @@ const FresherProfile = () => {
                             type="text"
                             value={proj.title}
                             onChange={(e) => handleProjectChange(idx, "title", e.target.value)}
-                            placeholder="e.g. CareerConnect Job Portal, E-Commerce App"
+                            placeholder="e.g. E2Job Job Portal, E-Commerce App"
                             className={`w-full h-11 px-3.5 rounded-xl border bg-white text-sm outline-none focus:ring-2 ${
                               fieldErrors[`proj_${idx}_title`]
                                 ? "border-red-400 focus:ring-red-100"
@@ -1550,7 +1550,7 @@ const FresherProfile = () => {
               🎉
             </div>
             <h3 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Your CareerConnect profile is ready!
+              Your E2Job profile is ready!
             </h3>
             <p className="text-sm text-slate-500 mt-2 leading-relaxed">
               We’ll use your profile to personalize jobs, skills and career recommendations.

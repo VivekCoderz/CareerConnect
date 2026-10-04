@@ -378,7 +378,7 @@ const getEmployerDashboardData = async (companyId, user = null) => {
       type: n.category || n.notificationType || "Notification",
       title: n.title || "Notification",
       message: n.message || n.content || n.preview || n.title || "New notification",
-      actorName: n.sender || "CareerConnect",
+      actorName: n.sender || "E2Job",
       createdAt: n.createdAt,
       tab: "overview",
       link: n.actionUrl || "/employer/dashboard",

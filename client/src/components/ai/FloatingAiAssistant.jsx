@@ -21,7 +21,7 @@ const FloatingAiAssistant = () => {
       id: "welcome-msg",
       role: "ai",
       content:
-        "Hello! I am your **CareerConnect AI Assistant** 🤖.\n\nI can analyze your profile, search live jobs & internships, critique your resume, or recommend high-impact courses. What would you like to explore today?",
+        "Hello! I am your **E2Job AI Assistant** 🤖.\n\nI can analyze your profile, search live jobs & internships, critique your resume, or recommend high-impact courses. What would you like to explore today?",
       suggestedCards: [],
       timestamp: new Date(),
     },
@@ -171,7 +171,7 @@ const FloatingAiAssistant = () => {
               </div>
               <div>
                 <h3 className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
-                  <span>CareerConnect AI</span>
+                  <span>E2Job AI</span>
                   <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                     RAG Live
                   </span>

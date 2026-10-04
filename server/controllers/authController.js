@@ -194,12 +194,12 @@ module.exports.sendOTP = async (req, res, next) => {
     const delivery = await sendEmail({
       kind: "otp",
       to: normalizedEmail,
-      subject: "Your CareerConnect verification code",
+      subject: "Your E2Job verification code",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
           <h2 style="color: #1e40af; margin-bottom: 8px;">Verify your email</h2>
           <p style="color: #475569;">Hi${fullName ? ` ${fullName}` : ""},</p>
-          <p style="color: #475569;">Use this code to continue creating your CareerConnect account:</p>
+          <p style="color: #475569;">Use this code to continue creating your E2Job account:</p>
           <div style="background: #f1f5f9; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0;">
             <span style="font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #0f172a;">${otp}</span>
           </div>
@@ -739,7 +739,7 @@ module.exports.loginUser = async (req, res, next) => {
 //   - Email+password sign-in (Firebase-managed passwords)
 //
 // Frontend signs in via Firebase SDK → gets ID Token → sends here.
-// Backend verifies the ID Token with Firebase Admin SDK → issues CareerConnect JWT.
+// Backend verifies the ID Token with Firebase Admin SDK → issues E2Job JWT.
 // ==========================================
 module.exports.firebaseLogin = async (req, res, next) => {
   try {
@@ -805,7 +805,7 @@ module.exports.firebaseLogin = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message:
-          "No CareerConnect account found. Please sign up first or use Google sign-in.",
+          "No E2Job account found. Please sign up first or use Google sign-in.",
       });
     }
 
@@ -1125,7 +1125,7 @@ module.exports.cancelGoogleSignup = async (req, res, next) => {
 // Called after user enters password on /set-password.
 // Updates password in Firebase via Firebase Admin SDK,
 // hashes and stores password in MongoDB (user.password),
-// sets hasPassword=true, and issues full CareerConnect JWT.
+// sets hasPassword=true, and issues full E2Job JWT.
 // ==========================================
 module.exports.completePasswordSetup = async (req, res, next) => {
   try {
@@ -1156,7 +1156,7 @@ module.exports.completePasswordSetup = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "CareerConnect account not found. Please sign in again.",
+        message: "E2Job account not found. Please sign in again.",
       });
     }
 
@@ -1243,7 +1243,7 @@ module.exports.deleteMyAccount = async (req, res, next) => {
     if (["SUPER_ADMIN", "COMPANY_ADMIN", "admin"].includes(user.role)) {
       return res.status(403).json({
         success: false,
-        message: "Admin accounts are removed by a CareerConnect administrator.",
+        message: "Admin accounts are removed by a E2Job administrator.",
       });
     }
 
@@ -1373,7 +1373,7 @@ module.exports.forgotPassword = async (req, res, next) => {
     const delivery = await sendEmail({
       kind: "otp",
       to: normalizedEmail,
-      subject: "Reset your CareerConnect password",
+      subject: "Reset your E2Job password",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
           <h2 style="color: #1e3a8a;">Password Reset</h2>

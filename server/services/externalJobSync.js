@@ -175,7 +175,7 @@ const fetchFeed = async (source) => {
       params,
       timeout: REQUEST_TIMEOUT_MS,
       maxContentLength: 20 * 1024 * 1024,
-      headers: { Accept: "application/json", "User-Agent": "CareerConnectJobSync/1.0" },
+      headers: { Accept: "application/json", "User-Agent": "E2JobJobSync/1.0" },
     });
     return res.data;
   };
@@ -282,7 +282,7 @@ const syncSource = async (source, now) => {
 
 /**
  * Deletes feed listings (jobs and internships) the expiry sweep closed more than
- * CLOSED_RETENTION_DAYS ago. CareerConnect listings, open listings and listings closed for
+ * CLOSED_RETENTION_DAYS ago. E2Job listings, open listings and listings closed for
  * any other reason (e.g. by an admin) are kept. Safe to run repeatedly.
  */
 const deleteOldClosedFeedListings = async ({ now = new Date() } = {}) => {

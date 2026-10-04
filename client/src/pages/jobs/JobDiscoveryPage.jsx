@@ -239,7 +239,7 @@ const JobDiscoveryPage = () => {
                 CAREERCONNECT
               </h1>
               <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
-                CareerConnect · Jobs Hub
+                E2Job · Jobs Hub
               </p>
             </div>
           </Link>
@@ -296,7 +296,7 @@ const JobDiscoveryPage = () => {
               {pageHeading}
             </h2>
             <p className="text-sm text-blue-100/90 leading-relaxed">
-              Full-time and fresher openings from employers on CareerConnect, plus remote roles from Remotive and Arbeitnow.
+              Full-time and fresher openings from employers on E2Job, plus remote roles from Remotive and Arbeitnow.
             </p>
           </div>
         </div>
@@ -443,7 +443,7 @@ const JobDiscoveryPage = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       {jobItem.platformSource && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200">
-                          {jobItem.platformSource}
+                          {jobItem.platformSource === "CareerConnect" ? "E2Job" : jobItem.platformSource}
                         </span>
                       )}
                       {employmentType && (

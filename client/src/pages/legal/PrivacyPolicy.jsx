@@ -22,9 +22,9 @@ export default function PrivacyPolicy() {
       intro={
         <>
           <p>
-            CareerConnect ("we", "us") is operated by <strong><Fill value={LEGAL.entityName} label="legal entity name" /></strong>,{" "}
+            E2Job ("we", "us") is operated by <strong><Fill value={LEGAL.entityName} label="legal entity name" /></strong>,{" "}
             <Fill value={LEGAL.registeredAddress} label="registered address" />, India. This policy explains what personal
-            data we collect when you use CareerConnect (the website and its services), why we collect it, who we share it
+            data we collect when you use E2Job (the website and its services), why we collect it, who we share it
             with, and the choices you have.
           </p>
           <p>
@@ -34,7 +34,7 @@ export default function PrivacyPolicy() {
         </>
       }
     >
-      <Section title="1. Who can use CareerConnect">
+      <Section title="1. Who can use E2Job">
         <p>
           You must be <strong>18 years or older</strong> to create an account. If you are younger than 18, please do not
           register.
@@ -96,7 +96,7 @@ export default function PrivacyPolicy() {
             number, date of birth and resume are <strong>not</strong> shown on your public profile.
           </li>
           <li>
-            <strong>Service providers</strong> who help us run CareerConnect, and only for that purpose:
+            <strong>Service providers</strong> who help us run E2Job, and only for that purpose:
             <List>
               <li>hosting and databases: Render, Vercel, MongoDB Atlas</li>
               <li>file storage: Cloudinary (resumes and images)</li>

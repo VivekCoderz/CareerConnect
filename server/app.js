@@ -184,7 +184,7 @@ app.get("/api/companies/:companyId", require("./controllers/employerController")
 app.get("/", (req, res) => {
   return res.status(200).json({
     status: "active",
-    message: "CareerConnect API Gateway is running smoothly 🚀",
+    message: "E2Job API Gateway is running smoothly 🚀",
     timestamp: new Date().toISOString(),
   });
 });
@@ -196,7 +196,7 @@ app.get("/health", (req, res) => {
   return res.status(databaseConnected ? 200 : 503).json({
     status: databaseConnected ? "OK" : "degraded",
     database: databaseConnected ? "connected" : "unavailable",
-    message: databaseConnected ? "CareerConnect backend is running" : "Database unavailable",
+    message: databaseConnected ? "E2Job backend is running" : "Database unavailable",
     timestamp: new Date().toISOString(),
   });
 });

@@ -1552,7 +1552,7 @@ exports.exportJobApplicantsPdf = async (req, res, next) => {
     const pdfBuffer = await generateJobApplicantsPdf(job, applications, {
       stageFilter: stage || "All",
       generatedBy: req.user.fullName || req.user.name || "Employer",
-      companyName: job.companyName || req.user.companyName || "CareerConnect Partner",
+      companyName: job.companyName || req.user.companyName || "E2Job Partner",
     });
 
     const safeTitle = (job.title || "Job").replace(/[^a-zA-Z0-9_-]/g, "_");

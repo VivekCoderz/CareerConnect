@@ -46,7 +46,7 @@ function renderEmail({ heading, greetingName, lines = [], linkPath, linkText = "
 <p style="margin:0 0 12px">${escapeHtml(greeting)}</p>
 ${lines.map((line) => `<p style="margin:0 0 12px">${escapeHtml(line)}</p>`).join("\n")}
 ${extra}<p style="margin:20px 0"><a href="${escapeHtml(url)}" style="background:#f59e0b;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold">${escapeHtml(linkText)}</a></p>
-<p style="margin:24px 0 0;font-size:12px;color:#64748b">CareerConnect · You are receiving this because of activity on your account.</p>
+<p style="margin:24px 0 0;font-size:12px;color:#64748b">E2Job · You are receiving this because of activity on your account.</p>
 </body></html>`;
   const text = [heading, "", greeting, ...lines, ...(extraLink ? [`${extraLink.text}: ${extraLink.url}`] : []), "", `${linkText}: ${url}`]
     .join("\n");

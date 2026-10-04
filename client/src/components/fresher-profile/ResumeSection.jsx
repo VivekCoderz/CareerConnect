@@ -5,7 +5,7 @@ import { externalHref } from "../../utils/safeUrl";
 const ResumeSection = ({ profile, user, onChange }) => {
   const [resumeData, setResumeData] = useState({
     resumeUrl: profile?.resume?.resumeUrl || "",
-    resumeName: profile?.resume?.resumeName || "CareerConnect_Fresher_Resume.pdf",
+    resumeName: profile?.resume?.resumeName || "E2Job_Fresher_Resume.pdf",
     isGenerated: profile?.resume?.isGenerated ?? true,
     uploadedAt: profile?.resume?.uploadedAt || new Date().toISOString(),
   });

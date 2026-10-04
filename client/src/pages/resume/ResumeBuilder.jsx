@@ -144,7 +144,7 @@ const ProfileBanner = ({ profileFound, onDismiss }) => {
           </h4>
           <p className="text-xs sm:text-sm leading-relaxed text-slate-700">
             {profileFound
-              ? "Your CareerConnect profile details (education, experience, projects, skills) have been imported below. Feel free to review or update before generating your resume."
+              ? "Your E2Job profile details (education, experience, projects, skills) have been imported below. Feel free to review or update before generating your resume."
               : "No saved profile details were found. Fill in your details below to generate your ATS resume."}
           </p>
         </div>

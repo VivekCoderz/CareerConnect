@@ -66,7 +66,7 @@ const sendViaBrevo = async ({ recipients, subject, html, text }) => {
     const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
 
     // Sender configuration (matches verified email in Brevo)
-    sendSmtpEmail.sender = { name: "CareerConnect", email: senderEmail.trim() };
+    sendSmtpEmail.sender = { name: "E2Job", email: senderEmail.trim() };
     sendSmtpEmail.to = recipients;
     sendSmtpEmail.subject = subject;
     if (html) sendSmtpEmail.htmlContent = html;
@@ -94,7 +94,7 @@ const FALLBACK_SENDERS = {
   resend: async ({ apiKey, from, recipients, subject, html, text }) => {
     const { data } = await axios.post(
       "https://api.resend.com/emails",
-      { from: `CareerConnect <${from}>`, to: recipients.map((r) => r.email), subject, html, text },
+      { from: `E2Job <${from}>`, to: recipients.map((r) => r.email), subject, html, text },
       { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 10000 }
     );
     return data?.id;
@@ -105,7 +105,7 @@ const FALLBACK_SENDERS = {
       "https://api.mailjet.com/v3.1/send",
       {
         Messages: [{
-          From: { Email: from, Name: "CareerConnect" },
+          From: { Email: from, Name: "E2Job" },
           To: recipients.map((r) => ({ Email: r.email })),
           Subject: subject,
           HTMLPart: html,

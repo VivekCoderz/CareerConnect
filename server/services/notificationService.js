@@ -151,7 +151,7 @@ const createNotification = async ({
       recipient: recipientId,
       recipientId,
       senderId,
-      sender: "CareerConnect System",
+      sender: "E2Job System",
       senderRole: "system",
       title,
       preview: message,
@@ -235,7 +235,7 @@ const markAllAsRead = async (userId) => {
 /**
  * Create a targeted Opportunity Notification (Job, Internship, Course)
  */
-const createOpportunityNotification = async ({ type, item, sender = "CareerConnect Platform", senderAvatar = null, targetUserId = null }) => {
+const createOpportunityNotification = async ({ type, item, sender = "E2Job Platform", senderAvatar = null, targetUserId = null }) => {
   try {
     let title = "";
     let preview = "";
@@ -355,9 +355,9 @@ const sendAiRecommendationNotification = async ({
     const notification = await Notification.create({
       recipient: userId,
       recipientId: userId,
-      sender: "CareerConnect AI Assistant 🤖",
+      sender: "E2Job AI Assistant 🤖",
       senderRole: "ai",
-      senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=CareerConnectAI",
+      senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=E2JobAI",
       title,
       preview,
       content,
@@ -389,13 +389,13 @@ const seedWelcomeNotificationsIfEmpty = async (userId) => {
         {
           recipient: userId,
           recipientId: userId,
-          sender: "CareerConnect AI Assistant 🤖",
+          sender: "E2Job AI Assistant 🤖",
           senderRole: "ai",
-          senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=CareerConnectAI",
-          title: "Welcome to CareerConnect! Your personalized AI is ready",
+          senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=E2JobAI",
+          title: "Welcome to E2Job! Your personalized AI is ready",
           preview: "Hi! I'm your personal platform AI Assistant. I analyze live jobs, internships, and courses for you.",
           content: `
-Hello! Welcome to your CareerConnect workspace.
+Hello! Welcome to your E2Job workspace.
 
 I am your personal AI Career Advisor, powered by live platform RAG (Retrieval-Augmented Generation).
 
@@ -407,7 +407,7 @@ Here's what I can do for you:
 Feel free to browse your dashboard or test asking me anything in the side chat!
 
 Warm regards,  
-**CareerConnect AI Team**
+**E2Job AI Team**
           `.trim(),
           category: "ai_recommendation",
           actionUrl: "/student/dashboard",

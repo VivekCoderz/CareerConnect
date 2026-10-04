@@ -23,7 +23,7 @@ const EmptyOpportunityCard = ({ type, href }) => (
 const FALLBACK_COURSE = {
   id: "crs-fb-1",
   title: "Full Stack Web Development Masterclass",
-  provider: "CareerConnect Academy",
+  provider: "E2Job Academy",
   duration: "8 Weeks (Certified)",
   level: "Beginner to Advanced",
   rating: "4.9",
@@ -95,7 +95,7 @@ const InternshalaDashboardRecommendations = ({
             </span>
           </div>
           <span className="text-xs font-semibold text-slate-500 hidden sm:inline-block">
-            Curated hiring drives for CareerConnect Students
+            Curated hiring drives for E2Job Students
           </span>
         </div>
 
@@ -572,7 +572,7 @@ const InternshalaDashboardRecommendations = ({
                       {topCourse.title}
                     </h3>
                     <p className="text-xs font-semibold text-slate-600 line-clamp-1">
-                      {topCourse.provider || "CareerConnect Academy"}
+                      {topCourse.provider || "E2Job Academy"}
                     </p>
                   </div>
                   <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 font-black text-xl flex items-center justify-center shrink-0">

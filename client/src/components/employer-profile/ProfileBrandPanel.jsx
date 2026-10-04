@@ -7,7 +7,7 @@ const stepHeadings = {
     title: "Build your company profile",
     highlight: "& attract top talent",
     description:
-      "Establish your official company presence on CareerConnect. Verified companies get 3x more quality applications from CareerConnect candidates.",
+      "Establish your official company presence on E2Job. Verified companies get 3x more quality applications from E2Job candidates.",
   },
   2: {
     badge: "Step 2 of 6 · About Us",
@@ -35,12 +35,12 @@ const stepHeadings = {
     title: "Define talent criteria",
     highlight: "& target roles",
     description:
-      "Specify preferred branches, required skills, degree qualifications, and salary brackets for intelligent matching with CareerConnect talent.",
+      "Specify preferred branches, required skills, degree qualifications, and salary brackets for intelligent matching with E2Job talent.",
   },
   6: {
     badge: "Step 6 of 6 · Final Review",
     title: "Review & publish profile",
-    highlight: "to CareerConnect",
+    highlight: "to E2Job",
     description:
       "Review your profile completion score, verify all company information, and publish your official employer profile to start receiving applications.",
   },
@@ -66,7 +66,7 @@ const ProfileBrandPanel = ({ currentStep = 1, profileCompletion = 0 }) => {
               CAREERCONNECT
             </p>
             <p className="text-[11px] text-[#fde68a] font-semibold tracking-wide">
-              CareerConnect · Employers
+              E2Job · Employers
             </p>
           </div>
         </Link>

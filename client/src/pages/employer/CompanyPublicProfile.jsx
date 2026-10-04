@@ -61,7 +61,7 @@ const CompanyPublicProfile = () => {
             to="/home"
             className="inline-block px-5 py-2.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold transition"
           >
-            Back to CareerConnect
+            Back to E2Job
           </Link>
         </div>
       </div>
@@ -84,7 +84,7 @@ const CompanyPublicProfile = () => {
               CAREERCONNECT
             </h1>
             <p className="text-[10.5px] text-[#b45309] font-bold tracking-wide">
-              CareerConnect · Verified Employers
+              E2Job · Verified Employers
             </p>
           </div>
         </Link>
@@ -106,7 +106,7 @@ const CompanyPublicProfile = () => {
           <div className="h-44 bg-gradient-to-r from-[#92400e] via-[#b45309] to-[#d97706] relative p-6 text-white flex items-end">
             <div className="absolute top-4 right-4 flex items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-bold text-amber-100 border border-white/20">
-                ✓ CareerConnect Partner
+                ✓ E2Job Partner
               </span>
             </div>
           </div>
@@ -206,7 +206,7 @@ const CompanyPublicProfile = () => {
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
                 {company.description ||
-                  "This organization is partnering with CareerConnect CareerConnect to hire top emerging talent."}
+                  "This organization is partnering with E2Job E2Job to hire top emerging talent."}
               </p>
 
               {(company.mission || company.vision) && (

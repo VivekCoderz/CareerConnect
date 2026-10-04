@@ -10,7 +10,7 @@ import { logout } from "../redux/features/authSlice";
  *
  * Performs the full logout sequence:
  *   1. Firebase signOut() — clears Firebase session/persistence
- *   2. POST /api/auth/logout — clears the HTTP-only CareerConnect JWT cookie
+ *   2. POST /api/auth/logout — clears the HTTP-only E2Job JWT cookie
  *   3. Redux logout action — clears frontend auth state
  *   4. Navigate to /login
  *

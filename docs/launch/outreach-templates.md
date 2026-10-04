@@ -11,7 +11,7 @@ Rules:
 
 ## 1. LinkedIn message (to an HR, founder or talent person)
 
-> Hi [Name], I saw [Company] is hiring for [role / "your team is growing"]. I'm Ram from CareerConnect, a new job portal for students, freshers and early professionals that launches on 11 Oct.
+> Hi [Name], I saw [Company] is hiring for [role / "your team is growing"]. I'm Ram from E2Job, a new job portal for students, freshers and early professionals that launches on 11 Oct.
 >
 > We're inviting a small group of **Founding Employers**: job posts are **free for life**, you get a verified badge, and you can manage applicants, interviews and offers in one dashboard.
 >
@@ -19,7 +19,7 @@ Rules:
 
 ## 2. WhatsApp message (warm contact, alumni, a referral)
 
-> Hi [Name] 👋 Ram here from CareerConnect.
+> Hi [Name] 👋 Ram here from E2Job.
 >
 > We're launching our job portal on *11 Oct* for students and freshers. We're giving the first 100 companies *free job posting for life* plus a verified employer badge.
 >
@@ -27,11 +27,11 @@ Rules:
 
 ## 3. Email (a company with a careers or HR address)
 
-**Subject:** Free job posting for [Company] on CareerConnect (Founding Employer)
+**Subject:** Free job posting for [Company] on E2Job (Founding Employer)
 
 > Hi [Name],
 >
-> I'm Ram Mohan Dixit from CareerConnect, a job portal for students, freshers and early professionals. We go live on **11 October 2026**.
+> I'm Ram Mohan Dixit from E2Job, a job portal for students, freshers and early professionals. We go live on **11 October 2026**.
 >
 > We're inviting a small group of companies to join as **Founding Employers**:
 >
@@ -43,7 +43,7 @@ Rules:
 >
 > Thanks,
 > Ram Mohan Dixit
-> CareerConnect · [phone]
+> E2Job · [phone]
 
 ## 4. Follow-up (after 3 days, once only)
 
@@ -51,11 +51,11 @@ Rules:
 
 ## 5. Geeta University placement cell (J02)
 
-**Subject:** Partnership request: CareerConnect placement pilot with Geeta University
+**Subject:** Partnership request: E2Job placement pilot with Geeta University
 
 > Dear [Name / Training & Placement Officer],
 >
-> I'm Ram Mohan Dixit, [your programme and year] at Geeta University. With a team of fellow students, I've built **CareerConnect**, a job and internship portal for students and freshers, launching on **11 October 2026**.
+> I'm Ram Mohan Dixit, [your programme and year] at Geeta University. With a team of fellow students, I've built **E2Job**, a job and internship portal for students and freshers, launching on **11 October 2026**.
 >
 > I'd like to propose a small pilot with the placement cell:
 >

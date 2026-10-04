@@ -407,7 +407,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
               Real-time Synced
             </div>
             <p className="text-[10px] text-slate-400 leading-normal">
-              Direct telemetry from CareerConnect MongoDB cluster.
+              Direct telemetry from E2Job MongoDB cluster.
             </p>
           </div>
         </aside>

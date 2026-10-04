@@ -81,7 +81,7 @@ const EmployerAnalyticsHub = ({
   const candidateSources = useMemo(() => {
     return (
       hiring.candidateSources || [
-        { source: "CareerConnect Talent Network", percentage: 42, count: 62, icon: "🎓", color: "#f59e0b" },
+        { source: "E2Job Talent Network", percentage: 42, count: 62, icon: "🎓", color: "#f59e0b" },
         { source: "LinkedIn Recruiter", percentage: 25, count: 37, icon: "🔗", color: "#0ea5e9" },
         { source: "University Campus Drives", percentage: 18, count: 27, icon: "🏛️", color: "#8b5cf6" },
         { source: "Employee Referrals", percentage: 10, count: 15, icon: "🤝", color: "#10b981" },
@@ -328,7 +328,7 @@ const EmployerAnalyticsHub = ({
           <div className="flex items-center gap-2">
             <span className="text-lg">🤖</span>
             <h3 className="text-sm font-black uppercase tracking-wider text-amber-300">
-              CareerConnect AI Actionable Intelligence
+              E2Job AI Actionable Intelligence
             </h3>
           </div>
           <span className="text-[11px] text-slate-400">Auto-detected from active pipeline metrics</span>
@@ -658,7 +658,7 @@ const EmployerAnalyticsHub = ({
           <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200/70 text-xs text-amber-900 flex items-center gap-2.5">
             <span className="text-base">💡</span>
             <p>
-              <span className="font-bold">Channel Insight:</span> CareerConnect Talent Portal yields the highest interview pass rate at 64% vs LinkedIn at 38%.
+              <span className="font-bold">Channel Insight:</span> E2Job Talent Portal yields the highest interview pass rate at 64% vs LinkedIn at 38%.
             </p>
           </div>
         </div>

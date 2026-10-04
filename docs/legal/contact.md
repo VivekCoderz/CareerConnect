@@ -12,6 +12,6 @@ We're a small team and we read every message.
 | **Colleges and placement cells** | [partnerships@yourdomain] | 2 working days |
 | **Privacy requests and complaints (Grievance Officer)** | [name], [grievance@yourdomain] | Acknowledged within 48 hours |
 
-**Remember:** CareerConnect and genuine employers **never ask candidates for money**. If anyone does, report it straight away.
+**Remember:** E2Job and genuine employers **never ask candidates for money**. If anyone does, report it straight away.
 
 **Address:** [legal entity name], [registered address], India

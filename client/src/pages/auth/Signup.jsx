@@ -851,7 +851,7 @@ const Signup = () => {
                   Step 1 of 4 · Create your account
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                  Welcome to CareerConnect
+                  Welcome to E2Job
                 </h1>
                 <p className="text-sm text-slate-500 mt-1.5">
                   Sign up in one click with your Google account
@@ -1867,7 +1867,7 @@ const Signup = () => {
                   Upload Your Resume
                 </h2>
                 <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
-                  Our CareerConnect AI will automatically parse your PDF resume and save your education, experience, projects, and skills into your profile!
+                  Our E2Job AI will automatically parse your PDF resume and save your education, experience, projects, and skills into your profile!
                 </p>
               </div>
 
@@ -2036,7 +2036,7 @@ const Signup = () => {
 
       {/* Footer */}
       <footer className="py-4 text-center text-xs text-slate-400">
-        CareerConnect · All rights reserved
+        E2Job · All rights reserved
       </footer>
     </div>
   );

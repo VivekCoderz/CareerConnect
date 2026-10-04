@@ -265,7 +265,7 @@ const InternshipDiscoveryPage = () => {
                 CAREERCONNECT
               </h1>
               <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
-                CareerConnect · Internship Hub
+                E2Job · Internship Hub
               </p>
             </div>
           </Link>
@@ -322,7 +322,7 @@ const InternshipDiscoveryPage = () => {
               <span className="px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 text-[11px] font-bold">
                 🎯 {totalCount} Opportunities Found
               </span>
-              <span className="text-xs text-blue-200/80">· Verified CareerConnect Partner Employers</span>
+              <span className="text-xs text-blue-200/80">· Verified E2Job Partner Employers</span>
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -502,7 +502,7 @@ const InternshipDiscoveryPage = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       {intItem.platformSource && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200">
-                          {intItem.platformSource}
+                          {intItem.platformSource === "CareerConnect" ? "E2Job" : intItem.platformSource}
                         </span>
                       )}
                       {intItem.type && (
