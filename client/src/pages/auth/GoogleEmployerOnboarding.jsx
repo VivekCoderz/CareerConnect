@@ -98,7 +98,8 @@ const GoogleEmployerOnboarding = () => {
     } else {
       const digits = formData.phone.replace(/\D/g, "");
       if (formData.countryCode === "+91") {
-        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+        // Exactly 10 digits starting 6-9 (an extra leading 0 used to pass: QA bug 1).
+        if (!/^[6-9]\d{9}$/.test(digits)) {
           errors.phone = "Please enter a valid 10-digit mobile number";
         }
       } else if (digits.length < 6 || digits.length > 15) {
