@@ -19,7 +19,7 @@ const { notifyListingDecision } = require("../services/accountNotifications");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
-const { escapeRegex, pickListingUpdate, checkListingInput } = require("../utils/listingSecurity");
+const { escapeRegex, pickListingUpdate, checkListingInput, hasLocation, LOCATION_REQUIRED } = require("../utils/listingSecurity");
 const { clearSearchCache } = require("../services/jobScraperService");
 const { runExternalJobSync } = require("../services/externalJobSync");
 const { createNotification } = require("../services/notificationService");
@@ -2381,7 +2381,10 @@ exports.createOpportunityForEmployer = async (req, res, next) => {
     }
 
     const fields = pickListingUpdate(req.body);
-    for (const required of ["title", "description", "location"]) {
+    if (!hasLocation(fields.location)) {
+      return res.status(400).json({ success: false, message: LOCATION_REQUIRED });
+    }
+    for (const required of ["title", "description"]) {
       if (typeof fields[required] !== "string" || !fields[required].trim()) {
         return res.status(400).json({ success: false, message: `${required} is required` });
       }

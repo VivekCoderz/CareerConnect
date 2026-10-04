@@ -9,6 +9,8 @@ const { isListingExpired, withOpenDeadline } = require("../utils/listingExpiry")
 const {
   pickListingUpdate,
   checkListingInput,
+  hasLocation,
+  LOCATION_REQUIRED,
   mergePayRanges,
   requiresReapproval,
   escapeRegex,
@@ -379,10 +381,13 @@ exports.createJob = async (req, res, next) => {
       recruitmentStages,
     } = req.body;
 
-    if (!title || !location || !description) {
+    if (!hasLocation(location)) {
+      return res.status(400).json({ success: false, message: LOCATION_REQUIRED });
+    }
+    if (!title || !description) {
       return res.status(400).json({
         success: false,
-        message: "Job title, location and description are required",
+        message: "Job title and description are required",
       });
     }
 
@@ -425,14 +430,14 @@ exports.createJob = async (req, res, next) => {
       companyId,
       companyName: companyName || "",
       title: title.trim(),
-      category: category?.trim() || "Web Development",
-      subCategory: subCategory?.trim() || "Frontend Development",
+      category: category?.trim() || "",
+      subCategory: subCategory?.trim() || "",
       department: department?.trim() || "General",
       employmentType: employmentType || "Full-time",
       workMode: workMode || "Hybrid",
       location: location.trim(),
-      city: city?.trim() || "Bangalore",
-      state: state?.trim() || "Karnataka",
+      city: city?.trim() || "",
+      state: state?.trim() || "",
       country: country?.trim() || "India",
       isPaid: isPaid !== false,
       hasJobOffer: !!hasJobOffer,
@@ -440,8 +445,8 @@ exports.createJob = async (req, res, next) => {
       salaryRange: salaryRange || { min: 0, max: 0, currency: "INR", isNegotiable: false },
       stipend: stipend?.trim() || "",
       duration: duration?.trim() || "",
-      experience: experience || { minYears: 0, maxYears: 2, level: "Fresher / Entry-Level" },
-      education: education || "Any Graduate",
+      ...(experience ? { experience } : {}),
+      education: education || "",
       eligibility: eligibility?.trim() || "",
       description: description.trim(),
       responsibilities: Array.isArray(responsibilities) ? responsibilities : [],

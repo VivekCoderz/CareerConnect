@@ -137,13 +137,13 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
   // Job Details State
   const [formData, setFormData] = useState({
     title: "",
-    category: "Web Development",
-    subCategory: "Frontend Development",
+    category: "",
+    subCategory: "",
     department: "Engineering",
     employmentType: "Full-time",
     workMode: "Remote",
-    location: "Bangalore",
-    city: "Bangalore",
+    location: "",
+    city: "",
     country: "India",
     isPaid: true,
     hasJobOffer: true,
@@ -151,7 +151,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
     salaryMin: "600000",
     salaryMax: "1200000",
     currency: "INR",
-    experienceLevel: "Fresher / Entry-Level",
+    experienceLevel: "",
     minYears: 0,
     maxYears: 1,
     education: "B.Tech / BCA / MCA / Any Graduate",
@@ -183,13 +183,13 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
             const j = res.job;
             setFormData({
               title: j.title || "",
-              category: j.category || "Web Development",
-              subCategory: j.subCategory || "Frontend Development",
+              category: j.category || "",
+              subCategory: j.subCategory || "",
               department: j.department || "Engineering",
               employmentType: j.employmentType || "Full-time",
               workMode: j.workMode || "Remote",
-              location: j.location || "Bangalore",
-              city: j.city || "Bangalore",
+              location: j.location || "",
+              city: j.city || "",
               country: j.country || "India",
               isPaid: j.isPaid !== false,
               hasJobOffer: !!j.hasJobOffer,
@@ -197,7 +197,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
               salaryMin: j.salaryRange?.min !== undefined ? String(j.salaryRange.min) : "600000",
               salaryMax: j.salaryRange?.max !== undefined ? String(j.salaryRange.max) : "1200000",
               currency: j.salaryRange?.currency || "INR",
-              experienceLevel: j.experience?.level || "Fresher / Entry-Level",
+              experienceLevel: j.experience?.level || "",
               minYears: j.experience?.minYears || 0,
               maxYears: j.experience?.maxYears || 1,
               education: j.education || "B.Tech / BCA / MCA / Any Graduate",
@@ -428,7 +428,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
           isNegotiable: !formData.salaryMin && !formData.salaryMax,
         },
         experience: {
-          level: formData.experienceLevel,
+          ...(formData.experienceLevel ? { level: formData.experienceLevel } : {}),
           minYears: Number(formData.minYears) || 0,
           maxYears: Number(formData.maxYears) || 2,
         },
@@ -683,6 +683,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
                     onChange={handleFormChange}
                     className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
                   >
+                    <option value="">Select category</option>
                     {DEFAULT_CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}

@@ -65,58 +65,37 @@ const extractProfileSkills = (prof) => {
   return Array.from(skillsSet);
 };
 
+const NOT_ENOUGH_DATA = "Not enough data";
+
 /**
- * Modular match score calculation algorithm
+ * Skill match between a candidate and a job's required / preferred skills.
+ * Only skills that are actually listed count: with no skills on either side there is no
+ * score (null + reason), never a default percentage. Required skills weigh 70%,
+ * preferred 30%; when only one list exists it carries the full weight.
  */
 const calculateMatch = (candidateSkills = [], jobRequiredSkills = [], jobPreferredSkills = []) => {
-  const normCandidate = (Array.isArray(candidateSkills) ? candidateSkills : [])
-    .filter(Boolean)
-    .map((s) => String(s).toLowerCase().trim());
-  const normRequired = (Array.isArray(jobRequiredSkills) ? jobRequiredSkills : [])
-    .filter(Boolean)
-    .map((s) => String(s).toLowerCase().trim());
-  const normPreferred = (Array.isArray(jobPreferredSkills) ? jobPreferredSkills : [])
-    .filter(Boolean)
-    .map((s) => String(s).toLowerCase().trim());
+  const clean = (list) => (Array.isArray(list) ? list : []).filter(Boolean).map((s) => String(s).toLowerCase().trim());
+  const normCandidate = clean(candidateSkills);
+  const normRequired = clean(jobRequiredSkills);
+  const normPreferred = clean(jobPreferredSkills);
 
-  if (!normRequired.length && !normPreferred.length) {
-    return {
-      matchPercentage: 85,
-      strongSkills: normCandidate.slice(0, 3),
-      missingSkills: [],
-    };
+  if ((!normRequired.length && !normPreferred.length) || !normCandidate.length) {
+    return { matchPercentage: null, matchReason: NOT_ENOUGH_DATA, strongSkills: [], missingSkills: normRequired };
   }
 
-  const strongSkills = [];
-  const missingSkills = [];
+  const has = (skill) => normCandidate.some((c) => c.includes(skill) || skill.includes(c));
+  const strongSkills = normRequired.filter(has);
+  const missingSkills = normRequired.filter((skill) => !has(skill));
+  const preferredMatched = normPreferred.filter(has);
+  preferredMatched.forEach((skill) => { if (!strongSkills.includes(skill)) strongSkills.push(skill); });
 
-  normRequired.forEach((reqSkill) => {
-    if (normCandidate.some((cSkill) => cSkill.includes(reqSkill) || reqSkill.includes(cSkill))) {
-      strongSkills.push(reqSkill);
-    } else {
-      missingSkills.push(reqSkill);
-    }
-  });
+  const requiredRatio = normRequired.length ? (normRequired.length - missingSkills.length) / normRequired.length : null;
+  const preferredRatio = normPreferred.length ? preferredMatched.length / normPreferred.length : null;
+  const score = requiredRatio !== null && preferredRatio !== null
+    ? requiredRatio * 70 + preferredRatio * 30
+    : (requiredRatio ?? preferredRatio) * 100;
 
-  const reqScore = normRequired.length > 0 ? (strongSkills.length / normRequired.length) * 70 : 50;
-  
-  let prefMatches = 0;
-  normPreferred.forEach((prefSkill) => {
-    if (normCandidate.some((cSkill) => cSkill.includes(prefSkill) || prefSkill.includes(cSkill))) {
-      prefMatches++;
-      if (!strongSkills.includes(prefSkill)) strongSkills.push(prefSkill);
-    }
-  });
-
-  const prefScore = normPreferred.length > 0 ? (prefMatches / normPreferred.length) * 30 : 20;
-
-  const totalMatch = Math.min(100, Math.max(30, Math.round(reqScore + prefScore)));
-
-  return {
-    matchPercentage: totalMatch,
-    strongSkills,
-    missingSkills,
-  };
+  return { matchPercentage: Math.round(score), matchReason: null, strongSkills, missingSkills };
 };
 
 /**
@@ -221,8 +200,9 @@ exports.searchCandidates = async (req, res, next) => {
       //   ...(Array.isArray(pProf?.skills) ? pProf.skills : []),
       // ].filter(Boolean);
 
-      // Match scoring
-      let matchInfo = { matchPercentage: 80, strongSkills: candidateSkills.slice(0, 4), missingSkills: [] };
+      // Match scoring: only against a target job or searched skills; otherwise there is
+      // nothing to match, so no percentage.
+      let matchInfo = { matchPercentage: null, matchReason: NOT_ENOUGH_DATA, strongSkills: [], missingSkills: [] };
       if (targetJob) {
         matchInfo = calculateMatch(
           candidateSkills,
@@ -235,12 +215,16 @@ exports.searchCandidates = async (req, res, next) => {
       }
 
       const education = sProf?.education?.[0] || fProf?.education?.[0] || pProf?.education?.[0] || {};
-      const experience = pProf?.workExperience?.[0] || {};
+      // Real profile fields: a professional's current role (or latest experience entry),
+      // a fresher's latest internship role.
       const jobTitle =
-        experience.jobTitle ||
-        experience.designation ||
+        pProf?.currentEmployment?.jobTitle ||
+        pProf?.experience?.[0]?.jobTitle ||
+        fProf?.internships?.[0]?.role ||
         null;
-      const cgpa = education.score || education.grade || education.cgpa || null;
+      const experienceYears = pProf?.experience?.length ? pProf.totalExperienceYears ?? null : null;
+      // Fresher / professional education uses graduationYear and percentageOrCgpa.
+      const cgpa = education.score || education.grade || education.cgpa || education.percentageOrCgpa || null;
 
       return {
         _id: user._id,
@@ -255,11 +239,12 @@ exports.searchCandidates = async (req, res, next) => {
         skills: candidateSkills,
         degree: education.degree || null,
         institution: education.institution || null,
-        graduationYear: education.endYear || null,
+        graduationYear: education.endYear || education.graduationYear || null,
         cgpa,
         jobTitle,
-        experienceYears: null,
+        experienceYears,
         matchPercentage: matchInfo.matchPercentage,
+        matchReason: matchInfo.matchReason,
         strongSkills: matchInfo.strongSkills,
         missingSkills: matchInfo.missingSkills,
         location: formatLocation(sProf?.location || fProf?.location || pProf?.location),
@@ -268,8 +253,8 @@ exports.searchCandidates = async (req, res, next) => {
       };
     });
 
-    // Sort by match percentage desc
-    candidates.sort((a, b) => b.matchPercentage - a.matchPercentage);
+    // Sort by match percentage desc; candidates without a score go last.
+    candidates.sort((a, b) => (b.matchPercentage ?? -1) - (a.matchPercentage ?? -1));
 
     return res.status(200).json({
       success: true,
