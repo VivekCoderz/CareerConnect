@@ -23,6 +23,7 @@ const AdminOpportunities = lazyWithRetry(() => import("./pages/admin/AdminOpport
 const AdminApplications = lazyWithRetry(() => import("./pages/admin/AdminApplications"));
 const AdminReports = lazyWithRetry(() => import("./pages/admin/AdminReports"));
 const AdminSettings = lazyWithRetry(() => import("./pages/admin/AdminSettings"));
+const AdminSentryTest = lazyWithRetry(() => import("./pages/admin/AdminSentryTest"));
 
 // Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
@@ -498,6 +499,8 @@ function AppRoutes() {
             <Route element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}>
               <Route path="/admin/companies" element={<AdminCompanies />} />
               <Route path="/admin/company-admins" element={<AdminCompanyAdmins />} />
+              {/* Monitoring check (I08): sends test errors to Sentry */}
+              <Route path="/admin/sentry-test" element={<AdminSentryTest />} />
             </Route>
 
             {/* COMPANY_ADMIN ONLY: Own Assigned Organization Profile & Settings */}

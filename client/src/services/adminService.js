@@ -261,6 +261,12 @@ export const dismissAdminReport = async (id, dismissalReason) => {
 // ==========================================
 // SETTINGS
 // ==========================================
+/** Monitoring check (I08): the backend throws a test error that should appear in Sentry. */
+export const triggerBackendSentryTest = async () => {
+  const response = await api.post("/admin/debug/sentry-test");
+  return response.data;
+};
+
 export const getAdminSettings = async () => {
   const response = await api.get("/admin/settings");
   return response.data;

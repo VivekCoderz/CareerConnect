@@ -4,6 +4,8 @@ if (dns.setDefaultResultOrder) {
 }
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, ".env") });
+// Sentry must load before Express and the routes (I08).
+require("./instrument");
 const http = require("http");
 
 // Startup validation for JWT_SECRET

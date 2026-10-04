@@ -41,6 +41,7 @@ const adminRoutes = require("./routes/adminRoutes.js");
 const { configureTrustProxy } = require("./config/trustProxy");
 const { globalLimiter } = require("./middleware/rateLimitMiddleware");
 const dbStatus = require("./utils/dbStatus");
+const Sentry = require("@sentry/node");
 
 const app = express();
 configureTrustProxy(app);
@@ -231,6 +232,10 @@ app.use((err, req, res, next) => {
   }
   console.error("Server Global Error:", err);
   const status = err.code === "LIMIT_FILE_SIZE" ? 413 : err.statusCode || err.status || 500;
+  // Server faults go to Sentry (a no-op without SENTRY_DSN). Rejected CORS origins are not bugs.
+  if (status >= 500 && !String(err.message).startsWith("Not allowed by CORS")) {
+    Sentry.captureException(err, { tags: { status_code: status, route: req.route?.path || req.baseUrl || req.path } });
+  }
   return res.status(status).json({
     success: false,
     message: status >= 500 && isProduction ? "Internal server error" : err.message || "Internal server error",
