@@ -9,7 +9,7 @@ const socketService = require("../services/socketService");
 const mongoose = require("mongoose");
 const { notifyApplicationUpdates } = require("../services/applicationNotifications");
 const { acceptsApplications, APPLICATIONS_CLOSED } = require("../utils/listingExpiry");
-const { checkTransition, canTransition } = require("../utils/applicationStatus");
+const { checkTransition, canTransition, statusesThatCanMoveTo } = require("../utils/applicationStatus");
 const { getOwnerScope, applicationOwnerClauses, findOwnedApplication } = require("../utils/employerOwnership");
 
 // ==========================================
@@ -707,7 +707,7 @@ exports.updateApplicationStatus = async (req, res, next) => {
     // Broadcast live event via Socket.IO
     socketService.emitApplicationUpdated(application);
     if (previousStatus !== application.status) {
-      await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id })
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
         .catch((err) => console.warn("Application notification failed:", err.message));
     }
 
@@ -752,16 +752,30 @@ exports.bulkUpdateApplicationStatus = async (req, res, next) => {
     // (e.g. Hired, Withdrawn or Rejected ones).
     const toUpdate = owned.filter((a) => a.status !== status && canTransition(a.status, status));
 
+    let updated = [];
     if (toUpdate.length > 0) {
       const now = new Date();
+      const historyEntry = { stage: status, notes: `Bulk update to ${status}`, changedBy: req.user._id, changedAt: now };
+      // The status is checked again in the write itself: an application that changed since it
+      // was read (e.g. the candidate withdrew a moment ago) is left alone and counted as skipped.
       await Application.updateMany(
-        { _id: { $in: toUpdate.map((a) => a._id) } },
+        {
+          _id: { $in: toUpdate.map((a) => a._id) },
+          status: { $in: statusesThatCanMoveTo(status).filter((s) => s !== status) },
+        },
         {
           $set: { status, stage: status, overallStatus: status === "Rejected" ? "Rejected" : "In Progress", updatedAt: now },
-          $push: { stageHistory: { stage: status, notes: `Bulk update to ${status}`, changedBy: req.user._id, changedAt: now } },
+          $push: { stageHistory: historyEntry },
         }
       );
-      const updated = toUpdate.map((a) => ({ ...a, status }));
+      // The ones this request changed carry its history entry.
+      const changedIds = new Set((await Application.find({
+        _id: { $in: toUpdate.map((a) => a._id) },
+        stageHistory: { $elemMatch: { changedAt: now, changedBy: req.user._id, notes: historyEntry.notes } },
+      }).distinct("_id")).map(String));
+      updated = toUpdate.filter((a) => changedIds.has(String(a._id))).map((a) => ({ ...a, status }));
+
+      if (status === "Rejected") await JobOffer.withdrawPending(updated.map((a) => a._id));
       updated.forEach((a) => socketService.emitApplicationUpdated(a));
       await notifyApplicationUpdates(updated, status, { senderId: req.user._id })
         .catch((err) => console.warn("Bulk application notifications failed:", err.message));
@@ -769,10 +783,10 @@ exports.bulkUpdateApplicationStatus = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      updated: toUpdate.length,
-      skipped: owned.length - toUpdate.length,
+      updated: updated.length,
+      skipped: owned.length - updated.length,
       notFound: ids.length - owned.length,
-      message: `${toUpdate.length} application${toUpdate.length === 1 ? "" : "s"} marked as ${status}`,
+      message: `${updated.length} application${updated.length === 1 ? "" : "s"} marked as ${status}`,
     });
   } catch (error) {
     next(error);
@@ -868,7 +882,7 @@ exports.updateApplicationStage = async (req, res, next) => {
     // Broadcast live event via Socket.IO
     socketService.emitApplicationUpdated(application);
     if (previousStatus !== application.status) {
-      await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id })
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
         .catch((err) => console.warn("Application notification failed:", err.message));
     }
 
@@ -1080,7 +1094,7 @@ exports.moveToNextStage = async (req, res, next) => {
 
     await application.save();
     // Tell the candidate about every stage advance, with the stage name
-    await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id, stageName: nextStage.name })
+    await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id, stageName: nextStage.name })
       .catch((err) => console.warn("Application notification failed:", err.message));
 
 
@@ -1144,7 +1158,7 @@ exports.selectCandidate = async (req, res, next) => {
 
     await application.save();
     if (previousStatus !== application.status) {
-      await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id })
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
         .catch((err) => console.warn("Application notification failed:", err.message));
     }
 
@@ -1215,7 +1229,7 @@ exports.rejectCandidate = async (req, res, next) => {
 
     await application.save();
     if (previousStatus !== application.status) {
-      await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id })
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
         .catch((err) => console.warn("Application notification failed:", err.message));
     }
 
@@ -1254,6 +1268,8 @@ exports.reopenApplication = async (req, res, next) => {
     await application.save();
 
     socketService.emitApplicationUpdated(application);
+    await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
+      .catch((err) => console.warn("Application notification failed:", err.message));
     return res.status(200).json({ success: true, message: "Application reopened", application });
   } catch (error) {
     next(error);
@@ -1307,6 +1323,10 @@ exports.markStageFailed = async (req, res, next) => {
     });
 
     await application.save();
+    if (shouldReject) {
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
+    }
 
     return res.status(200).json({
       success: true,
@@ -1374,6 +1394,7 @@ exports.updateApplicationRound = async (req, res, next) => {
       ? (stages[targetIndex + 1].type?.includes("Interview") ? "Interview" : "Under Review")
       : null);
     if (roundTargetStatus && rejectTransition(res, application.status, roundTargetStatus)) return;
+    const previousStatus = application.status;
 
     if (!Array.isArray(application.stageHistory)) {
       application.stageHistory = [];
@@ -1467,6 +1488,10 @@ exports.updateApplicationRound = async (req, res, next) => {
     }
 
     await application.save();
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
+    }
 
     return res.status(200).json({
       success: true,

@@ -205,7 +205,7 @@ exports.respondToOffer = async (req, res, next) => {
     if (!offer) return res.status(409).json({ success: false, message: "Offer is unavailable or already answered" });
 
     if (offer.applicationId) {
-      await guardedStatusUpdate(offer.applicationId, status === "Accepted" ? "Hired" : "Rejected", {
+      const { applied } = await guardedStatusUpdate(offer.applicationId, status === "Accepted" ? "Hired" : "Rejected", {
         $push: {
           stageHistory: {
             stage: status === "Accepted" ? "Hired" : "Offer Rejected",
@@ -214,7 +214,18 @@ exports.respondToOffer = async (req, res, next) => {
             changedAt: new Date(),
           },
         },
-      }, { actor: "candidate" });
+      }, { actor: "candidate", keepUpdate: false });
+
+      // The application has moved on (e.g. the employer rejected it a moment ago), so the
+      // offer is no longer active: withdraw it instead of recording the answer.
+      if (!applied) {
+        await JobOffer.updateOne({ _id: offer._id }, { $set: { status: "Withdrawn" }, $unset: { respondedAt: "" } });
+        return res.status(409).json({
+          success: false,
+          code: "OFFER_NOT_ACTIVE",
+          message: "This offer is no longer active",
+        });
+      }
     }
 
     return res.status(200).json({
