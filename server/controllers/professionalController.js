@@ -6,6 +6,7 @@ const { getAggregatedOpportunities } = require("../services/jobScraperService");
 const { withoutListed } = require("../utils/listingSecurity");
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 const { openListingQuery } = require("../utils/listingExpiry");
+const { formatSalary, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 
 // Skill benchmarks for target senior/executive roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -442,32 +443,22 @@ module.exports.getProfessionalDashboard = async (req, res, next) => {
       console.warn("MongoDB find error in professionalController:", dbErr.message);
     }
 
+    // Missing values are null (the client hides them), never invented text.
     let recommendedJobs = (dbJobs || []).map((job) => {
-      const salaryStr =
-        job.salaryRange?.min > 0
-          ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive Package";
-
       return {
         _id: job._id,
         id: job._id.toString(),
         jobId: job._id.toString(),
         title: job.title,
-        company: job.employerId?.companyName || "Partner Employer",
+        company: companyOf(job),
         location: job.location,
-        salary: salaryStr,
-        type: job.employmentType || "Full-Time",
-        workMode: job.workMode || "Hybrid",
-        experienceRequired: job.experience?.level || "3+ Years",
+        salary: formatSalary(job.salaryRange),
+        type: textOrNull(job.employmentType),
+        workMode: textOrNull(job.workMode),
+        experienceRequired: textOrNull(job.experience?.level),
         skillsRequired: job.requiredSkills || [],
-        postedAt: "Active",
-        deadline: job.deadline
-          ? new Date(job.deadline).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "Open",
+        postedAt: formatDate(job.createdAt),
+        deadline: formatDate(job.deadline),
         matchPercentage: calculateJobMatch(
           profile,
           job.requiredSkills || [],
@@ -493,20 +484,16 @@ module.exports.getProfessionalDashboard = async (req, res, next) => {
           id: String(job._id),
           jobId: String(job._id),
           title: job.title,
-          company: job.company,
+          company: textOrNull(job.company),
           location: job.location,
-          salary: job.salary || "Competitive LPA",
-          type: job.opportunityType || "Full-Time",
-          workMode: job.workMode || "Remote",
-          experienceRequired: "3+ Years",
-          skillsRequired: [job.title.split(" ")[0] || "Engineering", "Architecture"],
-          postedAt: job.postedDate || "Recently",
-          deadline: "Open until filled",
-          matchPercentage: calculateJobMatch(
-            profile,
-            [job.title.split(" ")[0] || "Engineering"],
-            job.title
-          ),
+          salary: textOrNull(job.salary),
+          type: textOrNull(job.opportunityType),
+          workMode: textOrNull(job.workMode),
+          experienceRequired: null,
+          skillsRequired: job.skills || [],
+          postedAt: textOrNull(job.postedDate),
+          deadline: formatDate(job.deadline),
+          matchPercentage: calculateJobMatch(profile, job.skills || [], job.title),
           applyLink: job.applyLink,
           applyUrl: job.applyLink,
           isExternal: true,
@@ -552,8 +539,8 @@ module.exports.getProfessionalDashboard = async (req, res, next) => {
       _id: app._id,
       id: app._id.toString(),
       jobId: app.jobId?._id || "",
-      title: app.jobId?.title || "Position",
-      company: app.jobId?.employerId?.companyName || "Partner Employer",
+      title: app.jobId?.title || app.opportunityTitle || null,
+      company: app.jobId?.employerId?.companyName || app.companyName || null,
       appliedDate: new Date(app.createdAt).toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",

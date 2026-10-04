@@ -75,6 +75,9 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
           {displayedJobs.map((job) => {
             const isSaved = savedIds.includes(job.id || job._id);
             const isApplied = appliedJobIds.has(String(job.id || job._id));
+            const jobSkills = [job.skillsRequired, job.skills, job.requiredSkills].find((l) => Array.isArray(l) && l.length) || [];
+            const jobCompany = job.company || job.companyName;
+            const typeMode = [job.type, job.workMode].filter(Boolean).join(" • ");
             return (
               <div
                 key={job.id || job._id}
@@ -86,25 +89,35 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
                       🔥 Trending Now
                     </span>
                     <h3 className="text-base font-bold text-slate-900">{job.title}</h3>
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
-                      {job.type || "Full Time"} • {job.workMode || "On-site"}
-                    </span>
+                    {typeMode && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        {typeMode}
+                      </span>
+                    )}
                   </div>
 
-                  <p className="text-xs font-medium text-slate-600">
-                    <span className="font-semibold text-slate-800">{job.company || job.companyName}</span> {job.location ? ` • ${job.location}` : ""}
-                  </p>
+                  {(jobCompany || job.location) && (
+                    <p className="text-xs font-medium text-slate-600">
+                      {jobCompany && <span className="font-semibold text-slate-800">{jobCompany}</span>}
+                      {jobCompany && job.location ? " • " : ""}
+                      {job.location || ""}
+                    </p>
+                  )}
 
-                  <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                    <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                      {job.salary || "Salary not disclosed"}
-                    </span>
-                    <span>• {job.postedAt || "Actively hiring"}</span>
-                  </div>
+                  {(job.salary || job.postedAt) && (
+                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                      {job.salary && (
+                        <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                          {job.salary}
+                        </span>
+                      )}
+                      {job.postedAt && <span>{job.salary ? "• " : ""}{job.postedAt}</span>}
+                    </div>
+                  )}
 
-                  {(job.skillsRequired || job.skills) && (
+                  {jobSkills.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
-                      {(job.skillsRequired || job.skills).map((skill, sIdx) => (
+                      {jobSkills.map((skill, sIdx) => (
                         <span
                           key={sIdx}
                           className="px-2 py-0.5 bg-white text-slate-700 text-[10px] font-medium rounded-md border border-slate-200"

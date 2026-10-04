@@ -169,7 +169,7 @@ const InterviewDetailsModal = ({
                         {candidate?.fullName || application?.studentName || "Candidate"}
                       </h4>
                       <span className="text-[11px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                        {candidate?.userType || "Student"}
+                        {candidate?.userType || "Not provided"}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 mt-1 font-medium">

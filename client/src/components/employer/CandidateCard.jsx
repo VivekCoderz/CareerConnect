@@ -18,7 +18,7 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
               <div className="flex items-center gap-2 flex-wrap">
                 <h4 className="text-sm font-bold text-slate-900">{candidate.fullName}</h4>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-[#92400e]">
-                  {candidate.userType || "Student"}
+                  {candidate.userType || "Not provided"}
                 </span>
               </div>
               {candidate.jobTitle && (

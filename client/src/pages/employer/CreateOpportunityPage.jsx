@@ -9,6 +9,7 @@ import {
 } from "../../services/internshipService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import ModerationBadge from "../../components/employer/ModerationBadge";
+import { EMPTY_LISTING_FORM, listingFormError, experiencePayload } from "../../utils/listingForm";
 
 const STAGE_TYPES = [
   "Resume Screening",
@@ -136,39 +137,7 @@ export default function CreateOpportunityPage() {
   const [stages, setStages] = useState(PRESETS.standard);
   const [expandedStageIdx, setExpandedStageIdx] = useState(null);
 
-  const [formData, setFormData] = useState({
-    title: "",
-    category: "",
-    subCategory: "",
-    department: "Engineering",
-    employmentType: "Full-time",
-    workMode: "Hybrid",
-    location: "",
-    city: "",
-    country: "India",
-    isPaid: true,
-    hasJobOffer: true,
-    isInternational: false,
-    salaryMin: "600000",
-    salaryMax: "1200000",
-    currency: "INR",
-    isNegotiable: false,
-    stipend: "₹20,000/month",
-    duration: "3 months",
-    experienceLevel: "",
-    minYears: 0,
-    maxYears: 1,
-    education: "B.Tech / BCA / MCA / Any Graduate",
-    eligibility: "Open to recent graduates and final year students",
-    description: "",
-    responsibilities: "",
-    requiredSkills: "React, Node.js, JavaScript, Tailwind CSS",
-    preferredSkills: "TypeScript, MongoDB, Redux",
-    bonusSkills: "Docker, AWS, Git",
-    openings: 2,
-    deadline: "",
-    status: "",
-  });
+  const [formData, setFormData] = useState({ ...EMPTY_LISTING_FORM });
 
   // Pre-load if editing
   useEffect(() => {
@@ -182,9 +151,9 @@ export default function CreateOpportunityPage() {
               title: j.title || "",
               category: j.category || "",
               subCategory: j.subCategory || "",
-              department: j.department || "Engineering",
-              employmentType: j.employmentType || "Full-time",
-              workMode: j.workMode || "Hybrid",
+              department: j.department || "",
+              employmentType: j.employmentType || "",
+              workMode: j.workMode || "",
               location: j.location || "",
               city: j.city || "",
               country: j.country || "India",
@@ -198,8 +167,8 @@ export default function CreateOpportunityPage() {
               stipend: j.stipend || "",
               duration: j.duration || "",
               experienceLevel: j.experience?.level || "",
-              minYears: j.experience?.minYears ?? 0,
-              maxYears: j.experience?.maxYears ?? 1,
+              minYears: j.experience?.minYears ?? "",
+              maxYears: j.experience?.maxYears ?? "",
               education: j.education || "",
               eligibility: j.eligibility || "",
               description: j.description || "",
@@ -207,7 +176,7 @@ export default function CreateOpportunityPage() {
               requiredSkills: (j.requiredSkills || []).join(", "),
               preferredSkills: (j.preferredSkills || []).join(", "),
               bonusSkills: (j.bonusSkills || []).join(", "),
-              openings: j.openings || 1,
+              openings: j.openings || "",
               deadline: j.deadline ? j.deadline.split("T")[0] : "",
               status: j.status || "",
             });
@@ -240,9 +209,9 @@ export default function CreateOpportunityPage() {
               title: i.title || "",
               category: i.category || "",
               subCategory: i.subCategory || "",
-              department: i.department || "General",
+              department: i.department || "",
               employmentType: "Internship",
-              workMode: i.workMode || "Hybrid",
+              workMode: i.workMode || "",
               location: i.location || "",
               city: i.city || "",
               country: i.country || "India",
@@ -253,19 +222,19 @@ export default function CreateOpportunityPage() {
               salaryMax: "",
               currency: "INR",
               isNegotiable: false,
-              stipend: i.stipend || "₹15,000/month",
-              duration: i.duration || "3 months",
+              stipend: i.stipend || "",
+              duration: i.duration || "",
               experienceLevel: "",
-              minYears: 0,
-              maxYears: 0,
-              education: i.education || "Any Graduate",
+              minYears: "",
+              maxYears: "",
+              education: i.education || "",
               eligibility: i.eligibility || "",
               description: i.description || "",
               responsibilities: (i.responsibilities || []).join("\n"),
               requiredSkills: (i.requiredSkills || []).join(", "),
               preferredSkills: (i.preferredSkills || []).join(", "),
               bonusSkills: (i.bonusSkills || []).join(", "),
-              openings: i.openings || 1,
+              openings: i.openings || "",
               deadline: i.deadline ? i.deadline.split("T")[0] : "",
               status: i.status || "",
             });
@@ -373,18 +342,11 @@ export default function CreateOpportunityPage() {
     setError("");
     setSuccessMsg("");
 
-    if (!formData.title.trim()) {
-      setError("Please provide a title for this opportunity.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    if (!formData.location.trim()) {
-      setError("Please specify the location.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    if (!formData.description.trim()) {
-      setError("Please provide a role description.");
+    const formError = listingFormError(formData, oppType === "Internship"
+      ? ["title", "category", "workMode", "location", "stipend", "duration", "description", "requiredSkills", "openings"]
+      : ["title", "category", "employmentType", "workMode", "location", "description", "requiredSkills", "openings"]);
+    if (formError) {
+      setError(formError);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -440,9 +402,9 @@ export default function CreateOpportunityPage() {
           isPaid: formData.isPaid,
           hasJobOffer: formData.hasJobOffer,
           isInternational: formData.isInternational,
-          stipend: formData.isPaid ? (formData.stipend || "₹15,000/month") : "Unpaid",
-          duration: formData.duration || "3 months",
-          openings: Number(formData.openings) || 1,
+          stipend: formData.isPaid ? formData.stipend.trim() : "Unpaid",
+          duration: formData.duration.trim(),
+          openings: Number(formData.openings),
           education: formData.education,
           eligibility: formData.eligibility,
           description: formData.description.trim(),
@@ -475,7 +437,7 @@ export default function CreateOpportunityPage() {
           category: formData.category,
           subCategory: formData.subCategory,
           department: formData.department,
-          employmentType: formData.employmentType || "Full-time",
+          employmentType: formData.employmentType,
           workMode: formData.workMode,
           location: formData.location.trim(),
           city: formData.city.trim() || formData.location.trim(),
@@ -489,11 +451,7 @@ export default function CreateOpportunityPage() {
             currency: formData.currency || "INR",
             isNegotiable: Boolean(formData.isNegotiable),
           },
-          experience: {
-            ...(formData.experienceLevel ? { level: formData.experienceLevel } : {}),
-            minYears: Number(formData.minYears) || 0,
-            maxYears: Number(formData.maxYears) || 1,
-          },
+          experience: experiencePayload(formData),
           education: formData.education,
           eligibility: formData.eligibility,
           description: formData.description.trim(),
@@ -501,7 +459,7 @@ export default function CreateOpportunityPage() {
           requiredSkills: parsedSkills(formData.requiredSkills),
           preferredSkills: parsedSkills(formData.preferredSkills),
           bonusSkills: parsedSkills(formData.bonusSkills),
-          openings: Number(formData.openings) || 1,
+          openings: Number(formData.openings),
           deadline: formData.deadline || null,
           recruitmentStages: sanitizedStages,
         };
@@ -576,7 +534,7 @@ export default function CreateOpportunityPage() {
                 type="button"
                 onClick={() => {
                   setOppType("Job");
-                  setFormData((p) => ({ ...p, employmentType: "Full-time" }));
+                  setFormData((p) => ({ ...p, employmentType: "" }));
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                   oppType === "Job"
@@ -722,6 +680,7 @@ export default function CreateOpportunityPage() {
                   onChange={handleChange}
                   className={inputClass}
                 >
+                  <option value="">Select employment type</option>
                   {oppType === "Internship" ? (
                     <>
                       <option>Internship</option>
@@ -741,6 +700,7 @@ export default function CreateOpportunityPage() {
               <div>
                 <label className={labelClass}>Work Mode</label>
                 <select name="workMode" value={formData.workMode} onChange={handleChange} className={inputClass}>
+                  <option value="">Select work mode</option>
                   <option>Hybrid</option>
                   <option>Remote</option>
                   <option>On-site</option>

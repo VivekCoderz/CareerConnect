@@ -62,7 +62,7 @@ const GoogleEmployerOnboarding = () => {
     designation: "",
     website: "",
     companyType: "Private",
-    industry: "Information Technology",
+    industry: "",
     location: "",
   });
 
@@ -328,7 +328,7 @@ const GoogleEmployerOnboarding = () => {
                   name="industry"
                   value={formData.industry}
                   onChange={handleChange}
-                  placeholder="Information Technology"
+                  placeholder="e.g. IT, FinTech"
                   className={inputCls(fieldErrors.industry)}
                 />
                 {fieldErrors.industry && (

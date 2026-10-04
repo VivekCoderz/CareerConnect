@@ -6,6 +6,7 @@ const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
 const { isListingExpired, withOpenDeadline } = require("../utils/listingExpiry");
+const { formatSalary, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 const {
   pickListingUpdate,
   checkListingInput,
@@ -251,16 +252,9 @@ exports.getJobs = async (req, res, next) => {
     }
 
     const formattedJobs = rawJobs.map((j) => {
-      let salaryStr = null;
-      if (j.salaryRange?.max > 0) {
-        salaryStr = `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`;
-      } else if (j.salaryRange?.min > 0) {
-        salaryStr = `₹${(j.salaryRange.min / 100000).toFixed(1)}+ LPA`;
-      } else if (j.stipend) {
-        salaryStr = j.stipend;
-      }
-
-      const compName = j.employerId?.companyName || j.companyName || "CareerConnect Partner";
+      // Missing values are null (the client hides them), never invented text.
+      const salaryStr = formatSalary(j.salaryRange) || textOrNull(j.stipend);
+      const compName = companyOf(j);
 
       return {
         ...j,
@@ -276,15 +270,15 @@ exports.getJobs = async (req, res, next) => {
         location: j.location,
         city: j.city,
         salary: salaryStr,
-        type: j.employmentType || "Full-Time",
-        opportunityType: j.employmentType || "Full-Time",
-        workMode: j.workMode || "On-Site",
+        type: textOrNull(j.employmentType),
+        opportunityType: textOrNull(j.employmentType),
+        workMode: textOrNull(j.workMode),
         requiredSkills: j.requiredSkills || [],
         skillsRequired: j.requiredSkills || [],
         skills: j.requiredSkills || [],
         responsibilities: j.responsibilities || [],
-        postedAt: j.createdAt ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Recently",
-        deadline: j.deadline ? new Date(j.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
+        postedAt: formatDate(j.createdAt),
+        deadline: formatDate(j.deadline),
         isExclusive: !j.isExternal,
         isExternal: Boolean(j.isExternal),
         source: j.source || (j.isExternal ? "External" : "CareerConnect"),
