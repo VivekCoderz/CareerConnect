@@ -10,6 +10,7 @@ import ResumeUploadInput from "../../components/common/ResumeUploadInput";
 import BrandLogo from "../../components/common/BrandLogo";
 import ShareButtons from "../../components/common/ShareButtons";
 import { isCandidateUser } from "../../utils/userRoles";
+import useSeo from "../../hooks/useSeo";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 const NOT_AVAILABLE = "This internship is closed or no longer available";
@@ -177,6 +178,23 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
 
   const deadlinePassed = !embedded && internship && !internship.isExternal &&
     internship.deadline && new Date(internship.deadline) < new Date();
+
+  // Page title and description for the shareable page only, not when embedded in a dashboard.
+  const listed = internship && !deadlinePassed && !unlistedId ? internship : null;
+  const internCompany = listed ? listed.companyName || listed.employerId?.companyName || "" : "";
+  const stillLoading = loading && !unlistedId;
+  useSeo({
+    enabled: !embedded,
+    title: listed
+      ? `${listed.title} internship${internCompany ? ` at ${internCompany}` : ""}${listed.location ? `, ${listed.location}` : ""}`
+      : stillLoading ? "Internship details" : "Internship not available",
+    description: listed
+      ? `${listed.title} internship${internCompany ? ` at ${internCompany}` : ""}${listed.stipend ? `, stipend ${listed.stipend}` : ""}${listed.duration ? `, ${listed.duration}` : ""}. ${listed.description || ""}`
+      : undefined,
+    path: `/internships/${internshipId}`,
+    type: listed ? "article" : "website",
+    noindex: !stillLoading && (!listed || listed.isExternal),
+  });
 
   if (unlistedId || deadlinePassed) {
     return (

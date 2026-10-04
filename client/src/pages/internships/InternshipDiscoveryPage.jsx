@@ -10,6 +10,7 @@ import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { getMyAppliedIds } from "../../services/applicationService";
 import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
+import useSeo from "../../hooks/useSeo";
 
 const INTERNSHIP_CITIES = [
   { value: "All", label: "All Locations" },
@@ -236,6 +237,12 @@ const InternshipDiscoveryPage = () => {
     if (categoryParam) return `${categoryParam.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")} Internships`;
     return "Explore All Internships";
   }, [isWorkFromHome, isInternational, isLatest, isPaidOnly, isJobOfferOnly, cityParam, categoryParam]);
+
+  useSeo({
+    title: pageHeading === "Explore All Internships" ? "Internships for students in India" : pageHeading,
+    description: `${pageHeading} on CareerConnect: verified internships from real employers in India. Apply free and track every application. Employers never charge candidates.`,
+    path: pathname,
+  });
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800">

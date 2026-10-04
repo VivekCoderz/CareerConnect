@@ -6,6 +6,8 @@ import { getMyAppliedIds } from "../../services/applicationService";
 import { applyToOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
 import { isCandidateUser } from "../../utils/userRoles";
 import ShareButtons from "../../components/common/ShareButtons";
+import useSeo from "../../hooks/useSeo";
+import { buildJobPostingSchema, toJsonLd } from "../../utils/jobPostingSchema";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
@@ -199,6 +201,22 @@ export default function JobDetailPage() {
   const shareUrl = `${window.location.origin}/jobs/${id}`;
   const shareText = job ? `${job.title} at ${companyName} – apply on CareerConnect: ${shareUrl}` : shareUrl;
 
+  // "<Job title> at <Company>, <City> | CareerConnect"; closed or missing jobs stay out of search.
+  const openJob = job && !isClosed(job) ? job : null;
+  const jobCity = openJob ? openJob.city || openJob.location : "";
+  useSeo({
+    title: openJob
+      ? `${openJob.title} at ${companyName}${jobCity ? `, ${jobCity}` : ""}`
+      : status === "loading" ? "Job details" : "Job not available",
+    description: openJob
+      ? `${openJob.title} job at ${companyName}${jobCity ? ` in ${jobCity}` : ""}${openJob.workMode ? ` (${openJob.workMode})` : ""}. ${openJob.description || ""}`
+      : undefined,
+    path: `/jobs/${id}`,
+    type: openJob ? "article" : "website",
+    noindex: status !== "loading" && !openJob,
+  });
+  const jobPostingSchema = buildJobPostingSchema(openJob);
+
   const renderApply = () => {
     if (job.isExternal) {
       const url = externalApplyUrl(job);
@@ -356,6 +374,9 @@ export default function JobDetailPage() {
         )}
 
         {status === "ready" && !isClosed(job) && renderJob()}
+        {jobPostingSchema && (
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: toJsonLd(jobPostingSchema) }} />
+        )}
       </main>
     </div>
   );

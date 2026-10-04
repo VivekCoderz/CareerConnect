@@ -10,10 +10,12 @@ import internshipService from "../services/internshipService";
 import jobService from "../services/jobService";
 import BrandLogo from "../components/common/BrandLogo";
 import { FEATURES } from "../config/features";
+import useSeo from "../hooks/useSeo";
 
 const Home = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  useSeo({ path: "/" });
   const { user, isInitialized } = useSelector((state) => state.auth);
 
   useEffect(() => {

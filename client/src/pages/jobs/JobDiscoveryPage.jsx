@@ -7,6 +7,7 @@ import jobService from "../../services/jobService";
 import { saveOpportunity } from "../../services/studentDashboardService";
 import { applyToOpportunity } from "../../utils/opportunityApply";
 import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
+import useSeo from "../../hooks/useSeo";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 
@@ -210,6 +211,12 @@ const JobDiscoveryPage = () => {
     if (categoryParam) return `${categoryParam.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")} Jobs`;
     return "Explore All Jobs & Openings";
   }, [isWorkFromHome, isLatest, cityParam, categoryParam]);
+
+  useSeo({
+    title: pageHeading === "Explore All Jobs & Openings" ? "Jobs for freshers and students in India" : pageHeading,
+    description: `${pageHeading} on CareerConnect: verified openings from real employers in India. Apply free and track every application. Employers never charge candidates.`,
+    path: pathname,
+  });
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800">

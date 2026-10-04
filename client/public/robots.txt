@@ -1,0 +1,17 @@
+# CareerConnect (G02). Public job, internship, company and legal pages may be indexed;
+# accounts, dashboards and admin pages may not.
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /employer
+Disallow: /student
+Disallow: /fresher
+Disallow: /professional
+Disallow: /applications
+Disallow: /account
+Disallow: /onboarding
+Disallow: /set-password
+Disallow: /select-role
+Disallow: /api/
+
+Sitemap: https://www.codeformode.in/sitemap.xml
