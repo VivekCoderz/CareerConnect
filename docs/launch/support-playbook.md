@@ -4,25 +4,22 @@
 
 Who answers, how fast, and what to say. Use the replies in section 4 as a starting point and fix the details for each person. Never copy and paste blindly.
 
-## 1. Support inbox setup (one time, about 20 minutes)
+## 1. Support inbox setup (one time, about 30 minutes)
 
-We use **Cloudflare Email Routing** (free) on `e2job.com`. It forwards mail to one team Gmail. No paid mailbox is needed.
+We use **Zoho Mail Forever Free** on `e2job.com` (up to 5 users, ₹0). The 5 team members get a mailbox each; the support addresses are group addresses or aliases, so they don't use up a user.
 
-1. Create a Gmail for the team, e.g. `careerconnect.help@gmail.com`. Ram and Tripti both have the login, with 2-step verification on.
-2. Cloudflare → `e2job.com` → **Email** → **Email Routing** → Enable. Cloudflare adds the MX and SPF records itself.
-3. Add these addresses, all forwarding to the team Gmail:
+| Address | Type | Reaches |
+|---|---|---|
+| `support@e2job.com` | Group | Ram, Tripti |
+| `report@e2job.com` | Group | Ram, Tripti (urgent: scam reports) |
+| `employers@e2job.com` | Group | Ram, Vivek |
+| `partnerships@e2job.com` | Alias | Ram |
+| `grievance@e2job.com` | Alias | Ram, who forwards to the Grievance Officer (Amit Verma) |
 
-   | Address | Used for |
-   |---|---|
-   | `support@e2job.com` | Account and application help |
-   | `report@e2job.com` | Fake jobs, anyone asking for money |
-   | `employers@e2job.com` | Employer verification, posting help |
-   | `grievance@e2job.com` | Privacy requests (DPDP Grievance Officer) |
-   | `partnerships@e2job.com` | Colleges and placement cells |
-
-4. In the Gmail, create a **label** and **filter** per address (`To: report@…` → label `REPORT`, star it). Reports are urgent.
-5. Replies go out from the Gmail. To reply *as* `support@e2job.com`, add it under Gmail → Settings → Accounts → "Send mail as". This needs Brevo SMTP or another sender, so leave it for after launch; replying from the Gmail is fine for now.
-6. Put these addresses into `client/src/config/legal.js` (G05) and the Contact page.
+1. In Zoho Mail, create a filter per address (`To: report@…` → folder `REPORT`, flag it). Reports are urgent.
+2. Reply from the group address, so replies come from `support@e2job.com`, not a personal address.
+3. If groups aren't available on the free plan, add the addresses as aliases on Ram's and Tripti's mailboxes instead.
+4. The addresses are already in `client/src/config/legal.js` (G05) and the Contact page.
 
 **Don't** use the Brevo account for support replies. Its 300/day limit is for signup OTPs.
 

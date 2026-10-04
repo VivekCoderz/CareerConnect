@@ -38,8 +38,8 @@ Do the steps in this order. Each step lists its owner. Tick each one in the team
 1. **Firebase** → Authentication → Settings → Authorized domains: add `e2job.com`, `www.e2job.com`. Without this, Google sign-in fails on the new domain.
 2. **reCAPTCHA** admin: add both domains.
 3. **Google Cloud** → Credentials → Firebase browser API key → HTTP referrers: add `https://e2job.com/*` and `https://www.e2job.com/*` (if referrer restriction is on).
-4. **Cloudflare Email Routing** on e2job.com: create the 5 inboxes above, all forwarding to the team Gmail. Send a test mail to each one.
-5. **Backup OTP provider (Mailjet or Resend):** verify `e2job.com` (add their SPF/DKIM records in Cloudflare), sender `no-reply@e2job.com`, send the API key to Vivek privately. Vivek sets `FALLBACK_EMAIL_FROM=no-reply@e2job.com`.
+4. **Mailboxes: Zoho Mail Forever Free** (decided 4 Oct, replaces Cloudflare Email Routing; the two can't share the MX records). 5 users: ram@, vivek@, imran@, sneha@, tripti@e2job.com. support@, report@, employers@, partnerships@ and grievance@ are group addresses or aliases, not extra users. DNS records (MX, SPF, DKIM, DMARC) as Zoho's admin console shows them, all **DNS only**. Do **not** enable Cloudflare Email Routing. Send a test mail to each address.
+5. **Backup OTP provider (Mailjet or Resend):** verify `e2job.com` (add their DKIM record; add their include to the **same single** SPF record as Zoho and Brevo, never a second SPF record), sender `no-reply@e2job.com`, send the API key to Vivek privately. Vivek sets `FALLBACK_EMAIL_FROM=no-reply@e2job.com`.
 6. **Brevo** (optional, recommended): Senders & Domains → authenticate `e2job.com` (DKIM/SPF records in Cloudflare). OTP emails are then less likely to land in spam.
 7. **UptimeRobot:** monitor `https://api.e2job.com/health` (keep the onrender.com monitor too).
 8. **Umami:** add `www.e2job.com`; set `VITE_UMAMI_DOMAINS=www.e2job.com,e2job.com` on Vercel. **Sentry:** add the new domain to allowed domains if set.
