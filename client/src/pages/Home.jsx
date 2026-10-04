@@ -1028,7 +1028,7 @@ const Home = () => {
                 About CareerConnect
               </p>
               <ul className="space-y-1.5 text-slate-400">
-                <li><Link to="/home" className="hover:text-white">About CareerConnect</Link></li>
+                <li><Link to="/contact" className="hover:text-white">About CareerConnect</Link></li>
                 <li><Link to="/opportunities?source=campus" className="hover:text-white">Opportunities</Link></li>
                 {FEATURES.courses && <li><Link to="/courses" className="hover:text-white">Training & Certifications</Link></li>}
                 <li><Link to="/register/employer" className="hover:text-white">Hire Talent</Link></li>
@@ -1039,11 +1039,14 @@ const Home = () => {
 
           <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
             <p>© {new Date().getFullYear()} CareerConnect. All rights reserved.</p>
-            <div className="flex items-center gap-4">
-              <Link to="/home" className="hover:text-slate-300">Privacy Policy</Link>
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+              <Link to="/privacy" className="hover:text-slate-300">Privacy Policy</Link>
               <span>•</span>
-              <Link to="/home" className="hover:text-slate-300">Terms & Conditions</Link>
+              <Link to="/terms" className="hover:text-slate-300">Terms & Conditions</Link>
               <span>•</span>
+              <Link to="/contact" className="hover:text-slate-300">Contact</Link>
+              <span>•</span>
+              {/* G02 points this at /sitemap.xml once the server sitemap exists. */}
               <Link to="/home" className="hover:text-slate-300">Sitemap</Link>
             </div>
           </div>

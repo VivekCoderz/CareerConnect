@@ -16,6 +16,8 @@ import {
 import api from "../../api/api";
 import { getCaptchaToken } from "../../utils/captcha";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
+import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
+import { TERMS_VERSION } from "../../config/legal";
 
 // ======================================================
 // Helper: Generate Strong Password
@@ -123,6 +125,7 @@ const EmployerRegister = () => {
   // ======================================================
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaError, setCaptchaError] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
@@ -616,6 +619,10 @@ const EmployerRegister = () => {
       return;
     }
     setCaptchaError("");
+    if (!acceptedTerms) {
+      dispatch(signupFailure("Please agree to the Terms and Privacy Policy to create your account."));
+      return;
+    }
 
     dispatch(signupStart());
 
@@ -639,6 +646,8 @@ const EmployerRegister = () => {
 
         keepSignedIn,
         captchaToken: finalCaptchaToken,
+        acceptedTerms: true,
+        termsVersion: TERMS_VERSION,
       };
 
       const res = await api.post(
@@ -1407,10 +1416,12 @@ const EmployerRegister = () => {
                   />
                 </div>
 
+                <TermsConsentCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} />
+
                 {/* Submit */}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !acceptedTerms}
                   className="w-full h-11 mt-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm"
                 >
                   {loading ? (

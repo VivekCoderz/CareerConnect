@@ -20,6 +20,8 @@ import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
 import { generateStrongPassword } from "../../utils/passwordGenerator";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
+import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
+import { TERMS_VERSION } from "../../config/legal";
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
@@ -157,6 +159,7 @@ const Signup = () => {
   const [extraInterests, setExtraInterests] = useState([]);
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaError, setCaptchaError] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -606,6 +609,10 @@ const Signup = () => {
       return;
     }
     setCaptchaError("");
+    if (!acceptedTerms) {
+      dispatch(signupFailure("Please agree to the Terms and Privacy Policy to create your account."));
+      return;
+    }
 
     dispatch(signupStart());
 
@@ -638,6 +645,8 @@ const Signup = () => {
         github: formData.github?.trim() || "",
         keepSignedIn,
         captchaToken: finalCaptchaToken,
+        acceptedTerms: true,
+        termsVersion: TERMS_VERSION,
       };
 
       const res = await api.post("/auth/register", payload);
@@ -1807,6 +1816,8 @@ const Signup = () => {
                   />
                 </div>
 
+                <TermsConsentCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} className="pt-2" />
+
                 {/* Submit button */}
                 <div className="pt-3 flex items-center justify-between">
                   <button
@@ -1820,7 +1831,7 @@ const Signup = () => {
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={loading}
+                    disabled={loading || !acceptedTerms}
                     className="h-11 px-8 rounded-lg bg-[#008bdc] hover:bg-[#0077ba] disabled:bg-blue-300 text-white text-sm font-semibold transition shadow-sm flex items-center gap-2 cursor-pointer"
                   >
                     {loading ? (
