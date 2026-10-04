@@ -6,8 +6,9 @@ const Internship = require("../models/Internship");
 // G11: "Report this job" from the public job and internship pages. Reports land in the
 // existing Report collection, so they show up on /admin/reports.
 const REASONS = {
-  asks_for_money: { label: "Asks candidates for money", category: "Spam / Fraud", priority: "High" },
-  fake_or_scam: { label: "Fake or scam job", category: "Spam / Fraud", priority: "Medium" },
+  // Money and scam reports are handled within 2 hours (moderation SOP), so they are Critical.
+  asks_for_money: { label: "Asks candidates for money", category: "Spam / Fraud", priority: "Critical", urgent: true },
+  fake_or_scam: { label: "Fake or scam job", category: "Spam / Fraud", priority: "Critical", urgent: true },
   misleading: { label: "Wrong or misleading information", category: "Opportunity", priority: "Medium" },
   duplicate: { label: "Duplicate", category: "Opportunity", priority: "Low" },
   other: { label: "Other", category: "Opportunity", priority: "Medium" },
@@ -40,7 +41,7 @@ exports.createUserReport = async (req, res, next) => {
     if (!mongoose.isValidObjectId(opportunityId)) {
       return res.status(404).json({ success: false, message: "This listing was not found." });
     }
-    const reasonInfo = REASONS[reason];
+    const reasonInfo = typeof reason === "string" && Object.hasOwn(REASONS, reason) ? REASONS[reason] : null;
     if (!reasonInfo) {
       return res.status(400).json({ success: false, field: "reason", message: "Please choose a reason." });
     }
@@ -84,7 +85,8 @@ exports.createUserReport = async (req, res, next) => {
       description: text,
       reportedBy,
       reportedByName: req.user.fullName || "User",
-      companyId: listing.companyId || null,
+      // No companyId: company admins see reports filed against their own company along
+      // with the reporter's contact details. Platform admins trace the company via the listing.
       opportunityId: listing._id,
       opportunityModel: model,
       targetType: opportunityType,
@@ -92,7 +94,12 @@ exports.createUserReport = async (req, res, next) => {
       targetTitle: listing.title,
     });
 
-    return res.status(201).json({ success: true, message: "Thanks, our team will review this within 24 hours." });
+    return res.status(201).json({
+      success: true,
+      message: reasonInfo.urgent
+        ? "Thanks for reporting this. We review money and scam reports within 2 hours. Please don't pay anything."
+        : "Thanks, our team will review this within 24 hours.",
+    });
   } catch (error) {
     next(error);
   }

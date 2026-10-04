@@ -317,7 +317,10 @@ export default function JobDetailPage() {
           <p className="text-[11px] text-slate-400">
             CareerConnect never asks candidates to pay for a job. If an employer asks you for money, don't pay.
           </p>
-          {!job.isExternal && <ReportListingButton opportunityType="Job" opportunityId={String(job._id)} />}
+          {/* Visitors (asked to log in) and candidates can report; employers and admins can't. */}
+          {!job.isExternal && (!user || isCandidate) && (
+            <ReportListingButton opportunityType="Job" opportunityId={String(job._id)} />
+          )}
         </div>
       </div>
     );

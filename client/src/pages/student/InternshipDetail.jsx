@@ -654,7 +654,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
             )}
           </section>
 
-          {!internship.isExternal && (
+          {!internship.isExternal && (!user || isCandidate) && (
             <div className="text-center space-y-1.5 px-2">
               <p className="text-[11px] text-slate-400">
                 CareerConnect never asks candidates to pay. If an employer asks you for money, don't pay.

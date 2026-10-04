@@ -24,7 +24,7 @@ describe("POST /api/reports (G11)", () => {
     expect(await Report.countDocuments()).toBe(0);
   });
 
-  it("saves a High priority Spam / Fraud report for 'asks for money' and shows it to admins", async () => {
+  it("saves a Critical Spam / Fraud report for 'asks for money' and shows it to admins", async () => {
     const res = await report(candidate, {
       opportunityType: "Job",
       opportunityId: String(job._id),
@@ -32,10 +32,12 @@ describe("POST /api/reports (G11)", () => {
       details: "They asked for a Rs 2,000 registration fee on WhatsApp.",
     });
     expect(res.status).toBe(201);
-    expect(res.body.message).toMatch(/review this within 24 hours/);
+    expect(res.body.message).toMatch(/within 2 hours/);
 
     const saved = await Report.findOne({ opportunityId: job._id }).lean();
-    expect(saved.priority).toBe("High");
+    expect(saved.priority).toBe("Critical");
+    // The reported company must not see the report or who filed it.
+    expect(saved.companyId ?? null).toBeNull();
     expect(saved.category).toBe("Spam / Fraud");
     expect(saved.status).toBe("Open");
     expect(String(saved.reportedBy)).toBe(String(candidate.user._id));
@@ -46,7 +48,7 @@ describe("POST /api/reports (G11)", () => {
     const list = await request(app).get("/api/admin/reports").set(auth(admin));
     expect(list.status).toBe(200);
     const reports = list.body.reports || list.body.data?.reports || [];
-    expect(reports.some((r) => String(r._id) === String(saved._id) && r.priority === "High")).toBe(true);
+    expect(reports.some((r) => String(r._id) === String(saved._id) && r.priority === "Critical")).toBe(true);
   });
 
   it("uses Medium priority for other reasons", async () => {
@@ -101,6 +103,7 @@ describe("POST /api/reports (G11)", () => {
   it("validates the request", async () => {
     const base = { opportunityType: "Job", opportunityId: String(job._id), reason: "other" };
     expect((await report(candidate, { ...base, reason: "because" })).status).toBe(400);
+    expect((await report(candidate, { ...base, reason: "constructor" })).status).toBe(400);
     expect((await report(candidate, { ...base, opportunityType: "Course" })).status).toBe(400);
     expect((await report(candidate, { ...base, details: "x".repeat(501) })).status).toBe(400);
     expect((await report(candidate, { ...base, opportunityId: "64b000000000000000000000" })).status).toBe(404);
