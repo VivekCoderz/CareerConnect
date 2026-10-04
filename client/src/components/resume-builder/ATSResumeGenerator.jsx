@@ -921,7 +921,8 @@ const ATSResumeGenerator = () => {
             <div className="max-w-5xl mx-auto space-y-5 px-2 sm:px-0">
               {/* ATS Score Card */}
               <ATSScoreCard
-                atsScore={generatedResume.atsScore || 0}
+                atsScore={generatedResume.atsScore ?? null}
+                scoreUnavailableReason={generatedResume.scoreUnavailableReason}
                 matchedKeywords={generatedResume.matchedKeywords || []}
                 missingKeywords={generatedResume.missingKeywords || []}
                 targetRole={generatedResume.tailoredMeta?.targetRole || jobDetails.jobTitle}

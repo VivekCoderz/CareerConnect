@@ -446,8 +446,8 @@ const generateFresherRecommendations = async (userId) => {
         id: job._id,
         title: job.title,
         company: job.companyName || "Technology Partner",
-        location: job.location || `${job.city || "Bangalore"}, ${job.country || "India"}`,
-        city: job.city || "Bangalore",
+        location: job.location || [job.city, job.country].filter(Boolean).join(", "),
+        city: job.city || "",
         workMode: job.workMode || "Hybrid",
         salary: job.salaryRange?.min
           ? `₹${job.salaryRange.min / 100000}–${job.salaryRange.max / 100000} LPA`

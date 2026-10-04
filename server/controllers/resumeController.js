@@ -2640,7 +2640,11 @@ const buildATSOpportunity = (jobDescription, targetRole = "") => {
   };
 };
 
-const percentageOf = (value, maximum) => Math.round((Number(value || 0) / maximum) * 100);
+// Null when any part couldn't be measured (no invented score for it).
+const percentageOf = (value, maximum) => (value === null || value === undefined
+  ? null
+  : Math.round((Number(value) / maximum) * 100));
+const sumOrNull = (...values) => (values.some((v) => v === null) ? null : values.reduce((a, b) => a + b, 0));
 
 const mergeVerifiedATSReport = (richReport, deterministic, candidateData, targetRole, companyName) => {
   const formatAssessment = assessATSResumeFormat(candidateData);
@@ -2656,19 +2660,15 @@ const mergeVerifiedATSReport = (richReport, deterministic, candidateData, target
   return ({
   ...(richReport || {}),
   atsScore: deterministic.overallScore,
+  scoreUnavailable: deterministic.scoreUnavailable,
+  scoreUnavailableReason: deterministic.scoreUnavailableReason,
   matchGrade: deterministic.rating,
   targetRole: targetRole || richReport?.targetRole || "Target Opportunity",
   companyName: companyName || richReport?.companyName || "",
   scoreBreakdown: {
     keywordMatch: percentageOf(deterministic.sections.keywords, 25),
-    experienceImpact: percentageOf(
-      deterministic.sections.experience + deterministic.sections.impact,
-      20
-    ),
-    formattingAndClarity: percentageOf(
-      deterministic.sections.completeness + deterministic.sections.readability,
-      15
-    ),
+    experienceImpact: percentageOf(sumOrNull(deterministic.sections.experience, deterministic.sections.impact), 20),
+    formattingAndClarity: percentageOf(sumOrNull(deterministic.sections.completeness, deterministic.sections.readability), 15),
     skillsCoverage: percentageOf(deterministic.sections.skills, 40),
   },
   skillGapAnalysis: {
@@ -2687,7 +2687,7 @@ const mergeVerifiedATSReport = (richReport, deterministic, candidateData, target
   scoreDisclaimer: deterministic.disclaimer,
   scoreParameters,
   formatAssessment,
-  requiresFix: deterministic.overallScore < 80 || !formatAssessment.isProperFormat,
+  requiresFix: (deterministic.overallScore !== null && deterministic.overallScore < 80) || !formatAssessment.isProperFormat,
   candidateData,
   });
 };
@@ -2887,6 +2887,24 @@ const atsFixHandler = async (req, res) => {
 
     const originalAnalysis = analyzeATSMatch(enriched, opportunity);
     const originalFormat = assessATSResumeFormat(enriched);
+    if (originalAnalysis.scoreUnavailable) {
+      return res.status(200).json({
+        success: true,
+        fixedResume: enriched,
+        previousAtsScore: null,
+        improvedAtsScore: null,
+        scoreImprovement: null,
+        scoreUnavailable: true,
+        scoreUnavailableReason: originalAnalysis.scoreUnavailableReason,
+        scoreAnalysis: originalAnalysis,
+        formatAssessment: originalFormat,
+        selectedSource: "original",
+        fixesAppliedCount: 0,
+        wasModified: false,
+        template: template || "classic",
+        message: "No changes were made: without skills or keywords in the job description, an improvement can't be measured.",
+      });
+    }
     if (originalAnalysis.overallScore >= 80 && originalFormat.isProperFormat) {
       return res.status(200).json({
         success: true,
@@ -2997,6 +3015,14 @@ const atsPdfOptimizeHandler = async (req, res) => {
       return res.status(400).json({ success: false, message: "Project, coursework or experience details must be 2,500 characters or fewer." });
     }
     const original = atsPdfWorkflow.scorePdfText(resumeText, jdText);
+    if (original.scoreUnavailable) {
+      return res.status(422).json({
+        success: false,
+        code: "SCORE_UNAVAILABLE",
+        message: original.scoreUnavailableReason,
+        original,
+      });
+    }
     let confirmedSkills;
     try {
       confirmedSkills = req.body?.confirmedSkills ? JSON.parse(req.body.confirmedSkills) : [];

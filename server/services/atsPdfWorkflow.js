@@ -11,6 +11,8 @@ const {
   extractKnownSkills,
   extractKeywords,
   phraseExists,
+  scoreFromSections,
+  SCORE_UNAVAILABLE_REASON,
 } = require("./atsScoringService");
 
 const execFileAsync = promisify(execFile);
@@ -53,7 +55,9 @@ function scorePdfText(resumeText, jdText) {
   const matchedSkills = targetSkills.filter((skill) => detectedSkills.has(skill));
   const missingSkills = targetSkills.filter((skill) => !matchedSkills.includes(skill));
   const ignoredKeywords = new Set(["title", "need", "looking", "seeking", "company", "apply", "please", "candidate"]);
-  const keywords = [...new Set(extractKeywords(`${jd.title} ${jd.description}`, 40)
+  // Keywords come only from real job-description text; an empty description gives none
+  // (its placeholder title "Target role" is not a keyword).
+  const keywords = [...new Set(extractKeywords(jd.description ? `${jd.title} ${jd.description}` : "", 40)
     .map((word) => word.replace(/^[^a-z0-9]+|[^a-z0-9+#]+$/g, ""))
     .filter((word) => word.length >= 3 && !ignoredKeywords.has(word)))].slice(0, 18);
   const matchedKeywords = keywords.filter((word) => phraseExists(normalizedResume, word));
@@ -87,17 +91,22 @@ function scorePdfText(resumeText, jdText) {
   const sectionKinds = ["skills", "experience", "projects", "coursework", "education"].filter((kind) => headings.some((heading) => heading.includes(kind)));
   const orderedSections = sectionKinds.length >= 2 && lines.findIndex(isHeading) < lines.length / 2;
   const readable = lines.length >= 8 && lines.some((line) => line.length >= 35 && line.length <= 180);
+  // No target skills / keywords in the job description: that part is not scored (null),
+  // never given default points.
   const sections = {
-    skills: targetSkills.length ? Math.round(35 * matchedSkills.length / targetSkills.length) : 18,
-    keywords: keywords.length ? Math.round(25 * matchedKeywords.length / keywords.length) : 13,
+    skills: targetSkills.length ? Math.round(35 * matchedSkills.length / targetSkills.length) : null,
+    keywords: keywords.length ? Math.round(25 * matchedKeywords.length / keywords.length) : null,
     evidence: Math.round(10 * evidenceMatches.length / Math.max(1, matchedSkills.length + matchedKeywords.length))
       + Math.min(5, actionCount) + Math.min(5, earlyMatches.length),
     readability: (emailPresent ? 4 : 0) + (namePresent ? 3 : 0)
       + (sectionKinds.length >= 2 ? 5 : 0) + (orderedSections ? 4 : 0) + (readable ? 4 : 0),
   };
-  const overallScore = Math.min(100, Object.values(sections).reduce((sum, score) => sum + score, 0));
+  const scoreUnavailable = !targetSkills.length && !keywords.length;
+  const overallScore = scoreFromSections(sections, { skills: 35, keywords: 25, evidence: 20, readability: 20 }, !scoreUnavailable);
   return {
     atsScore: overallScore,
+    scoreUnavailable,
+    ...(scoreUnavailable ? { scoreUnavailableReason: SCORE_UNAVAILABLE_REASON } : {}),
     targetRole: jd.title,
     sections,
     scoreParameters: [
@@ -110,7 +119,7 @@ function scorePdfText(resumeText, jdText) {
     missingSkills,
     matchedKeywords,
     missingKeywords,
-    requiresFix: overallScore < 70,
+    requiresFix: overallScore !== null && overallScore < 70,
     scoreDisclaimer: "CareerConnect estimates alignment from selectable PDF text. Employers use different screening methods.",
   };
 }

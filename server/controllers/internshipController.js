@@ -15,6 +15,8 @@ const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require(
 const {
   pickListingUpdate,
   checkListingInput,
+  hasLocation,
+  LOCATION_REQUIRED,
   mergePayRanges,
   requiresReapproval,
   escapeRegex,
@@ -72,6 +74,9 @@ exports.createInternship = async (req, res, next) => {
     }
 
     const fields = pickListingUpdate(req.body);
+    if (!hasLocation(fields.location)) {
+      return res.status(400).json({ success: false, message: LOCATION_REQUIRED });
+    }
     const invalid = checkListingInput(fields);
     if (invalid) return res.status(400).json({ success: false, message: invalid });
 
@@ -375,7 +380,7 @@ exports.getInternships = async (req, res, next) => {
             companyId: int.employerId?._id || "",
             logo: int.employerId?.logo || "",
             location: int.location,
-            city: int.city || "Bangalore",
+            city: int.city || "",
             category: int.category || "Web Development",
             subCategory: int.subCategory || "Full Stack",
             stipend: stipendStr,

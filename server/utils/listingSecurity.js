@@ -31,6 +31,11 @@ const requiresReapproval = (listing, updates) => {
   );
 };
 
+// A listing must say where it is. Any non-empty text works, including "Remote"; there is
+// no default city.
+const LOCATION_REQUIRED = "Location is required";
+const hasLocation = (value) => typeof value === "string" && value.trim().length > 0;
+
 // Pay ranges by listing field. A max of 0 means "no maximum" (shown as "₹X+").
 const PAY_RANGE_FIELDS = { salaryRange: "Salary", stipendAmount: "Stipend" };
 
@@ -143,6 +148,8 @@ const withoutListed = (extra, listed) => {
 };
 
 module.exports = {
+  LOCATION_REQUIRED,
+  hasLocation,
   checkListingInput,
   mergePayRanges,
   pickListingUpdate,
