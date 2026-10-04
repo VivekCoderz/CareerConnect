@@ -462,7 +462,7 @@ const generateFresherRecommendations = async (userId) => {
         postedDate: job.createdAt,
         deadline: job.deadline || null,
         openings: job.openings || null,
-        source: job.source || "E2Job",
+        source: job.source || "CareerConnect",
         employmentType: textOrNull(job.employmentType),
       };
     })
