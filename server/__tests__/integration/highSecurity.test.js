@@ -62,7 +62,7 @@ describe("recruitment authorization", () => {
     await Application.updateOne({ _id: data.application._id }, { $set: { status: "Selected" } });
     const payload = {
       candidateId: data.candidate.user._id, jobId: data.job._id, applicationId: data.application._id,
-      salary: 600000, joiningDate: "2027-01-01", expiryDate: "2027-02-01",
+      salary: 600000, joiningDate: "2027-01-01", expiryDate: "2026-12-15",
     };
     expect((await as(data.otherEmployer.token, "post", "/api/offers").send(payload)).statusCode).toBe(403);
     expect((await as(data.employer.token, "post", "/api/offers").send({
@@ -73,6 +73,11 @@ describe("recruitment authorization", () => {
     const path = `/api/offers/${created.body.offer._id}/respond`;
     expect((await as(data.outsider.token, "patch", path).send({ status: "Accepted" })).statusCode).toBe(409);
     expect((await as(data.candidate.token, "patch", path).send({ status: "Accepted" })).statusCode).toBe(200);
+    // The employer is told (QA bug 15).
+    await require("../../services/notificationEmail").flushNotificationEmails();
+    expect(await require("../../models/Notification").countDocuments({
+      recipient: data.employer.user._id, notificationType: "OFFER", "metadata.status": "Accepted",
+    })).toBe(1);
     expect((await as(data.candidate.token, "patch", path).send({ status: "Rejected" })).statusCode).toBe(409);
   });
 

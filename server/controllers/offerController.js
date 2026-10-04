@@ -2,7 +2,7 @@ const JobOffer = require("../models/JobOffer");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
-const { notifyOfferSent } = require("../services/accountNotifications");
+const { notifyOfferSent, notifyOfferResponse } = require("../services/accountNotifications");
 const { checkTransition, guardedStatusUpdate } = require("../utils/applicationStatus");
 const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
 const { startOfTodayIST } = require("../utils/listingExpiry");
@@ -112,6 +112,14 @@ exports.createOffer = async (req, res, next) => {
     }
     if (parsedExpiryDate <= now) {
       return res.status(400).json({ success: false, message: "Offer expiry cannot be in the past" });
+    }
+    // The candidate must be able to answer before they are due to join (QA bug 13).
+    // Same day is fine: compare against the end of the joining day.
+    if (parsedExpiryDate.getTime() > startOfTodayIST(parsedJoiningDate).getTime() + 24 * 60 * 60 * 1000) {
+      return res.status(400).json({
+        success: false,
+        message: "The offer acceptance deadline must be on or before the joining date",
+      });
     }
 
     const problem = checkTransition(application.status, "Offered");
@@ -227,6 +235,8 @@ exports.respondToOffer = async (req, res, next) => {
         });
       }
     }
+
+    notifyOfferResponse({ offer, status });
 
     return res.status(200).json({
       success: true,

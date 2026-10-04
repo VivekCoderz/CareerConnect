@@ -169,9 +169,44 @@ const notifyListingDecision = fireAndForget("listing decision", async ({ listing
   });
 });
 
+/** Employer: the candidate accepted or declined their offer (QA bug 15). In-app + email. */
+const notifyOfferResponse = fireAndForget("offer response", async ({ offer, status }) => {
+  const [profile, job, candidate] = await Promise.all([
+    offer.employerId ? EmployerProfile.findById(idOf(offer.employerId)).select("userId").lean() : null,
+    offer.jobId ? Job.findById(idOf(offer.jobId)).select("title createdBy").lean() : null,
+    loadUser(offer.candidateId),
+  ]);
+  const employer = await loadUser(profile?.userId || job?.createdBy);
+  if (!employer) return;
+  const accepted = status === "Accepted";
+  const role = offer.designation || job?.title || "the role";
+  const who = candidate?.fullName || "The candidate";
+  const title = accepted ? "Offer accepted" : "Offer declined";
+  const lines = [`${who} has ${accepted ? "accepted" : "declined"} your offer for ${role}.`];
+
+  await createNotification({
+    recipientId: employer._id,
+    title,
+    message: lines.join(" "),
+    notificationType: "OFFER",
+    actionUrl: DASHBOARDS.employer,
+    metadata: { offerId: String(offer._id), status },
+  });
+  queueEmail({
+    to: employer.email,
+    subject: `${title}: ${role}`,
+    heading: title,
+    greetingName: employer.fullName,
+    lines,
+    linkPath: DASHBOARDS.employer,
+    linkText: "Open your employer dashboard",
+  });
+});
+
 module.exports = {
   notifyInterviewEvent,
   notifyOfferSent,
+  notifyOfferResponse,
   notifyEmployerVerification,
   notifyListingDecision,
 };
