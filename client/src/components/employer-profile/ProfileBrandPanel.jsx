@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import BrandLogo from "../common/BrandLogo";
 
 const stepHeadings = {
   1: {
@@ -58,17 +59,7 @@ const ProfileBrandPanel = ({ currentStep = 1, profileCompletion = 0 }) => {
       {/* Top GU Branding */}
       <div className="relative z-10">
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center font-bold text-sm text-white group-hover:bg-white/20 transition">
-            CC
-          </div>
-          <div>
-            <p className="text-[15px] font-bold tracking-tight text-white">
-              CAREERCONNECT
-            </p>
-            <p className="text-[11px] text-[#fde68a] font-semibold tracking-wide">
-              E2Job · Employers
-            </p>
-          </div>
+          <BrandLogo markOnly className="h-8 w-10 sm:hidden" /><BrandLogo className="hidden h-8 w-36 sm:block" />
         </Link>
       </div>
 

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getPublicCompanyProfile, getEmployerProfile } from "../../services/employerService";
 import useSeo from "../../hooks/useSeo";
+import BrandLogo from "../../components/common/BrandLogo";
 
 const CompanyPublicProfile = () => {
   const { companyId } = useParams();
@@ -91,17 +92,7 @@ const CompanyPublicProfile = () => {
       {/* Top Header */}
       <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <Link to="/home" className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#92400e] to-[#b45309] text-white flex items-center justify-center font-bold text-xs shadow-sm">
-            CC
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-              CAREERCONNECT
-            </h1>
-            <p className="text-[10.5px] text-[#b45309] font-bold tracking-wide">
-              E2Job · Verified Employers
-            </p>
-          </div>
+          <BrandLogo markOnly className="h-8 w-10 sm:hidden" /><BrandLogo className="hidden h-8 w-36 sm:block" />
         </Link>
 
         <div className="flex items-center gap-3">

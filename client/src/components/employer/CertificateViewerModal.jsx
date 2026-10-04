@@ -89,10 +89,10 @@ const CertificateViewerModal = ({
             {/* Institution Brand */}
             <div className="space-y-1">
               <span className="text-[11px] font-extrabold tracking-widest text-amber-700 uppercase block">
-                CAREERCONNECT
+                E2JOB
               </span>
               <h1 className="text-xl sm:text-2xl font-black text-[#1e3a8a] tracking-tight uppercase">
-                CAREERCONNECT PROFESSIONAL ACADEMY
+                E2JOB PROFESSIONAL ACADEMY
               </h1>
               <p className="text-[11px] text-slate-500 font-medium">
                 Accredited Center for Corporate Learning, Skill Validation & Competency Development
@@ -176,7 +176,7 @@ const CertificateViewerModal = ({
             <div className="pt-2 text-[10px] text-slate-400 flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 gap-1">
               <span>Issued On: <strong className="text-slate-700">{issueDate}</strong></span>
               <span>Valid Until: <strong className="text-slate-700">{expiryDate}</strong></span>
-              <span className="font-mono">Verify at: careerconnect.careerconnect.com/verify</span>
+              <span className="font-mono">Verify at: e2job.comm/verify</span>
             </div>
           </div>
         </div>
