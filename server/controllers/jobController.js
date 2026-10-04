@@ -8,6 +8,8 @@ const Application = require("../models/Application");
 const { isListingExpired, withOpenDeadline } = require("../utils/listingExpiry");
 const {
   pickListingUpdate,
+  checkListingInput,
+  mergePayRanges,
   requiresReapproval,
   escapeRegex,
   resolveNewListingModeration,
@@ -384,6 +386,9 @@ exports.createJob = async (req, res, next) => {
       });
     }
 
+    const invalid = checkListingInput({ deadline, salaryRange });
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
+
     const stages = sanitizeRecruitmentStages(recruitmentStages);
     const companyId = req.user.companyId || null;
     let companyName = "";
@@ -480,6 +485,9 @@ exports.updateJob = async (req, res, next) => {
 
     // Only listing fields are editable; ownership and counters are not.
     const updates = pickListingUpdate(req.body);
+    const invalid = checkListingInput(updates, job);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
+    mergePayRanges(updates, job);
     if (req.body.recruitmentStages) {
       updates.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     }

@@ -41,9 +41,6 @@
   "controllers/applicationController.js": {
     "max-lines": {
       "count": 1
-    },
-    "no-unused-vars": {
-      "count": 1
     }
   },
   "controllers/authController.js": {
