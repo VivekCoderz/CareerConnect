@@ -1390,7 +1390,7 @@ const EmployerDashboard = () => {
             <OfferManagementHub
               offers={offers}
               jobs={jobs}
-              companyName={user?.fullName || "E2Job Partner"}
+              companyName={profile.companyName || orgStatusData?.company?.name || ""}
               onRefresh={async () => {
                 const offersRes = await recruitmentService.getOffers().catch(() => ({ offers: [] }));
                 setOffers(offersRes?.offers || []);
@@ -2507,6 +2507,7 @@ const EmployerDashboard = () => {
         onCreateOffer={handleCreateOffer}
         application={offerApplication}
         jobs={jobs}
+        companyName={profile.companyName || orgStatusData?.company?.name || ""}
       />
 
         {FEATURES.assessments && (
