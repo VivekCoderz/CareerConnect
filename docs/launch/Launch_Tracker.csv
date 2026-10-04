@@ -46,8 +46,8 @@ J02,Supply (daily),P0,Geeta University placement cell: recruiter list + alumni c
 J03,Supply (daily),P1,Assisted posting: team posts jobs from JDs employers send on WhatsApp/email (with employer consent),Ram,Tripti,2026-09-29,2026-10-10,S04,Each assisted post has employer contact and consent recorded,Not started
 J04,Supply (daily),P1,Government jobs daily curation process (Employment News / NCS / state PSC notifications),Ram,,2026-10-01,2026-10-10,G01,Daily posts with official source link,Not started
 L01,Launch ops,P0,"Moderation SOP: what verifies an employer, banned job types (any fee charged to candidates), response time, admin rota",Ram,Tripti,2026-09-27,2026-09-30,,Written SOP shared; rota for 11-25 Oct assigned,Done (approved by Ram 3 Oct)
-L02,Launch ops,P1,"Launch channels: WhatsApp/Telegram jobs channel, LinkedIn page, college ambassadors, launch posts drafted",Ram,Sneha,2026-10-01,2026-10-09,,Channels live; launch posts scheduled,Not started
-L03,Launch ops,P1,Support inbox + FAQ + canned replies,Ram,Tripti,2026-10-03,2026-10-08,,Support email monitored daily,Not started
+L02,Launch ops,P1,"Launch channels: WhatsApp/Telegram jobs channel, LinkedIn page, college ambassadors, launch posts drafted",Ram,Sneha,2026-10-01,2026-10-09,,Channels live; launch posts scheduled,In progress (channel plan + launch posts drafted in launch-channels.md; Sneha to review)
+L03,Launch ops,P1,Support inbox + FAQ + canned replies,Ram,Tripti,2026-10-03,2026-10-08,,Support email monitored daily,In progress (playbook + FAQ + replies in support-playbook.md; Cloudflare Email Routing to set up)
 L04,Launch ops,P2,Pricing discovery: interview 10 employers on featured jobs / paid plans,Ram,,2026-10-01,2026-10-10,,Notes from 10 interviews; draft pricing,Not started
 Q01,P1-P3 QA,P0,Four-role test checklist (visitor/candidate/employer/admin) covering launch scope only,Tripti,Ram,2026-09-27,2026-09-30,,Checklist reviewed by each owner,Not started
 Q02,P1-P3 QA,P0,Automated regression tests for S02/S03/S04/S05/S08 fixes,Tripti,Vivek,2026-09-29,2026-10-03,S02;S03;S04;S05;S08,Tests in CI and passing,Not started
