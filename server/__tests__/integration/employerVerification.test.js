@@ -158,6 +158,8 @@ describe("employer verification (S04)", () => {
         companyType: "Private",
         industry: "Technology",
         location: "Pune",
+        acceptedTerms: true,
+        termsVersion: "2026-10-01",
         ...overrides,
       });
     };

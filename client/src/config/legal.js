@@ -3,23 +3,27 @@
 // and keeps the "Draft" banner on all three pages, so an unfinished page is obvious.
 export const LEGAL = {
   version: "2026-10-01",
-  lastUpdated: null, // date the final text is published, e.g. "10 October 2026"
+  lastUpdated: "4 October 2026", // date the final text is published
 
-  entityName: null, // registered legal name of the company operating CareerConnect
-  registeredAddress: null,
-  jurisdictionCity: null, // courts with jurisdiction (Terms §12)
+  // Details from Ram (4 Oct). The legal name is provisional ("for now").
+  entityName: "CareerConnect", // registered legal name of the company operating CareerConnect
+  registeredAddress:
+    "First Floor, 23, Ashoka Apartment, Pocket 11A, Rohini Sector 23, New Delhi, North West Delhi, Delhi 201005",
+  jurisdictionCity: "Delhi", // courts with jurisdiction (Terms §12)
 
-  grievanceOfficer: null, // name of the Grievance Officer (DPDP Act)
+  grievanceOfficer: "Amit Verma", // name of the Grievance Officer (DPDP Act)
+  // Placeholder inboxes on the company domain until the real ones are set up; each
+  // must be a monitored mailbox before launch (grievance is a DPDP requirement).
   emails: {
-    grievance: null,
-    support: null,
-    report: null,
-    employers: null,
-    partnerships: null,
+    grievance: "grievance@codeformode.in",
+    support: "support@codeformode.in",
+    report: "report@codeformode.in",
+    employers: "employers@codeformode.in",
+    partnerships: "partnerships@codeformode.in",
   },
 
-  deletionDays: null, // days to delete profile and resumes after account deletion (draft: 30)
-  resolutionDays: null, // days to resolve a grievance (draft: 30)
+  deletionDays: 30, // days to delete profile and resumes after account deletion
+  resolutionDays: 30, // days to resolve a grievance
 };
 
 /** Version of the Terms and Privacy Policy a new account agrees to; sent as termsVersion at signup. */

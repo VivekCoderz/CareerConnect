@@ -15,6 +15,7 @@ const { validateEmail, maskEmail } = require("../services/emailValidationService
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
 const { deleteAccount } = require("../services/accountDeletion.js");
 const { recordOtpEmail } = require("../services/emailBudget.js");
+const { CONSENT_REQUIRED, readConsent } = require("../utils/consent.js");
 
 // ==========================================
 // PASSWORD VALIDATION & HELPERS
@@ -357,6 +358,11 @@ module.exports.registerUser = async (req, res, next) => {
     ).trim();
 
     // -------------------- Validation --------------------
+    const consent = readConsent(req.body);
+    if (!consent) {
+      return res.status(400).json(CONSENT_REQUIRED);
+    }
+
     if (!finalFullName) {
       return res.status(400).json({
         success: false,
@@ -516,6 +522,7 @@ module.exports.registerUser = async (req, res, next) => {
       username: await generateUniqueUsername(normalizedEmail),
       resumeUrl: resumeUrl?.trim() || "",
       resumeName: resumeName?.trim() || (resumeUrl ? "Uploaded Resume.pdf" : ""),
+      consent,
     };
 
     // -------------------- Create user --------------------
@@ -1520,6 +1527,11 @@ module.exports.registerEmployer = async (req, res, next) => {
     } = req.body;
 
     // ---------- Validation ----------
+    const consent = readConsent(req.body);
+    if (!consent) {
+      return res.status(400).json(CONSENT_REQUIRED);
+    }
+
     if (!companyName?.trim()) {
       return res.status(400).json({
         success: false,
@@ -1662,6 +1674,7 @@ module.exports.registerEmployer = async (req, res, next) => {
       profileCompletion: 20,
       authProviders: ["email"],
       hasPassword: true,
+      consent,
     });
 
     // ---------- Create Employer Profile ----------
@@ -1779,6 +1792,14 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
 
     const userId = req.user.id;
 
+    // Finishing onboarding is the Google signup; a profile completed earlier
+    // (before consent was collected) is not asked again.
+    const isNewSignup = !req.user.isProfileComplete;
+    const consent = readConsent(req.body);
+    if (isNewSignup && !consent) {
+      return res.status(400).json(CONSENT_REQUIRED);
+    }
+
     // -------- Basic Validation --------
     if (!phone?.trim()) {
       return res.status(400).json({
@@ -1862,6 +1883,7 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
     if (lastName) updateData.lastName = lastName.trim();
     if (fullName) updateData.fullName = fullName.trim();
     if (resumeUrl) updateData.resumeUrl = resumeUrl.trim();
+    if (isNewSignup) updateData.consent = consent;
 
     const user = await User.findByIdAndUpdate(userId, updateData, { new: true });
 
@@ -2016,6 +2038,10 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
     if (!existingProfile && !settings.allowEmployerRegistration) {
       return res.status(403).json(EMPLOYER_REGISTRATION_CLOSED);
     }
+    const consent = readConsent(req.body);
+    if (!existingProfile && !consent) {
+      return res.status(400).json(CONSENT_REQUIRED);
+    }
 
     // -------- Validation --------
     if (!phone?.trim()) {
@@ -2069,6 +2095,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
         role: "employer",
         userType: "employer",
         profileCompletion: 40,
+        ...(existingProfile ? {} : { consent }),
       },
       { new: true }
     );
