@@ -45,15 +45,15 @@ const remotiveFeed = () => ({
 const arbeitnowFeed = () => ({
   data: [
     {
-      slug: "data-analyst-berlin-123",
+      slug: "data-analyst-bengaluru-123",
       company_name: "Data GmbH",
       title: "Data Analyst",
       description: "<p>SQL dashboards</p>",
       remote: false,
-      url: "https://www.arbeitnow.com/jobs/companies/data-gmbh/data-analyst-berlin-123",
+      url: "https://www.arbeitnow.com/jobs/companies/data-gmbh/data-analyst-bengaluru-123",
       tags: ["SQL"],
       job_types: ["full time"],
-      location: "Berlin",
+      location: "Bengaluru, India",
       created_at: Math.floor((Date.now() - DAY_MS) / 1000),
     },
   ],
@@ -137,7 +137,33 @@ describe("I04 scheduled external job feed sync", () => {
 
       const internship = await Internship.findOne({ source: "Remotive", externalId: "1002" }).lean();
       expect(internship).toMatchObject({ title: "Frontend Intern", isExternal: true, status: "Published" });
-      expect(await Job.countDocuments({ source: "Arbeitnow", externalId: "data-analyst-berlin-123" })).toBe(1);
+      expect(await Job.countDocuments({ source: "Arbeitnow", externalId: "data-analyst-bengaluru-123" })).toBe(1);
+    });
+
+    it("keeps only postings open to candidates in India and closes old ones that aren't", async () => {
+      const stale = await Job.create({
+        title: "Old Zurich role", description: "x", location: "Zurich", source: "Remotive",
+        isExternal: true, externalId: "old-zurich", status: "Published",
+      });
+      mockFeeds({
+        remotive: () => ({
+          jobs: [
+            remotiveJob({ id: 2001, candidate_required_location: "Worldwide" }),
+            remotiveJob({ id: 2002, candidate_required_location: "USA Only" }),
+            remotiveJob({ id: 2003, candidate_required_location: "APAC" }),
+          ],
+        }),
+        arbeitnow: () => ({ data: [{ ...arbeitnowFeed().data[0], slug: "zug-1", location: "Zug", remote: true }], links: { next: null } }),
+      });
+
+      const result = await runExternalJobSync();
+
+      expect(result).toMatchObject({ inserted: 2, skipped: 2 });
+      expect(await Job.exists({ externalId: "2001" })).toBeTruthy();
+      expect(await Job.exists({ externalId: "2003" })).toBeTruthy();
+      expect(await Job.exists({ externalId: "2002" })).toBeNull();
+      expect(await Job.exists({ externalId: "zug-1" })).toBeNull();
+      expect((await Job.findById(stale._id).lean()).status).toBe("Closed");
     });
 
     it("running twice updates the same records instead of duplicating them", async () => {
