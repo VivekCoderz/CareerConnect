@@ -96,11 +96,11 @@ describe("I08 Sentry error capture", () => {
         "user-agent": "jest",
         "x-api-key": "[Filtered]",
       });
-      expect(event.request.url).toBe("https://api.example.com/api/auth/reset?token=[Filtered]&page=2");
-      expect(event.request.query_string).toBe("token=[Filtered]&page=2");
+      expect(event.request.url).toBe("https://api.example.com/api/auth/reset");
+      expect(event.request.query_string).toBeUndefined();
       expect(event.user).toEqual({ id: "u1" });
       expect(event.extra).toEqual({ nested: { otp: "[Filtered]", ok: 1 } });
-      expect(event.breadcrumbs[0].data).toEqual({ url: "/set-password?token=[Filtered]", status_code: 500 });
+      expect(event.breadcrumbs[0].data).toEqual({ url: "/set-password", status_code: 500 });
     });
   });
 });

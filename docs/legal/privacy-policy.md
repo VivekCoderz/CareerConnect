@@ -54,9 +54,12 @@ We process your data based on your **consent**, which you give when you create a
 - **Service providers** who help us run CareerConnect, and only for that purpose:
   - hosting and databases: Render, Vercel, MongoDB Atlas
   - file storage: Cloudinary (resumes and images)
-  - email delivery: Brevo
+  - network and security: Cloudflare
+  - email delivery: Brevo, with [Mailjet / Resend] as a backup for sign-up codes
   - sign-in: Google Firebase
   - AI features: Google Gemini, which processes resume and job-description text when you use our resume tools
+  - error monitoring: Sentry, which receives technical details when something breaks (browser and device type, the page or API address without its query, and an internal account number). It does not receive your name, email, password, resume or the text you type.
+  - visit statistics: Umami, which counts page views without cookies and without identifying you
 - **Authorities**, if the law requires it.
 
 Some of these providers store data on servers **outside India**. We choose providers that protect data with reasonable security safeguards.

@@ -6,10 +6,10 @@
 // Never sent: IP addresses, cookies, console output, or token-like values in URLs.
 import * as Sentry from "@sentry/react";
 
-const SENSITIVE_QUERY = /([?&][^=&#]*(?:token|secret|otp|password|code|key|signature)[^=&#]*=)[^&#]*/gi;
 const OBJECT_ID = /\b[a-f0-9]{24}\b/gi;
 
-const scrubUrl = (url) => (typeof url === "string" ? url.replace(SENSITIVE_QUERY, "$1[Filtered]") : url);
+// Query strings are dropped entirely: besides tokens they carry search text (names, emails).
+const scrubUrl = (url) => (typeof url === "string" ? url.split("?")[0] : url);
 
 /** Removes token-like URL values and personal data from an event before it is sent. */
 export const scrubEvent = (event) => {
@@ -62,13 +62,22 @@ if (dsn) {
  * Reports a failed API call: server errors (5xx) and requests that got no response.
  * One Sentry issue per method + endpoint (ids collapsed), not one per user.
  */
+// Each failing endpoint is reported once per page load: during an outage or a Render cold
+// start every user would otherwise send an event per call and use up the free monthly quota.
+const reportedApiErrors = new Set();
+
 export const reportApiError = (error) => {
   if (!dsn || error?.code === "ERR_CANCELED") return;
   const status = error?.response?.status;
   if (status && status < 500) return;
+  // The user's own connection dropped: not our bug.
+  if (!status && typeof navigator !== "undefined" && navigator.onLine === false) return;
   const method = (error?.config?.method || "get").toUpperCase();
   const endpoint = String(error?.config?.url || "unknown").split("?")[0].replace(OBJECT_ID, ":id");
   const kind = status ? `HTTP ${status}` : "no response";
+  const key = `${method} ${endpoint} ${kind}`;
+  if (reportedApiErrors.has(key)) return;
+  reportedApiErrors.add(key);
   Sentry.withScope((scope) => {
     scope.setFingerprint(["api-error", method, endpoint, kind]);
     scope.setTags({ api_endpoint: endpoint, api_status: status || "none" });

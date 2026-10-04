@@ -9,7 +9,6 @@
 const Sentry = require("@sentry/node");
 
 const SENSITIVE_KEY = /pass(word)?|token|secret|otp|authorization|cookie|api[-_]?key|session|signature|credential|dsn/i;
-const SENSITIVE_QUERY = /([?&][^=&#]*(?:token|secret|otp|password|code|key|signature)[^=&#]*=)[^&#]*/gi;
 
 const scrubObject = (value, depth = 0) => {
   if (!value || typeof value !== "object" || depth > 6) return value;
@@ -21,7 +20,9 @@ const scrubObject = (value, depth = 0) => {
   return out;
 };
 
-const scrubUrl = (url) => (typeof url === "string" ? url.replace(SENSITIVE_QUERY, "$1[Filtered]") : url);
+// Query strings are dropped entirely: besides tokens they carry search text such as a
+// name or email typed into an admin search.
+const scrubUrl = (url) => (typeof url === "string" ? url.split("?")[0] : url);
 
 /** Removes credentials and personal data from an event before it leaves the server. */
 const scrubEvent = (event) => {
@@ -31,11 +32,7 @@ const scrubEvent = (event) => {
     // Cookie and Authorization headers match SENSITIVE_KEY and are filtered.
     if (event.request.headers) event.request.headers = scrubObject(event.request.headers);
     event.request.url = scrubUrl(event.request.url);
-    if (typeof event.request.query_string === "string") {
-      event.request.query_string = scrubUrl(`?${event.request.query_string}`).slice(1);
-    } else if (event.request.query_string) {
-      event.request.query_string = scrubObject(event.request.query_string);
-    }
+    delete event.request.query_string;
   }
   if (event.user) event.user = event.user.id ? { id: String(event.user.id) } : undefined;
   if (event.extra) event.extra = scrubObject(event.extra);
@@ -59,11 +56,16 @@ if (dsn) {
     // The global error handler in app.js reports errors itself, because only it knows the
     // final status (a Mongoose CastError becomes a 400, a CORS rejection is not a bug).
     // The Express integration still adds request context to those events.
-    integrations: [Sentry.expressIntegration({ shouldHandleError: false })],
+    integrations: [
+      Sentry.expressIntegration({ shouldHandleError: false }),
+      // Never attach request bodies (they hold profiles, resumes and passwords).
+      Sentry.httpIntegration({ maxRequestBodySize: "none" }),
+    ],
     // Performance tracing is off unless a rate is set (the free plan has a small quota).
     tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE) || 0,
     beforeSend: scrubEvent,
-    beforeSendTransaction: scrubEvent,
+    // No transaction/span scrubbing: SDK 11 ignores beforeSendTransaction. Keep tracing at 0;
+    // if it is ever turned on, add beforeSendSpan scrubbing first.
   });
   console.log(`[sentry] error monitoring on (${process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || "development"})`);
 }
