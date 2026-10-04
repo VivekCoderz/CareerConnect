@@ -529,7 +529,7 @@ const ProfessionalProfile = () => {
               <div className="space-y-6 animate-fade-in">
                 <RecruiterPreferencesSection
                   recruiterPreferences={profileData?.recruiterPreferences || {}}
-                  visibility={profileData?.profileVisibility || "recruiter-only"}
+                  profileVisibility={profileData?.profileVisibility || "recruiter-only"}
                   jobSearchStatus={profileData?.jobSearchStatus || "Open to Opportunities"}
                   onChange={handleSectionChange}
                 />

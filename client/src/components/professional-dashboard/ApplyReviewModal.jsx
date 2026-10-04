@@ -103,7 +103,7 @@ const ApplyReviewModal = ({
                 </p>
               </div>
               <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">
-                {opportunity.matchPercentage || 92}% Match
+                {typeof opportunity.matchPercentage === "number" ? `${opportunity.matchPercentage}% Match` : "Not enough data"}
               </span>
             </div>
           </div>

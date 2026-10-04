@@ -14,6 +14,13 @@
  * skipped. Clearing resets those fields to today's (empty) defaults; resume, scores,
  * visibility status and timestamps are not touched.
  *
+ * It also clears the placeholders signup used to save for a professional who left their
+ * employment blank: company "Industry", job title "Working Professional" and industry
+ * "Information Technology". Each is cleared only where the stored value is exactly that
+ * text; nothing else on the profile changes. "Information Technology" is a real industry
+ * people choose, so it is only cleared on a profile that also still has the placeholder
+ * company or job title.
+ *
  * Usage (from server/):
  *   node scripts/clean-fake-fresher-professional-profiles.js           # dry run: lists matches
  *   node scripts/clean-fake-fresher-professional-profiles.js --apply   # clear the sample fields
@@ -366,6 +373,51 @@ async function cleanFakeFresherProfessionalProfiles({ apply = false, log = conso
   return summary;
 }
 
+// Signup (before T04) saved these when a professional left the fields blank.
+const COMPANY_PLACEHOLDER = { "currentEmployment.company": "Industry" };
+const TITLE_PLACEHOLDER = { "currentEmployment.jobTitle": "Working Professional" };
+const SIGNUP_PLACEHOLDERS = [
+  { path: "currentEmployment.company", placeholder: "Industry" },
+  { path: "currentEmployment.jobTitle", placeholder: "Working Professional" },
+  // A real industry too: only the default when the same profile still has a placeholder
+  // company or job title.
+  {
+    path: "currentEmployment.industry",
+    placeholder: "Information Technology",
+    onlyIf: { $or: [COMPANY_PLACEHOLDER, TITLE_PLACEHOLDER] },
+  },
+];
+
+async function cleanSignupPlaceholders({ apply = false, log = console.log } = {}) {
+  // Find every match before clearing anything: clearing the company first would hide the
+  // profiles whose industry depends on it.
+  const found = [];
+  for (const { path, placeholder, onlyIf } of SIGNUP_PLACEHOLDERS) {
+    const filter = { [path]: placeholder, ...(onlyIf || {}) };
+    const ids = await ProfessionalProfile.find(filter).distinct("_id");
+    log(`${ids.length} professional profile(s) with ${path} = "${placeholder}"${onlyIf ? " and a placeholder company or title" : ""}:`);
+    ids.forEach((id) => log(`  - ${id}`));
+    found.push({ path, placeholder, ids });
+  }
+
+  const summary = {};
+  for (const { path, placeholder, ids } of found) {
+    let cleared = 0;
+    if (apply && ids.length) {
+      // Exact value in the filter: a profile edited since it was read is left alone.
+      const result = await ProfessionalProfile.updateMany(
+        { _id: { $in: ids }, [path]: placeholder },
+        { $set: { [path]: "" } }
+      );
+      cleared = result.modifiedCount;
+    }
+    summary[path] = { matched: ids.length, cleared, ids: ids.map(String) };
+  }
+  log("");
+  log(apply ? "Cleared the signup placeholders." : "Dry run: placeholders not changed. Re-run with --apply to clear them.");
+  return summary;
+}
+
 async function main() {
   const apply = process.argv.includes("--apply");
   const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
@@ -376,6 +428,8 @@ async function main() {
   console.log("");
   try {
     await cleanFakeFresherProfessionalProfiles({ apply });
+    console.log("");
+    await cleanSignupPlaceholders({ apply });
   } finally {
     await mongoose.disconnect();
   }
@@ -388,4 +442,10 @@ if (require.main === module) {
   });
 }
 
-module.exports = { cleanFakeFresherProfessionalProfiles, FRESHER_SAMPLE_SETS, PROFESSIONAL_SAMPLE_SETS, OLD_DEFAULTS };
+module.exports = {
+  cleanFakeFresherProfessionalProfiles,
+  cleanSignupPlaceholders,
+  FRESHER_SAMPLE_SETS,
+  PROFESSIONAL_SAMPLE_SETS,
+  OLD_DEFAULTS,
+};
