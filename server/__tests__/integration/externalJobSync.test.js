@@ -7,6 +7,7 @@ const Internship = require("../../models/Internship");
 const {
   normalizeFeedJob,
   runExternalJobSync,
+  deleteOldClosedFeedListings,
   runScheduledSyncIfDue,
   startExternalJobSyncSchedule,
   getSyncIntervalMs,
@@ -224,6 +225,80 @@ describe("I04 scheduled external job feed sync", () => {
     });
   });
 
+  describe("cleanup of old closed feed listings", () => {
+    const now = new Date("2026-10-04T12:00:00Z");
+    const daysAgo = (days) => new Date(now.getTime() - days * DAY_MS);
+    const closed = (days, closedReason = "expired") => ({ status: "Closed", closedReason, closedAt: daysAgo(days) });
+    const external = (externalId) => ({ isExternal: true, source: "Remotive", externalId });
+
+    const createInternship = (overrides) =>
+      Internship.create({
+        title: "Test Internship",
+        location: "Remote",
+        description: "Internship description",
+        source: "CareerConnect",
+        ...overrides,
+      });
+
+    /** One listing per case for the given model; returns their ids by case name. */
+    const seed = async (create) => {
+      const docs = {
+        active: await create({ ...external("active"), status: "Published" }),
+        closed13: await create({ ...external("closed13"), ...closed(13) }),
+        closed15: await create({ ...external("closed15"), ...closed(15) }),
+        company15: await create({ ...closed(15) }),
+        adminClosed15: await create({ ...external("adminClosed15"), ...closed(15, null) }),
+        rejected15: await create({ ...external("rejected15"), ...closed(15, "employer_rejected") }),
+      };
+      return Object.fromEntries(Object.entries(docs).map(([k, d]) => [k, d._id]));
+    };
+
+    it.each([
+      ["Job", Job, (o) => createTestJob(null, { title: "Cleanup Job", ...o })],
+      ["Internship", Internship, createInternship],
+    ])("deletes only %s feed listings closed as expired more than 14 days ago", async (_name, Model, create) => {
+      const ids = await seed(create);
+
+      const result = await deleteOldClosedFeedListings({ now });
+
+      const remaining = new Set((await Model.find({}).select("_id").lean()).map((d) => String(d._id)));
+      expect(remaining.has(String(ids.closed15))).toBe(false);
+      for (const kept of ["active", "closed13", "company15", "adminClosed15", "rejected15"]) {
+        expect(remaining.has(String(ids[kept]))).toBe(true);
+      }
+      expect(result.jobs + result.internships).toBe(1);
+    });
+
+    it("is idempotent: a second run deletes nothing", async () => {
+      await seed((o) => createTestJob(null, { title: "Cleanup Job", ...o }));
+      await seed(createInternship);
+
+      expect(await deleteOldClosedFeedListings({ now })).toEqual({ jobs: 1, internships: 1 });
+      expect(await deleteOldClosedFeedListings({ now })).toEqual({ jobs: 0, internships: 0 });
+    });
+
+    it("runs as part of the sync and a cleanup failure does not fail the sync", async () => {
+      mockFeeds();
+      // The sync uses the real clock, so closedAt is relative to Date.now() here.
+      await createTestJob(null, {
+        title: "Old Feed Job",
+        ...external("old"),
+        ...closed(0),
+        closedAt: new Date(Date.now() - 30 * DAY_MS),
+      });
+
+      const ok = await runExternalJobSync();
+      expect(ok.cleanup).toEqual({ jobs: 1, internships: 0 });
+      expect(await Job.countDocuments({ externalId: "old" })).toBe(0);
+
+      jest.spyOn(Job, "deleteMany").mockRejectedValueOnce(new Error("db down"));
+      const error = jest.spyOn(console, "error").mockImplementation(() => {});
+      const failed = await runExternalJobSync();
+      expect(failed).toMatchObject({ cleanup: null, updated: 3 });
+      expect(error).toHaveBeenCalledWith("[job-sync] I04 cleanup failed:", "db down");
+    });
+  });
+
   describe("job lists read MongoDB only", () => {
     it("never calls an external site while serving job and internship lists", async () => {
       await createTestJob(null, { title: "Campus Role" });
@@ -316,6 +391,19 @@ describe("I04 scheduled external job feed sync", () => {
 
       process.env.ENABLE_EXTERNAL_JOB_SYNC = "false";
       expect(startExternalJobSyncSchedule()).toBeNull();
+    });
+
+    it("unrefs both schedule timers so they don't keep the process alive", () => {
+      const timeout = jest.spyOn(global, "setTimeout");
+      const interval = startExternalJobSyncSchedule();
+      const first = timeout.mock.results[timeout.mock.calls.findIndex(([fn]) => fn === runScheduledSyncIfDue)].value;
+      try {
+        expect(interval.hasRef()).toBe(false);
+        expect(first.hasRef()).toBe(false);
+      } finally {
+        clearInterval(interval);
+        clearTimeout(first);
+      }
     });
   });
 
