@@ -7,6 +7,7 @@ import { applyToOpportunity, externalApplyUrl } from "../../utils/opportunityApp
 import { isCandidateUser } from "../../utils/userRoles";
 import ShareButtons from "../../components/common/ShareButtons";
 import ReportListingButton from "../../components/common/ReportListingButton";
+import BrandLogo from "../../components/common/BrandLogo";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
@@ -43,13 +44,7 @@ const isClosed = (job) =>
 const Header = ({ user }) => (
   <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
     <Link to="/home" className="flex items-center gap-2.5">
-      <div className="w-9 h-9 rounded-xl bg-linear-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-        CC
-      </div>
-      <div className="hidden sm:block">
-        <p className="text-sm font-bold text-slate-900 tracking-tight leading-none">CAREERCONNECT</p>
-        <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">Jobs Hub</p>
-      </div>
+      <BrandLogo markOnly className="h-8 w-10 sm:hidden" /><BrandLogo className="hidden h-8 w-36 sm:block" />
     </Link>
     <nav className="flex items-center gap-2 sm:gap-3 text-xs font-bold">
       <Link to="/jobs" className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition">

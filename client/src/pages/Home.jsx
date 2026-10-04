@@ -614,7 +614,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ================= 5. LATEST INTERNSHIPS ON CAREERCONNECT ================= */}
+      {/* ================= 5. LATEST INTERNSHIPS ON E2JOB ================= */}
       <section className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-100 pb-4">
@@ -702,7 +702,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ================= 6. LATEST JOBS ON CAREERCONNECT ================= */}
+      {/* ================= 6. LATEST JOBS ON E2JOB ================= */}
       <section className="py-12 bg-slate-50/70 border-y border-slate-200/70">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-200/80 pb-4">

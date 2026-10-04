@@ -9,6 +9,7 @@ import { applyToOpportunity } from "../../utils/opportunityApply";
 import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
+import BrandLogo from "../../components/common/BrandLogo";
 
 const CATEGORIES_LIST = [
   "Software Development",
@@ -231,17 +232,7 @@ const JobDiscoveryPage = () => {
       <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center gap-4">
           <Link to="/home" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              CC
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-                CAREERCONNECT
-              </h1>
-              <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
-                E2Job · Jobs Hub
-              </p>
-            </div>
+            <BrandLogo markOnly className="h-8 w-10 sm:hidden" /><BrandLogo className="hidden h-8 w-36 sm:block" />
           </Link>
 
           <div className="hidden sm:flex items-center gap-2 ml-3">

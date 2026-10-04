@@ -1653,7 +1653,7 @@ const EmployerDashboard = () => {
           )}
 
           {/* ======================================================== */}
-          {/* TAB: CONNECT COMPANY WITH CAREERCONNECT                   */}
+          {/* TAB: CONNECT COMPANY WITH E2JOB                   */}
           {/* ======================================================== */}
           {safeActiveTab === "organization" && (
             <div className="space-y-6 animate-fade-in">

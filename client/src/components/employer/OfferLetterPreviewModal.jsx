@@ -100,7 +100,7 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "E2Job 
             {/* Watermark Branding */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] select-none">
               <span className="text-7xl sm:text-9xl font-black uppercase tracking-widest text-slate-900 transform -rotate-12">
-                CAREERCONNECT
+                E2JOB
               </span>
             </div>
 
@@ -108,10 +108,10 @@ const OfferLetterPreviewModal = ({ isOpen, onClose, offer, companyName = "E2Job 
             <div className="border-b-2 border-slate-900/80 pb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <span className="text-[11px] font-extrabold tracking-widest text-amber-600 uppercase block">
-                  CAREERCONNECT
+                  E2JOB
                 </span>
                 <h1 className="text-2xl font-black text-[#1e3a8a] tracking-tight">
-                  CAREERCONNECT
+                  E2JOB
                 </h1>
                 <p className="text-[11px] text-slate-500 font-medium">
                   Center for Corporate Partnerships & Talent Placements

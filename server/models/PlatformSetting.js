@@ -9,7 +9,7 @@ const platformSettingSchema = new mongoose.Schema(
     },
     supportEmail: {
       type: String,
-      default: "support@careerconnect.com",
+      default: "support@e2job.com",
       trim: true,
       lowercase: true,
     },
