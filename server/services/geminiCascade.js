@@ -1,6 +1,6 @@
 // Shared Gemini call policy. One user action makes at most GEMINI_MAX_CALLS calls
-// (default 2): the configured model, then either one retry after a temporary error
-// or one fallback model. This keeps a single click from using up the free quota.
+// (default 2): the configured model, then one fallback model. This keeps a single click
+// from using up the free quota.
 
 const FALLBACK_MODELS = [
   "gemini-3.6-flash",
@@ -21,8 +21,9 @@ const maxGeminiCalls = () => {
 const geminiModels = () => [...new Set([process.env.GEMINI_MODEL, ...FALLBACK_MODELS].filter(Boolean))];
 
 /**
- * Runs `callModel(modelName)` until it succeeds or the call budget is used.
- * A temporary error retries the same model; any other error moves to the next one.
+ * Runs `callModel(modelName)` until it succeeds or the call budget is used. Every failure
+ * moves to the next model: when Google reports "high demand" (503) for one model, retrying
+ * it a second later usually fails again, while another model is often free.
  */
 const runWithGeminiCascade = async (callModel, { label = "Gemini", retryDelayMs = 1200 } = {}) => {
   const models = geminiModels();
@@ -37,12 +38,9 @@ const runWithGeminiCascade = async (callModel, { label = "Gemini", retryDelayMs 
     } catch (err) {
       lastError = err;
       const transient = TRANSIENT_ERROR.test(err.message || "");
-      console.warn(`${label}: ${modelName} failed (${err.message})${transient ? ", retrying" : ", trying next model"}`);
-      if (transient) {
-        if (calls + 1 < budget) await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-      } else {
-        index += 1;
-      }
+      console.warn(`${label}: ${modelName} failed (${err.message}), trying next model`);
+      if (transient && calls + 1 < budget) await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      index += 1;
     }
   }
 

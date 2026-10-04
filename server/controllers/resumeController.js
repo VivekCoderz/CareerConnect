@@ -1385,6 +1385,7 @@ const uploadAndParseResumeHandler = async (req, res) => {
     }
 
     // Fallback if AI parse fails: construct minimum structured JSON from user data
+    const aiParsed = Boolean(parsedData);
     if (!parsedData) {
       parsedData = {
         personal: {
@@ -1460,7 +1461,10 @@ const uploadAndParseResumeHandler = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Resume uploaded, parsed by AI, and profile saved successfully!",
+      message: aiParsed
+        ? "Resume uploaded, parsed by AI, and profile saved successfully!"
+        : "Resume uploaded. Our AI is busy right now, so your profile was not filled in automatically. You can add your details yourself.",
+      aiParsed,
       resumeUrl,
       resumeName,
       publicId,

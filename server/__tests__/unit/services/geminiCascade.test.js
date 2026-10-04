@@ -21,13 +21,14 @@ describe("runWithGeminiCascade (G09)", () => {
     expect(call).toHaveBeenCalledTimes(2);
   });
 
-  it("retries the same model after a temporary error", async () => {
+  it("moves to another model when Google reports high demand (503)", async () => {
     const call = jest.fn()
-      .mockRejectedValueOnce(new Error("503 high demand"))
+      .mockRejectedValueOnce(new Error("[503 Service Unavailable] This model is currently experiencing high demand"))
       .mockResolvedValueOnce("ok");
 
     await expect(runWithGeminiCascade(call, { retryDelayMs: 0 })).resolves.toBe("ok");
-    expect(call.mock.calls[0][0]).toBe(call.mock.calls[1][0]);
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(call.mock.calls[0][0]).not.toBe(call.mock.calls[1][0]);
   });
 
   it("moves to a different model after a permanent error", async () => {

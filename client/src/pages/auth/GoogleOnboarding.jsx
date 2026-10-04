@@ -363,6 +363,8 @@ const GoogleOnboarding = () => {
   const [resumeError, setResumeError] = useState("");
   const [resumeSuccess, setResumeSuccess] = useState(false);
   const [parsedSkillsCount, setParsedSkillsCount] = useState(0);
+  // false when the upload worked but the AI was busy, so nothing was filled in automatically
+  const [resumeAutoFilled, setResumeAutoFilled] = useState(true);
 
   const handleResumeFileSelect = (e) => {
     const file = e.target.files?.[0];
@@ -401,6 +403,8 @@ const GoogleOnboarding = () => {
 
       if (res.data?.success) {
         setResumeSuccess(true);
+        const autoFilled = res.data?.aiParsed !== false;
+        setResumeAutoFilled(autoFilled);
         if (res.data?.user) {
           dispatch(updateUserProfile(res.data.user));
         }
@@ -410,9 +414,10 @@ const GoogleOnboarding = () => {
           (res.data?.parsedData?.skills?.tools?.length || 0);
         setParsedSkillsCount(extractedSkills);
 
+        // Leave time to read the "AI busy" note before redirecting.
         setTimeout(() => {
           handleSkipToDashboard();
-        }, 1200);
+        }, autoFilled ? 1200 : 4000);
       } else {
         handleSkipToDashboard();
       }
@@ -1123,12 +1128,14 @@ const GoogleOnboarding = () => {
                     ✓
                   </div>
                   <h3 className="text-lg font-bold text-slate-900">
-                    Resume Parsed & Synced Successfully!
+                    {resumeAutoFilled ? "Resume Parsed & Synced Successfully!" : "Resume Uploaded"}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    {parsedSkillsCount > 0
-                      ? `AI extracted ${parsedSkillsCount} skills and filled your profile details.`
-                      : "Your profile has been populated with your resume details."}
+                    {!resumeAutoFilled
+                      ? "Our AI is busy right now, so your profile was not filled in automatically. You can add your skills and education from your profile page."
+                      : parsedSkillsCount > 0
+                        ? `AI extracted ${parsedSkillsCount} skills and filled your profile details.`
+                        : "Your profile has been populated with your resume details."}
                   </p>
                   <p className="text-xs font-semibold text-[#008bdc]">
                     Redirecting to your dashboard...

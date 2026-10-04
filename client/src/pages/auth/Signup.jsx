@@ -592,6 +592,8 @@ const Signup = () => {
   const [resumeError, setResumeError] = useState("");
   const [resumeSuccess, setResumeSuccess] = useState(false);
   const [parsedSkillsCount, setParsedSkillsCount] = useState(0);
+  // false when the upload worked but the AI was busy, so nothing was filled in automatically
+  const [resumeAutoFilled, setResumeAutoFilled] = useState(true);
   const [parsedResultData, setParsedResultData] = useState(null);
   const [resumeUploadStepText, setResumeUploadStepText] = useState("");
 
@@ -713,7 +715,9 @@ const Signup = () => {
 
       if (res.data?.success) {
         setResumeSuccess(true);
-        setParsedResultData(res.data?.parsedData || null);
+        const autoFilled = res.data?.aiParsed !== false;
+        setResumeAutoFilled(autoFilled);
+        setParsedResultData(autoFilled ? res.data?.parsedData || null : null);
         const extractedSkills =
           (res.data?.parsedData?.skills?.programmingLanguages?.length || 0) +
           (res.data?.parsedData?.skills?.frameworks?.length || 0) +
@@ -1879,12 +1883,14 @@ const Signup = () => {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-slate-900">
-                      Resume Parsed & Profile Auto-Filled!
+                      {resumeAutoFilled ? "Resume Parsed & Profile Auto-Filled!" : "Resume Uploaded"}
                     </h3>
                     <p className="text-xs text-slate-500 mt-1">
-                      {parsedSkillsCount > 0
-                        ? `AI successfully extracted ${parsedSkillsCount} skills, education & experience into your profile.`
-                        : "Your resume details have been synchronized directly into your profile."}
+                      {!resumeAutoFilled
+                        ? "Our AI is busy right now, so your profile was not filled in automatically. You can add your skills and education from your profile page."
+                        : parsedSkillsCount > 0
+                          ? `AI successfully extracted ${parsedSkillsCount} skills, education & experience into your profile.`
+                          : "Your resume details have been synchronized directly into your profile."}
                     </p>
                   </div>
 
