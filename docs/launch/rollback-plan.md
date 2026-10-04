@@ -47,7 +47,7 @@ Deploy: 5. Maintenance mode ON. 6. PR `launch/job-portal` → `main`, CI green, 
 
 Smoke test (both domains): 8. With maintenance ON (reads only): `/health` OK · job list and a job detail page · email login (exempt) · admin login. 9. Maintenance mode **OFF**. Maintenance mode blocks Google login and apply (they are writes), so test these after turning it off: Google login · signup page (Google + email OTP) · apply as candidate · employer dashboard and create a job (location required) · shortlist one applicant.
 
-After (dry run first, share lists with Ram, then `--apply`): 10. `node scripts/approve-existing-employers.js --before=<deploy date>` (also backfills listing approval dates). 11. `node scripts/clean-fake-student-profiles.js`. 12. `node scripts/clean-fake-fresher-professional-profiles.js` (also clears old "Industry" / "Working Professional" values).
+After (dry run first, share lists with Ram, then `--apply`): 10. `node scripts/approve-existing-employers.js --before=<deploy date>` (also backfills listing approval dates). 11. `node scripts/clean-fake-student-profiles.js`. 12. `node scripts/clean-fake-fresher-professional-profiles.js` (also clears old "Industry" / "Working Professional" values). 13. `node scripts/migrate-allowcontact-false.js` (recruiter contact becomes opt-in: dry run, share the count with Ram, then `--apply`). 14. Admin → Settings: set the site name to "E2Job" if it still says CareerConnect.
 
 ## 5. Rollback
 
