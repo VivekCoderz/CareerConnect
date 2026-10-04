@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 const ExecutiveResumeCard = ({
-  lastUpdated = "4 days ago",
+  lastUpdated = "Not uploaded yet",
   onViewResume,
   onDownload,
 }) => {
@@ -23,7 +23,7 @@ const ExecutiveResumeCard = ({
       </div>
 
       <p className="text-xs text-slate-600 leading-relaxed font-medium">
-        Your resume is optimized for senior-level opportunities.
+        Keep your resume up to date so recruiters see your latest experience.
       </p>
 
       {/* Actions */}

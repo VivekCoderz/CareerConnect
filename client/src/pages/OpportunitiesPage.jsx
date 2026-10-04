@@ -233,7 +233,7 @@ export default function OpportunitiesPage() {
     if (src.includes("internshala")) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
-          Internshala Partner
+          Internshala
         </span>
       );
     }
@@ -342,7 +342,7 @@ export default function OpportunitiesPage() {
                 Live Job & Internship Aggregator Matrix
               </span>
               <span className="text-xs text-blue-200/80">
-                · LinkedIn + Internshala + Remotive + Arbeitnow + GU Drives
+                · CareerConnect employers + Remotive + Arbeitnow + campus drives
               </span>
             </div>
 
@@ -476,8 +476,6 @@ export default function OpportunitiesPage() {
                 className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium outline-none focus:border-blue-600"
               >
                 <option value="all">All Platforms</option>
-                <option value="linkedin">LinkedIn Verified</option>
-                <option value="internshala">Internshala Portal</option>
                 <option value="remotive">Remotive Remote</option>
                 <option value="arbeitnow">Arbeitnow Global</option>
                 <option value="campus">GU Campus Drives Only</option>
@@ -551,7 +549,7 @@ export default function OpportunitiesPage() {
               Scraping and Aggregating Live Multi-Source Feed...
             </p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Querying LinkedIn, Internshala, Remotive, Arbeitnow APIs and CareerConnect placement drives for "{program} · {specialization}".
+              Checking CareerConnect listings, Remotive, Arbeitnow and campus drives for "{program} · {specialization}".
             </p>
           </div>
         ) : opportunities.length > 0 ? (

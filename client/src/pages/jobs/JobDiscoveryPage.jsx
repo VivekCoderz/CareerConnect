@@ -296,7 +296,7 @@ const JobDiscoveryPage = () => {
               {pageHeading}
             </h2>
             <p className="text-sm text-blue-100/90 leading-relaxed">
-              Discover verified full-time and fresher job openings from partner employers, LinkedIn, Remotive, and Arbeitnow.
+              Full-time and fresher openings from employers on CareerConnect, plus remote roles from Remotive and Arbeitnow.
             </p>
           </div>
         </div>
