@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import { getProfessionalDashboardData } from "../../services/professionalDashboardService";
+import { getMyApplications } from "../../services/applicationService";
+import { openResume } from "../../utils/resumeAccess";
+import { FEATURES } from "../../config/features";
 
 // Subcomponents
 import ProfessionalSidebar from "../../components/professional-dashboard/ProfessionalSidebar";
@@ -10,12 +13,10 @@ import ProfessionalHeader from "../../components/professional-dashboard/Professi
 import WelcomeSection from "../../components/professional-dashboard/WelcomeSection";
 import CareerSnapshotCard from "../../components/professional-dashboard/CareerSnapshotCard";
 import CareerDirectionCard from "../../components/professional-dashboard/CareerDirectionCard";
-import CuratedOpportunitiesCard from "../../components/professional-dashboard/CuratedOpportunitiesCard";
 import SkillFocusCard from "../../components/professional-dashboard/SkillFocusCard";
 import ExecutiveResumeCard from "../../components/professional-dashboard/ExecutiveResumeCard";
 import ConfidentialCareerModeCard from "../../components/professional-dashboard/ConfidentialCareerModeCard";
 import ApplicationPipelineCard from "../../components/professional-dashboard/ApplicationPipelineCard";
-import CareerCompanyInsights from "../../components/professional-dashboard/CareerCompanyInsights";
 import ProfessionalApplicationsView from "../../components/professional-dashboard/ProfessionalApplicationsView";
 
 // Modals & Interactive Overlays
@@ -36,55 +37,55 @@ import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
 import CourseDetailsPage from "../courses/CourseDetailsPage";
 import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
 
-const INITIAL_APPLICATIONS = [
-  {
-    id: "app-101",
-    title: "Engineering Lead — Developer Productivity & AI",
-    company: "Microsoft",
-    appliedDate: "Sep 2, 2026",
-    status: "Under Review ⏳",
-    statusType: "review",
+// The professional's real applications from GET /applications/me, shaped for the pipeline cards.
+const toPipelineItem = (app) => {
+  const listing = app.jobId || app.internshipId || {};
+  const status = app.status || "Applied";
+  const lower = status.toLowerCase();
+  const statusType = lower.includes("interview")
+    ? "interview"
+    : lower.includes("shortlist")
+      ? "shortlisted"
+      : lower.includes("review") || lower === "applied" || lower.includes("pending")
+        ? "review"
+        : lower;
+  return {
+    id: app._id,
+    title: listing.title || app.opportunityTitle || "Application",
+    company: listing.companyName || app.employerId?.companyName || "",
+    appliedDate: app.createdAt
+      ? new Date(app.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      : "",
+    status,
+    statusType,
     source: "direct",
-    location: "Bangalore",
-  },
-  {
-    id: "app-102",
-    title: "Staff Software Engineer — Distributed Systems",
-    company: "Stripe",
-    appliedDate: "Aug 30, 2026",
-    status: "Interview Scheduled 📅",
-    statusType: "interview",
-    source: "direct",
-    location: "Remote",
-  },
-  {
-    id: "app-103",
-    title: "Senior Backend Architect",
-    company: "Atlassian",
-    appliedDate: "Aug 28, 2026",
-    status: "Interview Scheduled 📅",
-    statusType: "interview",
-    source: "direct",
-    location: "Remote (India)",
-  },
-  {
-    id: "app-104",
-    title: "Engineering Manager (Core Banking Infrastructure)",
-    company: "Razorpay",
-    appliedDate: "Aug 26, 2026",
-    status: "Shortlisted 🎯",
-    statusType: "shortlisted",
-    source: "direct",
-    location: "Bangalore",
-  },
-];
+    location: listing.location || "",
+  };
+};
 
+// Skills the professional entered, strongest first (no invented skills or percentages).
+const PROFICIENCY_ORDER = { Expert: 0, Advanced: 1, Intermediate: 2, Beginner: 3 };
+const profileSkills = (profile) => {
+  const groups = profile?.skills || {};
+  const seen = new Set();
+  return Object.values(groups)
+    .flat()
+    .filter((s) => s?.name && !seen.has(s.name.toLowerCase()) && seen.add(s.name.toLowerCase()))
+    .map((s) => ({ name: s.name, level: s.proficiency || "", years: s.yearsOfExperience }))
+    .sort((a, b) => (PROFICIENCY_ORDER[a.level] ?? 4) - (PROFICIENCY_ORDER[b.level] ?? 4));
+};
 const ProfessionalDashboard = () => {
   const navigate = useNavigate();
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // Start on the tab named in ?tab= (email links open e.g. ?tab=applications).
+  const [searchParams] = useSearchParams();
+  // "opportunities" (made-up curated roles) and "insights" (seeded sample data) are not shown;
+  // links to them open real job listings instead.
+  const resolveTab = (tab) => (tab === "opportunities" || tab === "insights" ? "jobs" : tab);
+  const [activeTab, setActiveTabRaw] = useState(() => resolveTab(searchParams.get("tab") || "dashboard"));
+  const setActiveTab = (tab) => setActiveTabRaw(resolveTab(tab));
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
@@ -92,7 +93,7 @@ const ProfessionalDashboard = () => {
   const [error, setError] = useState(null);
 
   // Application Pipeline State
-  const [applicationsList, setApplicationsList] = useState(INITIAL_APPLICATIONS);
+  const [applicationsList, setApplicationsList] = useState([]);
 
   // Modals state
   const [showCareerPathModal, setShowCareerPathModal] = useState(false);
@@ -124,11 +125,20 @@ const ProfessionalDashboard = () => {
     setTimeout(() => setToast(null), 3500);
   };
 
+  const loadApplications = async () => {
+    try {
+      const res = await getMyApplications();
+      setApplicationsList((res?.applications || []).map(toPipelineItem));
+    } catch (err) {
+      console.error("Applications fetch error:", err);
+    }
+  };
+
   const fetchDashboard = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await getProfessionalDashboardData();
+      const [res] = await Promise.all([getProfessionalDashboardData(), loadApplications()]);
       if (res?.data) {
         setDashboardData(res.data);
       }
@@ -166,10 +176,10 @@ const ProfessionalDashboard = () => {
     const preparedOpp = {
       ...opp,
       _id: opp.id || opp._id,
-      company: opp.company || opp.companyName || "Technology Enterprise",
-      companyName: opp.company || opp.companyName || "Technology Enterprise",
+      company: opp.company || opp.companyName || "",
+      companyName: opp.company || opp.companyName || "",
       type: "Job",
-      description: opp.description || opp.aboutRole || "Senior engineering leadership role.",
+      description: opp.description || opp.aboutRole || "",
       requiredSkills: opp.tags || opp.skills || [],
     };
     if (opp.isExternal || opp.applyType === "external" || opp.url?.startsWith("http")) {
@@ -181,28 +191,12 @@ const ProfessionalDashboard = () => {
     }
   };
 
-  // Direct Apply via CareerConnect
-  const handleDirectSubmit = (opp, coverNote) => {
-    const compName = opp.company || opp.companyName || "Technology Enterprise";
-    const newApp = {
-      id: `app-${Date.now()}`,
-      title: opp.title,
-      company: compName,
-      appliedDate: "Today",
-      status: "Under Review ⏳",
-      statusType: "review",
-      source: "direct",
-      location: opp.location || "Remote",
-    };
-
-    setApplicationsList((prev) => [newApp, ...prev]);
+  // Direct Apply via E2Job: goes through the real application flow (it used to
+  // only add a local "submitted" card without sending anything).
+  const handleDirectSubmit = (opp) => {
     setShowApplyReviewModal(false);
-    setLastSubmittedApplication({
-      title: opp.title,
-      company: compName,
-    });
-    setShowSuccessModal(true);
-    showToast("✓ Application submitted successfully.", "success");
+    setTailoringOpportunity(opp);
+    setIsTailoredModalOpen(true);
   };
 
   // External Application Flow
@@ -211,8 +205,8 @@ const ProfessionalDashboard = () => {
     setPendingExternalOpportunity(opp);
 
     // Open company career URL
-    const externalUrl = opp.url || opp.careerPageUrl || "https://careers.google.com";
-    if (externalUrl && externalUrl !== "#") {
+    const externalUrl = opp.url || opp.careerPageUrl || opp.applyUrl || opp.applyLink || "";
+    if (/^https?:\/\//i.test(externalUrl)) {
       window.open(externalUrl, "_blank", "noopener,noreferrer");
     }
 
@@ -224,7 +218,7 @@ const ProfessionalDashboard = () => {
 
   // Confirm External Application was submitted
   const handleConfirmExternalApplied = (opp) => {
-    const compName = opp.company || opp.companyName || "Technology Enterprise";
+    const compName = opp.company || opp.companyName || "";
     const newApp = {
       id: `app-${Date.now()}`,
       title: opp.title,
@@ -240,75 +234,51 @@ const ProfessionalDashboard = () => {
     showToast(`✓ External application added to your pipeline!`, "success");
   };
 
-  const handleDownloadResume = () => {
-    showToast("Downloading Executive Resume PDF...", "success");
-  };
-
   // Dynamic fields
   const profile = dashboardData?.profile || {};
   const professionalName =
     dashboardData?.user?.fullName ||
     user?.fullName ||
     profile?.userId?.fullName ||
-    "Imran";
+    "there";
 
+  const resumeUrl = profile?.resume?.resumeUrl || user?.resumeUrl || "";
+  const resumeUpdated = profile?.resume?.uploadedAt
+    ? new Date(profile.resume.uploadedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+    : resumeUrl ? "Uploaded" : "Not uploaded yet";
+  const handleDownloadResume = () => {
+    if (resumeUrl) openResume(resumeUrl);
+    else {
+      showToast("Upload your resume in your profile first.", "error");
+      navigate("/professional/profile");
+    }
+  };
+
+  // Only what the professional entered; empty fields read "Not set yet".
   const currentRole =
     profile?.currentEmployment?.jobTitle ||
     profile?.professionalHeadline ||
-    "Senior Software Engineer";
+    "Not set yet";
 
   const experienceYears =
     profile?.totalExperienceYears
       ? `${profile.totalExperienceYears}+ Years`
-      : "4+ Years";
+      : profile?.experience?.length
+        ? "Under 1 Year"
+        : "Not set yet";
 
-  const targetRole =
-    profile?.careerGoal?.targetRole ||
-    "Engineering Lead / Staff Engineer";
+  const chosenTargetRole = profile?.careerGoal?.targetRole || "";
+  const targetRole = chosenTargetRole || "Not set yet";
 
-  const profileStrength = dashboardData?.profileCompletion ?? 92;
-  const careerStrengthScore = dashboardData?.careerStrength?.score ?? 82;
+  const profileStrength = dashboardData?.profileCompletion ?? 0;
+  const careerStrengthScore = dashboardData?.careerStrength?.score ?? 0;
 
-  const focusAreas = ["System Design", "Cloud Architecture", "Leadership"];
+  const allSkills = profileSkills(profile);
+  const focusAreas = allSkills.slice(0, 3).map((s) => s.name);
 
-  const curatedOpportunities = [
-    {
-      id: "opp-1",
-      title: "Staff Software Engineer — Distributed Systems",
-      company: "Stripe",
-      location: "Remote",
-      experience: "5+ Years",
-      salary: "₹35–50 LPA",
-      matchPercentage: 92,
-      tags: ["System Design", "AWS", "Distributed Systems"],
-    },
-    {
-      id: "opp-2",
-      title: "Engineering Lead (Platform & Architecture)",
-      company: "Razorpay",
-      location: "Bangalore (Hybrid)",
-      experience: "5+ Years",
-      salary: "₹45–60 LPA",
-      matchPercentage: 95,
-      tags: ["System Architecture", "Microservices", "Team Leadership"],
-    },
-    {
-      id: "opp-3",
-      title: "Senior Backend Architect",
-      company: "Atlassian",
-      location: "Remote (India)",
-      experience: "6+ Years",
-      salary: "₹50–70 LPA",
-      matchPercentage: 88,
-      tags: ["Microservices", "Kubernetes", "AWS"],
-    },
-  ];
-
-  const skillFocusList = [
-    { name: "System Design", level: "Strong" },
-    { name: "Cloud Architecture", level: "Advanced" },
-    { name: "Engineering Leadership", level: "Developing" },
-  ];
+  const skillFocusList = allSkills.slice(0, 3);
+  const achievements = Array.isArray(profile?.achievements) ? profile.achievements : [];
+  const certifications = Array.isArray(profile?.certifications) ? profile.certifications : [];
 
   // Dynamic application pipeline statistics
   const applicationStats = {
@@ -385,13 +355,6 @@ const ProfessionalDashboard = () => {
                 onViewCareerPath={() => setShowCareerPathModal(true)}
               />
 
-              {/* 4. Curated Opportunities */}
-              <CuratedOpportunitiesCard
-                opportunities={curatedOpportunities}
-                onExploreRole={(opp) => handleInitiateApply(opp)}
-                onViewAllOpportunities={() => setActiveTab("opportunities")}
-              />
-
               {/* 5. Skill Focus */}
               <SkillFocusCard
                 skills={skillFocusList}
@@ -400,7 +363,7 @@ const ProfessionalDashboard = () => {
 
               {/* 6. Executive Resume */}
               <ExecutiveResumeCard
-                lastUpdated="4 days ago"
+                lastUpdated={resumeUpdated}
                 onViewResume={() => navigate("/professional/profile")}
                 onDownload={handleDownloadResume}
               />
@@ -416,39 +379,6 @@ const ProfessionalDashboard = () => {
                 stats={applicationStats}
                 recent={applicationsList.slice(0, 2)}
                 onViewAllApplications={() => setActiveTab("applications")}
-              />
-            </div>
-          )}
-
-          {/* Opportunities Dedicated Tab */}
-          {activeTab === "opportunities" && (
-            <div className="space-y-6">
-              <CuratedOpportunitiesCard
-                opportunities={[
-                  ...curatedOpportunities,
-                  {
-                    id: "opp-4",
-                    title: "Principal Software Engineer - Azure Core",
-                    company: "Microsoft",
-                    location: "Hyderabad",
-                    experience: "6+ Years",
-                    salary: "₹55–75 LPA",
-                    matchPercentage: 94,
-                    tags: ["Distributed Systems", "Cloud", "Leadership"],
-                  },
-                  {
-                    id: "opp-5",
-                    title: "Staff Cloud Architect",
-                    company: "Amazon",
-                    location: "Bangalore",
-                    experience: "5+ Years",
-                    salary: "₹48–70 LPA",
-                    matchPercentage: 91,
-                    tags: ["AWS", "Kubernetes", "Architecture"],
-                  },
-                ]}
-                onExploreRole={(opp) => handleInitiateApply(opp)}
-                onViewAllOpportunities={() => {}}
               />
             </div>
           )}
@@ -502,7 +432,7 @@ const ProfessionalDashboard = () => {
           )}
 
           {/* ==================== COURSES ==================== */}
-          {activeTab === "courses" && (
+          {activeTab === "courses" && FEATURES.courses && (
             <div className="animate-fade-in">
               {coursesView === "catalog" && (
                 <StudentCoursesPage
@@ -592,29 +522,18 @@ const ProfessionalDashboard = () => {
                   </Link>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[
-                    { name: "System Design", level: 90, color: "bg-purple-500" },
-                    { name: "Cloud Architecture (AWS)", level: 85, color: "bg-indigo-500" },
-                    { name: "Distributed Systems", level: 82, color: "bg-blue-500" },
-                    { name: "Engineering Leadership", level: 75, color: "bg-violet-500" },
-                    { name: "Microservices", level: 88, color: "bg-purple-600" },
-                    { name: "Kubernetes / Docker", level: 78, color: "bg-indigo-600" },
-                  ].map((skill) => (
-                    <div key={skill.name} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-medium">
-                        <span className="text-slate-700">{skill.name}</span>
-                        <span className="text-slate-400 font-semibold">{skill.level}%</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${skill.color} transition-all duration-700`}
-                          style={{ width: `${skill.level}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {allSkills.length === 0 ? (
+                  <p className="text-xs text-slate-500">You haven't added any skills yet. Add them in your profile.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {allSkills.map((skill) => (
+                      <span key={skill.name} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
+                        {skill.name}
+                        {skill.level && <span className="text-slate-400 font-medium"> · {skill.level}</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -623,7 +542,7 @@ const ProfessionalDashboard = () => {
           {activeTab === "resume" && (
             <div className="space-y-6">
               <ExecutiveResumeCard
-                lastUpdated="4 days ago"
+                lastUpdated={resumeUpdated}
                 onViewResume={() => navigate("/professional/profile")}
                 onDownload={handleDownloadResume}
               />
@@ -670,20 +589,25 @@ const ProfessionalDashboard = () => {
                   Manage in Profile
                 </Link>
               </div>
-              <div className="space-y-3">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-                  <h3 className="text-sm font-bold text-slate-900">Distributed Microservices Latency Optimization</h3>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Redesigned core billing and authentication services, achieving a 35% latency reduction across 10M+ daily transactions.
-                  </p>
+              {achievements.length === 0 ? (
+                <p className="text-xs text-slate-500">You haven't added any achievements yet. Add them in your profile.</p>
+              ) : (
+                <div className="space-y-3">
+                  {achievements.map((a, idx) => (
+                    <div key={a._id || `${a.title}-${idx}`} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                      <h3 className="text-sm font-bold text-slate-900">{a.title}</h3>
+                      {(a.organization || a.date) && (
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {[a.organization, a.date ? new Date(a.date).getFullYear() : null].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                      {(a.description || a.impact) && (
+                        <p className="text-xs text-slate-600 mt-1">{a.description || a.impact}</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-                  <h3 className="text-sm font-bold text-slate-900">Cloud Infrastructure Cost Optimization</h3>
-                  <p className="text-xs text-slate-600 mt-1">
-                    Architected ECS migration and Kubernetes autoscaling, reducing monthly cloud expenditure by ₹15 Lakhs.
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -699,35 +623,24 @@ const ProfessionalDashboard = () => {
                   Add Certification
                 </Link>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
-                    ☁️
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900">AWS Certified Solutions Architect - Professional</h3>
-                    <p className="text-[11px] text-slate-500">Amazon Web Services · Verified</p>
-                  </div>
+              {certifications.length === 0 ? (
+                <p className="text-xs text-slate-500">You haven't added any certifications yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {certifications.map((c, idx) => (
+                    <div key={c._id || `${c.name}-${idx}`} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
+                        🏅
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-xs font-bold text-slate-900">{c.name}</h3>
+                        {c.issuingOrganization && <p className="text-[11px] text-slate-500">{c.issuingOrganization}</p>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
-                    ☸️
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900">Certified Kubernetes Administrator (CKA)</h3>
-                    <p className="text-[11px] text-slate-500">Cloud Native Computing Foundation · Verified</p>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
-          )}
-
-          {/* Career & Company Insights Dedicated Tab */}
-          {activeTab === "insights" && (
-            <CareerCompanyInsights
-              initialTargetRole={targetRole}
-              onApplyOpportunity={(job) => handleInitiateApply(job)}
-            />
           )}
 
           {/* Settings Dedicated Tab */}
@@ -806,22 +719,12 @@ const ProfessionalDashboard = () => {
         }}
         opportunity={tailoringOpportunity}
         opportunityType="Job"
-        onApplicationSubmitted={(res) => {
-          const compName = tailoringOpportunity?.company || tailoringOpportunity?.companyName || "Technology Enterprise";
-          const newApp = {
-            id: `app-${Date.now()}`,
-            title: tailoringOpportunity?.title || "Role",
-            company: compName,
-            appliedDate: "Today",
-            status: "Under Review ⏳",
-            statusType: "review",
-            source: "direct",
-            location: tailoringOpportunity?.location || "Remote",
-          };
-          setApplicationsList((prev) => [newApp, ...prev]);
+        onApplicationSubmitted={() => {
+          // Reload from the server so the pipeline shows the real saved application.
+          loadApplications();
           setLastSubmittedApplication({
             title: tailoringOpportunity?.title,
-            company: compName,
+            company: tailoringOpportunity?.company || tailoringOpportunity?.companyName || "",
           });
           setIsTailoredModalOpen(false);
           setShowSuccessModal(true);

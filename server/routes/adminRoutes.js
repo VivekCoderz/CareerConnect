@@ -5,10 +5,12 @@ const {
   requireAdmin,
   requireSuperAdmin,
   requireCompanyAdmin,
+  requireActiveCompany,
   scopeToCompany,
 } = require("../middleware/roleMiddleware");
 const { loginLimiter } = require("../middleware/rateLimitMiddleware");
 const { sanitizeInputs } = require("../middleware/validationMiddleware");
+const { listEmployers, setEmployerVerification } = require("../controllers/employerVerificationController");
 const {
   adminLogin,
   adminLogout,
@@ -36,10 +38,10 @@ const {
   updateUserStatus,
   getAdminStudents,
   updateStudentStatus,
-  getAdminEmployers,
   updateEmployerStatus,
   // Opportunities
   getAdminOpportunities,
+  createOpportunityForEmployer,
   getOpportunityCompaniesList,
   approveOpportunity,
   rejectOpportunity,
@@ -72,6 +74,8 @@ const {
   reviewOrganizationRequest,
   approveOrganizationRequest,
   rejectOrganizationRequest,
+  // External job feeds
+  syncExternalJobs,
 } = require("../controllers/adminController");
 
 // ===================================================
@@ -94,6 +98,9 @@ router.use(protect, requireAdmin);
 
 // Current admin identity & permissions
 router.get("/me", getAdminMe);
+
+// Everything below needs an active company for a Company Admin (ADM-11/12).
+router.use(requireActiveCompany);
 
 // Role-Aware Dynamic Dashboard
 router.get("/dashboard", getAdminDashboard);
@@ -118,6 +125,15 @@ router.put("/companies/:id", requireSuperAdmin, sanitizeInputs, updateAdminCompa
 router.patch("/companies/:id/status", requireSuperAdmin, updateAdminCompanyStatus);
 router.delete("/companies/:id", requireSuperAdmin, deleteAdminCompany);
 
+// External job feeds: run the scheduled sync now (SUPER_ADMIN)
+router.post("/jobs/sync", requireSuperAdmin, syncExternalJobs);
+
+// Monitoring check (I08): throws a test error so it shows up in Sentry. The client gets the
+// normal 500 response. SUPER_ADMIN only, so ordinary users cannot trigger it.
+router.post("/debug/sentry-test", requireSuperAdmin, (req) => {
+  throw new Error(`Sentry test error (backend) ${new Date().toISOString()} by admin ${req.user._id}`);
+});
+
 // Company Admins Management
 router.get("/company-admins", requireSuperAdmin, getCompanyAdmins);
 router.post("/company-admins", requireSuperAdmin, sanitizeInputs, createCompanyAdmin);
@@ -141,17 +157,19 @@ router.get("/users", getAdminUsers);
 router.patch("/users/:id/status", updateUserStatus);
 router.get("/students", getAdminStudents);
 router.patch("/students/:id/status", updateStudentStatus);
-router.get("/employers", getAdminEmployers);
+router.get("/employers", listEmployers);
+router.patch("/employers/:id/verification", requireSuperAdmin, setEmployerVerification);
 router.patch("/employers/:id/status", updateEmployerStatus);
 
 // Opportunity Management (Jobs & Internships)
 router.get("/opportunities", getAdminOpportunities);
+router.post("/opportunities", requireSuperAdmin, sanitizeInputs, createOpportunityForEmployer);
 router.get("/opportunities/companies-list", getOpportunityCompaniesList);
-router.post("/opportunities/:type/:id/approve", approveOpportunity);
-router.post("/opportunities/:type/:id/reject", rejectOpportunity);
+router.post("/opportunities/:type/:id/approve", requireSuperAdmin, approveOpportunity);
+router.post("/opportunities/:type/:id/reject", requireSuperAdmin, rejectOpportunity);
 router.put("/opportunities/:type/:id", editOpportunity);
 router.patch("/opportunities/:type/:id/close", closeOpportunity);
-router.patch("/opportunities/:type/:id/feature", featureOpportunity);
+router.patch("/opportunities/:type/:id/feature", requireSuperAdmin, featureOpportunity);
 router.patch("/opportunities/:type/:id/status", updateOpportunityStatus);
 
 // Application Management
@@ -170,6 +188,6 @@ router.post("/reports/:id/dismiss", sanitizeInputs, dismissAdminReport);
 
 // Settings Management
 router.get("/settings", getAdminSettings);
-router.put("/settings", updateAdminSettings);
+router.put("/settings", requireSuperAdmin, sanitizeInputs, updateAdminSettings);
 
 module.exports = router;

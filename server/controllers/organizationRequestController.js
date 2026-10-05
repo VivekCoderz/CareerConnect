@@ -1,6 +1,7 @@
 const OrganizationRequest = require("../models/OrganizationRequest");
 const Company = require("../models/Company");
 const AuditLog = require("../models/AuditLog");
+const { ipKeyGenerator } = require("express-rate-limit");
 
 /**
  * Normalizes website URL (strips protocol, www, trailing slashes) for robust comparison
@@ -82,7 +83,7 @@ exports.requestOrganizationAccess = async (req, res, next) => {
       return res.status(409).json({
         success: false,
         code: "ORGANIZATION_ALREADY_REGISTERED",
-        message: "An organization with this official name or email is already registered on CareerConnect.",
+        message: "An organization with this official name or email is already registered on E2Job.",
       });
     }
 
@@ -161,7 +162,7 @@ exports.requestOrganizationAccess = async (req, res, next) => {
         module: "Settings",
         target: trimmedOrgName,
         details: `Access request submitted by ${contactPerson} (${cleanEmail})`,
-        ipAddress: req.ip || req.headers["x-forwarded-for"] || "127.0.0.1",
+        ipAddress: ipKeyGenerator(req.ip || "127.0.0.1"),
       });
     } catch (auditErr) {
       console.warn("Audit log creation warning:", auditErr.message);

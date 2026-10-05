@@ -1,7 +1,7 @@
 /**
  * latexResumeGenerator.js
  * 
- * Utility to convert CareerConnect structured resume data into
+ * Utility to convert E2Job structured resume data into
  * clean, 100% ATS-friendly single-page LaTeX code (.tex).
  * Compatible with Overleaf, TeX Live, and MiKTeX.
  */
@@ -45,7 +45,7 @@ const getBulletPoints = (desc) => {
 
 /**
  * Generates valid, clean, single-page ATS-optimized LaTeX source string.
- * @param {Object} data - CareerConnect resume data (generatedResume or rawData)
+ * @param {Object} data - E2Job resume data (generatedResume or rawData)
  * @returns {string} LaTeX source code
  */
 export const generateLatexCode = (data = {}) => {
@@ -295,7 +295,7 @@ ${items.join(" \\\\\n")}
 
   // Assemble full LaTeX document
   return `%-----------------------------------------------------------------------------
-% Resume generated via CareerConnect Studio (ATS Optimized)
+% Resume generated via E2Job Studio (ATS Optimized)
 % Formatted for standard single-page compilation on Overleaf / TeX Live / MiKTeX
 %-----------------------------------------------------------------------------
 

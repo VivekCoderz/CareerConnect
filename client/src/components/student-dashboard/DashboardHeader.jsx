@@ -167,7 +167,7 @@ const DashboardHeader = ({
 
           {/* Internshala-style Category Discovery Menu */}
           <div className="hidden md:block pl-2">
-            <InternshipDiscoveryMenu studentCity={profile?.location?.city || "Bangalore"} />
+            <InternshipDiscoveryMenu studentCity={profile?.location?.city || ""} />
           </div>
         </div>
 
@@ -261,11 +261,11 @@ const DashboardHeader = ({
                     View & Edit Profile
                   </Link>
                   <Link
-                    to="/student/profile"
+                    to="/account"
                     onClick={() => setShowProfileMenu(false)}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition"
                   >
-                    Manage Settings
+                    Account Settings
                   </Link>
                 </div>
                 <div className="pt-1 border-t border-slate-100">

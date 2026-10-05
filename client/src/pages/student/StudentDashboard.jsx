@@ -6,8 +6,9 @@ import useLogout from "../../hooks/useLogout";
 import {
   getStudentDashboardData,
   saveOpportunity,
-  applyOpportunity,
 } from "../../services/studentDashboardService";
+import { isExternalOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
+import { FEATURES } from "../../config/features";
 
 // Subcomponents
 import Sidebar from "../../components/student-dashboard/Sidebar";
@@ -23,7 +24,7 @@ import ProjectsPortfolioCard from "../../components/student-dashboard/ProjectsPo
 import CertificationsCard from "../../components/student-dashboard/CertificationsCard";
 import InternshipRecommendationsCard from "../../components/student-dashboard/InternshipRecommendationsCard";
 import JobRecommendationsCard from "../../components/student-dashboard/JobRecommendationsCard";
-import CourseRecommendationsCard from "../../components/student-dashboard/CourseRecommendationsCard";
+//import CourseRecommendationsCard from "../../components/student-dashboard/CourseRecommendationsCard";
 import InternshalaDashboardRecommendations from "../../components/student-dashboard/InternshalaDashboardRecommendations";
 // import StudentCoursesPage from "../courses/StudentCoursesPage";
 import ApplicationTrackerCard from "../../components/student-dashboard/ApplicationTrackerCard";
@@ -128,6 +129,13 @@ const StudentDashboard = () => {
     setMobileSidebarOpen(false);
   };
 
+  // Internship only when the listing says so (or has a stipend and no type info); otherwise a Job.
+  const opportunityKind = (item) => {
+    const typeText = [item.opportunityType, item.type].filter(Boolean).join(" ").toLowerCase();
+    if (typeText) return typeText.includes("intern") ? "Internship" : "Job";
+    return item.stipend ? "Internship" : "Job";
+  };
+
   const handleSaveToggle = async (item) => {
     const itemId = item.id || item._id;
     const isAlreadySaved = savedIds.includes(itemId);
@@ -141,9 +149,9 @@ const StudentDashboard = () => {
         {
           id: itemId,
           title: item.title,
-          company: item.company || item.companyName || "Company",
-          type: item.type || "Internship",
-          deadline: item.deadline || "Open",
+          company: item.company || item.companyName || null,
+          type: item.type || opportunityKind(item),
+          deadline: item.deadline || null,
         },
         ...prev,
       ]);
@@ -152,7 +160,7 @@ const StudentDashboard = () => {
         await saveOpportunity({
           opportunityId: itemId,
           title: item.title,
-          type: item.type || "Internship",
+          type: item.type || opportunityKind(item),
         });
       } catch (err) {
         console.error(err);
@@ -161,17 +169,23 @@ const StudentDashboard = () => {
   };
 
   const handleApply = (item) => {
+    // External listings are applied to on the employer's site, not through E2Job.
+    if (isExternalOpportunity(item)) {
+      const url = externalApplyUrl(item);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
     setSelectedOpportunityForTailoring({
       _id: item._id || item.id,
       id: item._id || item.id,
       title: item.title,
       company: item.company || item.companyName,
       companyName: item.company || item.companyName,
-      type: item.type || "Internship",
-      opportunityType: (item.type?.toLowerCase().includes("intern") || !item.type) ? "Internship" : "Job",
+      type: item.type || opportunityKind(item),
+      opportunityType: opportunityKind(item),
       description: item.description || item.aboutRole || "",
       requirements: item.requirements || [],
-      skillsRequired: item.skillsRequired || item.skills || [],
+      skillsRequired: [item.skillsRequired, item.skills, item.requiredSkills].find((l) => Array.isArray(l) && l.length) || [],
     });
     setIsTailoredModalOpen(true);
   };
@@ -342,7 +356,7 @@ const StudentDashboard = () => {
               appliedJobIds={appliedJobIds}
               appliedInternshipIds={appliedInternshipIds}
               internships={filteredInternships}
-              courses={filteredCourses}
+              courses={FEATURES.courses ? filteredCourses : []}
               savedIds={savedIds}
               onSave={handleSaveToggle}
               onApply={handleApply}
@@ -426,7 +440,7 @@ const StudentDashboard = () => {
           )}
 
           {/* ================= COURSES (full module) ================= */}
-          {activeTab === "courses" && (
+          {activeTab === "courses" && FEATURES.courses && (
             <div className="animate-fade-in">
               {coursesView === "catalog" && (
                 <StudentCoursesPage
@@ -472,7 +486,7 @@ const StudentDashboard = () => {
           )}
 
           {/* ================= SAVED ================= */}
-          {activeTab === "saved" && (
+          {FEATURES.savedJobs && activeTab === "saved" && (
             <SavedOpportunitiesCard
               savedItems={savedList}
               onRemove={(id) => {

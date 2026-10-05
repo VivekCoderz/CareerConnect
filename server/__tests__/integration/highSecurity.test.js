@@ -1,8 +1,7 @@
 const request = require("supertest");
 const app = require("../../app");
-const { createUserWithToken, createEmployerWithToken } = require("../helpers/createTestUser");
+const { createUserWithToken, createEmployerWithToken, createEmployerProfile } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
-const EmployerProfile = require("../../models/EmployerProfile");
 const Application = require("../../models/Application");
 const StudentProfile = require("../../models/StudentProfile");
 const FresherProfile = require("../../models/FresherProfile");
@@ -19,8 +18,8 @@ describe("recruitment authorization", () => {
     const otherEmployer = await createEmployerWithToken({ email: `other-${Date.now()}@example.com` });
     const candidate = await createUserWithToken({ email: `candidate-${Date.now()}@example.com` });
     const outsider = await createUserWithToken({ email: `outsider-${Date.now()}@example.com` });
-    const profile = await EmployerProfile.create({ userId: employer.user._id, companyName: "Owned Company" });
-    const otherProfile = await EmployerProfile.create({ userId: otherEmployer.user._id, companyName: "Other Company" });
+    const profile = await createEmployerProfile(employer.user._id, { companyName: "Owned Company" });
+    const otherProfile = await createEmployerProfile(otherEmployer.user._id, { companyName: "Other Company" });
     const job = await createTestJob(profile._id, { createdBy: employer.user._id });
     const otherJob = await createTestJob(otherProfile._id, { createdBy: otherEmployer.user._id });
     const application = await Application.create({
@@ -59,9 +58,11 @@ describe("recruitment authorization", () => {
 
   it("only creates offers for an owned job and matching application; response is one-use", async () => {
     const data = await setup();
+    // Offers go to candidates past screening (T10 transition rules).
+    await Application.updateOne({ _id: data.application._id }, { $set: { status: "Selected" } });
     const payload = {
       candidateId: data.candidate.user._id, jobId: data.job._id, applicationId: data.application._id,
-      salary: 600000, joiningDate: "2027-01-01", expiryDate: "2027-02-01",
+      salary: 600000, joiningDate: "2027-01-01", expiryDate: "2026-12-15",
     };
     expect((await as(data.otherEmployer.token, "post", "/api/offers").send(payload)).statusCode).toBe(403);
     expect((await as(data.employer.token, "post", "/api/offers").send({
@@ -72,6 +73,11 @@ describe("recruitment authorization", () => {
     const path = `/api/offers/${created.body.offer._id}/respond`;
     expect((await as(data.outsider.token, "patch", path).send({ status: "Accepted" })).statusCode).toBe(409);
     expect((await as(data.candidate.token, "patch", path).send({ status: "Accepted" })).statusCode).toBe(200);
+    // The employer is told (QA bug 15).
+    await require("../../services/notificationEmail").flushNotificationEmails();
+    expect(await require("../../models/Notification").countDocuments({
+      recipient: data.employer.user._id, notificationType: "OFFER", "metadata.status": "Accepted",
+    })).toBe(1);
     expect((await as(data.candidate.token, "patch", path).send({ status: "Rejected" })).statusCode).toBe(409);
   });
 

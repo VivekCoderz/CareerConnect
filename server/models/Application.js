@@ -342,6 +342,11 @@ applicationSchema.index(
 );
 
 applicationSchema.index({ employerId: 1, candidateId: 1 });
+// Resume file cleanup checks whether an application still uses a resume file
+applicationSchema.index({ resumeUrl: 1 });
+// Applicant lists and "position filled" notices query by listing and status
+applicationSchema.index({ jobId: 1, status: 1 });
+applicationSchema.index({ internshipId: 1, status: 1 });
 
 applicationSchema.pre("validate", function () {
   if (this.opportunityType === "Internship" && !this.internshipId) {
@@ -352,5 +357,22 @@ applicationSchema.pre("validate", function () {
     throw new Error("jobId is required for Job applications");
   }
 });
+
+// An application that ends (Rejected or Withdrawn) can't take an offer: withdraw any offer
+// still waiting for an answer. Covers every endpoint that saves the document; the
+// updateOne/updateMany paths call JobOffer.withdrawPending themselves
+// (utils/applicationStatus.js guardedStatusUpdate, bulk status update).
+const ENDING_STATUSES = ["Rejected", "rejected", "Withdrawn", "withdrawn"];
+
+applicationSchema.pre("save", function () {
+  this.$locals.ended = !this.isNew && this.isModified("status") && ENDING_STATUSES.includes(this.status);
+});
+
+applicationSchema.post("save", async function () {
+  // Loaded here so neither model file depends on the other being loaded first.
+  if (this.$locals.ended) await require("./JobOffer").withdrawPending([this._id]);
+});
+
+applicationSchema.statics.ENDING_STATUSES = ENDING_STATUSES;
 
 module.exports = mongoose.model("Application", applicationSchema);

@@ -5,7 +5,11 @@ const Job = require("../models/Job");
 const Application = require("../models/Application");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { withoutListed } = require("../utils/listingSecurity");
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
+const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
+const { openListingQuery } = require("../utils/listingExpiry");
+const { formatSalary, formatStipend, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 
 // Skill benchmarks for target roles for Job Matching & Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -90,6 +94,18 @@ const ROLE_SKILL_BENCHMARKS = {
     "Shell Scripting",
   ],
 };
+
+const PROFILE_USER_FIELDS = "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks";
+
+// A fresher without a profile gets an empty one: only schema defaults, never sample
+// education, skills or salary (those would show up as the fresher's own data).
+// Upsert so two concurrent first requests don't race to create duplicates.
+const createEmptyFresherProfile = (userId) =>
+  FresherProfile.findOneAndUpdate(
+    { userId },
+    { $setOnInsert: { userId } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).populate("userId", PROFILE_USER_FIELDS);
 
 // ==========================================
 // DYNAMIC PROFILE COMPLETION (Weighted logic)
@@ -311,7 +327,10 @@ const calculateJobMatch = (
     );
   });
 
-  if (jobRequiredSkills.length === 0) return 85;
+  // No skills on the profile yet: no basis for a match score.
+  if (allProfileSkills.length === 0) return 0;
+  // The job lists no skills: nothing to match against, so no score (not a default 85%).
+  if (jobRequiredSkills.length === 0) return null;
 
   let matched = 0;
   jobRequiredSkills.forEach((reqSkill) => {
@@ -336,7 +355,8 @@ const calculateJobMatch = (
     matchPct = Math.min(100, matchPct + 10);
   }
 
-  return Math.min(98, Math.max(45, matchPct));
+  // The real percentage: no 45% floor, no 98% cap.
+  return Math.min(100, Math.max(0, matchPct));
 };
 
 // ==========================================
@@ -351,70 +371,7 @@ module.exports.getFresherProfile = async (req, res, next) => {
     );
 
     if (!profile) {
-      // Auto initialize sensible fresher profile template
-      profile = await FresherProfile.create({
-        userId,
-        professionalHeadline:
-          "Software Engineering Graduate | Seeking Entry-Level Opportunities",
-        targetRole: "Full Stack Developer",
-        targetIndustry: "Information Technology",
-        careerObjective:
-          "Passionate graduate seeking an entry-level software engineering role where I can apply my problem-solving abilities and full-stack development skills.",
-        education: [
-          {
-            qualificationType: "B.Tech",
-            degree: "B.Tech Computer Science & Engineering",
-            institution: "University / Institute of Technology",
-            university: "State Technical University",
-            graduationYear: 2024,
-            percentageOrCgpa: "8.2 CGPA",
-            isHighest: true,
-          },
-        ],
-        skills: {
-          programmingLanguages: [
-            { name: "JavaScript", proficiency: "Intermediate" },
-            { name: "Python", proficiency: "Intermediate" },
-          ],
-          frameworks: [
-            { name: "React", proficiency: "Intermediate" },
-            { name: "Node.js", proficiency: "Intermediate" },
-            { name: "Express", proficiency: "Intermediate" },
-          ],
-          databases: [{ name: "MongoDB", proficiency: "Intermediate" }],
-          tools: [
-            { name: "Git", proficiency: "Intermediate" },
-            { name: "Postman", proficiency: "Beginner" },
-          ],
-          softSkills: [
-            { name: "Problem Solving", proficiency: "Advanced" },
-            { name: "Teamwork", proficiency: "Advanced" },
-            { name: "Communication", proficiency: "Intermediate" },
-          ],
-          technical: [],
-        },
-        jobPreferences: {
-          preferredRoles: [
-            "Full Stack Developer",
-            "Frontend Developer",
-            "Junior Software Engineer",
-          ],
-          employmentTypes: ["Full-time", "Internship", "Graduate Trainee"],
-          preferredLocations: ["Bangalore", "Hyderabad", "Pune", "Remote"],
-          workMode: ["Hybrid", "Remote", "On-site"],
-          expectedSalary: { min: 4.5, max: 8.5, currency: "INR (LPA)" },
-        },
-        availability: {
-          status: "Immediately Available",
-          currentEmploymentStatus: "Looking for Job",
-        },
-        profileVisibility: "public",
-      });
-
-      profile = await profile.populate(
-        "userId",
-        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks",
-      );
+      profile = await createEmptyFresherProfile(userId);
     }
 
     const completion = calculateFresherProfileCompletion(profile, req.user);
@@ -524,36 +481,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     );
 
     if (!profile) {
-      profile = await FresherProfile.create({
-        userId,
-        professionalHeadline: "Software Engineering Graduate",
-        targetRole: "Full Stack Developer",
-        education: [
-          {
-            qualificationType: "B.Tech",
-            degree: "B.Tech Computer Science",
-            institution: "University / College",
-            graduationYear: 2024,
-            isHighest: true,
-          },
-        ],
-        skills: {
-          programmingLanguages: [
-            { name: "JavaScript", proficiency: "Intermediate" },
-          ],
-          frameworks: [{ name: "React", proficiency: "Intermediate" }],
-          databases: [{ name: "MongoDB", proficiency: "Intermediate" }],
-          tools: [{ name: "Git", proficiency: "Intermediate" }],
-          softSkills: [
-            { name: "Problem Solving", proficiency: "Intermediate" },
-          ],
-          technical: [],
-        },
-      });
-      profile = await profile.populate(
-        "userId",
-        "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks",
-      );
+      profile = await createEmptyFresherProfile(userId);
     }
 
     // Fallback sync: if profile has no resumeUrl, but req.user has resumeUrl, sync it now
@@ -578,18 +506,12 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     if (mongoose.connection.readyState === 1) {
       try {
         [dbJobs, dbInternships] = await Promise.all([
-          Job.find({
-            status: "Published",
-            employmentType: { $ne: "Internship" },
-          })
+          Job.find(openListingQuery({ employmentType: { $ne: "Internship" } }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
             .lean(),
-          Job.find({
-            status: "Published",
-            employmentType: "Internship",
-          })
+          Job.find(openListingQuery({ employmentType: "Internship" }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
@@ -600,32 +522,22 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       }
     }
 
+    // Missing values are null (the client hides them), never invented text.
     const recommendedJobs = (dbJobs || []).map((job) => {
-      const salaryStr =
-        job.salaryRange?.min > 0
-          ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive LPA";
-
       return {
         _id: job._id,
         id: job._id.toString(),
         jobId: job._id.toString(),
         title: job.title,
-        company: job.employerId?.companyName || "Partner Employer",
+        company: companyOf(job),
         location: job.location,
-        salary: salaryStr,
-        type: job.employmentType || "Full-Time",
-        workMode: job.workMode || "Hybrid",
-        experienceRequired: job.experience?.level || "Fresher / 0-1 Yr",
+        salary: formatSalary(job.salaryRange),
+        type: textOrNull(job.employmentType),
+        workMode: textOrNull(job.workMode),
+        experienceRequired: textOrNull(job.experience?.level),
         skillsRequired: job.requiredSkills || [],
-        postedAt: "Active",
-        deadline: job.deadline
-          ? new Date(job.deadline).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "Open",
+        postedAt: formatDate(job.createdAt),
+        deadline: formatDate(job.deadline),
         matchPercentage: calculateJobMatch(
           profile,
           job.requiredSkills || [],
@@ -639,30 +551,19 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     );
 
     const recommendedInternships = eligibleDbInternships.map((job) => {
-      const stipendStr =
-        job.salaryRange?.min > 0
-          ? `₹${job.salaryRange.min.toLocaleString()} / month`
-          : "Competitive Stipend";
-
       return {
         _id: job._id,
         id: job._id.toString(),
         jobId: job._id.toString(),
         title: job.title,
-        company: job.employerId?.companyName || "Partner Employer",
+        company: companyOf(job),
         location: job.location,
-        stipend: stipendStr,
-        duration: "3-6 Months",
+        stipend: formatStipend(job),
+        duration: textOrNull(job.duration),
         type: "Internship",
-        workMode: job.workMode || "Remote",
+        workMode: textOrNull(job.workMode),
         skillsRequired: job.requiredSkills || [],
-        deadline: job.deadline
-          ? new Date(job.deadline).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "Open",
+        deadline: formatDate(job.deadline),
       };
     });
 
@@ -675,34 +576,29 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         });
         const mappedJobs = (scraped.data || [])
           .slice(0, 20)
-          .map((job, idx) => ({
-            _id: `scraped-fresher-job-${idx}`,
-            id: `scraped-fresher-job-${idx}`,
-            jobId: `scraped-fresher-job-${idx}`,
+          .map((job) => ({
+            // Stored feed listing: its MongoDB id is stable across syncs (I04).
+            _id: String(job._id),
+            id: String(job._id),
+            jobId: String(job._id),
             title: job.title,
-            company: job.company,
+            company: textOrNull(job.company),
             location: job.location,
-            salary: "₹4.5 - 12.0 LPA",
-            type: job.opportunityType || "Full-Time",
-            workMode: job.workMode || "Hybrid",
-            experienceRequired: "Fresher / 0-1 Yr",
-            skillsRequired: [
-              job.title.split(" ")[0] || "Engineering",
-              "Problem Solving",
-            ],
-            postedAt: job.postedDate || "Recently",
-            deadline: "Open until filled",
-            matchPercentage: calculateJobMatch(
-              profile,
-              [job.title.split(" ")[0] || "Development"],
-              job.title,
-            ),
+            salary: textOrNull(job.salary),
+            type: textOrNull(job.opportunityType),
+            workMode: textOrNull(job.workMode),
+            experienceRequired: null,
+            skillsRequired: job.skills || [],
+            postedAt: textOrNull(job.postedDate),
+            deadline: formatDate(job.deadline),
+            matchPercentage: calculateJobMatch(profile, job.skills || [], job.title),
             applyLink: job.applyLink,
             applyUrl: job.applyLink,
             isExternal: true,
             platformSource: job.platformSource,
+            attribution: job.attribution,
           }));
-        finalRecommendedJobs = [...recommendedJobs, ...mappedJobs];
+        finalRecommendedJobs = [...recommendedJobs, ...withoutListed(mappedJobs, recommendedJobs)];
       } catch (e) {
         console.warn("Fresher scraped jobs fallback error:", e.message);
       }
@@ -715,25 +611,27 @@ module.exports.getFresherDashboard = async (req, res, next) => {
           opportunityType: "internship",
           search: profile.targetRole || "Developer",
         });
-        const mappedInt = (scraped.data || []).slice(0, 20).map((job, idx) => ({
-          _id: `scraped-fresher-int-${idx}`,
-          id: `scraped-fresher-int-${idx}`,
-          jobId: `scraped-fresher-int-${idx}`,
+        const mappedInt = (scraped.data || []).slice(0, 20).map((job) => ({
+          // Stored feed listing: its MongoDB id is stable across syncs (I04).
+          _id: String(job._id),
+          id: String(job._id),
+          jobId: String(job._id),
           title: job.title,
-          company: job.company,
+          company: textOrNull(job.company),
           location: job.location,
-          stipend: "Competitive Stipend",
-          duration: "3-6 Months",
+          stipend: textOrNull(job.stipend),
+          duration: textOrNull(job.duration),
           type: "Internship",
-          workMode: job.workMode || "Remote",
-          skillsRequired: [job.title.split(" ")[0] || "Engineering"],
-          deadline: "Open until filled",
+          workMode: textOrNull(job.workMode),
+          skillsRequired: job.skills || [],
+          deadline: formatDate(job.deadline),
           applyLink: job.applyLink,
           applyUrl: job.applyLink,
           isExternal: true,
           platformSource: job.platformSource,
+          attribution: job.attribution,
         }));
-        finalRecommendedInternships = [...recommendedInternships, ...mappedInt];
+        finalRecommendedInternships = [...recommendedInternships, ...withoutListed(mappedInt, recommendedInternships)];
       } catch (e) {
         console.warn("Fresher scraped internships fallback error:", e.message);
       }
@@ -773,11 +671,12 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       jobId: app.jobId?._id || "",
       internshipId: app.internshipId?._id || app.internshipId || "",
       opportunityType: app.opportunityType,
-      title: app.jobId?.title || "Position",
+      title: app.jobId?.title || app.opportunityTitle || null,
       company:
         app.jobId?.employerId?.companyName ||
         app.employerId?.companyName ||
-        "Employer",
+        app.companyName ||
+        null,
       appliedDate: new Date(app.createdAt).toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
@@ -791,7 +690,9 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       recent: recentApps,
     };
 
-    // Calculate Target Role & Benchmarks
+    // Calculate Target Role & Benchmarks. targetRole falls back to a default for
+    // skill benchmarks only; text shown as the fresher's own choice uses chosenRole.
+    const chosenRole = profile?.targetRole || profile?.jobPreferences?.preferredRoles?.[0] || "";
     const targetRole =
       profile.targetRole ||
       profile.targetRoles?.[0] ||
@@ -822,9 +723,10 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       });
     }
 
-    const userSkillsSet = new Set(allProfileSkills.map((s) => s.toLowerCase()));
+    // Normalised comparison: React.js counts as React (T03)
+    const userSkillsSet = normalizedSkillSet(allProfileSkills);
     const missingSkills = benchmarks.filter(
-      (s) => !userSkillsSet.has(s.toLowerCase()),
+      (s) => !userSkillsSet.has(normalizeSkill(s)),
     );
 
     const skillReasons = {
@@ -878,7 +780,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       {
         id: "crs-f1",
         name: `Complete ${targetRole} Bootcamp 2026`,
-        platform: "CareerConnect Academy",
+        platform: "E2Job Academy",
         skill: missingSkills[0] || "Full Stack Architecture",
         difficulty: "Beginner to Intermediate",
         duration: "6 Weeks (Self-paced)",
@@ -902,7 +804,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       {
         id: "crs-f3",
         name: `Modern RESTful APIs & Backend Architecture with ${missingSkills[0] || "Node.js"}`,
-        platform: "Coursera / CareerConnect",
+        platform: "Coursera / E2Job",
         skill: missingSkills[0] || "Backend Development",
         difficulty: "Intermediate",
         duration: "4 Weeks",
@@ -930,8 +832,12 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     if (missingSkills.length > 0) {
       careerRecommendations.push({
         id: "rec-skill-1",
-        title: `Add ${missingSkills[0]} to strengthen your ${targetRole} profile`,
-        description: `82% of entry-level ${targetRole} postings list ${missingSkills[0]} as a key requirement.`,
+        title: chosenRole
+          ? `Add ${missingSkills[0]} to strengthen your ${chosenRole} profile`
+          : `Add ${missingSkills[0]} to your skills`,
+        description: chosenRole
+          ? `Entry-level ${chosenRole} postings often list ${missingSkills[0]} as a key requirement.`
+          : `${missingSkills[0]} is often listed in entry-level ${targetRole} postings. Set a target role for advice that fits you.`,
         ctaText: "Explore Learning",
         ctaAction: `/courses?search=${encodeURIComponent(missingSkills[0])}`,
         type: "skill",
@@ -942,8 +848,12 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     if (matchingCount > 0) {
       careerRecommendations.push({
         id: "rec-jobs-1",
-        title: `${matchingCount} new entry-level roles match your target role`,
-        description: `Verified opportunities seeking ${targetRole} candidates with your skill profile.`,
+        title: chosenRole
+          ? `${matchingCount} new entry-level roles match your target role`
+          : `${matchingCount} new entry-level roles to explore`,
+        description: chosenRole
+          ? `Verified opportunities seeking ${chosenRole} candidates with your skill profile.`
+          : "Set a target role to see roles matched to you.",
         ctaText: "View Matching Jobs",
         ctaAction: "jobs",
         type: "job",
@@ -976,7 +886,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
 
     careerRecommendations.push({
       id: "rec-course-1",
-      title: `Explore courses related to ${targetRole}`,
+      title: chosenRole ? `Explore courses related to ${chosenRole}` : "Explore courses",
       description:
         "Upgrade your technical credentials with verified certifications.",
       ctaText: "Browse Courses",
@@ -990,8 +900,8 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         id: "act-1",
         type: "profile",
         title: "Fresher Profile Created",
-        subtitle: `Configured target role as ${targetRole}`,
-        timestamp: "Recently",
+        subtitle: chosenRole ? `Configured target role as ${chosenRole}` : "Target role not set yet",
+        timestamp: formatDate(profile.createdAt),
       },
       ...(profile.projects && profile.projects.length > 0
         ? [
@@ -1024,20 +934,15 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       })),
     ];
 
+    // What the fresher actually set (targetRole above falls back to a default for matching only).
     const careerTarget = {
-      targetRole,
+      targetRole: chosenRole,
       targetRoles:
-        profile.targetRoles?.length > 0 ? profile.targetRoles : [targetRole],
-      jobType:
-        profile.jobPreferences?.employmentTypes?.join(", ") ||
-        "Full-time opportunities",
-      workMode:
-        profile.jobPreferences?.workMode?.join(" / ") || "Remote / Hybrid",
-      preferredLocations:
-        profile.jobPreferences?.preferredLocations?.length > 0
-          ? profile.jobPreferences.preferredLocations
-          : ["Bangalore", "Pune", "Remote"],
-      careerGoal: profile.careerGoal || "Get my first job",
+        profile.targetRoles?.length > 0 ? profile.targetRoles : chosenRole ? [chosenRole] : [],
+      jobType: profile.jobPreferences?.employmentTypes?.join(", ") || "",
+      workMode: profile.jobPreferences?.workMode?.join(" / ") || "",
+      preferredLocations: profile.jobPreferences?.preferredLocations || [],
+      careerGoal: profile.careerGoal || "",
       activelyLooking: profile.activelyLooking !== false,
     };
 
@@ -1094,13 +999,14 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
     const userId = req.user._id;
     const profile = await FresherProfile.findOne({ userId });
 
+    // targetRole is what the fresher chose ("" when not set); benchmarkRole is what the
+    // skill gap is measured against, falling back to a default role.
     const targetRole =
       profile?.targetRole ||
       profile?.jobPreferences?.preferredRoles?.[0] ||
-      "Full Stack Developer";
-    const benchmarkSkills =
-      ROLE_SKILL_BENCHMARKS[targetRole] ||
-      ROLE_SKILL_BENCHMARKS["Full Stack Developer"];
+      "";
+    const benchmarkRole = ROLE_SKILL_BENCHMARKS[targetRole] ? targetRole : "Full Stack Developer";
+    const benchmarkSkills = ROLE_SKILL_BENCHMARKS[benchmarkRole];
 
     const allProfileSkills = [];
     const categories = [
@@ -1130,8 +1036,8 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
     const skillGapCourses = [
       {
         id: "crs-f1",
-        title: `Industry-Ready ${targetRole} FastTrack`,
-        provider: "CareerConnect Pro",
+        title: `Industry-Ready ${targetRole || benchmarkRole} FastTrack`,
+        provider: "E2Job Pro",
         duration: "4 Weeks",
         rating: 4.9,
         skillsCovered: missing.slice(0, 3),
@@ -1152,6 +1058,7 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
       success: true,
       data: {
         targetRole,
+        benchmarkRole,
         masteredSkills: mastered,
         skillsToLearn: missing,
         matchPercentage: Math.round(

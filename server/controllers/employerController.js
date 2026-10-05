@@ -5,6 +5,8 @@ const sanitizeEmployerUpdate = (body) => {
   const data = sanitizeProfileUpdate(body);
   delete data.__v;
   delete data.isPublished;
+  delete data.verifiedAt;
+  delete data.verifiedBy;
   return data;
 };
 // server/controllers/employerController.js
@@ -22,6 +24,8 @@ const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
 const Course = require("../models/Course");
 const { getEmployerDashboardData } = require("../services/employerDashboardService");
+const { getActiveCompany } = require("../utils/employerOwnership");
+const { ipKeyGenerator } = require("express-rate-limit");
 
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
@@ -441,9 +445,9 @@ exports.getEmployerDashboard = async (req, res, next) => {
       type: app.opportunityType || (app.internshipId ? "Internship" : "Full-time"),
       status: app.status || "Reviewing",
       appliedDate: app.createdAt ? new Date(app.createdAt).toISOString().split("T")[0] : "Recent",
-      matchScore: app.matchScore || 85,
-      cgpa: app.cgpa || "8.5",
-      degree: app.degree || "Geeta University Student",
+      matchScore: app.matchScore ?? null,
+      cgpa: app.cgpa || "",
+      degree: app.degree || "",
     }));
 
     const activeListings = [
@@ -494,10 +498,17 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
     if (isObjectId) {
       profile = await EmployerProfile.findOne({
         $or: [{ _id: companyId }, { userId: companyId }],
-      }).populate("userId", "fullName email profileImage");
+      }).populate("userId", "fullName email profileImage companyId");
     }
 
-    if (!profile) {
+    // Only published, admin-approved profiles are public, and not while the employer's
+    // company is inactive or deleted (ADM-11/12). Anything else looks like "not found".
+    const isPublic = Boolean(profile) &&
+      profile.isPublished === true &&
+      profile.verificationStatus === "approved" &&
+      (!profile.userId?.companyId || Boolean(await getActiveCompany(profile.userId)));
+
+    if (!isPublic) {
       return res.status(404).json({
         success: false,
         message: "Company profile not found",
@@ -759,7 +770,7 @@ exports.requestCompanyApproval = async (req, res, next) => {
       return res.status(409).json({
         success: false,
         status: "COMPANY_EXISTS",
-        message: "This company is already on CareerConnect. Ask your company admin to invite you, or contact support.",
+        message: "This company is already on E2Job. Ask your company admin to invite you, or contact support.",
       });
     }
 
@@ -850,7 +861,7 @@ exports.requestCompanyApproval = async (req, res, next) => {
         module: "Settings",
         target: trimmedCompanyName,
         details: `Employee ${cleanEmployeeName} (${cleanEmployeeEmail}) submitted connection request for "${trimmedCompanyName}" (${cleanCompanyEmail}).`,
-        ipAddress: req.ip || req.headers["x-forwarded-for"] || "127.0.0.1",
+        ipAddress: ipKeyGenerator(req.ip || "127.0.0.1"),
       });
     } catch (auditErr) {
       console.warn("AuditLog warning:", auditErr.message);

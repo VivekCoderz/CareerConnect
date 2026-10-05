@@ -5,10 +5,13 @@ import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import recommendationService from "../../services/recommendationService";
 import api from "../../api/api";
+import { FEATURES } from "../../config/features";
 
 // Layout
 import FresherSidebar from "../../components/fresher-dashboard/FresherSidebar";
 import FresherNavbar from "../../components/fresher-dashboard/FresherNavbar";
+
+const matchLabel = (score) => (typeof score === "number" ? `${score}% Match` : "Not enough data");
 
 const CareerRecommendationsPage = () => {
   const navigate = useNavigate();
@@ -41,8 +44,8 @@ const CareerRecommendationsPage = () => {
     targetRole: "",
     careerGoal: "",
     preferredLocations: "",
-    workMode: "Remote",
-    expectedSalaryMin: 4,
+    workMode: "",
+    expectedSalaryMin: "",
   });
 
   const showToast = (message, type = "success") => {
@@ -63,11 +66,11 @@ const CareerRecommendationsPage = () => {
         setData(res.data);
         if (res.data.careerSummary) {
           setPrefForm({
-            targetRole: res.data.careerSummary.targetRole || "Full Stack Developer",
-            careerGoal: res.data.careerSummary.careerGoal || "Get my first full-time job",
-            preferredLocations: res.data.careerSummary.preferredLocations || "Bangalore, Remote",
-            workMode: res.data.careerSummary.workMode?.split(" / ")[0] || "Remote",
-            expectedSalaryMin: 4,
+            targetRole: res.data.careerSummary.targetRole || "",
+            careerGoal: res.data.careerSummary.careerGoal || "",
+            preferredLocations: res.data.careerSummary.preferredLocations || "",
+            workMode: res.data.careerSummary.workMode?.split(" / ")[0] || "",
+            expectedSalaryMin: "",
           });
         }
       }
@@ -98,15 +101,20 @@ const CareerRecommendationsPage = () => {
       await api.patch("/fresher/profile", {
         targetRole: prefForm.targetRole,
         careerGoal: prefForm.careerGoal,
+        // Only what was filled in: blank role, work mode or salary isn't saved.
         jobPreferences: {
-          preferredRoles: [prefForm.targetRole],
+          preferredRoles: prefForm.targetRole ? [prefForm.targetRole] : [],
           preferredLocations: locArray,
-          workMode: [prefForm.workMode],
-          expectedSalary: {
-            min: Number(prefForm.expectedSalaryMin) * 100000,
-            max: (Number(prefForm.expectedSalaryMin) + 4) * 100000,
-            currency: "INR (LPA)",
-          },
+          workMode: prefForm.workMode ? [prefForm.workMode] : [],
+          ...(prefForm.expectedSalaryMin !== ""
+            ? {
+                expectedSalary: {
+                  min: Number(prefForm.expectedSalaryMin) * 100000,
+                  max: (Number(prefForm.expectedSalaryMin) + 4) * 100000,
+                  currency: "INR (LPA)",
+                },
+              }
+            : {}),
         },
       });
 
@@ -125,12 +133,14 @@ const CareerRecommendationsPage = () => {
         jobId: job._id || job.id,
         opportunityType: "Job",
         opportunityTitle: job.title,
-        companyName: job.company,
-        coverNote: `Applying for ${job.title} based on personalized Fresher Recommendation match (${job.matchScore}%).`,
+        companyName: job.company || undefined,
+        coverNote: typeof job.matchScore === "number"
+          ? `Applying for ${job.title} based on personalized Fresher Recommendation match (${job.matchScore}%).`
+          : `Applying for ${job.title} based on personalized Fresher Recommendation.`,
       });
 
       if (res.data?.success) {
-        showToast(`✓ Applied to ${job.company}!`, "success");
+        showToast(`✓ Applied to ${job.company || job.title}!`, "success");
         fetchRecommendations();
       } else {
         showToast(res.data?.message || "Application submitted.", "info");
@@ -155,9 +165,9 @@ const CareerRecommendationsPage = () => {
   const filteredJobs = recommendedJobs.filter((job) => {
     const matchesSearch =
       !jobSearch ||
-      job.title.toLowerCase().includes(jobSearch.toLowerCase()) ||
-      job.company.toLowerCase().includes(jobSearch.toLowerCase()) ||
-      job.requiredSkills.some((s) => s.toLowerCase().includes(jobSearch.toLowerCase()));
+      (job.title || "").toLowerCase().includes(jobSearch.toLowerCase()) ||
+      (job.company || "").toLowerCase().includes(jobSearch.toLowerCase()) ||
+      (job.requiredSkills || []).some((s) => (s || "").toLowerCase().includes(jobSearch.toLowerCase()));
 
     const matchesWorkMode =
       workModeFilter === "All" ||
@@ -230,13 +240,13 @@ const CareerRecommendationsPage = () => {
             {/* Quick Profile Summary Bar */}
             <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 text-xs font-medium text-slate-600">
               <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800">
-                🎯 <strong>{careerSummary.targetRole || "Full Stack Developer"}</strong>
+                🎯 <strong>{careerSummary.targetRole || "Target role not set yet"}</strong>
               </span>
               <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800">
-                📍 {careerSummary.preferredLocations || "Remote / Pan-India"}
+                📍 {careerSummary.preferredLocations || "Locations not set yet"}
               </span>
               <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800">
-                💼 {careerSummary.workMode || "Remote"}
+                💼 {careerSummary.workMode || "Work mode not set yet"}
               </span>
               <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800">
                 🎓 Fresher (0–1 yr)
@@ -251,7 +261,7 @@ const CareerRecommendationsPage = () => {
             {[
               { id: "overview", label: "Overview Summary" },
               { id: "jobs", label: `Recommended Jobs (${recommendedJobs.length})` },
-              { id: "skills", label: "Skill Gaps & Courses" },
+              { id: "skills", label: FEATURES.courses ? "Skill Gaps & Courses" : "Skill Gaps" },
               { id: "projects", label: "Project Ideas & Resume" },
               { id: "paths", label: "Career Paths" },
             ].map((tab) => (
@@ -300,14 +310,13 @@ const CareerRecommendationsPage = () => {
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider border border-emerald-500/30">
                         Top Recommendation
                       </span>
-                      <h2 className="text-xl font-extrabold tracking-tight">
-                        {topOverallMatch.roleTitle || "Full Stack Developer"}
-                      </h2>
+                      {topOverallMatch.roleTitle && (
+                        <h2 className="text-xl font-extrabold tracking-tight">
+                          {topOverallMatch.roleTitle}
+                        </h2>
+                      )}
                       <ul className="space-y-1 text-xs text-slate-300">
-                        {(topOverallMatch.reasons || [
-                          "Core skills match entry requirements",
-                          "Degree aligns with role expectations",
-                        ])
+                        {(topOverallMatch.reasons || [])
                           .slice(0, 3)
                           .map((r, i) => (
                             <li key={i} className="flex items-center gap-1.5">
@@ -319,13 +328,19 @@ const CareerRecommendationsPage = () => {
 
                     <div className="text-left md:text-right space-y-2 shrink-0">
                       <div className="flex items-baseline md:justify-end gap-2">
-                        <span className="text-3xl font-black text-emerald-400">
-                          {topOverallMatch.matchScore || 87}%
-                        </span>
-                        <span className="text-xs text-slate-300">Match Score</span>
+                        {typeof topOverallMatch.matchScore === "number" ? (
+                          <>
+                            <span className="text-3xl font-black text-emerald-400">
+                              {topOverallMatch.matchScore}%
+                            </span>
+                            <span className="text-xs text-slate-300">Match Score</span>
+                          </>
+                        ) : (
+                          <span className="text-sm font-bold text-slate-300">Not enough data</span>
+                        )}
                       </div>
                       <div className="flex flex-wrap md:justify-end gap-1.5">
-                        {(topOverallMatch.missingSkills || ["Node.js", "Express"]).map((s, i) => (
+                        {(topOverallMatch.missingSkills || []).map((s, i) => (
                           <span
                             key={i}
                             className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-semibold border border-amber-500/30"
@@ -370,12 +385,15 @@ const CareerRecommendationsPage = () => {
                                 Required by {item.demandPercentage}% of matching jobs
                               </p>
                             </div>
+                           {FEATURES.courses && (
                             <Link
                               to={`/courses?search=${encodeURIComponent(item.skill)}`}
                               className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 text-xs font-bold transition shrink-0"
                             >
                               Learn
                             </Link>
+                           )}
+
                           </div>
                         ))}
                       </div>
@@ -433,12 +451,14 @@ const CareerRecommendationsPage = () => {
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <h4 className="text-xs font-bold text-slate-900">{job.title}</h4>
-                                <p className="text-[11px] font-semibold text-slate-500">
-                                  {job.company} · {job.location}
-                                </p>
+                                {(job.company || job.location) && (
+                                  <p className="text-[11px] font-semibold text-slate-500">
+                                    {[job.company, job.location].filter(Boolean).join(" · ")}
+                                  </p>
+                                )}
                               </div>
                               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-extrabold text-[11px] shrink-0 border border-emerald-200">
-                                {job.matchScore}% Match
+                                {matchLabel(job.matchScore)}
                               </span>
                             </div>
 
@@ -464,7 +484,7 @@ const CareerRecommendationsPage = () => {
 
                           <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                             <span className="text-[11px] font-bold text-slate-700">
-                              {job.salary}
+                              {job.salary || ""}
                             </span>
                             <button
                               onClick={() => handleApplyJob(job)}
@@ -521,26 +541,36 @@ const CareerRecommendationsPage = () => {
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <h4 className="text-sm font-bold text-slate-900">{job.title}</h4>
-                                <p className="text-xs font-semibold text-slate-500">
-                                  {job.company} · {job.location}
-                                </p>
+                                {(job.company || job.location) && (
+                                  <p className="text-xs font-semibold text-slate-500">
+                                    {[job.company, job.location].filter(Boolean).join(" · ")}
+                                  </p>
+                                )}
                               </div>
                               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-extrabold text-[11px] shrink-0 border border-emerald-200">
-                                {job.matchScore}% Match
+                                {matchLabel(job.matchScore)}
                               </span>
                             </div>
 
-                            <div className="flex flex-wrap gap-1 text-[10px] text-slate-600">
-                              <span className="px-2 py-0.5 bg-slate-100 rounded">
-                                💼 {job.workMode}
-                              </span>
-                              <span className="px-2 py-0.5 bg-slate-100 rounded">
-                                💰 {job.salary}
-                              </span>
-                              <span className="px-2 py-0.5 bg-slate-100 rounded">
-                                🎓 {job.experience}
-                              </span>
-                            </div>
+                            {(job.workMode || job.salary || job.experience) && (
+                              <div className="flex flex-wrap gap-1 text-[10px] text-slate-600">
+                                {job.workMode && (
+                                  <span className="px-2 py-0.5 bg-slate-100 rounded">
+                                    💼 {job.workMode}
+                                  </span>
+                                )}
+                                {job.salary && (
+                                  <span className="px-2 py-0.5 bg-slate-100 rounded">
+                                    💰 {job.salary}
+                                  </span>
+                                )}
+                                {job.experience && (
+                                  <span className="px-2 py-0.5 bg-slate-100 rounded">
+                                    🎓 {job.experience}
+                                  </span>
+                                )}
+                              </div>
+                            )}
 
                             <div className="flex flex-wrap gap-1 pt-1 text-[10px]">
                               {job.matchingSkills?.slice(0, 4).map((s, i) => (
@@ -622,12 +652,16 @@ const CareerRecommendationsPage = () => {
                                 In {item.demandPercentage}% of matching jobs
                               </span>
                             </div>
+
+                             {FEATURES.courses && (
                             <Link
                               to={`/courses?search=${encodeURIComponent(item.skill)}`}
                               className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-blue-600 text-xs font-bold hover:bg-blue-50"
                             >
                               Learn
                             </Link>
+                             )}
+
                           </div>
                         ))}
                       </div>
@@ -635,6 +669,7 @@ const CareerRecommendationsPage = () => {
                   </div>
 
                   {/* Recommended Courses */}
+                  {FEATURES.courses && (
                   <div className="space-y-3">
                     <h3 className="text-sm font-bold text-slate-900">
                       🎓 Targeted Learning Courses
@@ -664,6 +699,7 @@ const CareerRecommendationsPage = () => {
                       ))}
                     </div>
                   </div>
+                  )}
                 </div>
               )}
 
@@ -835,6 +871,7 @@ const CareerRecommendationsPage = () => {
                   onChange={(e) => setPrefForm({ ...prefForm, workMode: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600 focus:outline-none"
                 >
+                  <option value="">Select work mode</option>
                   <option value="Remote">Remote</option>
                   <option value="Hybrid">Hybrid</option>
                   <option value="On-site">On-site</option>
@@ -872,10 +909,10 @@ const CareerRecommendationsPage = () => {
               <button onClick={() => setSelectedJobExplanation(null)}>✕</button>
             </div>
             <p className="font-bold text-blue-700">
-              {selectedJobExplanation.title} ({selectedJobExplanation.matchScore}% Match)
+              {selectedJobExplanation.title} ({matchLabel(selectedJobExplanation.matchScore)})
             </p>
             <ul className="space-y-1.5 text-slate-600">
-              {(selectedJobExplanation.reasons || ["Matching skill portfolio"]).map((r, i) => (
+              {(selectedJobExplanation.reasons || []).map((r, i) => (
                 <li key={i} className="flex items-center gap-1.5">
                   <span className="text-emerald-600">✓</span> {r}
                 </li>

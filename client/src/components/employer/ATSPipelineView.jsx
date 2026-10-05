@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import ApplicantExportModal from "./ApplicantExportModal";
+import { openResume } from "../../utils/resumeAccess";
+import BulkActionBar from "./BulkActionBar";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 // Helper for professional role casing
 const formatRoleTitle = (str) => {
@@ -28,11 +31,15 @@ const ATSPipelineView = ({
   onScheduleInterview,
   onCreateOffer,
   onAddNote,
+  onBulkStatus,
+  initialJobId = "All", // open filtered to one job, e.g. from "View applications" on the dashboard
 }) => {
   // State
-  const [selectedJobId, setSelectedJobId] = useState("All");
+  const [selectedJobId, setSelectedJobId] = useState(initialJobId ? String(initialJobId) : "All");
   const [activeStageFilter, setActiveStageFilter] = useState("All");
   const [viewMode, setViewMode] = useState("list"); // "list" | "kanban"
+  const [checkedIds, setCheckedIds] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedApp, setSelectedApp] = useState(null);
   const [viewingApp, setViewingApp] = useState(null);
@@ -75,8 +82,8 @@ const ATSPipelineView = ({
     const email = app.studentEmail || appData.email || cand.email || "N/A";
     const phone = app.studentPhone || appData.phone || cand.phone || "N/A";
     const address = appData.address || "N/A";
-    const education = app.education || appData.education || appData.degree || "B.Tech CSE";
-    const college = appData.college || "CareerConnect";
+    const education = app.education || appData.education || appData.degree || "Not provided";
+    const college = appData.college || "Not provided";
     const graduationYear = appData.graduationYear || "";
 
     let skillsList = [];
@@ -90,7 +97,7 @@ const ATSPipelineView = ({
       skillsList = app.skills.split(",").map((s) => s.trim());
     }
 
-    const experience = app.experience || appData.experience || "Fresher";
+    const experience = app.experience || appData.experience || "Not provided";
     const portfolioUrl = app.portfolioUrl || appData.portfolioUrl || "";
     const resumeUrl = app.resumeUrl || appData.resumeUrl || "";
     const coverLetter = app.coverLetter || app.coverNote || appData.coverLetter || appData.coverNote || "";
@@ -698,6 +705,26 @@ const ATSPipelineView = ({
       {/* ======================================================== */}
       {/* 4. LIST VIEW: COMPLETE PIPELINE PER CANDIDATE            */}
       {/* ======================================================== */}
+      {viewMode === "list" && filteredApps.length > 0 && onBulkStatus && (
+        <BulkActionBar
+          selectedCount={checkedIds.size}
+          visibleCount={filteredApps.length}
+          allVisibleSelected={filteredApps.every((a) => checkedIds.has(a._id))}
+          busy={bulkBusy}
+          onToggleAll={() =>
+            setCheckedIds((prev) =>
+              filteredApps.every((a) => prev.has(a._id)) ? new Set() : new Set(filteredApps.map((a) => a._id))
+            )
+          }
+          onClear={() => setCheckedIds(new Set())}
+          onApply={async (status) => {
+            setBulkBusy(true);
+            const ok = await onBulkStatus([...checkedIds], status);
+            setBulkBusy(false);
+            if (ok) setCheckedIds(new Set());
+          }}
+        />
+      )}
       {viewMode === "list" && filteredApps.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           {/* Main List of Candidates */}
@@ -720,6 +747,23 @@ const ATSPipelineView = ({
                   {/* Candidate Header Row */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3.5">
+                      {onBulkStatus && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${info.name}`}
+                          className="mt-3.5"
+                          checked={checkedIds.has(app._id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() =>
+                            setCheckedIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(app._id)) next.delete(app._id);
+                              else next.add(app._id);
+                              return next;
+                            })
+                          }
+                        />
+                      )}
                       {/* Sleek Initial Avatar */}
                       <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-sm flex-shrink-0 border border-indigo-100 shadow-2xs">
                         {info.name[0]?.toUpperCase() || "C"}
@@ -907,7 +951,7 @@ const ATSPipelineView = ({
                       </div>
                       {app.latestInterview.meetingLink && (
                         <a
-                          href={app.latestInterview.meetingLink}
+                          href={safeHttpUrl(app.latestInterview.meetingLink)}
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -1386,14 +1430,13 @@ const ATSPipelineView = ({
                       </h4>
                       <div className="flex items-center gap-3 flex-wrap">
                         {info.resumeUrl ? (
-                          <a
-                            href={info.resumeUrl}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => openResume(info.resumeUrl)}
                             className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5"
                           >
                             <span>📄</span> View Student Resume ↗
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-xs text-slate-400">No resume attached</span>
                         )}

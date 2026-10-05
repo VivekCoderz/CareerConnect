@@ -53,7 +53,7 @@ exports.sendRecommendationMail = async (req, res) => {
 
     const isInternship = topPick.type === "internship";
     const title = `AI Recommendation: Top Pick ${topPick.title} at ${topPick.company}`;
-    const preview = `CareerConnect AI matched your profile with ${topPick.title} based on your technical competencies.`;
+    const preview = `E2Job AI matched your profile with ${topPick.title} based on your technical competencies.`;
     const content = `
 Hello,
 
@@ -61,11 +61,11 @@ Our platform AI analyzed active recruiting drives against your engineering skill
 
 **Role:** ${topPick.title}
 **Company:** ${topPick.company}
-**Work Mode:** ${topPick.workMode || "Remote / Hybrid"}
-**Package / Stipend:** ${topPick.salary || topPick.stipend || "Competitive"}
+**Work Mode:** ${topPick.workMode || "Not specified"}
+**Package / Stipend:** ${topPick.salary || topPick.stipend || "Not specified"}
 
 **Why this was recommended:**
-Your profile demonstrates foundational technical proficiency, and this partner is actively shortlisting candidates from Geeta University.
+Your profile demonstrates foundational technical proficiency that matches this role.
 
 Click below to submit your profile.
     `.trim();

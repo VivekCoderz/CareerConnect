@@ -1,24 +1,38 @@
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies");
 const User = require("../models/User");
 const Company = require("../models/Company");
 const Report = require("../models/Report");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const Application = require("../models/Application");
-const PlatformSetting = require("../models/PlatformSetting");
+const { getPlatformSettings, updatePlatformSettings, validateSettingsUpdate } = require("../services/platformSettings");
 const EmployerProfile = require("../models/EmployerProfile");
 const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
 const AuditLog = require("../models/AuditLog");
+const { notifyListingDecision } = require("../services/accountNotifications");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
+const { escapeRegex, pickListingUpdate, checkListingInput, hasLocation, LOCATION_REQUIRED } = require("../utils/listingSecurity");
+const { clearSearchCache } = require("../services/jobScraperService");
+const { runExternalJobSync } = require("../services/externalJobSync");
+const { createNotification } = require("../services/notificationService");
+const { notifyListingClosedInBackground } = require("../services/listingClosure");
+const { checkTransition, normalizeStatus } = require("../utils/applicationStatus");
+const { notifyApplicationUpdates } = require("../services/applicationNotifications");
+const { isCompanyActive } = require("../utils/employerOwnership");
+
+const ADMIN_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Generate JWT and set secure cookie for Admin sessions
+ * Generate JWT and set secure cookie for Admin sessions.
+ * `av` (authVersion) lets a password reset revoke admin tokens, as for user tokens.
  */
 const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) => {
   const token = jwt.sign(
@@ -27,23 +41,22 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
       userId: user._id,
       role: user.role,
       companyId: user.companyId || null,
+      // authMiddleware rejects tokens whose av differs from the user's authVersion
+      av: user.authVersion || 0,
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
   );
 
-  const cookieOptions = {
-    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
-  };
-
+  // Same options as the candidate/employer cookies (SameSite=None + Secure in production,
+  // because the client and API are on different sites).
+  const cookieOptions = authCookieOptions(ADMIN_SESSION_MS);
   res.cookie("admin_token", token, cookieOptions);
-  res.cookie("token", token, cookieOptions); // Compatibility with general auth middleware
+  res.cookie("token", token, cookieOptions); // Read by the general auth middleware
 
   return res.status(statusCode).json({
     success: true,
+    // AdminLogin.jsx stores this as the Bearer fallback used by api.jsx
     token,
     user: {
       _id: user._id,
@@ -135,6 +148,14 @@ exports.adminLogin = async (req, res) => {
       });
     }
 
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
     // Verify account status
     if (user.isActive === false || user.status === "inactive" || user.status === "suspended") {
       return res.status(403).json({
@@ -144,23 +165,25 @@ exports.adminLogin = async (req, res) => {
     }
 
     // Verify password with bcrypt
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
-    }
-
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save({ validateBeforeSave: false });
 
     // Populate company if COMPANY_ADMIN
     let populatedCompany = null;
     if (user.companyId) {
       populatedCompany = await Company.findById(user.companyId).select("name industry logo status");
     }
+
+    // A Company Admin has no access while their company is inactive or deleted (ADM-11/12).
+    if (user.role === "COMPANY_ADMIN" && !isCompanyActive(populatedCompany)) {
+      return res.status(403).json({
+        success: false,
+        code: "COMPANY_INACTIVE",
+        message: "Your company account is not active. Please contact platform support.",
+      });
+    }
+
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
 
     return sendAdminTokenResponse(user, 200, res, populatedCompany);
   } catch (error) {
@@ -176,8 +199,9 @@ exports.adminLogin = async (req, res) => {
  * POST /api/admin/logout
  */
 exports.adminLogout = (req, res) => {
-  res.clearCookie("admin_token");
-  res.clearCookie("token");
+  // Clearing only works when the options match the ones used to set the cookies.
+  res.clearCookie("admin_token", authCookieBaseOptions());
+  res.clearCookie("token", authCookieBaseOptions());
   return res.status(200).json({
     success: true,
     message: "Admin logged out successfully",
@@ -567,9 +591,8 @@ exports.getAdminCompanies = async (req, res, next) => {
       ];
     }
 
-    if (status && status !== "all") {
-      query.status = status;
-    }
+    // Deleted (soft-deleted) companies only show when asked for explicitly.
+    query.status = status && status !== "all" ? status : { $ne: "deleted" };
 
     const skip = (Number(page) - 1) * Number(limit);
     const [companies, total] = await Promise.all([
@@ -734,12 +757,72 @@ exports.createAdminCompany = async (req, res, next) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// Company updates only change the fields sent (ADM-06): an allowlist of top-level
+// fields, and settings written key by key ("settings.autoShortlist"), so saving one
+// setting never wipes the others or replaces the document.
+// ---------------------------------------------------------------------------
+const SUPER_ADMIN_COMPANY_FIELDS = [
+  "name", "description", "email", "phone", "website", "logo", "industry", "companyType",
+  "location", "address", "contactPerson",
+];
+const COMPANY_ADMIN_COMPANY_FIELDS = ["description", "phone", "website", "industry", "location"];
+const COMPANY_SETTING_TYPES = { allowedDomains: "string[]", emailNotifications: "boolean", autoShortlist: "boolean" };
+
+const isSettingValue = (type, value) => type === "boolean"
+  ? typeof value === "boolean"
+  : Array.isArray(value) && value.every((item) => typeof item === "string");
+
+/** Returns { update } with a $set of only the allowed fields sent, or { error }. */
+const buildCompanyUpdate = (body = {}, fields) => {
+  const $set = {};
+  for (const field of fields) {
+    if (body[field] === undefined) continue;
+    if (typeof body[field] !== "string") return { error: `${field} must be text` };
+    $set[field] = body[field].trim();
+  }
+  if ($set.name === "") return { error: "Company name is required" };
+
+  if (body.settings !== undefined) {
+    if (!body.settings || typeof body.settings !== "object" || Array.isArray(body.settings)) {
+      return { error: "settings must be an object" };
+    }
+    for (const [key, value] of Object.entries(body.settings)) {
+      const type = COMPANY_SETTING_TYPES[key];
+      if (!type) continue;
+      if (!isSettingValue(type, value)) return { error: `settings.${key} has the wrong type` };
+      $set[`settings.${key}`] = type === "string[]" ? value.map((item) => item.trim()).filter(Boolean) : value;
+    }
+  }
+  if (Object.keys($set).length === 0) return { error: "No editable company fields were sent" };
+  return { update: { $set } };
+};
+
+// Listings that stop being visible (or waiting for review) when their company is
+// deactivated or deleted (ADM-11/12). Same approach as a rejected employer (S04): they are
+// closed, not deleted, and reactivating the company does not reopen them.
+const LIVE_LISTING_STATUSES = ["Published", "Pending Approval"];
+
+const closeListingsOfInactiveCompany = async (companyId) => {
+  const filter = { companyId, status: { $in: LIVE_LISTING_STATUSES } };
+  const [publishedJobIds, publishedInternshipIds] = await Promise.all([
+    Job.distinct("_id", { ...filter, status: "Published" }),
+    Internship.distinct("_id", { ...filter, status: "Published" }),
+  ]);
+  const update = { $set: { status: "Closed", closedReason: "company_inactive", closedAt: new Date() } };
+  const [jobs, internships] = await Promise.all([Job.updateMany(filter, update), Internship.updateMany(filter, update)]);
+  clearSearchCache();
+  publishedJobIds.forEach((id) => notifyListingClosedInBackground("job", id));
+  publishedInternshipIds.forEach((id) => notifyListingClosedInBackground("internship", id));
+  return { jobs: jobs.modifiedCount, internships: internships.modifiedCount };
+};
+
 /**
  * GET /api/admin/companies/:id
  */
 exports.getAdminCompanyById = async (req, res, next) => {
   try {
-    const company = await Company.findById(req.params.id);
+    const company = await Company.findOne({ _id: req.params.id, status: { $ne: "deleted" } });
     if (!company) {
       return res.status(404).json({ success: false, message: "Company not found" });
     }
@@ -770,9 +853,13 @@ exports.getAdminCompanyById = async (req, res, next) => {
  */
 exports.updateAdminCompany = async (req, res, next) => {
   try {
-    const company = await Company.findByIdAndUpdate(
-      req.params.id,
-      { $set: req.body },
+    // Status has its own endpoint (it closes listings); it is not editable here.
+    const { update, error } = buildCompanyUpdate(req.body, SUPER_ADMIN_COMPANY_FIELDS);
+    if (error) return res.status(400).json({ success: false, message: error });
+
+    const company = await Company.findOneAndUpdate(
+      { _id: req.params.id, status: { $ne: "deleted" } },
+      update,
       { new: true, runValidators: true }
     );
     if (!company) {
@@ -798,18 +885,20 @@ exports.updateAdminCompanyStatus = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Invalid status" });
     }
 
-    const company = await Company.findByIdAndUpdate(
-      req.params.id,
+    const company = await Company.findOneAndUpdate(
+      { _id: req.params.id, status: { $ne: "deleted" } },
       { $set: { status } },
       { new: true }
     );
     if (!company) {
       return res.status(404).json({ success: false, message: "Company not found" });
     }
+    const closedListings = status === "inactive" ? await closeListingsOfInactiveCompany(company._id) : null;
     return res.status(200).json({
       success: true,
       message: `Company status updated to ${status}`,
       company,
+      ...(closedListings ? { closedListings } : {}),
     });
   } catch (error) {
     next(error);
@@ -821,17 +910,25 @@ exports.updateAdminCompanyStatus = async (req, res, next) => {
  */
 exports.deleteAdminCompany = async (req, res, next) => {
   try {
-    const company = await Company.findByIdAndDelete(req.params.id);
+    // Soft delete (ADM-12): the company, its users' link to it, its listings and their
+    // applications are kept; the company is hidden, its listings are closed and its users
+    // are deactivated, so nothing of it stays public or usable.
+    const company = await Company.findOneAndUpdate(
+      { _id: req.params.id, status: { $ne: "deleted" } },
+      { $set: { status: "deleted", deletedAt: new Date() } },
+      { new: true }
+    );
     if (!company) {
       return res.status(404).json({ success: false, message: "Company not found" });
     }
 
-    // Clean up or dissociate company users
-    await User.updateMany({ companyId: req.params.id }, { $set: { companyId: null, isActive: false } });
+    await User.updateMany({ companyId: company._id }, { $set: { isActive: false } });
+    const closedListings = await closeListingsOfInactiveCompany(company._id);
 
     return res.status(200).json({
       success: true,
-      message: "Company and associations removed successfully",
+      message: "Company removed. Its data is kept but hidden.",
+      closedListings,
     });
   } catch (error) {
     next(error);
@@ -887,21 +984,11 @@ exports.updateOwnCompany = async (req, res, next) => {
       return res.status(403).json({ success: false, message: "No company assigned" });
     }
 
-    // Whitelist editable fields for company admin
-    const { description, phone, website, industry, location, settings } = req.body;
-    const updateData = {};
-    if (description !== undefined) updateData.description = description;
-    if (phone !== undefined) updateData.phone = phone;
-    if (website !== undefined) updateData.website = website;
-    if (industry !== undefined) updateData.industry = industry;
-    if (location !== undefined) updateData.location = location;
-    if (settings !== undefined) updateData.settings = settings;
+    // Allowlisted fields only; settings are written key by key (ADM-06).
+    const { update, error } = buildCompanyUpdate(req.body, COMPANY_ADMIN_COMPANY_FIELDS);
+    if (error) return res.status(400).json({ success: false, message: error });
 
-    const company = await Company.findByIdAndUpdate(
-      companyId,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
+    const company = await Company.findByIdAndUpdate(companyId, update, { new: true, runValidators: true });
 
     return res.status(200).json({
       success: true,
@@ -1290,6 +1377,16 @@ exports.activateAdmin = async (req, res, next) => {
       });
     }
 
+    // An invitation only sets the first password. It must never replace the
+    // password of an account that is already in use.
+    if (user.hasPassword || user.status === "active") {
+      return res.status(409).json({
+        success: false,
+        code: "ALREADY_ACTIVATED",
+        message: "This account is already active. Please sign in, or use Forgot password.",
+      });
+    }
+
     const company = await Company.findById(user.companyId);
     if (!company || company.status === "inactive" || company.status === "suspended") {
       return res.status(403).json({
@@ -1458,9 +1555,30 @@ exports.approveOrganizationRequest = async (req, res, next) => {
       });
     }
 
-    // 1. Create or Find Company
+    if (request.status === "REJECTED") {
+      return res.status(400).json({
+        success: false,
+        message: "This organization request was rejected. The organization must submit a new request.",
+      });
+    }
+
+    // Approval creates a brand-new Company Admin account. It must never change an
+    // existing account (a student, employer or another admin), so check before
+    // creating or linking anything.
+    const adminEmail = request.officialEmail.trim().toLowerCase();
+    const existingAccount = await User.findOne({ email: adminEmail }).select("_id").lean();
+    if (existingAccount) {
+      return res.status(409).json({
+        success: false,
+        code: "EMAIL_ALREADY_REGISTERED",
+        message:
+          "An account already uses this official email, so the request was not approved. Ask the organization to use an official email that is not registered on E2Job.",
+      });
+    }
+
+    // 1. Create or Find Company (exact, case-insensitive name match)
     let company = await Company.findOne({
-      name: { $regex: `^${request.organizationName.trim()}$`, $options: "i" },
+      name: { $regex: `^${escapeRegex(request.organizationName.trim())}$`, $options: "i" },
     });
 
     const fullLocation = [request.city, request.state, request.country].filter(Boolean).join(", ");
@@ -1497,46 +1615,34 @@ exports.approveOrganizationRequest = async (req, res, next) => {
       );
     }
 
-    // 2. Prepare Company Admin Account / Invitation
-    const adminEmail = request.officialEmail.trim().toLowerCase();
-    let admin = await User.findOne({ email: adminEmail });
-
+    // 2. Create the Company Admin Account / Invitation
     const token = crypto.randomBytes(32).toString("hex");
     const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    if (!admin) {
-      let candidatePhone = (request.phone || "").trim();
-      if (candidatePhone) {
-        const existingPhone = await User.findOne({ phone: candidatePhone });
-        if (existingPhone) candidatePhone = "";
-      }
-
-      const username = await generateAdminUsername(adminEmail, "admin");
-      admin = await User.create({
-        fullName: request.contactPerson.trim(),
-        email: adminEmail,
-        username,
-        phone: candidatePhone,
-        role: "COMPANY_ADMIN",
-        userType: "admin",
-        companyId: company._id,
-        status: "invited",
-        isActive: true,
-        isEmailVerified: true,
-        isProfileComplete: true,
-        hasPassword: false,
-        invitationToken: token,
-        invitationExpires: expiry,
-        invitationStatus: "invited",
-      });
-    } else {
-      admin.role = "COMPANY_ADMIN";
-      admin.companyId = company._id;
-      admin.invitationToken = token;
-      admin.invitationExpires = expiry;
-      admin.invitationStatus = "invited";
-      await admin.save({ validateBeforeSave: false });
+    let candidatePhone = (request.phone || "").trim();
+    if (candidatePhone) {
+      const existingPhone = await User.findOne({ phone: candidatePhone });
+      if (existingPhone) candidatePhone = "";
     }
+
+    const username = await generateAdminUsername(adminEmail, "admin");
+    const admin = await User.create({
+      fullName: request.contactPerson.trim(),
+      email: adminEmail,
+      username,
+      phone: candidatePhone,
+      role: "COMPANY_ADMIN",
+      userType: "admin",
+      companyId: company._id,
+      status: "invited",
+      isActive: true,
+      isEmailVerified: true,
+      isProfileComplete: true,
+      hasPassword: false,
+      invitationToken: token,
+      invitationExpires: expiry,
+      invitationStatus: "invited",
+    });
 
     // 3. Update OrganizationRequest Document
     request.status = "APPROVED";
@@ -1895,11 +2001,6 @@ exports.updateStudentStatus = async (req, res, next) => {
   return exports.updateUserStatus(req, res, next);
 };
 
-exports.getAdminEmployers = async (req, res, next) => {
-  req.query.userType = "employer";
-  return exports.getAdminUsers(req, res, next);
-};
-
 exports.updateEmployerStatus = async (req, res, next) => {
   return exports.updateUserStatus(req, res, next);
 };
@@ -2256,13 +2357,91 @@ exports.getOpportunityCompaniesList = async (req, res, next) => {
 };
 
 /**
+ * POST /api/admin/opportunities  (Super Admin)
+ * Posts a job or internship on behalf of an approved employer (assisted posting).
+ * The listing belongs to the employer, so it appears in their dashboard and they
+ * manage the applicants; it goes live straight away as approved by this admin.
+ * body: { type: "job" | "internship", employerProfileId, title, description, location, ...listing fields }
+ */
+exports.createOpportunityForEmployer = async (req, res, next) => {
+  try {
+    const { type = "job", employerProfileId } = req.body || {};
+    if (!["job", "internship"].includes(type)) {
+      return res.status(400).json({ success: false, message: 'type must be "job" or "internship"' });
+    }
+    if (!mongoose.isValidObjectId(employerProfileId)) {
+      return res.status(400).json({ success: false, message: "Choose an employer" });
+    }
+    const profile = await EmployerProfile.findById(employerProfileId).populate("userId", "isActive companyId fullName");
+    if (!profile?.userId) {
+      return res.status(404).json({ success: false, message: "Employer not found" });
+    }
+    if (profile.verificationStatus !== "approved" || profile.userId.isActive === false) {
+      return res.status(400).json({ success: false, message: "Approve this employer before posting for them" });
+    }
+
+    const fields = pickListingUpdate(req.body);
+    if (!hasLocation(fields.location)) {
+      return res.status(400).json({ success: false, message: LOCATION_REQUIRED });
+    }
+    for (const required of ["title", "description"]) {
+      if (typeof fields[required] !== "string" || !fields[required].trim()) {
+        return res.status(400).json({ success: false, message: `${required} is required` });
+      }
+    }
+
+    const invalid = checkListingInput(fields);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
+
+    const Model = type === "internship" ? Internship : Job;
+    const now = new Date();
+    const listing = await Model.create({
+      ...fields,
+      employerId: profile._id,
+      createdBy: profile.userId._id,
+      companyId: profile.userId.companyId || null,
+      companyName: profile.companyName || "",
+      isExternal: false,
+      status: "Published",
+      approvedBy: req.user._id,
+      approvedAt: now,
+      approvalMethod: "admin",
+    });
+    clearSearchCache();
+
+    await AuditLog.create({
+      actorId: req.user._id,
+      actorName: req.user.fullName,
+      companyId: listing.companyId || null,
+      action: "OPPORTUNITY_POSTED_ON_BEHALF",
+      module: type === "internship" ? "Internships" : "Jobs",
+      target: listing.title,
+      details: `Posted "${listing.title}" on behalf of ${profile.companyName || "employer"}`,
+      ipAddress: req.ip || "127.0.0.1",
+    }).catch((err) => console.warn("Audit log failed:", err.message));
+
+    await createNotification({
+      recipientId: profile.userId._id,
+      senderId: req.user._id,
+      title: `We posted "${listing.title}" for you`,
+      message: `E2Job posted "${listing.title}" on your behalf. It's live now, and you can manage applicants from your dashboard.`,
+      actionUrl: "/employer/dashboard",
+    });
+
+    return res.status(201).json({ success: true, message: "Listing posted for the employer and published", opportunity: listing });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /api/admin/opportunities/:type/:id/approve
  * Approves a pending opportunity and marks it Published (visible to candidates)
  */
 exports.approveOpportunity = async (req, res, next) => {
   try {
     const { type, id } = req.params;
-    const { adminNote = "" } = req.body;
+    const { adminNote = "" } = req.body || {};
     const Model = type.toLowerCase() === "internship" ? Internship : Job;
 
     const opp = await Model.findById(id);
@@ -2280,9 +2459,18 @@ exports.approveOpportunity = async (req, res, next) => {
       }
     }
 
+    if (opp.status !== "Pending Approval") {
+      return res.status(400).json({
+        success: false,
+        message: `Only listings waiting for approval can be approved (current status: ${opp.status}).`,
+      });
+    }
+
     opp.status = "Published";
+    opp.closedReason = null;
     opp.approvedBy = req.user._id;
     opp.approvedAt = new Date();
+    opp.approvalMethod = "admin";
     opp.rejectedBy = null;
     opp.rejectedAt = null;
     opp.rejectionReason = null;
@@ -2307,24 +2495,8 @@ exports.approveOpportunity = async (req, res, next) => {
       console.warn("Audit log creation warning:", logErr.message);
     }
 
-    // Notify creator/employer if applicable
-    if (opp.createdBy) {
-      try {
-        await Notification.create({
-          recipient: opp.createdBy,
-          recipientId: opp.createdBy,
-          senderRole: "admin",
-          sender: "CareerConnect Moderation Team",
-          title: "Opportunity Approved",
-          preview: `Your listing "${opp.title}" has been approved.`,
-          message: `Your opportunity listing "${opp.title}" has been reviewed and approved by Platform Administration. It is now active and accepting candidate applications.`,
-          category: "system_alert",
-          notificationType: "info",
-        });
-      } catch (notifErr) {
-        console.warn("Notification creation warning:", notifErr.message);
-      }
-    }
+    // Tell the employer (in-app + email); never blocks the response
+    notifyListingDecision({ listing: opp, decision: "approved" });
 
     return res.status(200).json({
       success: true,
@@ -2392,26 +2564,8 @@ exports.rejectOpportunity = async (req, res, next) => {
       console.warn("Audit log creation warning:", logErr.message);
     }
 
-    // Send Notification to creator
-    if (opp.createdBy) {
-      try {
-        await Notification.create({
-          recipient: opp.createdBy,
-          recipientId: opp.createdBy,
-          senderRole: "admin",
-          sender: "CareerConnect Moderation Team",
-          title: "Opportunity Listing Rejected",
-          preview: `Listing "${opp.title}" requires modifications.`,
-          message: `Your listing "${opp.title}" was rejected during moderation. Reason: ${rejectionReason}.${
-            adminNote ? ` Admin note: ${adminNote}` : ""
-          } Please review and update your listing.`,
-          category: "system_alert",
-          notificationType: "warning",
-        });
-      } catch (notifErr) {
-        console.warn("Notification creation warning:", notifErr.message);
-      }
-    }
+    // Tell the employer (in-app + email); never blocks the response
+    notifyListingDecision({ listing: opp, decision: "rejected", reason: opp.rejectionReason || "" });
 
     return res.status(200).json({
       success: true,
@@ -2464,9 +2618,10 @@ exports.editOpportunity = async (req, res, next) => {
       salaryRange,
       stipend,
       duration,
-      isFeatured,
-      status,
     } = req.body;
+
+    const invalid = checkListingInput({ deadline, salaryRange }, opp);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
 
     if (title) opp.title = title.trim();
     if (department !== undefined) opp.department = department;
@@ -2495,8 +2650,6 @@ exports.editOpportunity = async (req, res, next) => {
     }
     if (stipend !== undefined) opp.stipend = stipend;
     if (duration !== undefined) opp.duration = duration;
-    if (isFeatured !== undefined) opp.isFeatured = Boolean(isFeatured);
-    if (status !== undefined) opp.status = status;
 
     await opp.save();
 
@@ -2549,8 +2702,10 @@ exports.closeOpportunity = async (req, res, next) => {
       }
     }
 
+    const wasClosed = opp.status === "Closed";
     opp.status = "Closed";
     await opp.save();
+    if (!wasClosed) notifyListingClosedInBackground(type.toLowerCase() === "internship" ? "internship" : "job", opp._id, { senderId: req.user._id });
 
     try {
       await AuditLog.create({
@@ -2646,7 +2801,24 @@ exports.updateOpportunityStatus = async (req, res, next) => {
       }
     }
 
+    const allowedStatuses = ["Draft", "Pending Approval", "Published", "Paused", "Closed", "Rejected"];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Status must be one of: ${allowedStatuses.join(", ")}`,
+      });
+    }
+
+    // Moderation is platform-level: only a Super Admin can publish or reject a listing.
+    if (req.user.role === "COMPANY_ADMIN" && ["Published", "Rejected"].includes(status)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only E2Job administrators can publish or reject listings.",
+      });
+    }
+
     opp.status = status;
+    if (status !== "Closed") opp.closedReason = null;
     if (status === "Published") {
       opp.approvedBy = req.user._id;
       opp.approvedAt = new Date();
@@ -2734,8 +2906,22 @@ exports.updateApplicationStatus = async (req, res, next) => {
       }
     }
 
-    application.status = status;
+    // Same transition rules as the employer endpoints; admins may also withdraw, and pass
+    // { reopen: true } to bring a rejected application back to Under Review.
+    const problem = typeof status === "string"
+      ? checkTransition(application.status, status, { actor: "admin", reopen: req.body.reopen === true })
+      : "Invalid application status";
+    if (problem) {
+      return res.status(409).json({ success: false, code: "INVALID_STATUS_TRANSITION", message: problem });
+    }
+
+    const previousStatus = application.status;
+    application.status = normalizeStatus(status);
     await application.save();
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
+    }
 
     return res.status(200).json({
       success: true,
@@ -3312,12 +3498,12 @@ exports.resolveAdminReport = async (req, res, next) => {
           recipient: report.reportedBy,
           recipientId: report.reportedBy,
           senderRole: "admin",
-          sender: "CareerConnect Trust & Safety",
+          sender: "E2Job Trust & Safety",
           title: "Your Report Has Been Resolved",
           preview: `Report #${report._id.toString().slice(-6)} has been reviewed and resolved.`,
-          message: `Your report regarding "${report.title || report.category || "an issue"}" has been thoroughly investigated and resolved. Action note: ${resolutionNote.trim()}. Thank you for helping keep CareerConnect safe.`,
+          message: `Your report regarding "${report.title || report.category || "an issue"}" has been thoroughly investigated and resolved. Action note: ${resolutionNote.trim()}. Thank you for helping keep E2Job safe.`,
           category: "system_alert",
-          notificationType: "info",
+          notificationType: "GENERAL",
         });
       } catch (notifErr) {}
     }
@@ -3391,12 +3577,12 @@ exports.dismissAdminReport = async (req, res, next) => {
           recipient: report.reportedBy,
           recipientId: report.reportedBy,
           senderRole: "admin",
-          sender: "CareerConnect Trust & Safety",
+          sender: "E2Job Trust & Safety",
           title: "Update on Your Submitted Report",
           preview: `Report #${report._id.toString().slice(-6)} has been reviewed.`,
           message: `Your report regarding "${report.title || report.category || "an issue"}" has been reviewed by moderation. It was closed with the following outcome: ${dismissalReason.trim()}.`,
           category: "system_alert",
-          notificationType: "info",
+          notificationType: "GENERAL",
         });
       } catch (notifErr) {}
     }
@@ -3496,11 +3682,10 @@ exports.getAdminSettings = async (req, res, next) => {
     const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
 
     if (isSuperAdmin) {
-      const settings = await PlatformSetting.find().lean();
       return res.status(200).json({
         success: true,
         scope: "GLOBAL",
-        settings: settings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {}),
+        settings: await getPlatformSettings({ fresh: true }),
       });
     }
 
@@ -3518,38 +3703,35 @@ exports.getAdminSettings = async (req, res, next) => {
 };
 
 /**
- * PUT /api/admin/settings
+ * PUT /api/admin/settings (platform admins only; enforced by requireSuperAdmin on the route)
  */
 exports.updateAdminSettings = async (req, res, next) => {
   try {
-    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
-
-    if (isSuperAdmin) {
-      const updates = req.body;
-      for (const [key, value] of Object.entries(updates)) {
-        await PlatformSetting.findOneAndUpdate(
-          { key },
-          { key, value, updatedBy: req.user._id },
-          { upsert: true, new: true }
-        );
-      }
-      return res.status(200).json({
-        success: true,
-        message: "Global platform settings updated successfully",
-      });
+    const invalid = validateSettingsUpdate(req.body);
+    if (invalid) {
+      return res.status(400).json({ success: false, message: invalid });
     }
 
-    // COMPANY_ADMIN: Updates ONLY assigned company settings
-    const company = await Company.findByIdAndUpdate(
-      req.user.companyId,
-      { $set: { settings: req.body } },
-      { new: true }
-    );
+    const settings = await updatePlatformSettings(req.body);
+
+    try {
+      await AuditLog.create({
+        actorId: req.user._id,
+        actorName: req.user.fullName || "Admin",
+        actorEmail: req.user.email || "",
+        action: "UPDATE_PLATFORM_SETTINGS",
+        module: "Settings",
+        target: "Platform settings",
+        details: `Updated: ${Object.keys(req.body).filter((key) => key in settings).join(", ") || "nothing"}`,
+      });
+    } catch (logErr) {
+      console.warn("Audit log creation warning:", logErr.message);
+    }
 
     return res.status(200).json({
       success: true,
-      message: "Company settings updated successfully",
-      settings: company?.settings,
+      message: "Global platform settings updated successfully",
+      settings,
     });
   } catch (error) {
     next(error);
@@ -3638,6 +3820,20 @@ exports.getAdminNotifications = async (req, res, next) => {
       notifications,
       unreadCount: notifications.length,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ===================================================
+// EXTERNAL JOB FEED SYNC (SUPER_ADMIN)
+// POST /api/admin/jobs/sync
+// Runs the same sync as the schedule; feed failures are reported per source, not thrown.
+// ===================================================
+exports.syncExternalJobs = async (req, res, next) => {
+  try {
+    const result = await runExternalJobSync();
+    return res.status(200).json({ success: true, message: "External job feeds synced", ...result });
   } catch (error) {
     next(error);
   }

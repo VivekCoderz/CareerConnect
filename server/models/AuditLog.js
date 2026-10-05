@@ -32,7 +32,7 @@ const auditLogSchema = new mongoose.Schema(
     },
     module: {
       type: String,
-      enum: ["Jobs", "Opportunities", "Internships", "Candidates", "Interviews", "Offers", "Roles", "Team", "Training", "Settings", "Reports"],
+      enum: ["Jobs", "Opportunities", "Internships", "Candidates", "Interviews", "Offers", "Roles", "Team", "Training", "Settings", "Reports", "Employers"],
       default: "Opportunities",
     },
     target: {

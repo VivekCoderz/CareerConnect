@@ -378,7 +378,7 @@ const getEmployerDashboardData = async (companyId, user = null) => {
       type: n.category || n.notificationType || "Notification",
       title: n.title || "Notification",
       message: n.message || n.content || n.preview || n.title || "New notification",
-      actorName: n.sender || "CareerConnect",
+      actorName: n.sender || "E2Job",
       createdAt: n.createdAt,
       tab: "overview",
       link: n.actionUrl || "/employer/dashboard",
@@ -471,7 +471,12 @@ const getEmployerDashboardData = async (companyId, user = null) => {
       logo: companyDoc?.logo || user?.profileImage || "",
       verificationStatus,
     },
-    profileCompletion: user?.profileCompletion || profile?.profileCompletion || 85,
+    profileCompletion: user?.profileCompletion ?? profile?.profileCompletion ?? 0,
+    // Platform verification of this employer (separate from company.verificationStatus above)
+    employerVerification: {
+      status: profile ? profile.verificationStatus || "pending" : null,
+      rejectionReason: profile?.rejectionReason || null,
+    },
     unreadNotificationsCount,
     // Backwards compatibility fields for legacy components
     stats: {

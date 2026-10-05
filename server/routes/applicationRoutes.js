@@ -4,7 +4,10 @@ const router = express.Router();
 
 const applicationController = require("../controllers/applicationController");
 const protect = require("../middleware/authMiddleware");
-const { requireEmployer: employerOnly } = require("../middleware/roleMiddleware");
+const { requireEmployer: employerOnly, requireCandidate } = require("../middleware/roleMiddleware");
+
+const candidateOnly = requireCandidate();
+const candidateApplyOnly = requireCandidate("Only candidates can apply");
 
 // Safety: missing controller fn → clear error instead of crash
 const ensureFn = (fn, name) => {
@@ -33,6 +36,7 @@ const {
   moveToNextStage,
   selectCandidate,
   rejectCandidate,
+  reopenApplication,
   markStageFailed,
   updateApplicationRound,
   exportJobApplicantsPdf,
@@ -46,30 +50,35 @@ router.post("/", protect, (_req, res) => res.status(405).json({
 router.post(
   "/internship/:internshipId",
   protect,
+  candidateApplyOnly,
   ensureFn(applyToInternship, "applyToInternship")
 );
 
 router.post(
   "/job/:jobId",
   protect,
+  candidateApplyOnly,
   ensureFn(applyToJob, "applyToJob")
 );
 
 router.get(
   "/me/applied-ids",
   protect,
+  candidateOnly,
   ensureFn(getMyAppliedIds, "getMyAppliedIds")
 );
 
 router.get(
   "/me",
   protect,
+  candidateOnly,
   ensureFn(getMyApplications, "getMyApplications")
 );
 
 router.patch(
   "/:id/withdraw",
   protect,
+  candidateOnly,
   ensureFn(withdrawApplication, "withdrawApplication")
 );
 
@@ -79,6 +88,13 @@ router.get(
   protect,
   employerOnly,
   ensureFn(getEmployerApplications, "getEmployerApplications")
+);
+
+router.patch(
+  "/bulk-status",
+  protect,
+  employerOnly,
+  ensureFn(applicationController.bulkUpdateApplicationStatus, "bulkUpdateApplicationStatus")
 );
 
 router.patch(
@@ -122,6 +138,13 @@ router.patch(
   protect,
   employerOnly,
   ensureFn(rejectCandidate, "rejectCandidate")
+);
+
+router.patch(
+  "/:id/pipeline/reopen",
+  protect,
+  employerOnly,
+  ensureFn(reopenApplication, "reopenApplication")
 );
 
 router.patch(

@@ -1,10 +1,9 @@
 const request = require('supertest');
 const app = require('../../app');
 const ResumeAsset = require('../../models/ResumeAsset');
-const EmployerProfile = require('../../models/EmployerProfile');
 const Application = require('../../models/Application');
 const { cloudinary } = require('../../config/cloudinary');
-const { createTestUser, createTestEmployer, generateToken } = require('../helpers/createTestUser');
+const { createTestUser, createTestEmployer, generateToken, createEmployerProfile } = require('../helpers/createTestUser');
 
 const assetUrl = 'https://res.cloudinary.com/test/raw/authenticated/v1/careerconnect/resumes/resume_test.pdf';
 
@@ -43,8 +42,8 @@ describe('authenticated resume access', () => {
     const owner = await createTestUser({ email: 'resume-applicant@example.com' });
     const employer = await createTestEmployer({ email: 'resume-employer@example.com' });
     const stranger = await createTestEmployer({ email: 'resume-stranger@example.com' });
-    const profile = await EmployerProfile.create({ userId: employer._id, companyName: 'Test Company' });
-    await EmployerProfile.create({ userId: stranger._id, companyName: 'Other Company' });
+    const profile = await createEmployerProfile(employer._id, { companyName: 'Test Company' });
+    await createEmployerProfile(stranger._id, { companyName: 'Other Company' });
     await ResumeAsset.create({ user: owner._id, publicId: 'careerconnect/resumes/resume_test.pdf', url: assetUrl });
     await Application.create({
       candidateId: owner._id,

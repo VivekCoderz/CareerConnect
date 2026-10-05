@@ -3,7 +3,7 @@ import { CheckCircle2, Clock, Award, Sparkles } from "lucide-react";
 
 /**
  * CourseProgress
- * Visual progress bar and metrics component for CareerConnect LMS.
+ * Visual progress bar and metrics component for E2Job LMS.
  * Supports completion badges, lesson counters, and responsive progress bars.
  */
 const CourseProgress = ({

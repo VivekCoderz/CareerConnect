@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../common/BrandLogo";
+import { FEATURES } from "../../config/features";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
@@ -65,7 +66,7 @@ const Sidebar = ({
               {!collapsed && (
                 <div className="transition-opacity duration-200 whitespace-nowrap">
                   <span className="font-bold text-slate-900 tracking-tight text-base block leading-none">
-                    CareerConnect
+                    E2Job
                   </span>
                   <span className="block text-[10px] font-semibold text-blue-600 tracking-wider uppercase mt-0.5">
                     Student Hub
@@ -106,7 +107,7 @@ const Sidebar = ({
 
           {/* Nav List */}
           <div className="py-4 px-2.5 space-y-1 overflow-y-auto max-h-[calc(100vh-140px)] scrollbar-thin">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.filter((item) => (item.id !== "courses" || FEATURES.courses) && (item.id !== "saved" || FEATURES.savedJobs)).map((item) =>{
               const isActive = activeTab === item.id;
               if (item.link) {
                 return (

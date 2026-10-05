@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
+import { FEATURES } from "../../config/features";
 import BrandLogo from "../common/BrandLogo";
 
 const NAV_ITEMS = [
@@ -110,7 +111,7 @@ const FresherSidebar = ({
               {!collapsed && (
                 <div className="transition-opacity duration-200 whitespace-nowrap">
                   <span className="font-bold text-slate-900 tracking-tight text-base block leading-none">
-                    CareerConnect
+                    E2Job
                   </span>
                   <span className="block text-[10px] font-semibold text-[#f59e0b] tracking-wider uppercase mt-0.5">
                     Fresher Hub
@@ -151,7 +152,7 @@ const FresherSidebar = ({
 
           {/* Nav List */}
           <div className="py-4 px-2.5 space-y-0.5 overflow-y-auto flex-1 scrollbar-thin">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.filter((item) => item.id !== "courses" || FEATURES.courses).map((item) => {
               const isActive = activeTab === item.id;
 
               if (item.link) {

@@ -60,7 +60,7 @@ const AdminDashboard = () => {
         <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
           <JourneyLoader variant="admin" size="hero" />
           <div className="text-center">
-            <p className="text-sm font-bold text-slate-800">Loading CareerConnect Admin...</p>
+            <p className="text-sm font-bold text-slate-800">Loading E2Job Admin...</p>
             <p className="text-xs text-slate-400 mt-1">Aggregating platform database metrics</p>
           </div>
         </div>

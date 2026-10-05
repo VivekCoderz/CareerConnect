@@ -26,7 +26,7 @@ const ProfessionalHeader = ({
     propRole ||
     profile?.currentEmployment?.jobTitle ||
     profile?.professionalHeadline ||
-    "Senior Software Engineer";
+    "Not set yet";
   const profileImage = user?.profileImage || profile?.userId?.profileImage;
   const initial = professionalName.charAt(0).toUpperCase();
   const unreadCount = notifications.filter((n) => !n.isRead).length;
@@ -209,7 +209,7 @@ const ProfessionalHeader = ({
               <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50">
                 <div className="px-3 py-2.5 border-b border-slate-100">
                   <p className="text-xs font-bold text-slate-900 truncate">{professionalName}</p>
-                  <p className="text-[11px] text-slate-500 truncate">{user?.email || "arya@careerconnect.com"}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{user?.email || ""}</p>
                 </div>
                 <div className="py-1 space-y-0.5">
                   <Link
@@ -228,6 +228,13 @@ const ProfessionalHeader = ({
                   >
                     Career & Privacy Settings
                   </button>
+                  <Link
+                    to="/account"
+                    onClick={() => setShowProfileMenu(false)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-purple-700 transition text-left"
+                  >
+                    Account Settings
+                  </Link>
                 </div>
                 <div className="pt-1 border-t border-slate-100">
                   <button

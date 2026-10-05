@@ -1,13 +1,60 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
+import { FEATURES } from "../../config/features";
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import internshipService from "../../services/internshipService";
-import { applyOpportunity, saveOpportunity } from "../../services/studentDashboardService";
+import { saveOpportunity } from "../../services/studentDashboardService";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { getMyAppliedIds } from "../../services/applicationService";
+import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
+import useSeo from "../../hooks/useSeo";
+import BrandLogo from "../../components/common/BrandLogo";
+
+const INTERNSHIP_CITIES = [
+  { value: "All", label: "All Locations" },
+  { value: "Bangalore", label: "Bangalore" },
+  { value: "Delhi", label: "Delhi / NCR" },
+  { value: "Hyderabad", label: "Hyderabad" },
+  { value: "Mumbai", label: "Mumbai" },
+  { value: "Pune", label: "Pune" },
+  { value: "Chennai", label: "Chennai" },
+  { value: "Kolkata", label: "Kolkata" },
+  { value: "Jaipur", label: "Jaipur" },
+];
+
+const INTERNSHIP_CATEGORIES = [
+  { value: "All", label: "All Categories" },
+  { value: "Web Development", label: "Web Development" },
+  { value: "Software Development", label: "Software Development" },
+  { value: "Data Science", label: "Data Science & AI" },
+  { value: "UI/UX Design", label: "UI/UX Design" },
+  { value: "Digital Marketing", label: "Digital Marketing" },
+  { value: "HR", label: "Human Resources" },
+  { value: "Finance", label: "Finance & Sales" },
+];
+
+const normalizeInternshipCity = (param) => {
+  if (!param) return "All";
+  const cleaned = param.replace(/-/g, " ").trim().toLowerCase();
+  const matched = INTERNSHIP_CITIES.find(
+    (c) => c.value.toLowerCase() === cleaned || c.label.toLowerCase().includes(cleaned) || cleaned.includes(c.value.toLowerCase())
+  );
+  if (matched) return matched.value;
+  return cleaned.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+};
+
+const normalizeInternshipCategory = (param) => {
+  if (!param) return "All";
+  const cleaned = param.replace(/-/g, " ").trim().toLowerCase();
+  const matched = INTERNSHIP_CATEGORIES.find(
+    (c) => c.value.toLowerCase() === cleaned || c.label.toLowerCase().includes(cleaned) || cleaned.includes(c.value.toLowerCase())
+  );
+  if (matched) return matched.value;
+  return cleaned.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+};
 
 const InternshipDiscoveryPage = () => {
   const { city: cityParam, category: categoryParam } = useParams();
@@ -41,8 +88,8 @@ const InternshipDiscoveryPage = () => {
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOppType, setSelectedOppType] = useState("All");
-  const [selectedCity, setSelectedCity] = useState(cityParam ? cityParam.replace(/-/g, " ") : "All");
-  const [selectedCategory, setSelectedCategory] = useState(categoryParam ? categoryParam.replace(/-/g, " ") : "All");
+  const [selectedCity, setSelectedCity] = useState(cityParam ? normalizeInternshipCity(cityParam) : "All");
+  const [selectedCategory, setSelectedCategory] = useState(categoryParam ? normalizeInternshipCategory(categoryParam) : "All");
   const [selectedWorkMode, setSelectedWorkMode] = useState(isWorkFromHome ? "Remote" : "All");
   const [selectedPaid, setSelectedPaid] = useState(isPaidOnly ? "true" : "All");
   const [selectedJobOffer, setSelectedJobOffer] = useState(isJobOfferOnly ? "true" : "All");
@@ -74,10 +121,10 @@ const InternshipDiscoveryPage = () => {
 
   // Sync state when URL params change
   useEffect(() => {
-    if (cityParam) setSelectedCity(cityParam.replace(/-/g, " "));
+    if (cityParam) setSelectedCity(normalizeInternshipCity(cityParam));
     else if (!pathname.includes("/in/")) setSelectedCity("All");
 
-    if (categoryParam) setSelectedCategory(categoryParam.replace(/-/g, " "));
+    if (categoryParam) setSelectedCategory(normalizeInternshipCategory(categoryParam));
     else if (!pathname.includes("/category/")) setSelectedCategory("All");
 
     if (isWorkFromHome) setSelectedWorkMode("Remote");
@@ -192,6 +239,12 @@ const InternshipDiscoveryPage = () => {
     return "Explore All Internships";
   }, [isWorkFromHome, isInternational, isLatest, isPaidOnly, isJobOfferOnly, cityParam, categoryParam]);
 
+  useSeo({
+    title: pageHeading === "Explore All Internships" ? "Internships for students in India" : pageHeading,
+    description: `${pageHeading} on E2Job: verified internships from real employers in India. Apply free and track every application. Employers never charge candidates.`,
+    path: pathname,
+  });
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800">
       {/* Toast Notification */}
@@ -212,22 +265,12 @@ const InternshipDiscoveryPage = () => {
       <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center gap-4">
           <Link to="/home" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              CC
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-                CAREERCONNECT
-              </h1>
-              <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
-                CareerConnect · Internship Hub
-              </p>
-            </div>
+            <BrandLogo markOnly className="h-8 w-10 sm:hidden" /><BrandLogo className="hidden h-8 w-36 sm:block" />
           </Link>
 
           {/* Category Dropdown Menus */}
           <div className="hidden sm:flex items-center gap-2">
-            <InternshipDiscoveryMenu studentCity={user?.location || "Bangalore"} />
+            <InternshipDiscoveryMenu studentCity={user?.location || ""} />
             <JobDiscoveryMenu />
           </div>
         </div>
@@ -277,7 +320,7 @@ const InternshipDiscoveryPage = () => {
               <span className="px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 text-[11px] font-bold">
                 🎯 {totalCount} Opportunities Found
               </span>
-              <span className="text-xs text-blue-200/80">· Verified CareerConnect Partner Employers</span>
+              <span className="text-xs text-blue-200/80">· Employers on E2Job</span>
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -313,34 +356,43 @@ const InternshipDiscoveryPage = () => {
             {/* City */}
             <select
               value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCity(val);
+                if (val === "All") {
+                  if (pathname.includes("/in/")) navigate("/internships");
+                } else {
+                  navigate(`/internships/in/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+                }
+              }}
               className="h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium outline-none focus:border-blue-600"
             >
-              <option value="All">All Locations</option>
-              <option value="Bangalore">Bangalore</option>
-              <option value="Delhi">Delhi / NCR</option>
-              <option value="Hyderabad">Hyderabad</option>
-              <option value="Mumbai">Mumbai</option>
-              <option value="Pune">Pune</option>
-              <option value="Chennai">Chennai</option>
-              <option value="Kolkata">Kolkata</option>
-              <option value="Jaipur">Jaipur</option>
+              {INTERNSHIP_CITIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
             </select>
 
             {/* Category */}
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCategory(val);
+                if (val === "All") {
+                  if (pathname.includes("/category/")) navigate("/internships");
+                } else {
+                  navigate(`/internships/category/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+                }
+              }}
               className="h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium outline-none focus:border-blue-600"
             >
-              <option value="All">All Categories</option>
-              <option value="Web Development">Web Development</option>
-              <option value="Software Development">Software Development</option>
-              <option value="Data Science">Data Science & AI</option>
-              <option value="UI/UX Design">UI/UX Design</option>
-              <option value="Digital Marketing">Digital Marketing</option>
-              <option value="HR">Human Resources</option>
-              <option value="Finance">Finance & Sales</option>
+              {INTERNSHIP_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
             </select>
 
             {/* Work Mode */}
@@ -361,7 +413,7 @@ const InternshipDiscoveryPage = () => {
               onChange={(e) => setSelectedOppType(e.target.value)}
               className="h-9 rounded-xl border border-blue-200 bg-blue-50/50 px-2.5 text-xs font-bold text-blue-900 outline-none focus:border-blue-600"
             >
-              <option value="All">🌟 All Opportunities (160+)</option>
+              <option value="All">🌟 All Opportunities</option>
               <option value="internship">🎓 Internships</option>
               <option value="fulltime">💼 Full-Time Jobs</option>
               <option value="parttime">⏰ Part-Time</option>
@@ -393,7 +445,7 @@ const InternshipDiscoveryPage = () => {
           <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Quick:</span>
             {[
-              { label: "🌟 All 160+ Opportunities", value: "All", type: "opp" },
+              { label: "🌟 All Opportunities", value: "All", type: "opp" },
               { label: "🎓 Internships Only", value: "internship", type: "opp" },
               { label: "💼 Full-Time Jobs", value: "fulltime", type: "opp" },
               { label: "🏠 Remote / WFH", value: "Remote", type: "work" },
@@ -438,6 +490,7 @@ const InternshipDiscoveryPage = () => {
           <div className="space-y-4">
             {internships.map((intItem) => {
               const isSaved = savedIds.includes(intItem.id || intItem._id);
+              const intSkills = [intItem.skillsRequired, intItem.requiredSkills, intItem.skills].find((l) => Array.isArray(l) && l.length) || [];
               return (
                 <div
                   key={intItem.id || intItem._id}
@@ -447,41 +500,59 @@ const InternshipDiscoveryPage = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       {intItem.platformSource && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200">
-                          {intItem.platformSource}
+                          {intItem.platformSource === "CareerConnect" ? "E2Job" : intItem.platformSource}
                         </span>
                       )}
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                        {intItem.type || "Opportunity"}
-                      </span>
-                      <h3 className="text-base font-bold text-slate-900">{intItem.title}</h3>
-                      <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
-                        {intItem.workMode}
-                      </span>
+                      {intItem.type && (
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                          {intItem.type}
+                        </span>
+                      )}
+                      <h3 className="text-base font-bold text-slate-900">
+                        <OpportunityTitleLink item={intItem} type="Internship" className="hover:text-blue-700 hover:underline">
+                          {intItem.title}
+                        </OpportunityTitleLink>
+                      </h3>
+                      {intItem.workMode && (
+                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
+                          {intItem.workMode}
+                        </span>
+                      )}
                       {intItem.hasJobOffer && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
                           🎯 With Job Offer (PPO)
                         </span>
                       )}
-                      <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                        {intItem.category}
-                      </span>
+                      {intItem.category && (
+                        <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                          {intItem.category}
+                        </span>
+                      )}
                     </div>
 
-                    <p className="text-xs font-medium text-slate-600">
-                      <span className="font-bold text-slate-900">{intItem.company}</span> • 📍 {intItem.location}
-                    </p>
+                    {(intItem.company || intItem.location) && (
+                      <p className="text-xs font-medium text-slate-600">
+                        {intItem.company && <span className="font-bold text-slate-900">{intItem.company}</span>}
+                        {intItem.company && intItem.location ? " • " : ""}
+                        {intItem.location && <>📍 {intItem.location}</>}
+                      </p>
+                    )}
 
-                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-100">
-                        {intItem.stipend}
-                      </span>
-                      <span>• Duration: {intItem.duration}</span>
-                      {intItem.deadline && <span>• Apply before: {intItem.deadline}</span>}
-                    </div>
+                    {(intItem.stipend || intItem.duration || intItem.deadline) && (
+                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                        {intItem.stipend && (
+                          <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-100">
+                            {intItem.stipend}
+                          </span>
+                        )}
+                        {intItem.duration && <span>• Duration: {intItem.duration}</span>}
+                        {intItem.deadline && <span>• Apply before: {intItem.deadline}</span>}
+                      </div>
+                    )}
 
-                    {intItem.skillsRequired && intItem.skillsRequired.length > 0 && (
+                    {intSkills.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-1">
-                        {intItem.skillsRequired.map((skill, sIdx) => (
+                        {intSkills.map((skill, sIdx) => (
                           <span
                             key={sIdx}
                             className="px-2 py-0.5 bg-slate-50 text-slate-700 text-[10.5px] font-medium rounded-md border border-slate-200"
@@ -495,17 +566,20 @@ const InternshipDiscoveryPage = () => {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-                    <button
-                      onClick={() => handleSaveToggle(intItem)}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                        isSaved
-                          ? "bg-amber-50 border-amber-300 text-amber-600"
-                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                      title={isSaved ? "Saved" : "Save Internship"}
-                    >
-                      {isSaved ? "★ Saved" : "☆ Save"}
-                    </button>
+                    {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                    {FEATURES.savedJobs && (
+                      <button
+                        onClick={() => handleSaveToggle(intItem)}
+                        className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                          isSaved
+                            ? "bg-amber-50 border-amber-300 text-amber-600"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                        }`}
+                        title={isSaved ? "Saved" : "Save Internship"}
+                      >
+                        {isSaved ? "★ Saved" : "☆ Save"}
+                      </button>
+                    )}
 
                     {appliedInternshipIds.has(String(intItem._id || intItem.id)) ? (
                       <button type="button" disabled className="px-5 py-2.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">

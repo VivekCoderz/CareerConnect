@@ -6,7 +6,7 @@ import { updateUserProfile } from "../../redux/features/authSlice";
 import ParsedResumeReviewModal from "../resume-builder/ParsedResumeReviewModal";
 import { updateStudentProfile } from "../../services/studentProfileService";
 import ResumeUploadInput from "../common/ResumeUploadInput";
-import { getResumeHref } from "../../utils/resumeAccess";
+import { openResume } from "../../utils/resumeAccess";
 import {
   FileText,
   Zap,
@@ -48,7 +48,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
 
   const handleDownload = () => {
     if (resume?.resumeUrl) {
-      window.open(getResumeHref(resume.resumeUrl), "_blank", "noopener,noreferrer");
+      openResume(resume.resumeUrl);
     } else {
       navigate("/resume-builder");
     }
@@ -207,15 +207,15 @@ const ResumeStatusCard = ({ resume, profile }) => {
   const resumeTools = [
     {
       id: "ats-checker",
-      title: "ATS Check & AI Fix",
+      title: "ATS Compatibility Check",
       badge: "NEW AI",
       badgeColor: "bg-indigo-600 text-white",
       icon: Zap,
       iconBg: "bg-indigo-600 text-white",
       borderColor: "border-indigo-100 hover:border-indigo-400",
       bgGradient: "from-indigo-50/60 via-white to-purple-50/30",
-      description: "Scan against Job Description, spot line mistakes & 1-click fix to 90%+.",
-      cta: "Audit & Fix Resume",
+      description: "Compare a resume with a job description, review the weighted score, and optimize verified content when needed.",
+      cta: "Review ATS Compatibility",
       onClick: () => navigate("/resume-builder?mode=ats-checker"),
     },
     {
@@ -331,16 +331,15 @@ const ResumeStatusCard = ({ resume, profile }) => {
                 <span>Download PDF</span>
               </button>
               {resume?.resumeUrl && (
-                <a
-                  href={getResumeHref(resume.resumeUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => openResume(resume.resumeUrl)}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs transition"
                   title="Preview resume in new tab"
                 >
                   <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
                   <span>Preview</span>
-                </a>
+                </button>
               )}
               <Link
                 to="/student/profile"
@@ -509,7 +508,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
-                        Create a resume using your existing CareerConnect profile information
+                        Create a resume using your existing E2Job profile information
                       </p>
                     </div>
                   </div>
@@ -531,7 +530,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
                     Upload or Link Resume
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    Select a resume file from your device (PDF, DOC, DOCX) or paste a hosted link
+                    Select a resume file from your device (PDF) or paste a hosted link
                   </p>
                 </div>
 
@@ -569,7 +568,7 @@ const ResumeStatusCard = ({ resume, profile }) => {
                         if (meta?.fileName) setModalResumeName(meta.fileName);
                       }}
                       label="Resume File or URL"
-                      helperText="Supported: PDF, DOC, DOCX up to 10MB or direct URLs."
+                      helperText="Supported: PDF up to 10MB or direct URLs."
                     />
 
                     <div className="flex justify-end gap-2 pt-2">

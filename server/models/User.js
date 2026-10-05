@@ -13,7 +13,7 @@ const userSchema = new mongoose.Schema(
 
     fullName: {
       type: String,
-      required: [true, "Full name is required"],
+      required: [true, "Fulgl name is required"],
       trim: true,
       minlength: [2, "Full name must contain at least 2 characters"],
       maxlength: [100, "Full name cannot exceed 100 characters"],
@@ -94,6 +94,14 @@ const userSchema = new mongoose.Schema(
     },
 
     authVersion: { type: Number, default: 0, min: 0 },
+
+    // Terms and Privacy Policy the user agreed to at signup (G05, DPDP Act consent).
+    // No default: accounts created before consent was collected have none and can
+    // still log in.
+    consent: {
+      termsVersion: { type: String, trim: true, maxlength: 32 },
+      acceptedAt: { type: Date },
+    },
 
 
     // ==========================================
@@ -346,7 +354,7 @@ userSchema.pre("save", async function () {
     return;
   }
 
-  const salt = await bcrypt.genSalt(12);
+  const salt = await bcrypt.genSalt(10);
 
   this.password = await bcrypt.hash(this.password, salt);
 });
@@ -358,6 +366,9 @@ userSchema.pre("save", async function () {
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
+
+// Resume file cleanup checks whether this still uses a resume file
+userSchema.index({ "resumeUrl": 1 });
 
 const User = mongoose.model("User", userSchema);
 

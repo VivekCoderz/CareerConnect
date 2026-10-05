@@ -2,6 +2,7 @@ const Application = require("../models/Application");
 const EmployerProfile = require("../models/EmployerProfile");
 const ResumeAsset = require("../models/ResumeAsset");
 const { cloudinary } = require("../config/cloudinary");
+const { isPlatformAdmin } = require("../utils/listingSecurity");
 
 const getResumeDownload = async (req, res, next) => {
   try {
@@ -14,7 +15,16 @@ const getResumeDownload = async (req, res, next) => {
     if (!asset) return res.status(404).json({ success: false, message: "Resume not found" });
 
     const userId = req.user._id.toString();
-    let authorized = asset.user.toString() === userId || req.user.role === "admin";
+    // Owner and platform admins (moderation) may always open a resume.
+    let authorized = asset.user.toString() === userId || isPlatformAdmin(req.user);
+    // A Company Admin may open a resume submitted to one of their company's applications.
+    if (!authorized && req.user.role === "COMPANY_ADMIN" && req.user.companyId) {
+      authorized = Boolean(await Application.exists({
+        companyId: req.user.companyId,
+        candidateId: asset.user,
+        resumeUrl: asset.url,
+      }));
+    }
     if (!authorized && (req.user.role === "employer" || req.user.userType === "employer")) {
       const profile = await EmployerProfile.findOne({ userId: req.user._id }).select("_id").lean();
       if (profile) {

@@ -2,6 +2,8 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getPublicCompanyProfile, getEmployerProfile } from "../../services/employerService";
+import useSeo from "../../hooks/useSeo";
+import BrandLogo from "../../components/common/BrandLogo";
 
 const CompanyPublicProfile = () => {
   const { companyId } = useParams();
@@ -39,6 +41,20 @@ const CompanyPublicProfile = () => {
     fetchProfile();
   }, [companyId]);
 
+  const isPreview = !companyId || companyId === "preview";
+  const seoHq = company?.headquarters;
+  const hqText = typeof seoHq === "string" ? seoHq : [seoHq?.city, seoHq?.state].filter(Boolean).join(", ");
+  useSeo({
+    title: company?.companyName
+      ? `${company.companyName}${hqText ? `, ${hqText}` : ""}: jobs and company profile`
+      : loading ? "Company profile" : "Company not found",
+    description: company?.companyName
+      ? `${company.companyName}${company.industry ? ` (${company.industry})` : ""} on E2Job. ${company.description || "See open jobs and internships and apply free."}`
+      : undefined,
+    path: `/companies/${companyId || ""}`,
+    noindex: isPreview || (!loading && !company),
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center">
@@ -61,7 +77,7 @@ const CompanyPublicProfile = () => {
             to="/home"
             className="inline-block px-5 py-2.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold transition"
           >
-            Back to CareerConnect
+            Back to E2Job
           </Link>
         </div>
       </div>
@@ -76,17 +92,7 @@ const CompanyPublicProfile = () => {
       {/* Top Header */}
       <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <Link to="/home" className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#92400e] to-[#b45309] text-white flex items-center justify-center font-bold text-xs shadow-sm">
-            CC
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-              CAREERCONNECT
-            </h1>
-            <p className="text-[10.5px] text-[#b45309] font-bold tracking-wide">
-              CareerConnect · Verified Employers
-            </p>
-          </div>
+          <BrandLogo markOnly className="h-8 w-10 sm:hidden" /><BrandLogo className="hidden h-8 w-36 sm:block" />
         </Link>
 
         <div className="flex items-center gap-3">
@@ -106,7 +112,7 @@ const CompanyPublicProfile = () => {
           <div className="h-44 bg-gradient-to-r from-[#92400e] via-[#b45309] to-[#d97706] relative p-6 text-white flex items-end">
             <div className="absolute top-4 right-4 flex items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-bold text-amber-100 border border-white/20">
-                ✓ CareerConnect Partner
+                ✓ Verified employer
               </span>
             </div>
           </div>
@@ -178,7 +184,7 @@ const CompanyPublicProfile = () => {
                 { id: "culture", label: "Culture & Perks" },
                 { id: "team", label: "Leadership & Team" },
                 { id: "hiring", label: "Hiring Criteria" },
-                { id: "jobs", label: "Open Positions" },
+                // "Open Positions" is hidden until the jobs API can list one company's real openings.
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -206,7 +212,7 @@ const CompanyPublicProfile = () => {
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
                 {company.description ||
-                  "This organization is partnering with CareerConnect CareerConnect to hire top emerging talent."}
+                  "This organization is partnering with E2Job E2Job to hire top emerging talent."}
               </p>
 
               {(company.mission || company.vision) && (
@@ -274,9 +280,11 @@ const CompanyPublicProfile = () => {
                 <h3 className="text-base font-bold text-slate-900">
                   Work Environment & Benefits
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Work mode: <strong className="text-amber-800">{company.culture?.workEnvironment || "Hybrid"}</strong>
-                </p>
+                {company.culture?.workEnvironment && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Work mode: <strong className="text-amber-800">{company.culture.workEnvironment}</strong>
+                  </p>
+                )}
               </div>
 
               {company.culture?.description && (
@@ -418,7 +426,7 @@ const CompanyPublicProfile = () => {
                   Target Candidate Types
                 </span>
                 <span className="text-xs font-bold text-slate-800">
-                  {(hiring.candidateTypes || []).join(", ") || "Students, Freshers"}
+                  {(hiring.candidateTypes || []).join(", ") || "Not specified"}
                 </span>
               </div>
 
@@ -427,7 +435,7 @@ const CompanyPublicProfile = () => {
                   Target Qualifications
                 </span>
                 <span className="text-xs font-bold text-slate-800">
-                  {(hiring.qualifications || []).join(", ") || "B.Tech, BCA, MCA, MBA"}
+                  {(hiring.qualifications || []).join(", ") || "Not specified"}
                 </span>
               </div>
             </div>
@@ -452,57 +460,6 @@ const CompanyPublicProfile = () => {
           </div>
         )}
 
-        {/* Tab 5: Open Positions */}
-        {activeTab === "jobs" && (
-          <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">
-                Active Job & Internship Openings
-              </h3>
-              <span className="text-xs font-bold text-amber-700">
-                Direct Application via CareerConnect
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              <div className="p-4 rounded-2xl border border-slate-200 hover:border-amber-400 bg-slate-50/50 hover:bg-amber-50/20 transition flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">
-                    Software Development Engineer Intern
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {hq.city || "Gurugram / Hybrid"} · Internship · ₹25,000 - ₹35,000/mo
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => alert("Apply with CareerConnect verified profile")}
-                  className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition"
-                >
-                  Apply Now
-                </button>
-              </div>
-
-              <div className="p-4 rounded-2xl border border-slate-200 hover:border-amber-400 bg-slate-50/50 hover:bg-amber-50/20 transition flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">
-                    Associate Full Stack Engineer
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {hq.city || "Delhi NCR"} · Full-time · ₹6.0 - ₹9.5 LPA
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => alert("Apply with CareerConnect verified profile")}
-                  className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition"
-                >
-                  Apply Now
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );

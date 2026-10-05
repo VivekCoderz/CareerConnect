@@ -130,7 +130,7 @@ const AdminLogin = () => {
                   required
                   value={emailOrUsername}
                   onChange={(e) => setEmailOrUsername(e.target.value)}
-                  placeholder="admin@careerconnect.com"
+                  placeholder="admin@e2job.com"
                   className="w-full pl-10 pr-4 py-2.5 text-xs bg-slate-950/70 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition"
                 />
               </div>
@@ -196,7 +196,7 @@ const AdminLogin = () => {
 
         {/* Footer */}
         <p className="text-center text-[11px] text-slate-500">
-          CareerConnect Platform Administration · v2.4
+          E2Job Platform Administration · v2.4
         </p>
       </div>
     </div>

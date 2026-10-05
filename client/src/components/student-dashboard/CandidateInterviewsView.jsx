@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import JourneyLoader from "../common/JourneyLoader";
 import recruitmentService from "../../services/recruitmentService";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 const parseInterviewDateTime = (dateStr, timeStr) => {
   if (!dateStr) return null;
@@ -369,7 +370,7 @@ const CandidateInterviewsView = () => {
 
             {nearestUpcoming.meetingLink && (nearestUpcoming.meetingMode || nearestUpcoming.interviewType) !== "Offline" && (
               <a
-                href={nearestUpcoming.meetingLink}
+                href={safeHttpUrl(nearestUpcoming.meetingLink)}
                 target="_blank"
                 rel="noreferrer"
                 className={`px-5 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer ${
@@ -618,7 +619,7 @@ const CandidateInterviewsView = () => {
 
                     {!isOffline && item.meetingLink ? (
                       <a
-                        href={item.meetingLink}
+                        href={safeHttpUrl(item.meetingLink)}
                         target="_blank"
                         rel="noreferrer"
                         className="flex-1 py-2 px-3 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold text-center shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
@@ -873,7 +874,7 @@ const CandidateInterviewsView = () => {
                   <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center justify-between">
                     <span className="text-slate-700 truncate mr-2 font-mono text-[11px]">{selectedInterview.meetingLink}</span>
                     <a
-                      href={selectedInterview.meetingLink}
+                      href={safeHttpUrl(selectedInterview.meetingLink)}
                       target="_blank"
                       rel="noreferrer"
                       className="px-3 py-1.5 rounded-lg bg-[#1e3a8a] text-white font-bold hover:bg-[#1e40af] transition whitespace-nowrap cursor-pointer"
@@ -936,7 +937,7 @@ const CandidateInterviewsView = () => {
                 selectedInterview.meetingLink && (
                   <div className="pt-2">
                     <a
-                      href={selectedInterview.meetingLink}
+                      href={safeHttpUrl(selectedInterview.meetingLink)}
                       target="_blank"
                       rel="noreferrer"
                       className="w-full py-2.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold text-center block shadow-xs transition cursor-pointer"

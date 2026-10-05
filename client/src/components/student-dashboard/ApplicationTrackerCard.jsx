@@ -76,10 +76,12 @@ const ApplicationTrackerCard = ({ applications }) => {
               className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
             >
               <div>
-                <h3 className="text-sm font-bold text-slate-900">{app.title}</h3>
-                <p className="text-xs text-slate-600 font-medium mt-0.5">
-                  {app.company} • Applied on {app.appliedDate}
-                </p>
+                {app.title && <h3 className="text-sm font-bold text-slate-900">{app.title}</h3>}
+                {(app.company || app.appliedDate) && (
+                  <p className="text-xs text-slate-600 font-medium mt-0.5">
+                    {[app.company, app.appliedDate && `Applied on ${app.appliedDate}`].filter(Boolean).join(" • ")}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-3 self-start sm:self-center shrink-0">

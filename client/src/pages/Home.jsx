@@ -9,10 +9,13 @@ import { logoutUser } from "../services/authService";
 import internshipService from "../services/internshipService";
 import jobService from "../services/jobService";
 import BrandLogo from "../components/common/BrandLogo";
+import { FEATURES } from "../config/features";
+import useSeo from "../hooks/useSeo";
 
 const Home = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  useSeo({ path: "/" });
   const { user, isInitialized } = useSelector((state) => state.auth);
 
   useEffect(() => {
@@ -44,34 +47,8 @@ const Home = () => {
     };
   }, [mobileMenuOpen]);
 
-  const sampleFeaturedOpportunities = [
-    {
-      id: "sample-1",
-      title: "Full Stack Developer (E2E Test)",
-      company: "TechCorp Global",
-      opportunityType: "Full-time",
-      salary: "Competitive Package",
-      location: "Panipat / Remote",
-    },
-    {
-      id: "sample-2",
-      title: "MVP Test Job",
-      company: "CareerConnect",
-      opportunityType: "Full-time",
-      salary: "₹0.3 - 0.3 LPA",
-      location: "On-Campus",
-    },
-    {
-      id: "sample-3",
-      title: "Frontend Engineering Intern (E2E Test)",
-      company: "TechCorp Global",
-      opportunityType: "Internship",
-      salary: "₹25000 INR/month",
-      location: "Remote",
-    },
-  ];
-
-  const featuredJobs = jobs && jobs.length > 0 ? jobs : sampleFeaturedOpportunities;
+  // Only real listings from the API; with none, the hero shows no job cards at all.
+  const featuredJobs = jobs || [];
 
   useEffect(() => {
     const loadHomeData = async () => {
@@ -132,15 +109,18 @@ const Home = () => {
               <div className="hidden md:flex items-center gap-2">
                 <JobDiscoveryMenu />
                 <InternshipDiscoveryMenu />
-                <Link
-                  to="/courses"
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
-                >
-                  <span>Courses</span>
-                  <span className="px-1.5 py-0.2 rounded text-[9.5px] font-extrabold bg-[#ea580c] text-white uppercase tracking-wider">
-                    OFFER
-                  </span>
-                </Link>
+                {FEATURES.courses && (
+                  <Link
+                    to="/courses"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
+                  >
+                    <span>Courses</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9.5px] font-extrabold bg-[#ea580c] text-white uppercase tracking-wider">
+                      OFFER
+                    </span>
+                  </Link>
+                )}
+
                 <Link
                   to="/organizations/request-access"
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
@@ -319,17 +299,23 @@ const Home = () => {
                   </span>
                   <span className="text-slate-400 text-xs">→</span>
                 </Link>
-                <Link
-                  to="/courses"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="text-base">🚀</span>
-                    <span>Courses & Upskilling</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#ea580c] text-white uppercase">OFFER</span>
-                </Link>
+
+
+                {FEATURES.courses && (
+                  <Link
+                    to="/courses"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <span className="text-base">🚀</span>
+                      <span>Courses & Upskilling</span>
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#ea580c] text-white uppercase">OFFER</span>
+                  </Link>
+                )}
+
+
                 <Link
                   to="/opportunities"
                   onClick={() => setMobileMenuOpen(false)}
@@ -419,7 +405,7 @@ const Home = () => {
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#fff7ed] border border-[#fed7aa] text-[12px] font-semibold text-[#c2410c] mb-5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b]" />
-                Official Career Platform · CareerConnect
+                Official Career Platform · E2Job
               </div>
 
               <h1 className="text-[2.35rem] sm:text-5xl lg:text-[3.25rem] font-bold tracking-tight text-slate-900 leading-[1.15]">
@@ -509,7 +495,11 @@ const Home = () => {
             <div className="relative hidden lg:block">
               <div className="absolute -top-6 -right-4 w-72 h-72 bg-[#f59e0b]/10 rounded-full blur-3xl" />
               <div className="relative space-y-4">
-                {(featuredJobs.length > 0 ? featuredJobs.slice(0, 3) : []).map((job, i) => (
+                {(featuredJobs.length > 0 ? featuredJobs.slice(0, 3) : []).map((job, i) => {
+                  const jobType = job.opportunityType || job.type;
+                  const jobCompany = job.company?.name || job.company;
+                  const jobPay = job.salary || (job.stipend?.amount ? `₹${job.stipend.amount}/month` : typeof job.stipend === "string" ? job.stipend : null);
+                  return (
                   <div
                     key={job.id || job._id || job.title || i}
                     className={`bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5 ${
@@ -518,59 +508,20 @@ const Home = () => {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#eff6ff] text-[#1e3a8a]">
-                          {job.opportunityType || job.type || "Live Opportunity"}
-                        </span>
+                        {jobType && (
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#eff6ff] text-[#1e3a8a]">
+                            {jobType}
+                          </span>
+                        )}
                         <p className="mt-2 text-[15px] font-semibold text-slate-900 line-clamp-1">{job.title}</p>
-                        <p className="text-sm text-slate-500">{job.company?.name || job.company || "Verified Company"}</p>
+                        {jobCompany && <p className="text-sm text-slate-500">{jobCompany}</p>}
                       </div>
-                      <p className="text-sm font-bold text-[#1e3a8a] shrink-0">{job.salary || (job.stipend?.amount ? `₹${job.stipend.amount}/month` : "Verified")}</p>
+                      {jobPay && <p className="text-sm font-bold text-[#1e3a8a] shrink-0">{jobPay}</p>}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-    {/* ================= COMPANIES MARQUEE ================= */}
-      <section id="companies" className="py-14 lg:py-16 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
-          <div className="text-center">
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-              Hiring partners
-            </h2>
-            <p className="mt-1.5 text-slate-500 text-sm">
-              Companies hiring CareerConnect talent
-            </p>
-          </div>
-        </div>
-
-        <div className="relative">
-          <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-16 sm:w-28 bg-gradient-to-r from-white to-transparent z-10" />
-          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-16 sm:w-28 bg-gradient-to-l from-white to-transparent z-10" />
-
-          <div className="flex overflow-hidden">
-            <div className="flex animate-marquee gap-4 sm:gap-5 py-2">
-              {[
-                "Google", "Microsoft", "Amazon", "Infosys", "TCS",
-                "Wipro", "HCLTech", "Accenture", "Cognizant", "Capgemini",
-                "Tech Mahindra", "IBM", "L&T Technology", "Deloitte",
-                "Google", "Microsoft", "Amazon", "Infosys", "TCS",
-                "Wipro", "HCLTech", "Accenture", "Cognizant", "Capgemini",
-                "Tech Mahindra", "IBM", "L&T Technology", "Deloitte",
-              ].map((company, i) => (
-                <div
-                  key={`${company}-${i}`}
-                  className="flex-shrink-0 w-36 sm:w-40 h-[88px] rounded-2xl border border-slate-200 bg-white flex flex-col items-center justify-center gap-1.5"
-                >
-                  <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
-                    {company.slice(0, 2)}
-                  </div>
-                  <span className="text-[11px] font-semibold text-slate-600">{company}</span>
-                </div>
-              ))}
             </div>
           </div>
         </div>
@@ -582,7 +533,7 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
           <div className="flex items-center gap-2">
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Trending now
+              Explore opportunities
             </h2>
             <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
               📈
@@ -600,9 +551,9 @@ const Home = () => {
                   INTERNSHIPS
                 </span>
                 <h3 className="text-base font-bold mt-2.5 group-hover:text-blue-300 transition leading-snug">
-                  Summer Internship Fair 2026
+                  Internships for students
                 </h3>
-                <p className="text-xs text-slate-300 mt-1">Stipend up to ₹45,000/month</p>
+                <p className="text-xs text-slate-300 mt-1">Paid, remote and in-office roles from verified employers</p>
               </div>
               <span className="text-xs font-bold text-blue-400 mt-4 inline-flex items-center gap-1">
                 Apply now →
@@ -619,12 +570,12 @@ const Home = () => {
                   JOBS
                 </span>
                 <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-300 transition leading-snug">
-                  Fresher Tech Hiring Fest
+                  Jobs for freshers
                 </h3>
-                <p className="text-xs text-sky-100 mt-1">Min CTC ₹6 LPA - ₹15 LPA</p>
+                <p className="text-xs text-sky-100 mt-1">Entry-level openings, every listing reviewed by our team</p>
               </div>
               <span className="text-xs font-bold text-sky-200 mt-4 inline-flex items-center gap-1">
-                Explore 85+ Jobs →
+                Explore jobs →
               </span>
             </Link>
 
@@ -640,7 +591,7 @@ const Home = () => {
                 <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-200 transition leading-snug">
                   Campus & Fresher Recruitment
                 </h3>
-                <p className="text-xs text-amber-100 mt-1">120+ Partner Companies On-Campus</p>
+                <p className="text-xs text-amber-100 mt-1">Campus drives and fresher hiring from approved employers</p>
               </div>
               <span className="text-xs font-bold text-amber-200 mt-4 inline-flex items-center gap-1">
                 View On-Campus Drives →
@@ -648,6 +599,7 @@ const Home = () => {
             </Link>
 
             {/* Banner 4: Courses */}
+             {FEATURES.courses && (
             <Link
               to="/courses"
               className="group p-5 rounded-3xl bg-gradient-to-br from-[#4c1d95] via-[#5b21b6] to-[#6d28d9] text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col justify-between min-h-[160px]"
@@ -665,17 +617,19 @@ const Home = () => {
                 Enroll with 55% OFF →
               </span>
             </Link>
+                )}
+
           </div>
         </div>
       </section>
 
-      {/* ================= 5. LATEST INTERNSHIPS ON CAREERCONNECT ================= */}
+      {/* ================= 5. LATEST INTERNSHIPS ON E2JOB ================= */}
       <section className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-100 pb-4">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Latest internships on CareerConnect
+                Latest internships on E2Job
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
                 POPULAR CATEGORIES:{" "}
@@ -722,23 +676,29 @@ const Home = () => {
                   className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-md transition flex flex-col justify-between gap-3 group"
                 >
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                        {item.workMode || "Remote"}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {item.postedAt || "Recently"}
-                      </span>
-                    </div>
+                    {(item.workMode || item.postedAt) && (
+                      <div className="flex items-center justify-between">
+                        {item.workMode ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                            {item.workMode}
+                          </span>
+                        ) : <span />}
+                        {item.postedAt && (
+                          <span className="text-[10px] text-slate-400">
+                            {item.postedAt}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition line-clamp-1">
                       {item.title}
                     </h3>
-                    <p className="text-xs font-semibold text-slate-600 line-clamp-1">{item.company}</p>
-                    <p className="text-[11px] text-slate-400">📍 {item.location}</p>
+                    {item.company && <p className="text-xs font-semibold text-slate-600 line-clamp-1">{item.company}</p>}
+                    {item.location && <p className="text-[11px] text-slate-400">📍 {item.location}</p>}
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-bold text-emerald-700">{item.stipend || "Paid"}</span>
+                    <span className="font-bold text-emerald-700">{item.stipend || ""}</span>
                     <Link
                       to="/internships"
                       className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
@@ -757,13 +717,13 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ================= 6. LATEST JOBS ON CAREERCONNECT ================= */}
+      {/* ================= 6. LATEST JOBS ON E2JOB ================= */}
       <section className="py-12 bg-slate-50/70 border-y border-slate-200/70">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-200/80 pb-4">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Latest jobs on CareerConnect
+                Latest jobs on E2Job
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
                 POPULAR STREAMS:{" "}
@@ -810,23 +770,29 @@ const Home = () => {
                   className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-md transition flex flex-col justify-between gap-3 group"
                 >
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
-                        {jobItem.employmentType || "Full Time"}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {jobItem.postedAt || "Recently"}
-                      </span>
-                    </div>
+                    {(jobItem.employmentType || jobItem.postedAt) && (
+                      <div className="flex items-center justify-between">
+                        {jobItem.employmentType ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
+                            {jobItem.employmentType}
+                          </span>
+                        ) : <span />}
+                        {jobItem.postedAt && (
+                          <span className="text-[10px] text-slate-400">
+                            {jobItem.postedAt}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition line-clamp-1">
                       {jobItem.title}
                     </h3>
-                    <p className="text-xs font-semibold text-slate-600 line-clamp-1">{jobItem.company}</p>
-                    <p className="text-[11px] text-slate-400">📍 {jobItem.location}</p>
+                    {jobItem.company && <p className="text-xs font-semibold text-slate-600 line-clamp-1">{jobItem.company}</p>}
+                    {jobItem.location && <p className="text-[11px] text-slate-400">📍 {jobItem.location}</p>}
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-800">{jobItem.salary || "Competitive"}</span>
+                    <span className="font-bold text-slate-800">{jobItem.salary || ""}</span>
                     <Link
                       to="/jobs"
                       className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
@@ -846,6 +812,7 @@ const Home = () => {
       </section>
 
       {/* ================= 7. CERTIFICATION COURSES BANNER ================= */}
+        {FEATURES.courses && (
       <section className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
@@ -889,6 +856,7 @@ const Home = () => {
           </div>
         </div>
       </section>
+       )}
 
         {/* ================= HOW IT WORKS ================= */}
       <section id="how-it-works" className="py-16 lg:py-20 bg-slate-50">
@@ -921,22 +889,23 @@ const Home = () => {
       {/* ================= 8. STATS & NUMBERS STRIP ================= */}
       <section className="border-t border-slate-100 bg-[#0a2540] text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* What we promise, not made-up totals. */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div>
-              <p className="text-3xl sm:text-4xl font-black text-[#facc15]">300K+</p>
-              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">Companies hiring</p>
+              <p className="text-3xl sm:text-4xl font-black text-[#facc15]">Free</p>
+              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">for candidates, always</p>
             </div>
             <div>
-              <p className="text-3xl sm:text-4xl font-black text-white">10K+</p>
-              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">New openings monthly</p>
+              <p className="text-3xl sm:text-4xl font-black text-white">₹0</p>
+              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">fees an employer can ask you for</p>
             </div>
             <div>
-              <p className="text-3xl sm:text-4xl font-black text-[#facc15]">21Mn+</p>
-              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">Active candidates</p>
+              <p className="text-3xl sm:text-4xl font-black text-[#facc15]">Reviewed</p>
+              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">every listing, before it goes live</p>
             </div>
             <div>
-              <p className="text-3xl sm:text-4xl font-black text-white">100%</p>
-              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">Verified opportunities</p>
+              <p className="text-3xl sm:text-4xl font-black text-white">Verified</p>
+              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">employers, before they can post</p>
             </div>
           </div>
         </div>
@@ -1010,12 +979,12 @@ const Home = () => {
             {/* Col 5: About & Campus */}
             <div className="space-y-2.5">
               <p className="font-bold text-white uppercase tracking-wider text-[11px]">
-                About CareerConnect
+                About E2Job
               </p>
               <ul className="space-y-1.5 text-slate-400">
-                <li><Link to="/home" className="hover:text-white">About CareerConnect</Link></li>
+                <li><Link to="/contact" className="hover:text-white">About E2Job</Link></li>
                 <li><Link to="/opportunities?source=campus" className="hover:text-white">Opportunities</Link></li>
-                <li><Link to="/courses" className="hover:text-white">Training & Certifications</Link></li>
+                {FEATURES.courses && <li><Link to="/courses" className="hover:text-white">Training & Certifications</Link></li>}
                 <li><Link to="/register/employer" className="hover:text-white">Hire Talent</Link></li>
                 <li><Link to="/login" className="hover:text-white">Candidate Login</Link></li>
               </ul>
@@ -1023,13 +992,16 @@ const Home = () => {
           </div>
 
           <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
-            <p>© {new Date().getFullYear()} CareerConnect. All rights reserved.</p>
-            <div className="flex items-center gap-4">
-              <Link to="/home" className="hover:text-slate-300">Privacy Policy</Link>
+            <p>© {new Date().getFullYear()} E2Job. All rights reserved.</p>
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+              <Link to="/privacy" className="hover:text-slate-300">Privacy Policy</Link>
               <span>•</span>
-              <Link to="/home" className="hover:text-slate-300">Terms & Conditions</Link>
+              <Link to="/terms" className="hover:text-slate-300">Terms & Conditions</Link>
               <span>•</span>
-              <Link to="/home" className="hover:text-slate-300">Sitemap</Link>
+              <Link to="/contact" className="hover:text-slate-300">Contact</Link>
+              <span>•</span>
+              {/* A plain link: /sitemap.xml is served by the API (vercel.json rewrite), not the React app. */}
+              <a href="/sitemap.xml" className="hover:text-slate-300">Sitemap</a>
             </div>
           </div>
         </div>

@@ -51,6 +51,11 @@ const AdminCompanies = () => {
     return <Navigate to="/admin/company" replace />;
   }
 
+  return <AdminCompaniesContent />;
+};
+
+// Hooks live here so they always run in the same order; the guard above returns early.
+const AdminCompaniesContent = () => {
   // Active Tab: "companies" | "requests"
   const [activeTab, setActiveTab] = useState("companies");
 

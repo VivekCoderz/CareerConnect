@@ -13,6 +13,7 @@ import {
   setSessionExpired,
 } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import { getSafeRedirect } from "../../utils/authRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 
@@ -69,6 +70,7 @@ const Login = () => {
 
   const initialType = searchParams.get("type") === "employer" ? "employer" : "student";
   const isExpired = searchParams.get("expired") === "1";
+  const redirectTo = getSafeRedirect(searchParams);
 
   const [loginType, setLoginType] = useState(initialType);
   const [formData, setFormData] = useState({ emailOrUsername: "", password: "" });
@@ -119,7 +121,9 @@ const Login = () => {
       const { user, token } = response.data;
       dispatch(loginSuccess({ user, token }));
 
-      if (user.role === "employer") {
+      if (redirectTo) {
+        navigate(redirectTo, { replace: true });
+      } else if (user.role === "employer") {
         navigate("/employer/dashboard");
       } else {
         navigate(getDashboardPath(user.userType, user));
@@ -171,8 +175,8 @@ const Login = () => {
           { replace: true }
         );
       } else {
-        // Existing user with completed info → dashboard
-        navigate(getDashboardPath(user.userType, user), { replace: true });
+        // Existing user with completed info → back to where they came from, or dashboard
+        navigate(redirectTo || getDashboardPath(user.userType, user), { replace: true });
       }
     } catch (err) {
       if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
@@ -437,12 +441,12 @@ const Login = () => {
             </button>
 
             <p className="mt-2 text-center text-[11px] text-slate-400">
-              New to CareerConnect? Google sign-in sets up your account automatically.
+              New to E2Job? Google sign-in sets up your account automatically.
             </p>
           </>
 
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-            <p className="text-sm text-slate-500 mb-3">New to CareerConnect?</p>
+            <p className="text-sm text-slate-500 mb-3">New to E2Job?</p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link
                 to="/register/student"

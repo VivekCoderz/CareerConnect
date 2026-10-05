@@ -1,9 +1,11 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
+import { FEATURES } from "../../config/features";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
 import { getJobs } from "../../services/jobService";
-import { applyOpportunity } from "../../services/studentDashboardService";
+import { applyToOpportunity } from "../../utils/opportunityApply";
+import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
 
 export default function Jobs({
   embedded = false,
@@ -66,13 +68,11 @@ export default function Jobs({
     }
 
     try {
-      const res = await applyOpportunity({
-        opportunityId: item._id || item.id,
-        jobId: item._id || item.id,
-        title: item.title,
-        company: item.company || item.companyName,
-        type: item.type || "Full-Time",
-      });
+      const res = await applyToOpportunity(item, "Job");
+      if (res.external) {
+        if (!res.opened) showToast("This listing has no apply link.", "error");
+        return;
+      }
       if (res?.success) {
         setAppliedIds((prev) => [...prev, item._id || item.id]);
         showToast(res.message || `Applied for "${item.title}"!`, "success");
@@ -98,7 +98,7 @@ export default function Jobs({
         <div>
           {!embedded && (
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              CareerConnect · CareerConnect
+              E2Job · E2Job
             </p>
           )}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -194,6 +194,9 @@ export default function Jobs({
               const itemId = item._id || item.id;
               const isSaved = (savedIds.length ? savedIds : localSavedIds).includes(itemId);
               const isApplied = appliedIds.includes(itemId);
+              const itemType = item.type || item.opportunityType;
+              const itemCompany = item.company || item.companyName || item.employerId?.companyName;
+              const itemSkills = [item.requiredSkills, item.skillsRequired, item.skills].find((l) => Array.isArray(l) && l.length) || [];
 
               return (
                 <article
@@ -212,27 +215,36 @@ export default function Jobs({
                             ✓ Campus
                           </span>
                         )}
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
-                          {item.workMode || "On-Site"}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
-                          {item.type || item.opportunityType || "Full-Time"}
-                        </span>
+                        {item.workMode && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
+                            {item.workMode}
+                          </span>
+                        )}
+                        {itemType && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
+                            {itemType}
+                          </span>
+                        )}
                       </div>
 
                       <h2 className="text-base font-bold text-slate-900 group-hover:text-[#1e3a8a] transition line-clamp-1">
-                        {item.title}
+                        <OpportunityTitleLink item={item} type="Job">{item.title}</OpportunityTitleLink>
                       </h2>
-                      <p className="text-sm font-semibold text-slate-600 mt-0.5">
-                        {item.company || item.companyName || item.employerId?.companyName || "Company"}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1">📍 {item.location || "India"}</p>
+                      {itemCompany && (
+                        <p className="text-sm font-semibold text-slate-600 mt-0.5">
+                          {itemCompany}
+                        </p>
+                      )}
+                      {item.location && <p className="text-xs text-slate-500 mt-1">📍 {item.location}</p>}
 
+                      {(item.salary || itemSkills.length > 0) && (
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-[#1e3a8a]">
-                          {item.salary || "Competitive Package"}
-                        </span>
-                        {item.requiredSkills?.slice(0, 4).map((skill) => (
+                        {item.salary && (
+                          <span className="text-sm font-bold text-[#1e3a8a]">
+                            {item.salary}
+                          </span>
+                        )}
+                        {itemSkills.slice(0, 4).map((skill) => (
                           <span
                             key={skill}
                             className="px-2 py-0.5 rounded-md bg-slate-50 border border-slate-100 text-[10px] font-semibold text-slate-600"
@@ -241,21 +253,25 @@ export default function Jobs({
                           </span>
                         ))}
                       </div>
+                      )}
                     </div>
 
                     <div className="flex items-center sm:flex-col sm:items-stretch gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleSaveClick(item)}
-                        className={`h-10 px-3.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 ${
-                          isSaved
-                            ? "bg-amber-50 border-amber-300 text-amber-600"
-                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                        title={isSaved ? "Saved" : "Save Job"}
-                      >
-                        {isSaved ? "★ Saved" : "☆ Save"}
-                      </button>
+                      {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                      {FEATURES.savedJobs && (
+                        <button
+                          type="button"
+                          onClick={() => handleSaveClick(item)}
+                          className={`h-10 px-3.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 ${
+                            isSaved
+                              ? "bg-amber-50 border-amber-300 text-amber-600"
+                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                          }`}
+                          title={isSaved ? "Saved" : "Save Job"}
+                        >
+                          {isSaved ? "★ Saved" : "☆ Save"}
+                        </button>
+                      )}
 
                       {item.applyLink ? (
                         <a

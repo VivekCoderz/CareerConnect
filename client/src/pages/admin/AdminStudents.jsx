@@ -2,7 +2,7 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import { getAdminStudents, updateStudentStatus } from "../../services/adminService";
-import { getResumeHref } from "../../utils/resumeAccess";
+import { openResume } from "../../utils/resumeAccess";
 import {
   Users,
   Search,
@@ -476,15 +476,14 @@ const AdminStudents = () => {
                         </p>
                       </div>
                     </div>
-                    <a
-                      href={getResumeHref(selectedCandidate.resumeUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => openResume(selectedCandidate.resumeUrl)}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 transition"
                     >
                       <span>View</span>
                       <ExternalLink className="w-3 h-3" />
-                    </a>
+                    </button>
                   </div>
                 )}
               </div>

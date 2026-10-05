@@ -1,0 +1,1187 @@
+{
+  "src/App.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/ProtectedRoute.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/RateLimitWarningModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/admin/AdminKPICard.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/admin/AdminLayout.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/admin/AdminProtectedRoute.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/admin/ApplicationFunnel.jsx": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "src/components/admin/OpportunityOverview.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/admin/RecentActivity.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/admin/RequiresAttention.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/admin/UserGrowthChart.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/components/ai/FloatingAiAssistant.jsx": {
+    "react-hooks/purity": {
+      "count": 1
+    }
+  },
+  "src/components/common/PhoneInput.jsx": {
+    "no-empty": {
+      "count": 2
+    }
+  },
+  "src/components/common/ResumeUploadInput.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/courses/ApplicationList.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/courses/ContentCard.jsx": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "src/components/courses/CourseContentManager.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-empty": {
+      "count": 2
+    },
+    "no-undef": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 12
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/courses/CourseForm.jsx": {
+    "no-unused-vars": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/courses/CourseProgress.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/courses/PaymentReceiptModal.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/components/employer-profile/AboutCompany.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer-profile/BasicCompanyInfo.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer-profile/CompanyDetails.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/employer-profile/HiringPreferences.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/employer-profile/ProfileBrandPanel.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer-profile/ProfileReview.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/components/employer-profile/StepNavigation.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer-profile/TeamCulture.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/components/employer/ATSPipelineView.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/employer/AddEmployeeModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer/ApplicantExportModal.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/employer/AssessmentModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer/AssignTrainingModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/purity": {
+      "count": 1
+    }
+  },
+  "src/components/employer/CandidateCard.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/employer/CandidateInterviewHistoryModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/immutability": {
+      "count": 1
+    }
+  },
+  "src/components/employer/CertificateViewerModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/purity": {
+      "count": 1
+    }
+  },
+  "src/components/employer/CompetencyAssessmentModal.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/components/employer/EmployerAnalyticsHub.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer/EmployerNavbar.jsx": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "src/components/employer/EmployerSidebar.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer/HiringAnalyticsChart.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer/InterviewCancelModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer/InterviewDetailsModal.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 4
+    },
+    "react-hooks/immutability": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/employer/InterviewManagementHub.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 9
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/components/employer/InterviewScheduleModal.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/immutability": {
+      "count": 1
+    },
+    "react-hooks/purity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/components/employer/InterviewScorecardModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/employer/JobModal.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/employer/LearningAnalyticsChart.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer/LearningAndCertificationsHub.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "src/components/employer/OfferAuditTrailModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer/OfferLetterPreviewModal.jsx": {
+    "react-hooks/purity": {
+      "count": 1
+    }
+  },
+  "src/components/employer/OfferManagementHub.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/purity": {
+      "count": 1
+    }
+  },
+  "src/components/employer/OfferModal.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/employer/SkillGapMatrix.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/employer/TeamManagementSystem.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    },
+    "react-refresh/only-export-components": {
+      "count": 2
+    }
+  },
+  "src/components/fresher-dashboard/FresherApplicationTracker.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/fresher-profile/FresherProfileHeader.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/fresher-profile/ProfileReviewModal.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/fresher-profile/PublicProfileModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/fresher-profile/ResumeSection.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/internships/InternshipDiscoveryMenu.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/jobs/JobDiscoveryMenu.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/notifications/NotificationInboxDrawer.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/professional-dashboard/CareerCompanyInsights.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/professional-dashboard/CareerPathModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/professional-dashboard/ExecutiveResumeCard.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/professional-dashboard/ProfessionalApplicationsView.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/professional-dashboard/ProfessionalHeader.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/professional-profile/ProfessionalDevelopment.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/professional-profile/ProfileCompletionSuccessModal.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/components/professional-profile/ProfileReviewModal.jsx": {
+    "no-unused-vars": {
+      "count": 8
+    }
+  },
+  "src/components/professional-profile/PublicProfileModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/professional-profile/ResumeSection.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/resume-builder/AIChangeRequest.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/ATSResumeGenerator.jsx": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/ATSScoreCard.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/resume-builder/FormSections/AchievementsForm.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/FormSections/CertificationsForm.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/FormSections/EducationForm.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-refresh/only-export-components": {
+      "count": 2
+    }
+  },
+  "src/components/resume-builder/FormSections/ExperienceForm.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/FormSections/PersonalInfoForm.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/FormSections/ProjectsForm.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/FormSections/SkillsForm.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/LatexExportModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/ManualEditor.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/ParsedResumeReviewModal.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/ResumePreview.jsx": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "src/components/resume-builder/ReviewActions.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/TailoredResumeApplicationModal.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "react-hooks/immutability": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/TemplateSelector.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/templates/ATSSafeResumeRenderer.jsx": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/templates/BoldTemplate.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/templates/ClassicTemplate.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/templates/CompactTemplate.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/templates/ElegantTemplate.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/templates/ExecutiveTemplate.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/templates/SidebarTemplate.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/resume-builder/templates/TwoColumnTemplate.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/student-dashboard/CandidateInterviewsView.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/student-dashboard/CourseRecommendationsCard.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/student-dashboard/DashboardHeader.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/student-dashboard/InternshalaDashboardRecommendations.jsx": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "src/components/student-dashboard/JobRecommendationsCard.jsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/student-dashboard/ResumeStatusCard.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 6
+    }
+  },
+  "src/components/student/AchievementsSection.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/student/ApplicationTrackingProgress.jsx": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/components/student/CandidateOfferResponseModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/student/CareerPreferences.jsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/student/CertificationsSection.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/student/ExperienceSection.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/student/PersonalInfo.jsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/student/ProjectsSection.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/features/employer/dashboard/ActiveJobs.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/features/employer/dashboard/ActivityFeed.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/features/employer/dashboard/DashboardPage.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/features/employer/dashboard/KpiRow.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/features/employer/dashboard/PipelineStrip.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/features/employer/dashboard/QuickActions.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/features/employer/dashboard/RecentApplications.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/features/employer/dashboard/UpcomingInterviews.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/pages/Home.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/pages/NotFound.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/pages/OpportunitiesPage.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminActivate.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminApplications.jsx": {
+    "no-unused-vars": {
+      "count": 9
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminCompanies.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 20
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/pages/admin/AdminCompanyAdmins.jsx": {
+    "no-unused-vars": {
+      "count": 7
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminCompanyProfile.jsx": {
+    "no-unused-vars": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminDashboard.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminEmployers.jsx": {
+    "no-unused-vars": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminLogin.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminOpportunities.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminReports.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 9
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminSettings.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminStudents.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/admin/AdminUsers.jsx": {
+    "no-unused-vars": {
+      "count": 6
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/pages/auth/EmployerRegister.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-dupe-else-if": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/pages/auth/GoogleOnboarding.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/auth/Signup.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/pages/courses/CourseContentPage.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/courses/CourseDetailsPage.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 8
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/courses/CreateCoursePage.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/pages/courses/EditCoursePage.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/pages/courses/EmployeeCoursesPage.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 8
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/pages/courses/StudentCoursesPage.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/pages/courses/StudentMyCoursesPage.jsx": {
+    "no-unused-vars": {
+      "count": 6
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/employer/CompanyPublicProfile.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/pages/employer/CreateOpportunityPage.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/employer/EmployerApplicationDetailPage.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/employer/EmployerDashboard.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 11
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/employer/EmployerProfile.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/pages/employer/JobPostingFlow.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 12
+    }
+  },
+  "src/pages/employer/MyInternships.jsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/fresher/CareerRecommendationsPage.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/fresher/FresherDashboard.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/fresher/FresherProfile.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/pages/internships/InternshipDiscoveryPage.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/pages/jobs/JobDiscoveryPage.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/pages/organizations/OrganizationRequestPage.jsx": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "src/pages/professional/ProfessionalDashboard.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/professional/ProfessionalProfile.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/resume/ResumeBuilder.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 5
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/pages/student/InternshipDetail.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/student/Internships.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/pages/student/Jobs.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/student/MyApplications.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/student/StudentApplicationTrackingPage.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    },
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/pages/student/StudentDashboard.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 7
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/pages/student/StudentProfile.jsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/services/notificationService.js": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "src/utils/latexResumeGenerator.js": {
+    "no-useless-escape": {
+      "count": 1
+    }
+  }
+}

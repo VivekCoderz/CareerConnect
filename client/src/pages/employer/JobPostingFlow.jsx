@@ -27,6 +27,13 @@ import {
 } from "lucide-react";
 import jobService from "../../services/jobService";
 import JourneyLoader from "../../components/common/JourneyLoader";
+import ModerationBadge from "../../components/employer/ModerationBadge";
+import { EMPTY_LISTING_FORM, listingFormError, experiencePayload } from "../../utils/listingForm";
+
+// Fields the employer must fill before the job can be published.
+const REQUIRED_FIELDS = [
+  "title", "category", "employmentType", "workMode", "location", "description", "requiredSkills", "openings",
+];
 
 const DEFAULT_CATEGORIES = [
   "Web Development",
@@ -134,35 +141,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
   const [successToast, setSuccessToast] = useState(null);
 
   // Job Details State
-  const [formData, setFormData] = useState({
-    title: "",
-    category: "Web Development",
-    subCategory: "Frontend Development",
-    department: "Engineering",
-    employmentType: "Full-time",
-    workMode: "Remote",
-    location: "Bangalore",
-    city: "Bangalore",
-    country: "India",
-    isPaid: true,
-    hasJobOffer: true,
-    isInternational: false,
-    salaryMin: "600000",
-    salaryMax: "1200000",
-    currency: "INR",
-    experienceLevel: "Fresher / Entry-Level",
-    minYears: 0,
-    maxYears: 1,
-    education: "B.Tech / BCA / MCA / Any Graduate",
-    description: "",
-    responsibilities: "",
-    requiredSkills: "React, JavaScript, Tailwind CSS",
-    preferredSkills: "Redux, TypeScript",
-    bonusSkills: "Next.js, Git",
-    openings: 2,
-    deadline: "",
-    status: "Published",
-  });
+  const [formData, setFormData] = useState({ ...EMPTY_LISTING_FORM });
 
   // Interview Rounds State
   const [interviewRounds, setInterviewRounds] = useState([
@@ -182,32 +161,32 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
             const j = res.job;
             setFormData({
               title: j.title || "",
-              category: j.category || "Web Development",
-              subCategory: j.subCategory || "Frontend Development",
-              department: j.department || "Engineering",
-              employmentType: j.employmentType || "Full-time",
-              workMode: j.workMode || "Remote",
-              location: j.location || "Bangalore",
-              city: j.city || "Bangalore",
+              category: j.category || "",
+              subCategory: j.subCategory || "",
+              department: j.department || "",
+              employmentType: j.employmentType || "",
+              workMode: j.workMode || "",
+              location: j.location || "",
+              city: j.city || "",
               country: j.country || "India",
               isPaid: j.isPaid !== false,
               hasJobOffer: !!j.hasJobOffer,
               isInternational: !!j.isInternational,
-              salaryMin: j.salaryRange?.min !== undefined ? String(j.salaryRange.min) : "600000",
-              salaryMax: j.salaryRange?.max !== undefined ? String(j.salaryRange.max) : "1200000",
+              salaryMin: j.salaryRange?.min ? String(j.salaryRange.min) : "",
+              salaryMax: j.salaryRange?.max ? String(j.salaryRange.max) : "",
               currency: j.salaryRange?.currency || "INR",
-              experienceLevel: j.experience?.level || "Fresher / Entry-Level",
-              minYears: j.experience?.minYears || 0,
-              maxYears: j.experience?.maxYears || 1,
-              education: j.education || "B.Tech / BCA / MCA / Any Graduate",
+              experienceLevel: j.experience?.level || "",
+              minYears: j.experience?.minYears ?? "",
+              maxYears: j.experience?.maxYears ?? "",
+              education: j.education || "",
               description: j.description || "",
               responsibilities: Array.isArray(j.responsibilities) ? j.responsibilities.join("\n") : "",
               requiredSkills: Array.isArray(j.requiredSkills) ? j.requiredSkills.join(", ") : "",
               preferredSkills: Array.isArray(j.preferredSkills) ? j.preferredSkills.join(", ") : "",
               bonusSkills: Array.isArray(j.bonusSkills) ? j.bonusSkills.join(", ") : "",
-              openings: j.openings || 2,
+              openings: j.openings || "",
               deadline: j.deadline ? j.deadline.split("T")[0] : "",
-              status: j.status || "Published",
+              status: j.status || "",
             });
 
             if (Array.isArray(j.interviewRounds) && j.interviewRounds.length > 0) {
@@ -301,16 +280,9 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
   // Step 1 Validation & Proceed to Step 2
   const handleProceedToInterviewProcess = (e) => {
     e?.preventDefault();
-    if (!formData.title.trim()) {
-      setErrorMessage("Please enter an opportunity / job title");
-      return;
-    }
-    if (!formData.location.trim()) {
-      setErrorMessage("Please enter the primary job location");
-      return;
-    }
-    if (!formData.description.trim()) {
-      setErrorMessage("Please provide a job description");
+    const formError = listingFormError(formData, REQUIRED_FIELDS);
+    if (formError) {
+      setErrorMessage(formError);
       return;
     }
 
@@ -403,6 +375,12 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
 
   // Final Submission (Create or Update Job)
   const handlePublishJob = async () => {
+    // Step 2 can be opened directly, so check the details again before publishing.
+    const formError = listingFormError(formData, REQUIRED_FIELDS);
+    if (formError) {
+      setErrorMessage(formError);
+      return;
+    }
     try {
       setSubmitting(true);
       setErrorMessage("");
@@ -426,11 +404,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
           currency: formData.currency,
           isNegotiable: !formData.salaryMin && !formData.salaryMax,
         },
-        experience: {
-          level: formData.experienceLevel,
-          minYears: Number(formData.minYears) || 0,
-          maxYears: Number(formData.maxYears) || 2,
-        },
+        experience: experiencePayload(formData),
         education: formData.education,
         description: formData.description.trim(),
         responsibilities: formData.responsibilities
@@ -445,9 +419,8 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
         bonusSkills: formData.bonusSkills
           ? formData.bonusSkills.split(",").map((s) => s.trim()).filter(Boolean)
           : [],
-        openings: Number(formData.openings) || 1,
+        openings: Number(formData.openings),
         deadline: formData.deadline || null,
-        status: formData.status,
         interviewRounds: interviewRounds.map((r, idx) => ({
           order: idx + 1,
           name: r.name.trim(),
@@ -475,7 +448,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
         setSuccessToast(
           isEditMode
             ? "Job & interview rounds updated successfully!"
-            : "Job opportunity & interview process published successfully!"
+            : "Job submitted for approval. It will go live once an admin approves it."
         );
 
         setTimeout(() => {
@@ -629,8 +602,8 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
                 3
               </div>
               <div className="hidden sm:block min-w-0">
-                <p className="text-xs font-bold text-slate-900 truncate">Review & Publish</p>
-                <p className="text-[10px] text-slate-500 truncate">Confirm & launch</p>
+                <p className="text-xs font-bold text-slate-900 truncate">Review & Submit</p>
+                <p className="text-[10px] text-slate-500 truncate">Submit for approval</p>
               </div>
             </button>
           </div>
@@ -645,8 +618,9 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
               <span className="px-2.5 py-1 rounded-lg bg-amber-100/70 text-[#92400e] text-[11px] font-extrabold uppercase tracking-wider">
                 Step 1 of 3
               </span>
-              <h1 className="text-xl font-extrabold text-slate-900 mt-2 tracking-tight">
+              <h1 className="text-xl font-extrabold text-slate-900 mt-2 tracking-tight flex items-center gap-2">
                 {isEditMode ? "Edit Job Details" : "Specify Job & Opportunity Details"}
+                {isEditMode && <ModerationBadge status={formData.status} />}
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
                 Provide the core vacancy information before defining the interview rounds in Step 2.
@@ -682,6 +656,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
                     onChange={handleFormChange}
                     className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
                   >
+                    <option value="">Select category</option>
                     {DEFAULT_CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
@@ -716,6 +691,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
                     onChange={handleFormChange}
                     className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
                   >
+                    <option value="">Select employment type</option>
                     <option value="Full-time">Full-time Job</option>
                     <option value="Internship">Internship</option>
                     <option value="Part-time">Part-time</option>
@@ -735,6 +711,7 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
                     onChange={handleFormChange}
                     className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
                   >
+                    <option value="">Select work mode</option>
                     <option value="Remote">Remote (Work From Home)</option>
                     <option value="Hybrid">Hybrid</option>
                     <option value="On-site">On-site</option>
@@ -1377,12 +1354,12 @@ export default function JobPostingFlow({ mode = "create", step: routeStep = "det
                 {submitting ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    <span>{isEditMode ? "Updating Job..." : "Publishing Job..."}</span>
+                    <span>{isEditMode ? "Updating Job..." : "Submitting..."}</span>
                   </>
                 ) : (
                   <>
                     <Check className="w-4 h-4" />
-                    <span>{isEditMode ? "Save Changes & Update Job" : "Publish Job Opportunity"}</span>
+                    <span>{isEditMode ? "Save Changes & Update Job" : "Submit for approval"}</span>
                   </>
                 )}
               </button>

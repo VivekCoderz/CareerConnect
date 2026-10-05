@@ -16,7 +16,9 @@
     "test:security": "jest __tests__/integration/security.test.js --forceExit --runInBand",
     "test:coverage": "jest --coverage --forceExit --runInBand",
     "test:watch": "jest --watch",
-    "test:verbose": "jest --verbose --forceExit --runInBand"
+    "test:verbose": "jest --verbose --forceExit --runInBand",
+    "lint": "eslint .",
+    "lint:prune": "eslint . --prune-suppressions"
   },
   "keywords": [],
   "author": "",
@@ -24,10 +26,12 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@reduxjs/toolkit": "^2.12.0",
+    "@sentry/node": "^11.4.0",
     "axios": "^1.20.0",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
     "cloudinary": "^2.11.0",
+    "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -50,11 +54,18 @@
   "devDependencies": {
     "@emnapi/core": "^1.11.3",
     "@emnapi/runtime": "^1.11.3",
+    "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.6.0",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
     "jest": "^30.5.1",
     "mongodb-memory-server": "^11.2.0",
     "node-mocks-http": "^1.18.1",
     "nodemon": "^3.1.14",
+    "socket.io-client": "^4.8.4",
     "supertest": "^7.2.2"
+  },
+  "optionalDependencies": {
+    "@napi-rs/canvas-darwin-arm64": "0.1.80"
   }
 }

@@ -1,12 +1,32 @@
 const mongoose = require("mongoose");
 const Job = require("../models/Job");
+const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
-// const Company = require("../models/Company");
-const { pickListingUpdate, escapeRegex } = require("../utils/listingSecurity");
-const { getAggregatedOpportunities, clearSearchCache } = require("../services/jobScraperService");
+const { isListingExpired, withOpenDeadline } = require("../utils/listingExpiry");
+const { formatSalary, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
+const {
+  pickListingUpdate,
+  checkListingInput,
+  hasLocation,
+  LOCATION_REQUIRED,
+  mergePayRanges,
+  requiresReapproval,
+  escapeRegex,
+  resolveNewListingModeration,
+  checkEmployerStatusChange,
+  toPublicListing,
+} = require("../utils/listingSecurity");
+
+// S07: job listings are served from the database only. clearSearchCache stays
+// so the student dashboard and opportunities feeds refresh when a job changes.
+const { clearSearchCache } = require("../services/jobScraperService");
+const { categoryClauses } = require("../utils/categoryKeywords");
+const { getPlatformSettings } = require("../services/platformSettings");
+const { isEmployerApproved } = require("../middleware/employerVerification");
+const { notifyListingClosedInBackground } = require("../services/listingClosure");
 
 /**
  * Helper to ensure employer profile exists for logged in user
@@ -106,19 +126,13 @@ exports.getJobs = async (req, res, next) => {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const defaultPageSize = isMyJobs ? 100 : 10;
     const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || defaultPageSize));
-    const windowSize = pageNum * pageSize;
     const query = {};
 
     if (isMyJobs) {
       if (!req.user) {
         return res.status(401).json({ success: false, message: "Not authenticated" });
       }
-      const employerProfile = await EmployerProfile.findOne({ userId: req.user._id });
-      const orConditions = [{ createdBy: req.user._id }];
-      if (employerProfile) {
-        orConditions.push({ employerId: employerProfile._id });
-      }
-      query.$or = orConditions;
+      query.$or = listingOwnerClauses(await getOwnerScope(req.user));
       if (status && status !== "All") {
         query.status = status;
       }
@@ -126,20 +140,8 @@ exports.getJobs = async (req, res, next) => {
       query.status = "Published";
     }
 
-    const searchTerm = escapeRegex((search || q || "").trim());
-    if (searchTerm) {
-      const searchCond = [
-        { title: { $regex: searchTerm, $options: "i" } },
-        { description: { $regex: searchTerm, $options: "i" } },
-        { requiredSkills: { $in: [new RegExp(searchTerm, "i")] } },
-      ];
-      if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: searchCond }];
-        delete query.$or;
-      } else {
-        query.$or = searchCond;
-      }
-    }
+    // Keyword search is applied after the other filters are built (see findPage below).
+    const rawSearch = (search || q || "").trim();
 
     const reqType = req.query.employmentType || req.query.opportunityType || req.query.type;
     if (reqType && reqType !== "All" && reqType !== "all") {
@@ -160,149 +162,137 @@ exports.getJobs = async (req, res, next) => {
 
     if (department && department !== "All") query.department = department;
     if (category && category !== "All") {
-      const catRegex = new RegExp(escapeRegex(category), "i");
+      // Pushed under $and so an existing $or (search) and $and (open-deadline) are both kept.
       if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: [{ category: catRegex }, { department: catRegex }, { title: catRegex }] }];
+        query.$and = [...(query.$and || []), { $or: query.$or }];
         delete query.$or;
-      } else {
-        query.$or = [{ category: catRegex }, { department: catRegex }, { title: catRegex }];
       }
+      query.$and = [...(query.$and || []), { $or: categoryClauses(category) }];
     }
     if (employmentType && employmentType !== "All") query.employmentType = employmentType;
     if (workMode && workMode !== "All") query.workMode = workMode;
     const locFilter = (city || location || "").trim();
     if (locFilter && locFilter !== "All") {
-      query[city ? "city" : "location"] = { $regex: escapeRegex(locFilter), $options: "i" };
+      const locRegex = new RegExp(escapeRegex(locFilter), "i");
+      const locConditions = [{ city: locRegex }, { location: locRegex }];
+      if (locFilter.toLowerCase() === "remote") {
+        locConditions.push({ workMode: /Remote/i });
+      }
+      if (query.$and) {
+        query.$and.push({ $or: locConditions });
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: locConditions }];
+        delete query.$or;
+      } else {
+        query.$or = locConditions;
+      }
     }
 
-    let campusJobs = [];
-    let campusTotal = 0;
-    if (source !== "external" && mongoose.connection.readyState === 1) {
+    // S07: Source filter mapped to MongoDB (campus = internal only, external = external only, or specific source)
+    if (source && source !== "all" && source !== "All") {
+      if (source.toLowerCase() === "campus") {
+        query.isExternal = false;
+      } else if (source.toLowerCase() === "external") {
+        query.isExternal = true;
+      } else {
+        query.source = { $regex: new RegExp(`^${escapeRegex(source)}$`, "i") };
+      }
+    }
+
+    const dbSort = sort === "salary_high" ? { "salaryRange.min": -1, _id: -1 }
+      : sort === "salary_low" ? { "salaryRange.min": 1, _id: -1 }
+        : { createdAt: -1, _id: -1 };
+
+    const skip = (pageNum - 1) * pageSize;
+    let total = 0;
+    let rawJobs = [];
+    // Candidates never see listings whose deadline has passed, even before the sweep closes them.
+    if (!isMyJobs) withOpenDeadline(query);
+
+    // Search uses the job_text_search index (whole words, as a phrase). If that finds nothing,
+    // fall back to the substring regex so partial words such as "devel" still match.
+    const textPhrase = rawSearch.replace(/"/g, " ").trim();
+    const textQuery = textPhrase ? { ...query, $text: { $search: `"${textPhrase}"` } } : null;
+    let regexQuery = query;
+    if (rawSearch) {
+      const searchTerm = escapeRegex(rawSearch);
+      const searchCond = [
+        { title: { $regex: searchTerm, $options: "i" } },
+        { description: { $regex: searchTerm, $options: "i" } },
+        { requiredSkills: { $in: [new RegExp(searchTerm, "i")] } },
+      ];
+      regexQuery = { ...query, $and: [...(query.$and || []), { $or: searchCond }] };
+    }
+
+    const findPage = (filter) => Promise.all([
+      Job.find(filter)
+        .populate("employerId", "companyName logo headquarters industry")
+        .sort(dbSort)
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      Job.countDocuments(filter),
+    ]);
+
+    if (mongoose.connection.readyState === 1) {
       try {
-        const dbSort = sort === "salary_high" ? { "salaryRange.min": -1, _id: -1 }
-          : sort === "salary_low" ? { "salaryRange.min": 1, _id: -1 }
-            : { createdAt: -1, _id: -1 };
-        const [rawJobs, totalMatches] = await Promise.all([Job.find(query)
-          .populate("employerId", "companyName logo headquarters industry")
-          .sort(dbSort).limit(windowSize)
-          .lean(), Job.countDocuments(query)]);
-        campusTotal = totalMatches;
-
-        campusJobs = rawJobs.map((j) => {
-          const salaryStr =
-            j.salaryRange?.max > 0
-              ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
-              : "Competitive Package";
-
-          return {
-            ...j,
-            _id: j._id,
-            id: j._id.toString(),
-            jobId: j._id.toString(),
-            title: j.title,
-            company: j.employerId?.companyName || "CareerConnect Partner",
-            companyName: j.employerId?.companyName || "CareerConnect Partner",
-            companyId: j.employerId?._id || "",
-            location: j.location,
-            city: j.city,
-            salary: salaryStr,
-            type: j.employmentType || "Full-Time",
-            opportunityType: j.employmentType || "Full-Time",
-            workMode: j.workMode || "On-Site",
-            requiredSkills: j.requiredSkills || [],
-            skillsRequired: j.requiredSkills || [],
-            skills: j.requiredSkills || [],
-            postedAt: j.createdAt ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Recently",
-            deadline: j.deadline ? new Date(j.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
-            isExclusive: true,
-            isExternal: false,
-          };
-        });
+        if (textQuery) {
+          try {
+            [rawJobs, total] = await findPage(textQuery);
+          } catch (textErr) {
+            console.warn("MongoDB Job text search error, using regex:", textErr.message);
+          }
+        }
+        if (!textQuery || total === 0) {
+          [rawJobs, total] = await findPage(regexQuery);
+        }
       } catch (dbErr) {
         console.warn("MongoDB Job.find error:", dbErr.message);
       }
     }
 
-    let allJobs = campusJobs;
-    if (!isMyJobs && source !== "campus") {
-      try {
-        const scraped = await getAggregatedOpportunities({
-          opportunityType: employmentType && employmentType !== "All" ? employmentType.toLowerCase() : "job",
-          workMode: workMode && workMode !== "All" ? workMode : "all",
-          region: locFilter && locFilter !== "All" ? locFilter : "all",
-          search: searchTerm || (category && category !== "All" ? category : ""),
-        });
+    const formattedJobs = rawJobs.map((j) => {
+      // Missing values are null (the client hides them), never invented text.
+      const salaryStr = formatSalary(j.salaryRange) || textOrNull(j.stipend);
+      const compName = companyOf(j);
 
-        const formattedScraped = (scraped.data || [])
-          .filter((item) => !city || String(item.location || "").toLowerCase().includes(String(city).toLowerCase()))
-          .map((item, idx) => ({
-          _id: `scraped-job-${idx}`,
-          id: `scraped-job-${idx}`,
-          jobId: `scraped-job-${idx}`,
-          title: item.title,
-          company: item.company,
-          employerId: {
-            companyName: item.company,
-            headquarters: item.location,
-          },
-          location: item.location,
-          city: item.location,
-          employmentType: item.opportunityType || "Full-Time",
-          workMode: item.workMode || "On-Site",
-          salary: "Competitive Package",
-          salaryRange: { min: 400000, max: 1200000, currency: "INR" },
-          description: `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
-          responsibilities: ["Deliver on project requirements", "Collaborate with cross-functional engineering team"],
-          requiredSkills: [item.title.split(" ")[0] || "Engineering", "Problem Solving"],
-          applyLink: item.applyLink,
-          isExternal: true,
-          platformSource: item.platformSource,
-          source: item.platformSource,
-          status: "Published",
-          postedAt: item.postedDate || "Recently",
-          postedDate: item.postedDate,
-          createdAt: item.postedDate && !isNaN(new Date(item.postedDate).getTime()) ? new Date(item.postedDate) : new Date(),
-        }));
-
-        if (source === "external") {
-          allJobs = formattedScraped;
-        } else {
-          allJobs = [...campusJobs, ...formattedScraped];
-        }
-      } catch (e) {
-        console.error("Live jobs scraper error:", e.message);
-      }
-    }
-
-    // Sort by latest first (createdAt / postedDate descending) or salary
-    const getTimestamp = (item) => {
-      if (item.createdAt) {
-        const t = new Date(item.createdAt).getTime();
-        if (!isNaN(t)) return t;
-      }
-      if (item.postedDate) {
-        const t = new Date(item.postedDate).getTime();
-        if (!isNaN(t)) return t;
-      }
-      return 0;
-    };
-
-    if (sort === "salary_high") {
-      allJobs.sort((a, b) => (b.salaryRange?.min || 0) - (a.salaryRange?.min || 0));
-    } else if (sort === "salary_low") {
-      allJobs.sort((a, b) => (a.salaryRange?.min || 0) - (b.salaryRange?.min || 0));
-    } else {
-      allJobs.sort((a, b) => getTimestamp(b) - getTimestamp(a));
-    }
-
-    const total = allJobs.length;
-    const paginatedJobs = allJobs.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+      return {
+        ...j,
+        // Lets the employer's own list mark listings past their deadline.
+        isExpired: isListingExpired(j),
+        _id: j._id,
+        id: j._id.toString(),
+        jobId: j._id.toString(),
+        title: j.title,
+        company: compName,
+        companyName: compName,
+        companyId: j.employerId?._id || "",
+        location: j.location,
+        city: j.city,
+        salary: salaryStr,
+        type: textOrNull(j.employmentType),
+        opportunityType: textOrNull(j.employmentType),
+        workMode: textOrNull(j.workMode),
+        requiredSkills: j.requiredSkills || [],
+        skillsRequired: j.requiredSkills || [],
+        skills: j.requiredSkills || [],
+        responsibilities: j.responsibilities || [],
+        postedAt: formatDate(j.createdAt),
+        deadline: formatDate(j.deadline),
+        isExclusive: !j.isExternal,
+        isExternal: Boolean(j.isExternal),
+        source: j.source || (j.isExternal ? "External" : "CareerConnect"),
+        // Own listings are stored with source "CareerConnect" (the old brand); show E2Job.
+        platformSource: j.isExternal ? j.source || "External" : "E2Job",
+        applyLink: j.applyUrl || `/jobs/${j._id}`,
+      };
+    });
 
     return res.status(200).json({
       success: true,
-      count: paginatedJobs.length,
-      jobs: paginatedJobs,
-      data: paginatedJobs,
+      count: formattedJobs.length,
+      jobs: formattedJobs,
+      data: formattedJobs,
       pagination: {
         total,
         page: pageNum,
@@ -326,7 +316,8 @@ exports.getJobById = async (req, res, next) => {
       "companyName logo headquarters industry description website"
     );
 
-    if (!job || (job.status !== "Published" && (!req.user ||
+    const publiclyVisible = job && job.status === "Published" && !isListingExpired(job);
+    if (!job || (!publiclyVisible && (!req.user ||
       !(String(job.createdBy) === String(req.user._id) || await EmployerProfile.exists({
         _id: job.employerId?._id || job.employerId, userId: req.user._id,
       }))))) {
@@ -337,11 +328,11 @@ exports.getJobById = async (req, res, next) => {
     }
 
     // Increment view count
-    if (job.status === "Published") await Job.updateOne({ _id: job._id }, { $inc: { viewsCount: 1 } });
+    if (publiclyVisible) await Job.updateOne({ _id: job._id }, { $inc: { viewsCount: 1 } });
 
     return res.status(200).json({
       success: true,
-      job,
+      job: toPublicListing(job, req.user),
     });
   } catch (error) {
     next(error);
@@ -385,12 +376,18 @@ exports.createJob = async (req, res, next) => {
       recruitmentStages,
     } = req.body;
 
-    if (!title || !location || !description) {
+    if (!hasLocation(location)) {
+      return res.status(400).json({ success: false, message: LOCATION_REQUIRED });
+    }
+    if (!title || !description) {
       return res.status(400).json({
         success: false,
-        message: "Job title, location and description are required",
+        message: "Job title and description are required",
       });
     }
+
+    const invalid = checkListingInput({ deadline, salaryRange });
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
 
     const stages = sanitizeRecruitmentStages(recruitmentStages);
     const companyId = req.user.companyId || null;
@@ -400,9 +397,13 @@ exports.createJob = async (req, res, next) => {
       if (comp) companyName = comp.name;
     }
 
-    // Determine initial moderation status
-    const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
-    const initialStatus = status || (isSuperAdmin ? "Published" : "Pending Approval");
+    // Employers can only submit for approval (or save a draft); only platform admins publish directly
+    const settings = await getPlatformSettings();
+    const moderation = resolveNewListingModeration(req.user, status, {
+      autoApproveJobs: settings.autoApproveJobs,
+      employerApproved: isEmployerApproved(req.employerProfile),
+    });
+    const initialStatus = moderation.status;
 
     // Format and sanitize interview rounds if provided
     let formattedRounds;
@@ -424,14 +425,14 @@ exports.createJob = async (req, res, next) => {
       companyId,
       companyName: companyName || "",
       title: title.trim(),
-      category: category?.trim() || "Web Development",
-      subCategory: subCategory?.trim() || "Frontend Development",
+      category: category?.trim() || "",
+      subCategory: subCategory?.trim() || "",
       department: department?.trim() || "General",
       employmentType: employmentType || "Full-time",
       workMode: workMode || "Hybrid",
       location: location.trim(),
-      city: city?.trim() || "Bangalore",
-      state: state?.trim() || "Karnataka",
+      city: city?.trim() || "",
+      state: state?.trim() || "",
       country: country?.trim() || "India",
       isPaid: isPaid !== false,
       hasJobOffer: !!hasJobOffer,
@@ -439,8 +440,8 @@ exports.createJob = async (req, res, next) => {
       salaryRange: salaryRange || { min: 0, max: 0, currency: "INR", isNegotiable: false },
       stipend: stipend?.trim() || "",
       duration: duration?.trim() || "",
-      experience: experience || { minYears: 0, maxYears: 2, level: "Fresher / Entry-Level" },
-      education: education || "Any Graduate",
+      ...(experience ? { experience } : {}),
+      education: education || "",
       eligibility: eligibility?.trim() || "",
       description: description.trim(),
       responsibilities: Array.isArray(responsibilities) ? responsibilities : [],
@@ -449,7 +450,7 @@ exports.createJob = async (req, res, next) => {
       bonusSkills: Array.isArray(bonusSkills) ? bonusSkills : [],
       openings: openings ? Number(openings) : 1,
       deadline: deadline ? new Date(deadline) : null,
-      status: status || "Published",
+      ...moderation,
       recruitmentStages: stages,
     });
 
@@ -457,7 +458,9 @@ exports.createJob = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: "Job posted successfully",
+      message: initialStatus === "Pending Approval"
+        ? "Job submitted for approval"
+        : "Job saved successfully",
       job,
     });
   } catch (error) {
@@ -470,7 +473,7 @@ exports.updateJob = async (req, res, next) => {
   try {
     const job = await Job.findOne({
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     });
 
     if (!job) {
@@ -482,17 +485,25 @@ exports.updateJob = async (req, res, next) => {
 
     // Only listing fields are editable; ownership and counters are not.
     const updates = pickListingUpdate(req.body);
+    const invalid = checkListingInput(updates, job);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
+    mergePayRanges(updates, job);
     if (req.body.recruitmentStages) {
       updates.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     }
 
+    // A published job whose content changes must be approved again (BUG-02).
+    const sentForReview = requiresReapproval(job, updates);
     Object.assign(job, updates);
+    if (sentForReview) job.status = "Pending Approval";
     await job.save();
     clearSearchCache();
 
     return res.status(200).json({
       success: true,
-      message: "Job updated successfully",
+      message: sentForReview
+        ? "Job updated and sent for approval again. It will be visible once an admin approves it."
+        : "Job updated successfully",
       job,
     });
   } catch (error) {
@@ -500,19 +511,15 @@ exports.updateJob = async (req, res, next) => {
   }
 };
 
-// PATCH /api/jobs/:id/status (Toggle Status: Published / Paused / Closed)
+// PATCH /api/jobs/:id/status (Draft / Pending Approval / Paused / Closed; Published only to re-open an approved job)
 exports.updateJobStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
 
-    const job = await Job.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        createdBy: req.user._id,
-      },
-      { status },
-      { new: true }
-    );
+    const job = await Job.findOne({
+      _id: req.params.id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
+    });
 
     if (!job) {
       return res.status(404).json({
@@ -521,6 +528,16 @@ exports.updateJobStatus = async (req, res, next) => {
       });
     }
 
+    const denied = checkEmployerStatusChange(job, status);
+    if (denied) {
+      return res.status(denied.code).json({ success: false, message: denied.message });
+    }
+
+    const wasClosed = job.status === "Closed";
+    job.status = status;
+    if (status !== "Closed") job.closedReason = null;
+    await job.save();
+    if (status === "Closed" && !wasClosed) notifyListingClosedInBackground("job", job._id, { senderId: req.user._id });
     clearSearchCache();
 
     return res.status(200).json({
@@ -538,7 +555,7 @@ exports.duplicateJob = async (req, res, next) => {
   try {
     const original = await Job.findOne({
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     });
 
     if (!original) {
@@ -551,6 +568,15 @@ exports.duplicateJob = async (req, res, next) => {
     delete duplicateData.updatedAt;
     duplicateData.title = `${original.title} (Copy)`;
     duplicateData.status = "Draft";
+    // The copy is a new listing and needs its own moderation decision
+    duplicateData.approvedBy = null;
+    duplicateData.approvedAt = null;
+    duplicateData.approvalMethod = null;
+    duplicateData.rejectedBy = null;
+    duplicateData.rejectedAt = null;
+    duplicateData.rejectionReason = null;
+    duplicateData.adminNote = null;
+    duplicateData.isFeatured = false;
     duplicateData.viewsCount = 0;
     duplicateData.applicantsCount = 0;
     if (Array.isArray(original.recruitmentStages)) {
@@ -578,7 +604,7 @@ exports.deleteJob = async (req, res, next) => {
   try {
     const ownerQuery = {
       _id: req.params.id,
-      createdBy: req.user._id,
+      $or: listingOwnerClauses(await getOwnerScope(req.user)),
     };
     let job = await Job.findOneAndDelete(ownerQuery);
     if (!job) {

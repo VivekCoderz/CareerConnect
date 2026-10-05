@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../common/BrandLogo";
+import { FEATURES } from "../../config/features";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
@@ -15,7 +16,6 @@ const NAV_ITEMS = [
   { id: "resume", label: "Resume", link: "/resume-builder", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
   { id: "achievements", label: "Achievements", icon: "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" },
   { id: "certifications", label: "Certifications", icon: "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" },
-  { id: "insights", label: "Career Insights", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
   { id: "profile", label: "My Profile", link: "/professional/profile", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
 ];
 
@@ -68,7 +68,7 @@ const ProfessionalSidebar = ({
               {!collapsed && (
                 <div className="transition-opacity duration-200 whitespace-nowrap">
                   <span className="font-bold text-slate-900 tracking-tight text-base block leading-none">
-                    CareerConnect
+                    E2Job
                   </span>
                   <span className="block text-[10px] font-semibold text-purple-600 tracking-wider uppercase mt-0.5">
                     Professional Hub
@@ -109,7 +109,7 @@ const ProfessionalSidebar = ({
 
           {/* Nav List */}
           <div className="py-4 px-2.5 space-y-0.5 overflow-y-auto flex-1 scrollbar-thin">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.filter((item) => item.id !== "courses" || FEATURES.courses).map((item) =>  {
               const isActive = activeTab === item.id;
               if (item.link) {
                 return (

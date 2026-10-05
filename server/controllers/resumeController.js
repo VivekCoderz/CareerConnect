@@ -6,7 +6,8 @@ const {
   tailorResumeForOpportunity,
   generateATSResume,
   analyzeResumeAgainstJD,
-  fixAndOptimizeResumeWithAI,
+  mockTailor,
+  enforceGrounding,
 } = require("../services/aiResumeservice.js");
 const Resume = require("../models/Resume.js");
 const User = require("../models/User.js");
@@ -20,6 +21,19 @@ const { uploadResumeToCloudinary } = require("../config/cloudinary.js");
 const { generateResumePdfBuffer } = require("../utils/generateResumePdf.js");
 const { PDFParse } = require("pdf-parse");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const {
+  analyzeATSMatch,
+  assessATSResumeFormat,
+  MINIMUM_SCORE_IMPROVEMENT,
+  parseJobDescriptionText,
+  selectBestATSResume,
+} = require("../services/atsScoringService.js");
+const { runWithGeminiCascade } = require("../services/geminiCascade");
+const { splitOtherSkills, mergeSkillStrings } = require("../utils/skills");
+const { webUrlOrEmpty } = require("../utils/webUrl");
+const mongoose = require("mongoose");
+const atsPdfWorkflow = require("../services/atsPdfWorkflow");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 /**
  * POST /api/resume/generate
@@ -144,7 +158,7 @@ const updateResumeHandler = async (req, res) => {
 
 const syncPrimaryResumeWithProfile = async (userId, resume) => {
   try {
-    const resumeName = resume.title || "CareerConnect Resume";
+    const resumeName = resume.title || "E2Job Resume";
     const userUpdates = { resumeName };
     if (resume.resumeUrl) {
       userUpdates.resumeUrl = resume.resumeUrl;
@@ -552,8 +566,8 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
 
   profile.socialLinks = {
     ...profile.socialLinks?.toObject?.(),
-    linkedin: String(rawData.personal?.linkedin || user.socialLinks?.linkedin || "").trim(),
-    github: String(rawData.personal?.github || user.socialLinks?.github || "").trim(),
+    linkedin: webUrlOrEmpty(rawData.personal?.linkedin) || webUrlOrEmpty(user.socialLinks?.linkedin),
+    github: webUrlOrEmpty(rawData.personal?.github) || webUrlOrEmpty(user.socialLinks?.github),
     portfolio: String(rawData.personal?.portfolio || user.socialLinks?.portfolio || "").trim(),
   };
 
@@ -600,8 +614,8 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
         item.description?.trim() ||
         "Developed full-stack web application with responsive UI, secure authentication, and database integration.",
       technologies: splitSkills(item.technologies),
-      githubUrl: item.github?.trim() || item.githubUrl?.trim() || "",
-      liveUrl: item.live?.trim() || item.liveUrl?.trim() || "",
+      githubUrl: webUrlOrEmpty(item.github) || webUrlOrEmpty(item.githubUrl),
+      liveUrl: webUrlOrEmpty(item.live) || webUrlOrEmpty(item.liveUrl),
       projectType: "Personal",
     }));
 
@@ -635,12 +649,16 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
     if (education.length > 0) profile.education = education;
     if (projects.length > 0) profile.projects = projects;
     if (experience.length > 0) profile.experience = experience;
+    // "Other" skills are mostly technical (HTML5, NumPy, DBMS...); only real
+    // interpersonal skills go to softSkills (T02).
+    const otherSkills = splitOtherSkills(splitSkills(rawData.skills?.other));
     profile.technicalSkills = [
       ...splitSkills(rawData.skills?.programmingLanguages),
       ...splitSkills(rawData.skills?.frameworks),
       ...splitSkills(rawData.skills?.tools),
+      ...otherSkills.technical,
     ];
-    profile.softSkills = splitSkills(rawData.skills?.other);
+    profile.softSkills = otherSkills.soft;
     profile.interests =
       profile.interests && profile.interests.length > 0
         ? profile.interests
@@ -717,8 +735,8 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
       isProfileComplete: true,
       profileCompletion: 100,
       socialLinks: {
-        linkedin: String(rawData.personal?.linkedin || user.socialLinks?.linkedin || "").trim(),
-        github: String(rawData.personal?.github || user.socialLinks?.github || "").trim(),
+        linkedin: webUrlOrEmpty(rawData.personal?.linkedin) || webUrlOrEmpty(user.socialLinks?.linkedin),
+        github: webUrlOrEmpty(rawData.personal?.github) || webUrlOrEmpty(user.socialLinks?.github),
         portfolio: String(rawData.personal?.portfolio || user.socialLinks?.portfolio || "").trim(),
       },
       ...(effectiveResumeUrl
@@ -1260,39 +1278,18 @@ ${rawText.slice(0, 10000)}
 `;
 
   const genAI = new GoogleGenerativeAI(key);
-  const modelsToTry = [
-    process.env.GEMINI_MODEL,
-    "gemini-3.6-flash",
-    "gemini-flash-lite-latest",
-    "gemini-3.5-flash-lite",
-    "gemini-3-flash-preview",
-    "gemini-flash-latest",
-    "gemini-3.8-flash",
-  ].filter(Boolean);
-  const uniqueModels = [...new Set(modelsToTry)];
-
-  for (const modelName of uniqueModels) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text() || "{}";
-        const cleanJson = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-        return JSON.parse(cleanJson);
-      } catch (err) {
-        const isTransient = /503|fetch failed|terminated|high demand|overloaded|ECONNRESET/i.test(err.message);
-        if (isTransient && attempt < 2) {
-          console.warn(`AI resume parsing with ${modelName} attempt ${attempt} transient issue (${err.message}). Retrying in 1200ms...`);
-          await new Promise((r) => setTimeout(r, 1200));
-          continue;
-        }
-        console.warn(`AI resume parsing with ${modelName} warning:`, err.message);
-        break;
-      }
-    }
+  try {
+    // At most GEMINI_MAX_CALLS (default 2) calls; see services/geminiCascade.js
+    return await runWithGeminiCascade(async (modelName) => {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text() || "{}";
+      const cleanJson = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+      return JSON.parse(cleanJson);
+    }, { label: "AI resume parsing" });
+  } catch {
+    return null;
   }
-
-  return null;
 };
 
 /**
@@ -1389,6 +1386,7 @@ const uploadAndParseResumeHandler = async (req, res) => {
     }
 
     // Fallback if AI parse fails: construct minimum structured JSON from user data
+    const aiParsed = Boolean(parsedData);
     if (!parsedData) {
       parsedData = {
         personal: {
@@ -1464,7 +1462,10 @@ const uploadAndParseResumeHandler = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Resume uploaded, parsed by AI, and profile saved successfully!",
+      message: aiParsed
+        ? "Resume uploaded, parsed by AI, and profile saved successfully!"
+        : "Resume uploaded. Our AI is busy right now, so your profile was not filled in automatically. You can add your details yourself.",
+      aiParsed,
       resumeUrl,
       resumeName,
       publicId,
@@ -1553,6 +1554,34 @@ const parseResumeHandler = async (req, res) => {
       } catch (uploadErr) {
         console.warn("Cloudinary upload during parse warning:", uploadErr.message);
       }
+    }
+
+    // ATS Lab uploads should become independent, selectable library entries.
+    // Other resume-import flows keep their existing review-before-save behavior.
+    let savedResume = null;
+    if (req.user?._id && String(req.body?.saveToLibrary || "").toLowerCase() === "true") {
+      const baseTitle = String(resumeName || "Uploaded resume")
+        .replace(/\.pdf$/i, "")
+        .trim()
+        .slice(0, 120) || "Uploaded resume";
+      const escapedTitle = baseTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const existingCopies = await Resume.countDocuments({
+        user: req.user._id,
+        isTailored: { $ne: true },
+        title: new RegExp(`^${escapedTitle}(?: \\(\\d+\\))?$`, "i"),
+      });
+      const title = existingCopies ? `${baseTitle} (${existingCopies + 1})` : baseTitle;
+      const existingCount = await Resume.countDocuments({ user: req.user._id });
+
+      savedResume = await Resume.create({
+        user: req.user._id,
+        title,
+        rawData: parsedData,
+        generatedData: parsedData,
+        selectedTemplate: "classic",
+        isPrimary: existingCount === 0,
+        resumeUrl,
+      });
     }
 
     // 4. Fetch existing profile data for immediate diff comparison in the frontend review modal
@@ -1659,6 +1688,7 @@ const parseResumeHandler = async (req, res) => {
       existingProfile,
       resumeUrl,
       resumeName,
+      savedResume,
     });
   } catch (error) {
     console.error("parseResumeHandler error:", error);
@@ -1717,8 +1747,8 @@ const confirmParsedProfileHandler = async (req, res) => {
     }
 
     const mergedSocialLinks = {
-      linkedin: parsedData.personal?.linkedin || user.socialLinks?.linkedin || "",
-      github: parsedData.personal?.github || user.socialLinks?.github || "",
+      linkedin: webUrlOrEmpty(parsedData.personal?.linkedin) || webUrlOrEmpty(user.socialLinks?.linkedin),
+      github: webUrlOrEmpty(parsedData.personal?.github) || webUrlOrEmpty(user.socialLinks?.github),
       portfolio: parsedData.personal?.portfolio || user.socialLinks?.portfolio || "",
     };
     userUpdates.socialLinks = mergedSocialLinks;
@@ -1806,8 +1836,8 @@ const confirmParsedProfileHandler = async (req, res) => {
             name: title,
             description: rawDesc.trim() || "Project details",
             technologies: splitSkills(np.technologies),
-            githubUrl: np.github?.trim() || "",
-            liveUrl: np.live?.trim() || "",
+            githubUrl: webUrlOrEmpty(np.github),
+            liveUrl: webUrlOrEmpty(np.live),
           });
         }
       }
@@ -1900,15 +1930,18 @@ const confirmParsedProfileHandler = async (req, res) => {
           ...currentSkills.toObject?.(),
           programmingLanguages: mergeSkillStrings(
             currentSkills.programmingLanguages || [],
-            splitSkills(parsedData.skills?.programmingLanguages)
+            splitSkills(parsedData.skills?.programmingLanguages),
+            { asObjects: true }
           ),
           frameworks: mergeSkillStrings(
             currentSkills.frameworks || [],
-            splitSkills(parsedData.skills?.frameworks)
+            splitSkills(parsedData.skills?.frameworks),
+            { asObjects: true }
           ),
           tools: mergeSkillStrings(
             currentSkills.tools || [],
-            splitSkills(parsedData.skills?.tools)
+            splitSkills(parsedData.skills?.tools),
+            { asObjects: true }
           ),
         };
       }
@@ -2113,6 +2146,119 @@ const confirmParsedProfileHandler = async (req, res) => {
   }
 };
 
+/** POST /api/resume/ats-score */
+const analyzeATSResumeHandler = async (req, res) => {
+  try {
+    const {
+      resumeId,
+      resumeData: submittedResumeData,
+      opportunityType,
+      opportunityId,
+      jobTitle,
+      jobDescription,
+      requiredSkills = [],
+      preferredSkills = [],
+    } = req.body;
+
+    let resumeData = submittedResumeData;
+    if (resumeId) {
+      if (!mongoose.Types.ObjectId.isValid(resumeId)) {
+        return res.status(400).json({ success: false, message: "Invalid resume reference" });
+      }
+      const resume = await Resume.findOne({ _id: resumeId, user: req.user._id }).lean();
+      if (!resume) return res.status(404).json({ success: false, message: "Resume not found" });
+      resumeData = resume.generatedData || resume.rawData;
+    }
+
+    if (!resumeData || typeof resumeData !== "object" || Array.isArray(resumeData)) {
+      return res.status(400).json({ success: false, message: "Select or upload a valid resume" });
+    }
+    if (JSON.stringify(resumeData).length > 500000) {
+      return res.status(413).json({ success: false, message: "Resume data is too large" });
+    }
+
+    let opportunity = {
+      title: typeof jobTitle === "string" ? jobTitle.trim() : "",
+      description: typeof jobDescription === "string" ? jobDescription.trim() : "",
+      requiredSkills: Array.isArray(requiredSkills) ? requiredSkills.slice(0, 50) : [],
+      preferredSkills: Array.isArray(preferredSkills) ? preferredSkills.slice(0, 50) : [],
+      responsibilities: [],
+    };
+
+    if (opportunityId) {
+      if (!mongoose.Types.ObjectId.isValid(opportunityId)) {
+        return res.status(400).json({ success: false, message: "Invalid opportunity reference" });
+      }
+      const isInternship = String(opportunityType || "").toLowerCase() === "internship";
+      const Model = isInternship ? Internship : Job;
+      const record = await Model.findOne(openListingQuery({ _id: opportunityId })).lean();
+      if (!record) return res.status(404).json({ success: false, message: "Published opportunity not found" });
+      opportunity = {
+        title: record.title,
+        description: record.description,
+        requiredSkills: record.requiredSkills || [],
+        preferredSkills: record.preferredSkills || [],
+        responsibilities: record.responsibilities || [],
+        education: record.education || "",
+        experience: record.experience || "",
+      };
+    }
+
+    if (!opportunity.title || opportunity.title.length > 150) {
+      return res.status(400).json({ success: false, message: "A valid target job title is required" });
+    }
+    if (!opportunity.description || opportunity.description.length < 30 || opportunity.description.length > 15000) {
+      return res.status(400).json({ success: false, message: "Job description must be between 30 and 15,000 characters" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      opportunity: { title: opportunity.title },
+      analysis: analyzeATSMatch(resumeData, opportunity),
+    });
+  } catch (error) {
+    console.error("analyzeATSResumeHandler error:", error);
+    return res.status(500).json({ success: false, message: "Failed to analyze resume", error: publicError(error) });
+  }
+};
+
+/** POST /api/resume/parse-job-description */
+const parseJobDescriptionHandler = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Please upload a job description PDF" });
+    }
+
+    const isPdfName = req.file.originalname?.toLowerCase().endsWith(".pdf");
+    const isPdfSignature = req.file.buffer?.subarray(0, 5).toString("ascii") === "%PDF-";
+    if (!isPdfName || !isPdfSignature) {
+      return res.status(400).json({ success: false, message: "Only a valid PDF job description is supported" });
+    }
+
+    const extractedText = await extractTextFromPdfBuffer(req.file.buffer);
+    if (!extractedText || extractedText.trim().length < 30) {
+      return res.status(422).json({
+        success: false,
+        message: "No readable job description text was found. This PDF may be scanned; paste the description instead.",
+      });
+    }
+
+    const jobDescription = parseJobDescriptionText(extractedText);
+    return res.status(200).json({
+      success: true,
+      fileName: req.file.originalname,
+      jobDescription,
+    });
+  } catch (error) {
+    console.error("parseJobDescriptionHandler error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to read the job description PDF",
+      error: publicError(error),
+    });
+  }
+};
+
 /**
  * POST /api/resume/tailor
  * Generates a Job- or Internship-specific tailored resume based exclusively
@@ -2125,7 +2271,7 @@ const tailorResumeHandler = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const { opportunityType, opportunityId, opportunityData, template } = req.body;
+    const { opportunityType, opportunityId, opportunityData, template, sourceResumeData } = req.body;
 
     let targetOpportunity = { ...(opportunityData || {}) };
 
@@ -2214,7 +2360,13 @@ const tailorResumeHandler = async (req, res) => {
           .lean()
       : null;
 
-    let userData = primaryResume?.rawData || latestResume?.rawData;
+    let userData = sourceResumeData && typeof sourceResumeData === "object" && !Array.isArray(sourceResumeData)
+      ? sourceResumeData
+      : (primaryResume?.rawData || latestResume?.rawData);
+
+    if (userData && JSON.stringify(userData).length > 500000) {
+      return res.status(413).json({ success: false, message: "Resume data is too large" });
+    }
 
     if (!userData) {
       // Load from profile using getProfileForResume mapping logic
@@ -2283,11 +2435,35 @@ const tailorResumeHandler = async (req, res) => {
 
     // 2. Call tailored resume generator with strict NO-INVENTION rules
     const selectedTemplate = template || primaryResume?.selectedTemplate || "classic";
-    const tailoredGeneratedData = await tailorResumeForOpportunity(
+    const aiTailoredData = await tailorResumeForOpportunity(
       userData,
       targetOpportunity,
       selectedTemplate
     );
+
+    // Never save a tailored version that scores below its source. Compare the
+    // AI output with a deterministic grounded pass and the original, then keep
+    // the strongest truthful candidate. Missing user evidence is never invented.
+    const groundedTailoredData = enforceGrounding(
+      mockTailor(userData, targetOpportunity, selectedTemplate),
+      userData
+    );
+    const bestCandidate = selectBestATSResume(userData, [
+      { source: "ai", data: aiTailoredData },
+      { source: "grounded", data: groundedTailoredData },
+    ], targetOpportunity, 80);
+    const originalAnalysis = bestCandidate.originalAnalysis;
+    const tailoredGeneratedData = bestCandidate.data;
+    const tailoredAnalysis = bestCandidate.analysis;
+
+    tailoredGeneratedData.tailoredMeta = {
+      ...(tailoredGeneratedData.tailoredMeta || {}),
+      originalScore: originalAnalysis.overallScore,
+      tailoredScore: tailoredAnalysis.overallScore,
+      targetScore: 80,
+      targetReached: tailoredAnalysis.overallScore >= 80,
+      optimizationSource: bestCandidate.source,
+    };
 
     const oppCleanName = (targetOpportunity.title || "Role").replace(/[^a-zA-Z0-9_-]/g, "_");
     const resumeTitle = `Tailored - ${targetOpportunity.title} (${targetOpportunity.companyName || "Opportunity"})`;
@@ -2361,6 +2537,7 @@ const tailorResumeHandler = async (req, res) => {
       resumeUrl: tailoredRecord.resumeUrl,
       generatedData: tailoredGeneratedData,
       tailoredMeta: tailoredGeneratedData.tailoredMeta || {},
+      scoreComparison: bestCandidate.comparison,
     });
   } catch (error) {
     console.error("tailorResumeHandler error:", error);
@@ -2457,10 +2634,69 @@ const generateATSResumeHandler = async (req, res) => {
   }
 };
 
-/**
- * POST /api/resume/ats-check
- * Accepts multipart file (req.file) OR resumeText / resumeData + jobDescription
- */
+const buildATSOpportunity = (jobDescription, targetRole = "") => {
+  const parsed = parseJobDescriptionText(jobDescription);
+  return {
+    title: String(targetRole || parsed.title || "Target role").trim().slice(0, 150),
+    description: parsed.description,
+    requiredSkills: parsed.requiredSkills,
+    preferredSkills: [],
+    responsibilities: [],
+  };
+};
+
+// Null when any part couldn't be measured (no invented score for it).
+const percentageOf = (value, maximum) => (value === null || value === undefined
+  ? null
+  : Math.round((Number(value) / maximum) * 100));
+const sumOrNull = (...values) => (values.some((v) => v === null) ? null : values.reduce((a, b) => a + b, 0));
+
+const mergeVerifiedATSReport = (richReport, deterministic, candidateData, targetRole, companyName) => {
+  const formatAssessment = assessATSResumeFormat(candidateData);
+  const scoreParameters = [
+    { key: "skills", label: "Verified skill match", earned: deterministic.sections.skills, maximum: 40, explanation: "JD skills supported by the resume" },
+    { key: "keywords", label: "Job-description keywords", earned: deterministic.sections.keywords, maximum: 25, explanation: "Relevant JD language found naturally" },
+    { key: "experience", label: "Relevant evidence", earned: deterministic.sections.experience, maximum: 15, explanation: "Projects, internships, and work evidence" },
+    { key: "completeness", label: "Section completeness", earned: deterministic.sections.completeness, maximum: 10, explanation: "Summary, skills, education, and evidence" },
+    { key: "impact", label: "Achievement impact", earned: deterministic.sections.impact, maximum: 5, explanation: "Action verbs and verified measurable outcomes" },
+    { key: "readability", label: "ATS readability", earned: deterministic.sections.readability, maximum: 5, explanation: "Contact details and machine-readable sections" },
+  ];
+
+  return ({
+  ...(richReport || {}),
+  atsScore: deterministic.overallScore,
+  scoreUnavailable: deterministic.scoreUnavailable,
+  scoreUnavailableReason: deterministic.scoreUnavailableReason,
+  matchGrade: deterministic.rating,
+  targetRole: targetRole || richReport?.targetRole || "Target Opportunity",
+  companyName: companyName || richReport?.companyName || "",
+  scoreBreakdown: {
+    keywordMatch: percentageOf(deterministic.sections.keywords, 25),
+    experienceImpact: percentageOf(sumOrNull(deterministic.sections.experience, deterministic.sections.impact), 20),
+    formattingAndClarity: percentageOf(sumOrNull(deterministic.sections.completeness, deterministic.sections.readability), 15),
+    skillsCoverage: percentageOf(deterministic.sections.skills, 40),
+  },
+  skillGapAnalysis: {
+    ...(richReport?.skillGapAnalysis || {}),
+    matchingSkills: deterministic.matchedSkills.map((name) => ({ name, foundIn: "Verified resume" })),
+    missingCriticalSkills: deterministic.missingSkills.map((name) => ({
+      name,
+      importance: "High",
+      whereToAdd: "Add only if you genuinely have this skill, with evidence in a project or experience bullet.",
+    })),
+    missingPreferredSkills: [],
+    totalJdSkillsCount: deterministic.matchedSkills.length + deterministic.missingSkills.length,
+    matchedCount: deterministic.matchedSkills.length,
+  },
+  scoreMethod: "E2Job deterministic ATS matcher",
+  scoreDisclaimer: deterministic.disclaimer,
+  scoreParameters,
+  formatAssessment,
+  requiresFix: (deterministic.overallScore !== null && deterministic.overallScore < 80) || !formatAssessment.isProperFormat,
+  candidateData,
+  });
+};
+
 /**
  * POST /api/resume/ats-check
  * Accepts multipart file (req.file) OR resumeText / resumeData + jobDescription
@@ -2481,6 +2717,14 @@ const atsCheckHandler = async (req, res) => {
     let parsedCandidate = null;
 
     if (req.file) {
+      const isPdfName = req.file.originalname?.toLowerCase().endsWith(".pdf");
+      const isPdfSignature = req.file.buffer?.subarray(0, 5).toString("ascii") === "%PDF-";
+      if (!isPdfName || !isPdfSignature) {
+        return res.status(400).json({
+          success: false,
+          message: "ATS scanning currently supports valid PDF resume files only.",
+        });
+      }
       const extractedText = await extractTextFromPdfBuffer(req.file.buffer);
       if (!extractedText || !extractedText.trim()) {
         return res.status(400).json({
@@ -2588,11 +2832,18 @@ const atsCheckHandler = async (req, res) => {
       targetRole.trim(),
       companyName.trim()
     );
+    const opportunity = buildATSOpportunity(jobDescription.trim(), targetRole.trim());
+    const deterministic = analyzeATSMatch(parsedCandidate, opportunity);
 
     return res.status(200).json({
       success: true,
-      ...auditReport,
-      candidateData: parsedCandidate,
+      ...mergeVerifiedATSReport(
+        auditReport,
+        deterministic,
+        parsedCandidate,
+        opportunity.title,
+        companyName.trim()
+      ),
     });
   } catch (error) {
     console.error("atsCheckHandler error:", error);
@@ -2633,12 +2884,95 @@ const atsFixHandler = async (req, res) => {
       enriched.personal.phone = req.user?.phone || "";
     }
 
-    const fixedResult = await fixAndOptimizeResumeWithAI(
-      enriched,
+    const opportunity = buildATSOpportunity(
       jobDescription.trim(),
-      gapAnalysis,
-      template || "classic"
+      String(gapAnalysis?.targetRole || "").trim()
     );
+    opportunity.companyName = String(gapAnalysis?.companyName || "").trim();
+
+    const originalAnalysis = analyzeATSMatch(enriched, opportunity);
+    const originalFormat = assessATSResumeFormat(enriched);
+    if (originalAnalysis.scoreUnavailable) {
+      return res.status(200).json({
+        success: true,
+        fixedResume: enriched,
+        previousAtsScore: null,
+        improvedAtsScore: null,
+        scoreImprovement: null,
+        scoreUnavailable: true,
+        scoreUnavailableReason: originalAnalysis.scoreUnavailableReason,
+        scoreAnalysis: originalAnalysis,
+        formatAssessment: originalFormat,
+        selectedSource: "original",
+        fixesAppliedCount: 0,
+        wasModified: false,
+        template: template || "classic",
+        message: "No changes were made: without skills or keywords in the job description, an improvement can't be measured.",
+      });
+    }
+    if (originalAnalysis.overallScore >= 80 && originalFormat.isProperFormat) {
+      return res.status(200).json({
+        success: true,
+        fixedResume: enriched,
+        previousAtsScore: originalAnalysis.overallScore,
+        improvedAtsScore: originalAnalysis.overallScore,
+        scoreImprovement: 0,
+        minimumScoreImprovement: MINIMUM_SCORE_IMPROVEMENT,
+        targetScore: 80,
+        targetReached: true,
+        scoreAnalysis: originalAnalysis,
+        formatAssessment: originalFormat,
+        remainingGaps: originalAnalysis.missingSkills,
+        selectedSource: "original",
+        fixesAppliedCount: 0,
+        wasModified: false,
+        template: template || "classic",
+        message: "No changes were required. The resume already meets the ATS score and format checks.",
+      });
+    }
+
+    // Reorder and rewrite only verified candidate data. This path never adds a
+    // missing skill, company, credential, or made-up metric to chase a score.
+    const groundedTailored = enforceGrounding(
+      mockTailor(enriched, opportunity, template || "classic"),
+      enriched
+    );
+    const selected = selectBestATSResume(
+      enriched,
+      [{ source: "grounded-tailoring", data: groundedTailored }],
+      opportunity,
+      80
+    );
+    const candidateEvaluation = selected.evaluatedCandidates?.[0];
+    const wasModified = selected.source !== "original";
+    const selectionMessage = !wasModified
+      ? candidateEvaluation?.preservation?.passed === false
+        ? "No regenerated resume was produced because the candidate version did not preserve every verified section from the source resume."
+        : candidateEvaluation?.formatAssessment?.isProperFormat === false
+          ? "No regenerated resume was produced because the candidate version did not pass the professional format checks. The uploaded resume remains unchanged."
+        : `The source resume was preserved because the candidate version improved the match score by fewer than ${selected.comparison.minimumScoreImprovement} points. Review the evidence-based recommendations instead of replacing a stronger resume.`
+      : selected.comparison.targetReached
+        ? "The verified resume reached the 80+ match target. Review it before applying."
+        : "The resume improved without removing verified content. Add genuine evidence for the remaining gaps to reach 80+.";
+    const fixedResult = {
+      fixedResume: selected.data,
+      previousAtsScore: selected.comparison.originalScore,
+      improvedAtsScore: selected.comparison.tailoredScore,
+      scoreImprovement: selected.comparison.tailoredScore - selected.comparison.originalScore,
+      minimumScoreImprovement: selected.comparison.minimumScoreImprovement,
+      targetScore: selected.comparison.targetScore,
+      targetReached: selected.comparison.targetReached,
+      scoreAnalysis: selected.analysis,
+      formatAssessment: assessATSResumeFormat(selected.data),
+      remainingGaps: selected.analysis.missingSkills,
+      selectedSource: selected.source,
+      wasModified,
+      preservation: selected.preservation,
+      candidateEvaluation,
+      fixesAppliedCount: wasModified ? Math.max(1, (gapAnalysis?.mistakesAndIssues || []).length) : 0,
+      template: template || "classic",
+      message: selectionMessage,
+    };
 
     return res.status(200).json({
       success: true,
@@ -2650,6 +2984,107 @@ const atsFixHandler = async (req, res) => {
       success: false,
       message: "Failed to fix and optimize resume",
       error: publicError(error),
+    });
+  }
+};
+
+const readAtsPdfPair = async (req) => {
+  const resume = req.files?.resume?.[0];
+  const jobDescription = req.files?.jobDescription?.[0];
+  if (!resume || !jobDescription) {
+    const error = new Error("Upload both a resume PDF and a job description PDF.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const [resumeText, jdText] = await Promise.all([
+    atsPdfWorkflow.extractPdfText(resume.buffer),
+    atsPdfWorkflow.extractPdfText(jobDescription.buffer),
+  ]);
+  return { resumeText, jdText };
+};
+
+const atsPdfCheckHandler = async (req, res) => {
+  try {
+    const { resumeText, jdText } = await readAtsPdfPair(req);
+    return res.json({ success: true, ...atsPdfWorkflow.scorePdfText(resumeText, jdText) });
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({ success: false, message: error.message });
+  }
+};
+
+const atsPdfOptimizeHandler = async (req, res) => {
+  try {
+    const { resumeText, jdText } = await readAtsPdfPair(req);
+    const additionalEvidence = String(req.body?.additionalEvidence || "").trim();
+    if (additionalEvidence.length > 2500) {
+      return res.status(400).json({ success: false, message: "Project, coursework or experience details must be 2,500 characters or fewer." });
+    }
+    const original = atsPdfWorkflow.scorePdfText(resumeText, jdText);
+    if (original.scoreUnavailable) {
+      return res.status(422).json({
+        success: false,
+        code: "SCORE_UNAVAILABLE",
+        message: original.scoreUnavailableReason,
+        original,
+      });
+    }
+    let confirmedSkills;
+    try {
+      confirmedSkills = req.body?.confirmedSkills ? JSON.parse(req.body.confirmedSkills) : [];
+    } catch {
+      return res.status(400).json({ success: false, message: "Choose valid skills from the job requirements." });
+    }
+    if (!Array.isArray(confirmedSkills) || confirmedSkills.length > 30 ||
+      confirmedSkills.some((skill) => typeof skill !== "string" || !original.missingSkills.includes(skill)) ||
+      ((confirmedSkills.length > 0 || Boolean(additionalEvidence)) && req.body?.claimsConfirmed !== "true")) {
+      return res.status(400).json({ success: false, message: "Confirm only skills and details you can truthfully support." });
+    }
+    confirmedSkills = [...new Set(confirmedSkills)];
+    if (original.atsScore >= 70) {
+      return res.status(409).json({ success: false, message: "This resume already meets the 70-point threshold. No replacement was generated.", original });
+    }
+    const sourceWithEvidence = [
+      resumeText,
+      confirmedSkills.length ? `Skills\n${confirmedSkills.join(", ")}` : "",
+      additionalEvidence ? `Projects and Coursework\n${additionalEvidence}` : "",
+    ].filter(Boolean).join("\n");
+    const latex = atsPdfWorkflow.createLatexResume(sourceWithEvidence, jdText);
+    const pdf = await atsPdfWorkflow.compileLatex(latex, { fallbackText: sourceWithEvidence, jdText });
+    const generatedText = await atsPdfWorkflow.extractPdfText(pdf);
+    const preservation = atsPdfWorkflow.preservedSourceText(resumeText, generatedText);
+    const optimized = atsPdfWorkflow.scorePdfText(generatedText, jdText);
+    const improvement = optimized.atsScore - original.atsScore;
+    if (preservation.ratio < 0.95) {
+      return res.status(422).json({ success: false, message: "The generated PDF did not retain enough source content. Please review the uploaded resume PDF.", original, optimized });
+    }
+    const targetScore = Math.max(70, original.atsScore + 15);
+    if (optimized.atsScore < targetScore) {
+      return res.status(409).json({
+        success: false,
+        code: "INSUFFICIENT_EVIDENCE",
+        message: "The available resume details do not yet meet the improvement target. Confirm skills you genuinely have or add specific project, coursework or work details.",
+        original,
+        optimized,
+        improvement,
+        targetScore,
+      });
+    }
+    return res.json({
+      success: true,
+      original,
+      optimized,
+      improvement,
+      targetScore,
+      metTarget: true,
+      latex,
+      pdfBase64: pdf.toString("base64"),
+      fileName: "E2Job_ATS_Resume.pdf",
+    });
+  } catch (error) {
+    console.error("atsPdfOptimizeHandler failed:", error.code || error.name || "unknown error");
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.statusCode ? error.message : "Could not generate the resume PDF. Please try again.",
     });
   }
 };
@@ -2669,9 +3104,13 @@ module.exports = {
   getProfileForResume,
   parseResumeHandler,
   confirmParsedProfileHandler,
+  parseJobDescriptionHandler,
+  analyzeATSResumeHandler,
   tailorResumeHandler,
   getTailoredResumeHandler,
   generateATSResumeHandler,
   atsCheckHandler,
   atsFixHandler,
+  atsPdfCheckHandler,
+  atsPdfOptimizeHandler,
 };

@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
+const { openListingQuery } = require("../utils/listingExpiry");
+const { formatSalary, formatStipend, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 const {
   getAggregatedOpportunities,
   getFilterMetadata,
@@ -93,7 +95,7 @@ exports.getOpportunityById = async (req, res, next) => {
 
     if (mongoose.Types.ObjectId.isValid(id)) {
       // 1. Search in Jobs
-      const job = await Job.findOne({ _id: id, status: "Published" }).populate(
+      const job = await Job.findOne(openListingQuery({ _id: id })).populate(
         "employerId",
         "companyName logo headquarters industry description website officialEmail mobile"
       );
@@ -106,18 +108,15 @@ exports.getOpportunityById = async (req, res, next) => {
             _id: job._id,
             id: job._id,
             title: job.title,
-            company: job.employerId?.companyName || "CareerConnect Partner",
+            company: companyOf(job),
             employerId: job.employerId?._id || job.employerId,
             location: job.location,
             workMode: job.workMode,
             employmentType: job.employmentType,
-            opportunityType: job.employmentType || "Full-Time",
-            salary: job.salaryRange?.max
-              ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
-              : "Competitive Package",
-            stipend: job.salaryRange?.max
-              ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
-              : "Competitive Package",
+            opportunityType: textOrNull(job.employmentType),
+            // Missing values are null (the client hides them), never invented text.
+            salary: formatSalary(job.salaryRange),
+            stipend: null,
             description: job.description,
             responsibilities: job.responsibilities || [],
             skills: job.requiredSkills || [],
@@ -127,10 +126,8 @@ exports.getOpportunityById = async (req, res, next) => {
             education: job.education,
             experience: job.experience,
             openings: job.openings,
-            deadline: job.deadline ? new Date(job.deadline).toLocaleDateString() : "Open",
-            postedDate: job.createdAt
-              ? new Date(job.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-              : "Recently",
+            deadline: formatDate(job.deadline),
+            postedDate: formatDate(job.createdAt),
             isExclusive: true,
             isExternal: false,
             platformSource: "GU Placement Cell",
@@ -141,7 +138,7 @@ exports.getOpportunityById = async (req, res, next) => {
       }
 
       // 2. Search in Internships
-      const internship = await Internship.findOne({ _id: id, status: "Published" }).populate(
+      const internship = await Internship.findOne(openListingQuery({ _id: id })).populate(
         "employerId",
         "companyName logo headquarters industry description website officialEmail mobile"
       );
@@ -154,25 +151,23 @@ exports.getOpportunityById = async (req, res, next) => {
             _id: internship._id,
             id: internship._id,
             title: internship.title,
-            company: internship.companyName || internship.employerId?.companyName || "CareerConnect Partner",
+            company: companyOf(internship),
             employerId: internship.employerId?._id || internship.employerId,
             location: internship.location,
             workMode: internship.workMode,
             opportunityType: "Internship",
             employmentType: "Internship",
-            stipend: internship.stipend ? `₹${internship.stipend}/month` : "Paid Internship",
-            salary: internship.stipend ? `₹${internship.stipend}/month` : "Paid Internship",
-            duration: internship.duration,
+            stipend: formatStipend(internship),
+            salary: formatStipend(internship),
+            duration: textOrNull(internship.duration),
             description: internship.description,
             responsibilities: internship.responsibilities || [],
             skills: internship.skillsRequired || [],
             skillsRequired: internship.skillsRequired || [],
             perks: internship.perks || [],
             openings: internship.openings,
-            deadline: internship.applicationDeadline ? new Date(internship.applicationDeadline).toLocaleDateString() : "Open",
-            postedDate: internship.createdAt
-              ? new Date(internship.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-              : "Recently",
+            deadline: formatDate(internship.applicationDeadline || internship.deadline),
+            postedDate: formatDate(internship.createdAt),
             isExclusive: true,
             isExternal: internship.isExternal,
             applyUrl: internship.applyUrl,

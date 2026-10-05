@@ -1,30 +1,8 @@
-const DEFAULT_STATS = {
-  applied: 4,
-  underReview: 2,
-  shortlisted: 1,
-  interview: 1,
-};
-
-const DEFAULT_RECENT = [
-  {
-    id: "app-1",
-    title: "Staff Software Engineer",
-    company: "Stripe",
-    status: "Interview Scheduled",
-    statusType: "interview",
-  },
-  {
-    id: "app-2",
-    title: "Engineering Lead",
-    company: "Razorpay",
-    status: "Under Review",
-    statusType: "review",
-  },
-];
+const EMPTY_STATS = { applied: 0, underReview: 0, shortlisted: 0, interview: 0 };
 
 const ApplicationPipelineCard = ({
-  stats = DEFAULT_STATS,
-  recent = DEFAULT_RECENT,
+  stats = EMPTY_STATS,
+  recent = [],
   onViewAllApplications,
 }) => {
   const getStatusBadge = (statusType) => {
@@ -46,7 +24,7 @@ const ApplicationPipelineCard = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
         <div>
           <h2 className="text-lg font-bold text-slate-900 tracking-tight">Application Pipeline</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Track your active senior transitions and status</p>
+          <p className="text-xs text-slate-500 mt-0.5">Track your applications and their status</p>
         </div>
 
         <button
@@ -64,7 +42,7 @@ const ApplicationPipelineCard = ({
         {/* Applied */}
         <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-center">
           <div className="text-xl sm:text-2xl font-extrabold text-slate-900">
-            {stats.applied ?? 4}
+            {stats.applied ?? 0}
           </div>
           <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
             Applied
@@ -74,7 +52,7 @@ const ApplicationPipelineCard = ({
         {/* Under Review */}
         <div className="p-3.5 bg-amber-50/70 border border-amber-200/70 rounded-2xl text-center">
           <div className="text-xl sm:text-2xl font-extrabold text-amber-800">
-            {stats.underReview ?? 2}
+            {stats.underReview ?? 0}
           </div>
           <div className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider mt-0.5">
             Under Review
@@ -84,7 +62,7 @@ const ApplicationPipelineCard = ({
         {/* Shortlisted */}
         <div className="p-3.5 bg-blue-50/70 border border-blue-200/70 rounded-2xl text-center">
           <div className="text-xl sm:text-2xl font-extrabold text-blue-800">
-            {stats.shortlisted ?? 1}
+            {stats.shortlisted ?? 0}
           </div>
           <div className="text-[11px] font-semibold text-blue-800 uppercase tracking-wider mt-0.5">
             Shortlisted
@@ -94,7 +72,7 @@ const ApplicationPipelineCard = ({
         {/* Interview */}
         <div className="p-3.5 bg-purple-50/70 border border-purple-200/70 rounded-2xl text-center">
           <div className="text-xl sm:text-2xl font-extrabold text-purple-900">
-            {stats.interview ?? 1}
+            {stats.interview ?? 0}
           </div>
           <div className="text-[11px] font-semibold text-purple-800 uppercase tracking-wider mt-0.5">
             Interview
@@ -104,6 +82,9 @@ const ApplicationPipelineCard = ({
 
       {/* Two Most Recent Applications */}
       <div className="space-y-3 pt-1">
+        {recent.length === 0 && (
+          <p className="text-xs text-slate-500">No applications yet. Apply to a job and it shows up here.</p>
+        )}
         {recent.slice(0, 2).map((app) => (
           <div
             key={app.id}

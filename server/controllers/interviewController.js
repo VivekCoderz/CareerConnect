@@ -5,7 +5,16 @@ const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const User = require("../models/User");
 const notificationService = require("../services/notificationService");
+const { notifyInterviewEvent } = require("../services/accountNotifications");
+const { notifyApplicationUpdates } = require("../services/applicationNotifications");
 const socketService = require("../services/socketService");
+const { canTransition, guardedStatusUpdate, normalizeStatus } = require("../utils/applicationStatus");
+const {
+  getOwnerScope,
+  applicationOwnerClauses,
+  interviewOwnerClauses,
+  findOwnedApplication,
+} = require("../utils/employerOwnership");
 
 // Helper to get or create EmployerProfile for the authenticated user
 const getEmployerProfileId = async (user) => {
@@ -19,37 +28,18 @@ const getEmployerProfileId = async (user) => {
   return profile._id;
 };
 
-// Helper to verify employer ownership of a job/internship/application
-const verifyEmployerApplicationAccess = async (employerProfileId, userId, applicationId) => {
-  const allEmployerJobs = await Job.find(
-    {
-      $or: [{ createdBy: userId }, { employerId: employerProfileId }],
-    },
-    "_id"
-  );
+// Statuses from which an interview can be scheduled (BUG-05..13): the candidate must be
+// shortlisted or already in the interview stages. Applied / Under Review must be shortlisted
+// first; Selected, Offered and final statuses are past interviewing.
+const INTERVIEW_ELIGIBLE = [
+  "Shortlisted", "Approved", "In Progress", "Assessment", "Interview", "Interview Scheduled", "Interview Completed",
+];
+// Interviews that don't occupy a round number (the round can be scheduled again).
+const FREED_ROUND_STATUSES = ["cancelled", "Cancelled", "draft"];
 
-  const allEmployerInternships = await Internship.find(
-    {
-      $or: [{ createdBy: userId }, { employerId: employerProfileId }],
-    },
-    "_id"
-  );
-
-  const jobIds = allEmployerJobs.map((j) => j._id);
-  const internshipIds = allEmployerInternships.map((i) => i._id);
-
-  const orConditions = [
-    { employerId: employerProfileId },
-    { employerId: userId },
-  ];
-  if (jobIds.length > 0) orConditions.push({ jobId: { $in: jobIds } });
-  if (internshipIds.length > 0) orConditions.push({ internshipId: { $in: internshipIds } });
-
-  return await Application.findOne({
-    _id: applicationId,
-    $or: orConditions,
-  });
-};
+// Finds an interview run by this employer (or their active company).
+const findOwnedInterview = async (user, interviewId) =>
+  Interview.findOne({ _id: interviewId, $or: interviewOwnerClauses(await getOwnerScope(user)) });
 
 /**
  * Strip everything a candidate must not see from an interview object.
@@ -82,19 +72,7 @@ exports.getInterviews = async (req, res, next) => {
     let query = {};
 
     if (isEmployer) {
-      const myJobs = await Job.find({ createdBy: req.user._id }, "_id");
-      const myInternships = await Internship.find({ createdBy: req.user._id }, "_id");
-      const jobIds = myJobs.map((j) => j._id);
-      const internshipIds = myInternships.map((i) => i._id);
-
-      const empOr = [
-        { employerId: req.user._id },
-        { interviewerId: req.user._id },
-      ];
-      if (jobIds.length > 0) empOr.push({ jobId: { $in: jobIds } });
-      if (internshipIds.length > 0) empOr.push({ internshipId: { $in: internshipIds } });
-
-      query.$or = empOr;
+      query.$or = [...interviewOwnerClauses(await getOwnerScope(req.user)), { interviewerId: req.user._id }];
     } else {
       // Find all application IDs associated with this candidate (by user ID or email)
       const userEmails = [req.user.email].filter(Boolean);
@@ -176,10 +154,7 @@ exports.getInterviews = async (req, res, next) => {
 
     // Base query for stats and tabCounts
     const allForCounts = await Interview.find(isEmployer ? {
-      $or: [
-        { employerId: await getEmployerProfileId(req.user) },
-        { employerId: req.user._id },
-      ],
+      $or: interviewOwnerClauses(await getOwnerScope(req.user)),
     } : query.$or ? { $or: query.$or } : {});
 
     const total = allForCounts.length;
@@ -238,8 +213,7 @@ exports.getInterviewStats = async (req, res, next) => {
     let baseQuery = {};
 
     if (isEmployer) {
-      const employerProfileId = await getEmployerProfileId(req.user);
-      baseQuery.employerId = employerProfileId;
+      baseQuery.$or = interviewOwnerClauses(await getOwnerScope(req.user));
     } else {
       const userEmails = [req.user.email].filter(Boolean);
       const userApps = await Application.find({
@@ -304,9 +278,8 @@ exports.getInterviewStats = async (req, res, next) => {
 
     let selectedCount = 0;
     if (isEmployer) {
-      const employerProfileId = await getEmployerProfileId(req.user);
       selectedCount = await Application.countDocuments({
-        employerId: employerProfileId,
+        $or: await applicationOwnerClauses(await getOwnerScope(req.user)),
         status: { $in: ["Selected", "Hired"] },
       });
     }
@@ -346,37 +319,13 @@ exports.getInterviewStats = async (req, res, next) => {
  */
 exports.getEligibleCandidates = async (req, res, next) => {
   try {
-    const employerProfileId = await getEmployerProfileId(req.user);
-
-    const allEmployerJobs = await Job.find(
-      {
-        $or: [{ createdBy: req.user._id }, { employerId: employerProfileId }],
-      },
-      "_id title department"
-    );
-
-    const allEmployerInternships = await Internship.find(
-      {
-        $or: [{ createdBy: req.user._id }, { employerId: employerProfileId }],
-      },
-      "_id title department"
-    );
-
-    const jobIds = allEmployerJobs.map((j) => j._id);
-    const internshipIds = allEmployerInternships.map((i) => i._id);
-
-    const orConditions = [
-      { employerId: employerProfileId },
-      { employerId: req.user._id },
-    ];
-    if (jobIds.length > 0) orConditions.push({ jobId: { $in: jobIds } });
-    if (internshipIds.length > 0) orConditions.push({ internshipId: { $in: internshipIds } });
+    const orConditions = await applicationOwnerClauses(await getOwnerScope(req.user));
 
     // Eligible applications must be Shortlisted, Approved, Interview Scheduled, or Interview Completed (for next round)
     // NEVER rejected or withdrawn
     const applications = await Application.find({
       $or: orConditions,
-      status: { $in: ["Shortlisted", "Approved", "Interview", "Interview Scheduled", "Interview Completed"] },
+      status: { $in: INTERVIEW_ELIGIBLE },
     })
       .populate("candidateId", "fullName email phone profileImage userType location skills")
       .populate("jobId", "title department location interviewRounds")
@@ -529,7 +478,6 @@ exports.getEligibleCandidates = async (req, res, next) => {
  */
 exports.getInterviewAvailability = async (req, res, next) => {
   try {
-    const employerProfileId = await getEmployerProfileId(req.user);
     const { date, interviewerId, interviewerName, candidateId, duration = 45 } = req.query;
 
     if (!date) {
@@ -555,7 +503,7 @@ exports.getInterviewAvailability = async (req, res, next) => {
       status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
     };
 
-    query.$or = [{ employerId: employerProfileId }, { employerId: req.user._id }];
+    query.$or = interviewOwnerClauses(await getOwnerScope(req.user));
 
     const existingInterviews = await Interview.find(query).select(
       "scheduledTime startTime endTime interviewerId interviewerName candidateId status"
@@ -651,8 +599,8 @@ exports.getInterviewById = async (req, res, next) => {
 
     // Authorization check
     if (isEmployer) {
-      const employerProfileId = await getEmployerProfileId(req.user);
-      if (!interview.employerId || (!interview.employerId._id.equals(employerProfileId) && !interview.employerId._id.equals(req.user._id))) {
+      const owned = await Interview.exists({ _id: interview._id, $or: interviewOwnerClauses(await getOwnerScope(req.user)) });
+      if (!owned) {
         return res.status(403).json({ success: false, message: "Unauthorized access to this interview record" });
       }
     } else {
@@ -723,7 +671,7 @@ exports.scheduleInterview = async (req, res, next) => {
     }
 
     // 1. Verify application exists and belongs to this employer
-    const application = await verifyEmployerApplicationAccess(employerProfileId, req.user._id, applicationId);
+    const application = await findOwnedApplication(req.user, applicationId);
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -731,54 +679,52 @@ exports.scheduleInterview = async (req, res, next) => {
       });
     }
 
-    // 2. Prevent scheduling for rejected or withdrawn applications
-    if (application.status === "Rejected" || application.status === "Withdrawn") {
+    // 2. Eligibility: only shortlisted / interview-stage applications (shared status rules)
+    const currentStatus = normalizeStatus(application.status);
+    if (!INTERVIEW_ELIGIBLE.includes(currentStatus) || !canTransition(currentStatus, "Interview Scheduled")) {
       return res.status(400).json({
         success: false,
-        message: `Cannot schedule interview. Application is currently ${application.status}.`,
+        code: "NOT_INTERVIEW_ELIGIBLE",
+        message: `Cannot schedule an interview for an application that is ${currentStatus}. Shortlist the candidate first.`,
       });
     }
 
-    const roundNum = Number(roundNumber) || 1;
-
-    // 3. Multi-Round & Eligibility Enforcement
-    const isStageInterview =
-      application.currentStageType?.toLowerCase().includes("interview") ||
-      application.stage?.toLowerCase().includes("interview") ||
-      application.overallStatus === "In Progress";
-
-    if (roundNum === 1) {
-      // First round requires candidate to be Shortlisted, in interview stage, Approved, or in pipeline
-      if (
-        !isStageInterview &&
-        application.status !== "Shortlisted" &&
-        application.status !== "Approved" &&
-        application.status !== "Interview" &&
-        application.status !== "Interview Scheduled" &&
-        application.status !== "In Progress"
-      ) {
+    // 3. Rounds are sequential and never duplicated: the next round is one more than the
+    // highest round already used (cancelled rounds don't count), and the previous round
+    // must be completed and passed.
+    const roundNum = Number(roundNumber);
+    if (!Number.isInteger(roundNum) || roundNum < 1) {
+      return res.status(400).json({ success: false, message: "Round number must be a whole number from 1." });
+    }
+    const usedRounds = await Interview.find({
+      applicationId: application._id,
+      status: { $nin: FREED_ROUND_STATUSES },
+    }).select("roundNumber status result").lean();
+    if (usedRounds.some((round) => round.roundNumber === roundNum)) {
+      return res.status(409).json({
+        success: false,
+        code: "DUPLICATE_ROUND",
+        message: `Round ${roundNum} already exists for this candidate. Use Reschedule instead.`,
+      });
+    }
+    const expectedRound = Math.max(0, ...usedRounds.map((round) => round.roundNumber)) + 1;
+    if (roundNum !== expectedRound) {
+      return res.status(400).json({
+        success: false,
+        code: "ROUND_OUT_OF_ORDER",
+        message: `The next interview for this candidate is Round ${expectedRound}.`,
+      });
+    }
+    if (roundNum > 1) {
+      const previousRound = usedRounds.find((round) => round.roundNumber === roundNum - 1);
+      const prevStatus = (previousRound?.status || "").toLowerCase();
+      const prevResult = (previousRound?.result || "").toLowerCase();
+      if (prevStatus !== "completed" || (prevResult !== "passed" && prevResult !== "next_round")) {
         return res.status(400).json({
           success: false,
-          message: "Only eligible or shortlisted candidates can be scheduled for an interview.",
+          code: "PREVIOUS_ROUND_NOT_PASSED",
+          message: `Cannot schedule Round ${roundNum}. Round ${roundNum - 1} must be completed with result 'Passed' first.`,
         });
-      }
-    } else {
-      // Round 2+ check: if a previous interview round exists in DB, ensure it's completed
-      const previousRound = await Interview.findOne({
-        applicationId: application._id,
-        roundNumber: roundNum - 1,
-      });
-
-      if (previousRound) {
-        const prevStatus = (previousRound.status || "").toLowerCase();
-        const prevResult = (previousRound.result || "").toLowerCase();
-
-        if (prevStatus !== "completed" || (prevResult !== "passed" && prevResult !== "next_round")) {
-          return res.status(400).json({
-            success: false,
-            message: `Cannot schedule Round ${roundNum}. Round ${roundNum - 1} must be completed with result 'Passed' first.`,
-          });
-        }
       }
     }
 
@@ -806,20 +752,6 @@ exports.scheduleInterview = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: "Physical location is required for Offline/In-Person interviews.",
-      });
-    }
-
-    // 6. Prevent duplicate active interview for the exact same round
-    const existingActiveRound = await Interview.findOne({
-      applicationId: application._id,
-      roundNumber: roundNum,
-      status: { $in: ["scheduled", "rescheduled", "Scheduled", "Rescheduled"] },
-    });
-
-    if (existingActiveRound) {
-      return res.status(400).json({
-        success: false,
-        message: `Round ${roundNum} is already actively scheduled for this candidate. Use Reschedule instead.`,
       });
     }
 
@@ -954,6 +886,7 @@ exports.scheduleInterview = async (req, res, next) => {
     // Real-time socket broadcast
     socketService.emitInterviewScheduled(application.candidateId, interview);
     socketService.emitApplicationUpdated(application);
+    notifyInterviewEvent({ type: "scheduled", interview, application });
 
     return res.status(201).json({
       success: true,
@@ -971,7 +904,6 @@ exports.scheduleInterview = async (req, res, next) => {
  */
 exports.rescheduleInterview = async (req, res, next) => {
   try {
-    const employerProfileId = await getEmployerProfileId(req.user);
     const {
       scheduledDate,
       startTime,
@@ -984,10 +916,7 @@ exports.rescheduleInterview = async (req, res, next) => {
       rescheduledReason,
     } = req.body;
 
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await findOwnedInterview(req.user, req.params.id);
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview not found" });
@@ -1040,6 +969,8 @@ exports.rescheduleInterview = async (req, res, next) => {
       interview.duration = dur;
       interview.durationMinutes = dur;
     }
+    const scheduleChanged = prevDate !== scheduledDate || prevTime !== newTime ||
+      Boolean(meetingLink && meetingLink !== interview.meetingLink);
     if (meetingMode) interview.meetingMode = meetingMode;
     if (meetingLink) interview.meetingLink = meetingLink;
     if (location) interview.location = location;
@@ -1050,10 +981,9 @@ exports.rescheduleInterview = async (req, res, next) => {
 
     await interview.save();
 
-    // Update application timeline note
-    await Application.findByIdAndUpdate(interview.applicationId, {
-      status: "Interview Scheduled",
-      stage: `Interview Round ${interview.roundNumber}`,
+    // Update application timeline note (status only where the shared rules allow it)
+    await guardedStatusUpdate(interview.applicationId, "Interview Scheduled", {
+      $set: { stage: `Interview Round ${interview.roundNumber}` },
       $push: {
         notes: {
           text: `Interview Round ${interview.roundNumber} rescheduled from ${prevDate} (${prevTime}) to ${scheduledDate} (${newTime}). Reason: ${finalReason}`,
@@ -1092,6 +1022,7 @@ exports.rescheduleInterview = async (req, res, next) => {
 
     // Real-time socket broadcast
     socketService.emitInterviewRescheduled(interview.candidateId, interview);
+    if (scheduleChanged) notifyInterviewEvent({ type: "rescheduled", interview });
 
     return res.status(200).json({
       success: true,
@@ -1110,13 +1041,9 @@ exports.rescheduleInterview = async (req, res, next) => {
  */
 exports.cancelInterview = async (req, res, next) => {
   try {
-    const employerProfileId = await getEmployerProfileId(req.user);
     const { cancellationReason, cancellationMessage } = req.body;
 
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await findOwnedInterview(req.user, req.params.id);
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview not found" });
@@ -1124,6 +1051,7 @@ exports.cancelInterview = async (req, res, next) => {
 
     const finalReason = cancellationReason || "Interviewer unavailable";
     const finalMessage = cancellationMessage || "";
+    const wasCancelled = interview.status === "cancelled";
 
     interview.status = "cancelled";
     interview.cancelledAt = new Date();
@@ -1141,9 +1069,8 @@ exports.cancelInterview = async (req, res, next) => {
     // IMPORTANT: Cancelling an interview must NOT reject the candidate.
     // Ensure application remains Shortlisted so employer can schedule a new interview or reschedule.
     if (activeRemaining === 0) {
-      await Application.findByIdAndUpdate(interview.applicationId, {
-        status: "Shortlisted",
-        stage: "Shortlisted",
+      await guardedStatusUpdate(interview.applicationId, "Shortlisted", {
+        $set: { stage: "Shortlisted" },
         $push: {
           notes: {
             text: `Interview Round ${interview.roundNumber} cancelled. Reason: ${finalReason}.${finalMessage ? ` Note: ${finalMessage}` : ""}`,
@@ -1192,6 +1119,7 @@ exports.cancelInterview = async (req, res, next) => {
 
     // Real-time socket broadcast
     socketService.emitInterviewCancelled(interview.candidateId, interview);
+    if (!wasCancelled) notifyInterviewEvent({ type: "cancelled", interview });
 
     return res.status(200).json({
       success: true,
@@ -1211,11 +1139,7 @@ exports.cancelInterview = async (req, res, next) => {
  */
 exports.deleteInterview = async (req, res, next) => {
   try {
-    const employerProfileId = await getEmployerProfileId(req.user);
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await findOwnedInterview(req.user, req.params.id);
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview record not found" });
@@ -1249,11 +1173,7 @@ exports.deleteInterview = async (req, res, next) => {
  */
 exports.completeInterview = async (req, res, next) => {
   try {
-    const employerProfileId = await getEmployerProfileId(req.user);
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await findOwnedInterview(req.user, req.params.id);
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview not found" });
@@ -1262,9 +1182,7 @@ exports.completeInterview = async (req, res, next) => {
     interview.status = "completed";
     await interview.save();
 
-    await Application.findByIdAndUpdate(interview.applicationId, {
-      status: "Interview Completed",
-    });
+    await guardedStatusUpdate(interview.applicationId, "Interview Completed");
 
     // Real-time socket broadcast
     socketService.emitInterviewStatusUpdated(interview.candidateId, interview);
@@ -1285,11 +1203,7 @@ exports.completeInterview = async (req, res, next) => {
  */
 exports.submitInterviewScorecard = async (req, res, next) => {
   try {
-    const employerProfileId = await getEmployerProfileId(req.user);
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await findOwnedInterview(req.user, req.params.id);
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview not found" });
@@ -1400,20 +1314,16 @@ exports.submitInterviewScorecard = async (req, res, next) => {
         }
       }
 
-      if (shouldSelect) {
-        appDoc.status = "Selected";
-        appDoc.overallStatus = "Selected";
-        appDoc.stage = "Selected";
-      } else if (shouldReject) {
-        appDoc.status = "Rejected";
-        appDoc.overallStatus = "Rejected";
-        appDoc.stage = "Rejected";
-      } else if (finalResult === "next_round" || finalResult === "passed") {
-        appDoc.status = "Interview Completed";
-        appDoc.stage = `Cleared ${interview.roundName}`;
-      } else {
-        appDoc.status = "Interview Completed";
-        appDoc.stage = `${interview.roundName} - Completed`;
+      // The status changes only where the shared transition rules allow it.
+      const decided = shouldSelect ? "Selected" : shouldReject ? "Rejected" : "Interview Completed";
+      if (canTransition(appDoc.status, decided)) {
+        appDoc.status = decided;
+        if (shouldSelect || shouldReject) appDoc.overallStatus = decided;
+        appDoc.stage = shouldSelect || shouldReject
+          ? decided
+          : finalResult === "next_round" || finalResult === "passed"
+            ? `Cleared ${interview.roundName}`
+            : `${interview.roundName} - Completed`;
       }
 
       appDoc.notes.push({
@@ -1473,13 +1383,9 @@ exports.submitInterviewScorecard = async (req, res, next) => {
  */
 exports.updateInterviewResult = async (req, res, next) => {
   try {
-    const employerProfileId = await getEmployerProfileId(req.user);
     const { result, selectCandidate, rejectCandidate } = req.body;
 
-    const interview = await Interview.findOne({
-      _id: req.params.id,
-      employerId: employerProfileId,
-    });
+    const interview = await findOwnedInterview(req.user, req.params.id);
 
     if (!interview) {
       return res.status(404).json({ success: false, message: "Interview not found" });
@@ -1491,10 +1397,13 @@ exports.updateInterviewResult = async (req, res, next) => {
 
     await interview.save();
 
+    let decidedStatus = null;
+    let previousApplication = null;
+    let decisionApplied = false;
     if (selectCandidate && interview.result === "passed") {
-      await Application.findByIdAndUpdate(interview.applicationId, {
-        status: "Selected",
-        stage: "Selected / Eligible for Offer",
+      decidedStatus = "Selected";
+      ({ previous: previousApplication, applied: decisionApplied } = await guardedStatusUpdate(interview.applicationId, "Selected", {
+        $set: { stage: "Selected / Eligible for Offer" },
         $push: {
           notes: {
             text: `Candidate manually selected by employer after clearing ${interview.roundName}`,
@@ -1502,11 +1411,11 @@ exports.updateInterviewResult = async (req, res, next) => {
             createdAt: new Date(),
           },
         },
-      });
+      }));
     } else if (rejectCandidate && interview.result === "failed") {
-      await Application.findByIdAndUpdate(interview.applicationId, {
-        status: "Rejected",
-        stage: "Rejected",
+      decidedStatus = "Rejected";
+      ({ previous: previousApplication, applied: decisionApplied } = await guardedStatusUpdate(interview.applicationId, "Rejected", {
+        $set: { stage: "Rejected" },
         $push: {
           notes: {
             text: `Application rejected following interview ${interview.roundName}`,
@@ -1514,7 +1423,12 @@ exports.updateInterviewResult = async (req, res, next) => {
             createdAt: new Date(),
           },
         },
-      });
+      }));
+    }
+    if (decisionApplied && previousApplication && decidedStatus && previousApplication.status !== decidedStatus) {
+      // In-app notice; "Selected" is emailed now, "Rejected" goes into the daily summary.
+      notifyApplicationUpdates([previousApplication], decidedStatus)
+        .catch((err) => console.warn("Interview result notification failed:", err.message));
     }
 
     return res.status(200).json({

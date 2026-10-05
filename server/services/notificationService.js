@@ -1,6 +1,12 @@
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 
+// Location text for a listing alert: only what the listing says, nothing invented.
+const locationLine = (item) => {
+  const where = [item.location, item.workMode && `(${item.workMode})`].filter(Boolean).join(" ");
+  return where ? `**Location:** ${where}` : "";
+};
+
 // In-memory set of SSE client response streams: Map<userId, Set<res>>
 const sseClients = new Map();
 const locallyDelivered = new Map();
@@ -145,7 +151,7 @@ const createNotification = async ({
       recipient: recipientId,
       recipientId,
       senderId,
-      sender: "CareerConnect System",
+      sender: "E2Job System",
       senderRole: "system",
       title,
       preview: message,
@@ -229,7 +235,7 @@ const markAllAsRead = async (userId) => {
 /**
  * Create a targeted Opportunity Notification (Job, Internship, Course)
  */
-const createOpportunityNotification = async ({ type, item, sender = "CareerConnect Platform", senderAvatar = null, targetUserId = null }) => {
+const createOpportunityNotification = async ({ type, item, sender = "E2Job Platform", senderAvatar = null, targetUserId = null }) => {
   try {
     let title = "";
     let preview = "";
@@ -243,7 +249,7 @@ const createOpportunityNotification = async ({ type, item, sender = "CareerConne
       actionUrl = `/jobs`;
       actionText = "Apply For Job ›";
       title = `Hot Job Match: ${item.title} at ${sender}`;
-      preview = `Exciting career opportunity for ${item.title} (${item.salary || "Competitive CTC"}). Apply now!`;
+      preview = `Exciting career opportunity for ${item.title}${item.salary ? ` (${item.salary})` : ""}. Apply now!`;
       content = `
 Dear Candidate,
 
@@ -251,12 +257,11 @@ A verified employer has just posted a relevant job opportunity:
 
 **Job Title:** ${item.title}
 **Company:** ${sender}
-**Location:** ${item.location || "Multiple Locations"} (${item.workMode || "On-site"})
-**Compensation:** ${item.salary || "Competitive CTC"}
-**Employment Type:** ${item.type || "Full Time"}
+${locationLine(item)}
+${item.salary ? `**Compensation:** ${item.salary}\n` : ""}${item.type ? `**Employment Type:** ${item.type}` : ""}
 
 **Key Skills Required:**
-${(item.skillsRequired || item.skills || []).map((s) => `• ${s}`).join("\n") || "• Software Engineering fundamentals"}
+${(item.skillsRequired || item.skills || []).map((s) => `• ${s}`).join("\n") || "• See the listing"}
 
 Don't wait—early applicants have a 3x higher interview rate. Click below to submit your application now!
       `.trim();
@@ -265,7 +270,7 @@ Don't wait—early applicants have a 3x higher interview rate. Click below to su
       actionUrl = `/internships`;
       actionText = "Apply For Internship ›";
       title = `New Internship Alert: ${item.title} at ${sender}`;
-      preview = `New internship opportunity for ${item.title} (${item.stipend || "Stipend Available"}). Limited seats!`;
+      preview = `New internship opportunity for ${item.title}${item.stipend ? ` (${item.stipend})` : ""}.`;
       content = `
 Dear Candidate,
 
@@ -273,9 +278,8 @@ A top partner has just published a verified internship program:
 
 **Internship:** ${item.title}
 **Company / Organization:** ${sender}
-**Location:** ${item.location || "Work from home"} (${item.workMode || "Remote"})
-**Stipend:** ${item.stipend || "Competitive Stipend"}
-**Duration:** ${item.duration || "3 - 6 Months"}
+${locationLine(item)}
+${item.stipend ? `**Stipend:** ${item.stipend}\n` : ""}${item.duration ? `**Duration:** ${item.duration}` : ""}
 
 **Skills In Focus:**
 ${(item.skillsRequired || item.skills || []).map((s) => `• ${s}`).join("\n") || "• Technical & Problem-solving skills"}
@@ -351,9 +355,9 @@ const sendAiRecommendationNotification = async ({
     const notification = await Notification.create({
       recipient: userId,
       recipientId: userId,
-      sender: "CareerConnect AI Assistant 🤖",
+      sender: "E2Job AI Assistant 🤖",
       senderRole: "ai",
-      senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=CareerConnectAI",
+      senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=E2JobAI",
       title,
       preview,
       content,
@@ -385,13 +389,13 @@ const seedWelcomeNotificationsIfEmpty = async (userId) => {
         {
           recipient: userId,
           recipientId: userId,
-          sender: "CareerConnect AI Assistant 🤖",
+          sender: "E2Job AI Assistant 🤖",
           senderRole: "ai",
-          senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=CareerConnectAI",
-          title: "Welcome to CareerConnect! Your personalized AI is ready",
+          senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=E2JobAI",
+          title: "Welcome to E2Job! Your personalized AI is ready",
           preview: "Hi! I'm your personal platform AI Assistant. I analyze live jobs, internships, and courses for you.",
           content: `
-Hello! Welcome to your CareerConnect workspace.
+Hello! Welcome to your E2Job workspace.
 
 I am your personal AI Career Advisor, powered by live platform RAG (Retrieval-Augmented Generation).
 
@@ -403,7 +407,7 @@ Here's what I can do for you:
 Feel free to browse your dashboard or test asking me anything in the side chat!
 
 Warm regards,  
-**CareerConnect AI Team**
+**E2Job AI Team**
           `.trim(),
           category: "ai_recommendation",
           actionUrl: "/student/dashboard",

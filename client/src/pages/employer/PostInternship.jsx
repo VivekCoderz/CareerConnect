@@ -18,7 +18,6 @@ export default function PostInternship() {
     responsibilities: "",
     requiredSkills: "",
     deadline: "",
-    status: "Published",
   });
 
   const onChange = (e) =>
@@ -62,7 +61,7 @@ export default function PostInternship() {
           ← My Internships
         </Link>
         <h1 className="text-2xl font-extrabold text-[#f59e0b] mt-3">Post Internship</h1>
-        <p className="text-sm text-slate-500 mb-6">CareerConnect · CareerConnect Employer</p>
+        <p className="text-sm text-slate-500 mb-6">Internships go live once an admin approves them.</p>
 
         {error && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -90,7 +89,7 @@ export default function PostInternship() {
           <input name="requiredSkills" value={form.requiredSkills} onChange={onChange} placeholder="Skills (comma separated)" className={input} />
           <input type="date" name="deadline" value={form.deadline} onChange={onChange} className={input} />
           <button type="submit" disabled={loading} className="w-full h-11 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-sm font-bold disabled:opacity-50">
-            {loading ? "Publishing..." : "Publish Internship"}
+            {loading ? "Submitting..." : "Submit for approval"}
           </button>
         </form>
       </div>

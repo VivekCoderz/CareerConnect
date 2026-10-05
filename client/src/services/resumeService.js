@@ -118,9 +118,10 @@ export const deleteResumeAPI = async (id) => {
 /**
  * Upload and parse resume PDF with AI
  */
-export const parseResumeAPI = async (file) => {
+export const parseResumeAPI = async (file, { saveToLibrary = false } = {}) => {
   const formData = new FormData();
   formData.append("resume", file);
+  if (saveToLibrary) formData.append("saveToLibrary", "true");
 
   const res = await api.post("/resume/parse", formData, {
     headers: {
@@ -170,33 +171,42 @@ export const generateATSResumeAPI = async ({ rawData, jobDescription, companyNam
 };
 
 /**
- * Perform comprehensive ATS Check and Skill Gap Analysis against a Job Description
- * Supports FormData (with resume PDF file) OR JSON (with resumeText / resumeData)
+ * Score a structured saved or freshly parsed resume against a target role.
  */
-export const checkAtsAPI = async (payload) => {
-  if (payload instanceof FormData) {
-    const res = await api.post("/resume/ats-check", payload, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-    return res.data;
-  }
-  const res = await api.post("/resume/ats-check", payload);
+export const analyzeATSResumeAPI = async (payload) => {
+  const res = await api.post("/resume/ats-score", payload);
   return res.data;
 };
 
 /**
- * 1-Click AI Resume Fixer
- * Automatically resolves all detected mistakes, rewrites bullets with metrics & power verbs,
- * fills skill gaps, and returns the 90%+ ATS-optimized resume.
+ * Extract editable role details from a job-description PDF.
  */
-export const fixAtsResumeAPI = async ({ candidateData, jobDescription, gapAnalysis, template }) => {
-  const res = await api.post("/resume/ats-fix", {
-    candidateData,
-    jobDescription,
-    gapAnalysis,
-    template,
+export const parseJobDescriptionAPI = async (file) => {
+  const formData = new FormData();
+  formData.append("jobDescription", file);
+
+  const res = await api.post("/resume/parse-job-description", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
   });
   return res.data;
+};
+
+const atsPdfForm = (resume, jobDescription, additionalEvidence = "", confirmedSkills = [], claimsConfirmed = false) => {
+  const form = new FormData();
+  form.append("resume", resume);
+  form.append("jobDescription", jobDescription);
+  if (additionalEvidence.trim()) form.append("additionalEvidence", additionalEvidence.trim());
+  if (confirmedSkills.length) form.append("confirmedSkills", JSON.stringify(confirmedSkills));
+  if (claimsConfirmed) form.append("claimsConfirmed", "true");
+  return form;
+};
+
+export const checkAtsPdfAPI = async (resume, jobDescription) => {
+  const response = await api.post("/resume/ats-pdf/check", atsPdfForm(resume, jobDescription));
+  return response.data;
+};
+
+export const optimizeAtsPdfAPI = async (resume, jobDescription, additionalEvidence = "", confirmedSkills = [], claimsConfirmed = false) => {
+  const response = await api.post("/resume/ats-pdf/optimize", atsPdfForm(resume, jobDescription, additionalEvidence, confirmedSkills, claimsConfirmed));
+  return response.data;
 };

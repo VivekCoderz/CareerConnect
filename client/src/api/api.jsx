@@ -1,6 +1,14 @@
 import axios from "axios";
 import { store } from "../redux/store";
 import { logout, setSessionExpired } from "../redux/features/authSlice";
+import { reportApiError } from "../monitoring/sentry";
+
+const PUBLIC_PREFIXES = [
+  "/home", "/login", "/admin/login", "/register", "/forgot-password",
+  "/set-password", "/companies", "/opportunities", "/jobs", "/internships",
+  "/organizations", "/privacy", "/terms", "/contact", "/about",
+  "/resume-builder", "/admin/activate"
+];
 
 const api = axios.create({
   baseURL: import.meta.env.DEV ? "/api" : import.meta.env.VITE_API_URL || "/api",
@@ -22,7 +30,7 @@ api.interceptors.request.use(
 /**
  * Response interceptor — handles 401 Unauthorized globally.
  *
- * When the CareerConnect JWT expires or becomes invalid:
+ * When the E2Job JWT expires or becomes invalid:
  *   1. Redux auth state is cleared (logout)
  *   2. sessionExpired flag is set (shows friendly message on Login page)
  *   3. Browser is redirected to /login?expired=1
@@ -42,16 +50,8 @@ api.interceptors.response.use(
         requestUrl.includes("/firebase-login");
       const currentPath = window.location.pathname;
 
-      const isPublicOrAuthPage =
-        currentPath === "/" ||
-        currentPath.startsWith("/home") ||
-        currentPath.startsWith("/login") ||
-        currentPath.startsWith("/admin/login") ||
-        currentPath.startsWith("/register") ||
-        currentPath.startsWith("/forgot-password") ||
-        currentPath.startsWith("/set-password") ||
-        currentPath.startsWith("/companies") ||
-        currentPath.startsWith("/opportunities");
+      const isPublicOrAuthPage = currentPath === "/" ||
+        PUBLIC_PREFIXES.some((p) => currentPath === p || currentPath.startsWith(p + "/"));
 
       if (!isMeCheck && !isAuthRequest && !isPublicOrAuthPage) {
         // Clear auth state
@@ -86,6 +86,9 @@ api.interceptors.response.use(
         new CustomEvent("rate_limit_alert", { detail: alertPayload })
       );
     }
+
+    // Server errors (5xx) and requests with no response go to Sentry (I08).
+    reportApiError(error);
 
     return Promise.reject(error);
   }

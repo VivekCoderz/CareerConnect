@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getApplicationById, withdraw } from "../../services/applicationService";
 import { useSelector } from "react-redux";
+import { openResume } from "../../utils/resumeAccess";
 
 const DEFAULT_STAGES = [
   { name: "Resume Screening", type: "Resume Screening", order: 0 },
@@ -276,7 +277,7 @@ export default function StudentApplicationTrackingPage() {
                   {application.opportunityTitle || opp.title || "Opportunity"}
                 </h1>
                 <p className="text-xs sm:text-sm font-semibold text-slate-600 mt-0.5">
-                  🏢 {application.companyName || opp.companyName || "Organization Lead"} · 📍 {opp.location || opp.city || "Bangalore"}
+                  🏢 {application.companyName || opp.companyName || "Organization Lead"} · 📍 {opp.location || opp.city || "Location not specified"}
                 </p>
               </div>
             </div>
@@ -307,7 +308,7 @@ export default function StudentApplicationTrackingPage() {
             <div>
               <span className="text-slate-400 block text-[10px] font-bold uppercase">Compensation</span>
               <span className="font-bold text-slate-800">
-                {isInternship ? (opp.stipend || "Stipend Disclosed") : (opp.compensationLabel || "Competitive CTC")}
+                {isInternship ? (opp.stipend || "Stipend not disclosed") : (opp.compensationLabel || "Salary not disclosed")}
               </span>
             </div>
             <div>
@@ -702,14 +703,13 @@ export default function StudentApplicationTrackingPage() {
                   <p className="text-[10px] text-slate-400">Attached with initial application</p>
                 </div>
               </div>
-              <a
-                href={application.resumeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => openResume(application.resumeUrl)}
                 className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-[#1e3a8a] transition"
               >
                 View Document ↗
-              </a>
+              </button>
             </div>
           )}
 
