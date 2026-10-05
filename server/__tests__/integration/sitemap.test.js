@@ -5,6 +5,7 @@ const Company = require("../../models/Company");
 const User = require("../../models/User");
 const { createTestJob } = require("../helpers/createTestJob");
 const { createTestEmployer, createEmployerProfile } = require("../helpers/createTestUser");
+const { clearSitemapCache } = require("../../controllers/sitemapController");
 
 // G02: GET /sitemap.xml lists only what a visitor can open on www.e2job.com.
 const SITE = "https://www.e2job.com";
@@ -13,6 +14,8 @@ const internship = (overrides = {}) =>
   Internship.create({ title: "Design Intern", location: "Remote", description: "Design things.", status: "Published", ...overrides });
 
 describe("GET /sitemap.xml (G02)", () => {
+  beforeEach(() => clearSitemapCache());
+
   it("lists open own listings and public companies, and nothing else", async () => {
     const future = new Date(Date.now() + 10 * DAY);
     const past = new Date(Date.now() - 10 * DAY);

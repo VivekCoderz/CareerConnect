@@ -55,9 +55,27 @@ const publicCompanyProfiles = async () => {
   return profiles.filter((p) => !p.userId?.companyId || active.has(String(p.userId.companyId)));
 };
 
+// Crawlers hit /sitemap.xml outside /api (no rate limiter), and building it runs three
+// large queries, so the XML is kept in memory for an hour and cached at the edge too.
+const CACHE_MS = 60 * 60 * 1000;
+let cached = null; // { xml, at }
+
+const sendXml = (res, xml) => {
+  res.set("Content-Type", "application/xml; charset=utf-8");
+  res.set("Cache-Control", "public, max-age=3600, s-maxage=3600");
+  return res.status(200).send(xml);
+};
+
+/** Test helper: forget the cached sitemap. */
+exports.clearSitemapCache = () => {
+  cached = null;
+};
+
 // GET /sitemap.xml
 exports.getSitemap = async (req, res, next) => {
   try {
+    if (cached && Date.now() - cached.at < CACHE_MS) return sendXml(res, cached.xml);
+
     const [jobs, internships, companies] = await Promise.all([
       openOwnListings(Job),
       openOwnListings(Internship),
@@ -79,9 +97,8 @@ exports.getSitemap = async (req, res, next) => {
       "",
     ].join("\n");
 
-    res.set("Content-Type", "application/xml; charset=utf-8");
-    res.set("Cache-Control", "public, max-age=3600");
-    return res.status(200).send(xml);
+    cached = { xml, at: Date.now() };
+    return sendXml(res, xml);
   } catch (error) {
     next(error);
   }
