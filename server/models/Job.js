@@ -162,7 +162,7 @@ const jobSchema = new mongoose.Schema(
     // ---------- Experience & Education ----------
     experience: {
       minYears: { type: Number, default: 0 },
-      maxYears: { type: Number, default: 2 },
+      maxYears: { type: Number, default: 0 }, // 0 = not specified; nothing shown
       level: {
         type: String,
         enum: [

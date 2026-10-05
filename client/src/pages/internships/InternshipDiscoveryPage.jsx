@@ -10,6 +10,7 @@ import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { getMyAppliedIds } from "../../services/applicationService";
 import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
+import ViewDetailsButton from "../../components/common/ViewDetailsButton";
 import useSeo from "../../hooks/useSeo";
 import BrandLogo from "../../components/common/BrandLogo";
 
@@ -580,6 +581,8 @@ const InternshipDiscoveryPage = () => {
                         {isSaved ? "★ Saved" : "☆ Save"}
                       </button>
                     )}
+
+                    <ViewDetailsButton item={intItem} type="Internship" />
 
                     {appliedInternshipIds.has(String(intItem._id || intItem.id)) ? (
                       <button type="button" disabled className="px-5 py-2.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">

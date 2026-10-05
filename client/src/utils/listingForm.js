@@ -71,6 +71,9 @@ export const listingFormError = (form, required) => {
   if (!isBlank(form.salaryMin) && !isBlank(form.salaryMax) && min > max) {
     return "Minimum salary can't be more than the maximum.";
   }
+  if (!isBlank(form.minYears) && !isBlank(form.maxYears) && Number(form.minYears) > Number(form.maxYears)) {
+    return "Minimum experience can't be more than the maximum.";
+  }
   return null;
 };
 

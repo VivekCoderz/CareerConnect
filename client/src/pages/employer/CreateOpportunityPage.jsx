@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams, useLocation, Link } from "react-router-dom";
 import { createJob, getJobById, updateJob, updateJobStatus } from "../../services/jobService";
 import {
   create as createInternship,
@@ -112,8 +112,12 @@ const PRESETS = {
   ],
 };
 
-const getSuccessMessage = (label, targetStatus) => {
+const getSuccessMessage = (label, targetStatus, res) => {
   if (targetStatus === "Draft") return `${label} saved as draft. Redirecting...`;
+  // Editing a published listing sends it back for approval (server decides).
+  if (/approval again/i.test(res?.message || "")) {
+    return `${label} updated and sent for approval again. It will be visible once an admin approves it. Redirecting...`;
+  }
   if (targetStatus === "Pending Approval") {
     return `${label} submitted for approval. It will go live once an admin approves it. Redirecting...`;
   }
@@ -124,9 +128,14 @@ export default function CreateOpportunityPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const { id: routeId } = useParams();
+  const { pathname } = useLocation();
+  const onInternshipRoute = pathname.startsWith("/employer/internships/");
+
   const editJobId = searchParams.get("edit");
-  const editInternshipId = searchParams.get("editInternship");
-  const initialType = searchParams.get("type") === "internship" ? "Internship" : "Job";
+  // My Internships links to /employer/internships/:id/edit
+  const editInternshipId = searchParams.get("editInternship") || (onInternshipRoute ? routeId : null) || null;
+  const initialType = searchParams.get("type") === "internship" || onInternshipRoute ? "Internship" : "Job";
 
   const [oppType, setOppType] = useState(initialType);
   const [loading, setLoading] = useState(false);
@@ -427,7 +436,7 @@ export default function CreateOpportunityPage() {
         }
 
         if (res.success) {
-          setSuccessMsg(getSuccessMessage("Internship", targetStatus));
+          setSuccessMsg(getSuccessMessage("Internship", targetStatus, res));
           setTimeout(() => navigate("/employer/internships"), 1200);
         } else {
           setError(res.message || "Failed to save internship");
@@ -476,7 +485,7 @@ export default function CreateOpportunityPage() {
         }
 
         if (res.success) {
-          setSuccessMsg(getSuccessMessage("Job", targetStatus));
+          setSuccessMsg(getSuccessMessage("Job", targetStatus, res));
           setTimeout(() => navigate("/employer/dashboard"), 1200);
         } else {
           setError(res.message || "Failed to post job");
@@ -715,7 +724,7 @@ export default function CreateOpportunityPage() {
                   name="location"
                   value={formData.location}
                   onChange={handleChange}
-                  placeholder="e.g. Bangalore, Karnataka"
+                  placeholder="e.g. Pune, or Remote"
                   className={inputClass}
                   required
                 />
@@ -893,6 +902,78 @@ export default function CreateOpportunityPage() {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Education (optional)</label>
+                  <input
+                    type="text"
+                    name="education"
+                    value={formData.education}
+                    onChange={handleChange}
+                    placeholder="e.g. B.Tech / BCA / Any Graduate"
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Eligibility (optional)</label>
+                  <input
+                    type="text"
+                    name="eligibility"
+                    value={formData.eligibility}
+                    onChange={handleChange}
+                    placeholder="e.g. Final year students and 2025 graduates"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              {oppType === "Job" && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className={labelClass}>Experience Level (optional)</label>
+                    <select
+                      name="experienceLevel"
+                      value={formData.experienceLevel}
+                      onChange={handleChange}
+                      className={inputClass}
+                    >
+                      <option value="">Not specified</option>
+                      <option>Fresher / Entry-Level</option>
+                      <option>Junior (1-3 yrs)</option>
+                      <option>Mid-Level (3-5 yrs)</option>
+                      <option>Senior (5+ yrs)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Min Experience (Years)</label>
+                    <input
+                      type="number"
+                      name="minYears"
+                      min="0"
+                      value={formData.minYears}
+                      onChange={handleChange}
+                      placeholder="e.g. 0"
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Max Experience (Years)</label>
+                    <input
+                      type="number"
+                      name="maxYears"
+                      min="0"
+                      value={formData.maxYears}
+                      onChange={handleChange}
+                      placeholder="e.g. 2"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

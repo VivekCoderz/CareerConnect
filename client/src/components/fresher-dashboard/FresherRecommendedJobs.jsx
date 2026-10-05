@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FEATURES } from "../../config/features";
 import { Link } from "react-router-dom";
 import OpportunityTitleLink from "../common/OpportunityTitleLink";
+import ViewDetailsButton from "../common/ViewDetailsButton";
 
 const FresherRecommendedJobs = ({
   jobs = [],
@@ -174,12 +175,7 @@ const FresherRecommendedJobs = ({
                 </span>
 
                 <div className="flex items-center gap-2">
-                  <Link
-                    to={`/opportunities?search=${encodeURIComponent(job.title)}`}
-                    className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition"
-                  >
-                    View Job
-                  </Link>
+                  <ViewDetailsButton item={job} type="Job" size="sm" />
 
                   {isApplied ? (
                     <button type="button" disabled className="px-3.5 py-1.5 rounded-xl bg-slate-200 text-slate-600 text-xs font-semibold cursor-not-allowed">
