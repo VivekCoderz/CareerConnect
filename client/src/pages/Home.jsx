@@ -10,10 +10,12 @@ import internshipService from "../services/internshipService";
 import jobService from "../services/jobService";
 import BrandLogo from "../components/common/BrandLogo";
 import { FEATURES } from "../config/features";
+import useSeo from "../hooks/useSeo";
 
 const Home = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  useSeo({ path: "/" });
   const { user, isInitialized } = useSelector((state) => state.auth);
 
   useEffect(() => {
@@ -998,8 +1000,8 @@ const Home = () => {
               <span>•</span>
               <Link to="/contact" className="hover:text-slate-300">Contact</Link>
               <span>•</span>
-              {/* G02 points this at /sitemap.xml once the server sitemap exists. */}
-              <Link to="/home" className="hover:text-slate-300">Sitemap</Link>
+              {/* A plain link: /sitemap.xml is served by the API (vercel.json rewrite), not the React app. */}
+              <a href="/sitemap.xml" className="hover:text-slate-300">Sitemap</a>
             </div>
           </div>
         </div>

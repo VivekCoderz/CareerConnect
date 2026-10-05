@@ -180,6 +180,9 @@ app.use("/api/reports", reportRoutes);
 
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
 
+// G02: public sitemap (www.e2job.com/sitemap.xml is rewritten here by client/vercel.json).
+app.get("/sitemap.xml", require("./controllers/sitemapController").getSitemap);
+
 // Gateway Health Check Endpoint
 app.get("/", (req, res) => {
   return res.status(200).json({

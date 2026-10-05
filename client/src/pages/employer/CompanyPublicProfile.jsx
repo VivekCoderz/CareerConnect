@@ -2,6 +2,7 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getPublicCompanyProfile, getEmployerProfile } from "../../services/employerService";
+import useSeo from "../../hooks/useSeo";
 import BrandLogo from "../../components/common/BrandLogo";
 
 const CompanyPublicProfile = () => {
@@ -39,6 +40,20 @@ const CompanyPublicProfile = () => {
 
     fetchProfile();
   }, [companyId]);
+
+  const isPreview = !companyId || companyId === "preview";
+  const seoHq = company?.headquarters;
+  const hqText = typeof seoHq === "string" ? seoHq : [seoHq?.city, seoHq?.state].filter(Boolean).join(", ");
+  useSeo({
+    title: company?.companyName
+      ? `${company.companyName}${hqText ? `, ${hqText}` : ""}: jobs and company profile`
+      : loading ? "Company profile" : "Company not found",
+    description: company?.companyName
+      ? `${company.companyName}${company.industry ? ` (${company.industry})` : ""} on E2Job. ${company.description || "See open jobs and internships and apply free."}`
+      : undefined,
+    path: `/companies/${companyId || ""}`,
+    noindex: isPreview || (!loading && !company),
+  });
 
   if (loading) {
     return (
