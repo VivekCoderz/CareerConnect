@@ -29,6 +29,27 @@ export const opportunityLink = (item, type = "Job") => {
   return { to: `${type === "Internship" ? "/internships" : "/jobs"}/${opportunityId(item)}` };
 };
 
+// Feed names that say nothing about where the listing comes from.
+const GENERIC_SOURCES = new Set(["", "careerconnect", "e2job", "external", "api", "database", "in-memory-cache", "original"]);
+
+/**
+ * The site an external listing comes from, for "View on …": the feed name
+ * (Remotive, LinkedIn…) or else the apply link's domain.
+ * @param {object} item - listing from a discovery/dashboard feed
+ * @returns {string|null}
+ */
+export const opportunitySourceName = (item) => {
+  const name = [item?.platformSource, item?.source].find((s) => typeof s === "string" && !GENERIC_SOURCES.has(s.trim().toLowerCase()));
+  if (name) return name.trim();
+  const url = externalApplyUrl(item);
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Applies the signed-in candidate to a E2Job job or internship, or opens an
  * external listing's apply link in a new tab.

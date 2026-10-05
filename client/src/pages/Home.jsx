@@ -9,6 +9,8 @@ import { logoutUser } from "../services/authService";
 import internshipService from "../services/internshipService";
 import jobService from "../services/jobService";
 import BrandLogo from "../components/common/BrandLogo";
+import ViewDetailsButton from "../components/common/ViewDetailsButton";
+import { opportunityLink } from "../utils/opportunityApply";
 import { FEATURES } from "../config/features";
 import useSeo from "../hooks/useSeo";
 
@@ -699,12 +701,16 @@ const Home = () => {
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                     <span className="font-bold text-emerald-700">{item.stipend || ""}</span>
-                    <Link
-                      to="/internships"
-                      className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      Apply ›
-                    </Link>
+                    {opportunityLink(item, "Internship") ? (
+                      <ViewDetailsButton item={item} type="Internship" size="sm" />
+                    ) : (
+                      <Link
+                        to="/internships"
+                        className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
+                      >
+                        Apply ›
+                      </Link>
+                    )}
                   </div>
                 </div>
               ))
@@ -793,12 +799,16 @@ const Home = () => {
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-800">{jobItem.salary || ""}</span>
-                    <Link
-                      to="/jobs"
-                      className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      Apply ›
-                    </Link>
+                    {opportunityLink(jobItem, "Job") ? (
+                      <ViewDetailsButton item={jobItem} type="Job" size="sm" />
+                    ) : (
+                      <Link
+                        to="/jobs"
+                        className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
+                      >
+                        Apply ›
+                      </Link>
+                    )}
                   </div>
                 </div>
               ))

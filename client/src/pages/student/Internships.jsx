@@ -2,6 +2,7 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
+import ViewDetailsButton from "../../components/common/ViewDetailsButton";
 import { useSelector } from "react-redux";
 import { getInternships } from "../../services/internshipService";
 import { getMyAppliedIds } from "../../services/applicationService";
@@ -268,6 +269,10 @@ export default function Internships({
                     >
                       View & Apply
                     </Link>
+                  )}
+                  {/* "View & Apply" already opens the listing; applied and external ones get their own way to it. */}
+                  {(visibleAppliedIds.has(String(item._id)) || item.applyLink) && (
+                    <ViewDetailsButton item={item} type="Internship" className="h-10" />
                   )}
                 </div>
               </div>

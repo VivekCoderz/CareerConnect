@@ -7,6 +7,7 @@ import jobService from "../../services/jobService";
 import { saveOpportunity } from "../../services/studentDashboardService";
 import { applyToOpportunity } from "../../utils/opportunityApply";
 import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
+import ViewDetailsButton from "../../components/common/ViewDetailsButton";
 import useSeo from "../../hooks/useSeo";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
@@ -515,6 +516,8 @@ const JobDiscoveryPage = () => {
                         {isSaved ? "★ Saved" : "☆ Save"}
                       </button>
                     )}
+
+                    <ViewDetailsButton item={jobItem} type="Job" />
 
                     {jobItem.applyLink ? (
                       <a

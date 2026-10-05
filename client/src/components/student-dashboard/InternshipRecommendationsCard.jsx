@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import OpportunityTitleLink from "../common/OpportunityTitleLink";
+import ViewDetailsButton from "../common/ViewDetailsButton";
 
 const InternshipRecommendationsCard = ({
   internships = [],
@@ -104,6 +105,8 @@ const InternshipRecommendationsCard = ({
                   >
                     {isSaved ? "★ Saved" : "☆ Save"}
                   </button>
+
+                  <ViewDetailsButton item={int} type="Internship" />
 
                   {int.applyLink || int.applyUrl ? (
                     <a

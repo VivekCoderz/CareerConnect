@@ -6,6 +6,7 @@ import BrandLogo from "../../components/common/BrandLogo";
 import { getJobs } from "../../services/jobService";
 import { applyToOpportunity } from "../../utils/opportunityApply";
 import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
+import ViewDetailsButton from "../../components/common/ViewDetailsButton";
 
 export default function Jobs({
   embedded = false,
@@ -296,6 +297,7 @@ export default function Jobs({
                           Apply Now
                         </button>
                       )}
+                      <ViewDetailsButton item={item} type="Job" className="h-10" />
                     </div>
                   </div>
                 </article>
