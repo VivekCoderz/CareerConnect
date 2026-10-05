@@ -67,6 +67,7 @@ const sendViaBrevo = async ({ recipients, subject, html, text }) => {
 
     // Sender configuration (matches verified email in Brevo)
     sendSmtpEmail.sender = { name: "E2Job", email: senderEmail.trim() };
+    sendSmtpEmail.replyTo = { name: "E2Job Support", email: replyToAddress() };
     sendSmtpEmail.to = recipients;
     sendSmtpEmail.subject = subject;
     if (html) sendSmtpEmail.htmlContent = html;
@@ -90,11 +91,14 @@ const sendViaBrevo = async ({ recipients, subject, html, text }) => {
 // FALLBACK_EMAIL_FROM:     sender address verified with that provider (defaults to EMAIL_USER)
 // Only OTP emails use it, so the fallback's small free quota is kept for signups.
 
+// Replies go to the support inbox, not to the sending address (which may be no-reply).
+const replyToAddress = () => (process.env.EMAIL_REPLY_TO || "support@e2job.com").trim();
+
 const FALLBACK_SENDERS = {
   resend: async ({ apiKey, from, recipients, subject, html, text }) => {
     const { data } = await axios.post(
       "https://api.resend.com/emails",
-      { from: `E2Job <${from}>`, to: recipients.map((r) => r.email), subject, html, text },
+      { from: `E2Job <${from}>`, to: recipients.map((r) => r.email), reply_to: replyToAddress(), subject, html, text },
       { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 10000 }
     );
     return data?.id;
@@ -106,6 +110,7 @@ const FALLBACK_SENDERS = {
       {
         Messages: [{
           From: { Email: from, Name: "E2Job" },
+          ReplyTo: { Email: replyToAddress(), Name: "E2Job Support" },
           To: recipients.map((r) => ({ Email: r.email })),
           Subject: subject,
           HTMLPart: html,
