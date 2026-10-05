@@ -107,10 +107,10 @@ const FresherApplicationTracker = ({ applications = {} }) => {
                   STATUS_BADGES[app.status] || "bg-slate-100 text-slate-700 border-slate-200";
                 return (
                   <tr key={idx} className="hover:bg-slate-50/70 transition group">
-                    <td className="py-3.5 pr-4 font-bold text-slate-900">{app.company}</td>
-                    <td className="py-3.5 px-4 text-slate-600 max-w-[200px] truncate">{app.title}</td>
+                    <td className="py-3.5 pr-4 font-bold text-slate-900">{app.company || "—"}</td>
+                    <td className="py-3.5 px-4 text-slate-600 max-w-[200px] truncate">{app.title || "—"}</td>
                     <td className="py-3.5 px-4 text-slate-400 hidden sm:table-cell text-[11px]">
-                      {app.appliedDate}
+                      {app.appliedDate || "—"}
                     </td>
                     <td className="py-3.5 pl-4 text-right">
                       <span

@@ -32,7 +32,7 @@ const jobOfferSchema = new mongoose.Schema(
     },
     department: {
       type: String,
-      default: "Engineering",
+      default: "",
     },
     employmentType: {
       type: String,
@@ -58,11 +58,11 @@ const jobOfferSchema = new mongoose.Schema(
     },
     location: {
       type: String,
-      default: "Gurugram / Hybrid",
+      default: "",
     },
     benefits: {
       type: [String],
-      default: ["Health Insurance", "Paid Leaves", "Learning Allowance", "Performance Bonus"],
+      default: [],
     },
     expiryDate: {
       type: Date,

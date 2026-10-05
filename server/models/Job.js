@@ -162,7 +162,7 @@ const jobSchema = new mongoose.Schema(
     // ---------- Experience & Education ----------
     experience: {
       minYears: { type: Number, default: 0 },
-      maxYears: { type: Number, default: 2 },
+      maxYears: { type: Number, default: 0 }, // 0 = not specified; nothing shown
       level: {
         type: String,
         enum: [
@@ -413,14 +413,14 @@ jobSchema.index(
   { unique: true, partialFilterExpression: { isExternal: true } }
 );
 
-// Optional: readable salary / stipend for UI
+// Optional: readable salary / stipend for UI; null when the listing gives none.
 jobSchema.virtual("compensationLabel").get(function () {
   if (this.employmentType === "Internship" || this.employmentType === "Trainee") {
     if (this.stipend) return this.stipend;
     if (this.salaryRange?.min) {
       return `₹${this.salaryRange.min.toLocaleString("en-IN")}/month`;
     }
-    return "Stipend not disclosed";
+    return null;
   }
 
   const { min, max, isNegotiable } = this.salaryRange || {};
@@ -429,7 +429,7 @@ jobSchema.virtual("compensationLabel").get(function () {
     return isNegotiable ? `${base} (Negotiable)` : base;
   }
   if (min) return `₹${(min / 100000).toFixed(1)}+ LPA`;
-  return "Not disclosed";
+  return null;
 });
 
 jobSchema.set("toJSON", { virtuals: true });

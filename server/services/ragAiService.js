@@ -73,11 +73,12 @@ const retrievePlatformContext = async (queryText, userId = null) => {
       type: "job",
       id: j._id,
       title: j.title,
-      company: j.company || "Top Tech Partner",
-      location: j.location || "Multiple Locations",
-      workMode: j.workMode || (j.remote ? "Remote" : "In-office"),
-      salary: j.salary || "Competitive CTC",
-      skills: j.skillsRequired || ["Problem Solving"],
+      // Only real listing data goes to the AI; missing values are "Not specified".
+      company: j.company || j.companyName || "Not specified",
+      location: j.location || "Not specified",
+      workMode: j.workMode || "Not specified",
+      salary: j.salary || "Not specified",
+      skills: j.skillsRequired || j.requiredSkills || [],
       applyUrl: `/jobs`,
     }));
   } catch (err) {

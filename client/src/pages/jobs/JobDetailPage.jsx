@@ -7,6 +7,8 @@ import { applyToOpportunity, externalApplyUrl } from "../../utils/opportunityApp
 import { isCandidateUser } from "../../utils/userRoles";
 import ShareButtons from "../../components/common/ShareButtons";
 import ReportListingButton from "../../components/common/ReportListingButton";
+import useSeo from "../../hooks/useSeo";
+import { buildJobPostingSchema, toJsonLd } from "../../utils/jobPostingSchema";
 import BrandLogo from "../../components/common/BrandLogo";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
@@ -191,9 +193,25 @@ export default function JobDetailPage() {
     }
   };
 
-  const companyName = job?.employerId?.companyName || job?.companyName || "Hiring company";
+  const companyName = job?.employerId?.companyName || job?.companyName || job?.company || "";
   const shareUrl = `${window.location.origin}/jobs/${id}`;
-  const shareText = job ? `${job.title} at ${companyName} – apply on E2Job: ${shareUrl}` : shareUrl;
+  const shareText = job ? `${job.title}${companyName ? ` at ${companyName}` : ""} – apply on E2Job: ${shareUrl}` : shareUrl;
+
+  // "<Job title> at <Company>, <City> | E2Job"; closed or missing jobs stay out of search.
+  const openJob = job && !isClosed(job) ? job : null;
+  const jobCity = openJob ? openJob.city || openJob.location : "";
+  useSeo({
+    title: openJob
+      ? `${openJob.title} at ${companyName}${jobCity ? `, ${jobCity}` : ""}`
+      : status === "loading" ? "Job details" : "Job not available",
+    description: openJob
+      ? `${openJob.title} job at ${companyName}${jobCity ? ` in ${jobCity}` : ""}${openJob.workMode ? ` (${openJob.workMode})` : ""}. ${openJob.description || ""}`
+      : undefined,
+    path: `/jobs/${id}`,
+    type: openJob ? "article" : "website",
+    noindex: status !== "loading" && !openJob,
+  });
+  const jobPostingSchema = buildJobPostingSchema(openJob);
 
   const renderApply = () => {
     if (job.isExternal) {
@@ -237,13 +255,13 @@ export default function JobDetailPage() {
             )}
             <div className="space-y-1 min-w-0">
               <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight wrap-break-word">{job.title}</h1>
-              {company?._id ? (
+              {companyName && (company?._id ? (
                 <Link to={`/companies/${company._id}`} className="text-sm font-bold text-blue-700 hover:underline">
                   {companyName}
                 </Link>
               ) : (
                 <p className="text-sm font-bold text-slate-700">{companyName}</p>
-              )}
+              ))}
             </div>
           </div>
 
@@ -299,7 +317,7 @@ export default function JobDetailPage() {
         )}
 
         {company && (company.description || company.industry || formatHeadquarters(company.headquarters)) && (
-          <Section title={`About ${companyName}`}>
+          <Section title={companyName ? `About ${companyName}` : "About the company"}>
             <p className="text-xs text-slate-500">{[company.industry, formatHeadquarters(company.headquarters)].filter(Boolean).join(" · ")}</p>
             {company.description && <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{company.description}</p>}
             <Link to={`/companies/${company._id}`} className="inline-block text-xs font-bold text-blue-700 hover:underline">
@@ -358,6 +376,9 @@ export default function JobDetailPage() {
         )}
 
         {status === "ready" && !isClosed(job) && renderJob()}
+        {jobPostingSchema && (
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: toJsonLd(jobPostingSchema) }} />
+        )}
       </main>
     </div>
   );

@@ -112,12 +112,12 @@ const FresherDashboard = () => {
       title: item.title,
       company: item.company || item.companyName,
       companyName: item.company || item.companyName,
-      type: item.type || "Job",
+      type: item.type || null,
       opportunityType:
-        item.type?.toLowerCase().includes("intern") ? "Internship" : "Job",
+        `${item.opportunityType || ""} ${item.type || ""}`.toLowerCase().includes("intern") ? "Internship" : "Job",
       description: item.description || item.aboutRole || "",
       requirements: item.requirements || [],
-      skillsRequired: item.skillsRequired || item.skills || [],
+      skillsRequired: [item.skillsRequired, item.skills, item.requiredSkills].find((l) => Array.isArray(l) && l.length) || [],
     });
     setIsTailoredModalOpen(true);
   };

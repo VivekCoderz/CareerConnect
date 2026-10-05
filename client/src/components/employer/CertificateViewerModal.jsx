@@ -176,7 +176,7 @@ const CertificateViewerModal = ({
             <div className="pt-2 text-[10px] text-slate-400 flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 gap-1">
               <span>Issued On: <strong className="text-slate-700">{issueDate}</strong></span>
               <span>Valid Until: <strong className="text-slate-700">{expiryDate}</strong></span>
-              <span className="font-mono">Verify at: e2job.comm/verify</span>
+              <span className="font-mono">Verify at: e2job.com/verify</span>
             </div>
           </div>
         </div>

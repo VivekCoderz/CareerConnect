@@ -7,6 +7,7 @@ import jobService from "../../services/jobService";
 import { saveOpportunity } from "../../services/studentDashboardService";
 import { applyToOpportunity } from "../../utils/opportunityApply";
 import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
+import useSeo from "../../hooks/useSeo";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import BrandLogo from "../../components/common/BrandLogo";
@@ -211,6 +212,12 @@ const JobDiscoveryPage = () => {
     if (categoryParam) return `${categoryParam.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")} Jobs`;
     return "Explore All Jobs & Openings";
   }, [isWorkFromHome, isLatest, cityParam, categoryParam]);
+
+  useSeo({
+    title: pageHeading === "Explore All Jobs & Openings" ? "Jobs for freshers and students in India" : pageHeading,
+    description: `${pageHeading} on E2Job: verified openings from real employers in India. Apply free and track every application. Employers never charge candidates.`,
+    path: pathname,
+  });
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800">
@@ -419,8 +426,11 @@ const JobDiscoveryPage = () => {
           <div className="space-y-4">
             {jobs.map((jobItem) => {
               const isSaved = savedIds.includes(jobItem.id || jobItem._id);
-              const compName = jobItem.employerId?.companyName || jobItem.company || jobItem.companyName || "Partner Employer";
-              const salaryStr = jobItem.salary || (jobItem.salaryRange?.min ? `₹${(jobItem.salaryRange.min / 100000).toFixed(1)}L - ₹${(jobItem.salaryRange.max / 100000).toFixed(1)}L / yr` : "Not disclosed");
+              const compName = jobItem.employerId?.companyName || jobItem.company || jobItem.companyName;
+              // The server formats salary; missing salary stays hidden.
+              const salaryStr = jobItem.salary;
+              const employmentType = jobItem.employmentType || jobItem.type;
+              const jobSkills = [jobItem.requiredSkills, jobItem.skillsRequired, jobItem.skills].find((l) => Array.isArray(l) && l.length) || [];
 
               return (
                 <div
@@ -434,17 +444,21 @@ const JobDiscoveryPage = () => {
                           {jobItem.platformSource === "CareerConnect" ? "E2Job" : jobItem.platformSource}
                         </span>
                       )}
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                        {jobItem.employmentType || "Full-Time"}
-                      </span>
+                      {employmentType && (
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                          {employmentType}
+                        </span>
+                      )}
                       <h3 className="text-base font-bold text-slate-900">
                         <OpportunityTitleLink item={jobItem} type="Job" className="hover:text-blue-700 hover:underline">
                           {jobItem.title}
                         </OpportunityTitleLink>
                       </h3>
-                      <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
-                        {jobItem.workMode}
-                      </span>
+                      {jobItem.workMode && (
+                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
+                          {jobItem.workMode}
+                        </span>
+                      )}
                       {jobItem.category && (
                         <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
                           {jobItem.category}
@@ -452,20 +466,28 @@ const JobDiscoveryPage = () => {
                       )}
                     </div>
 
-                    <p className="text-xs font-medium text-slate-600">
-                      <span className="font-bold text-slate-900">{compName}</span> • 📍 {jobItem.location || "Multiple Locations"}
-                    </p>
+                    {(compName || jobItem.location) && (
+                      <p className="text-xs font-medium text-slate-600">
+                        {compName && <span className="font-bold text-slate-900">{compName}</span>}
+                        {compName && jobItem.location ? " • " : ""}
+                        {jobItem.location && <>📍 {jobItem.location}</>}
+                      </p>
+                    )}
 
-                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-100">
-                        {salaryStr}
-                      </span>
-                      {jobItem.postedAt && <span>• Posted: {jobItem.postedAt}</span>}
-                    </div>
+                    {(salaryStr || jobItem.postedAt) && (
+                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                        {salaryStr && (
+                          <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-100">
+                            {salaryStr}
+                          </span>
+                        )}
+                        {jobItem.postedAt && <span>{salaryStr ? "• " : ""}Posted: {jobItem.postedAt}</span>}
+                      </div>
+                    )}
 
-                    {jobItem.requiredSkills && jobItem.requiredSkills.length > 0 && (
+                    {jobSkills.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-1">
-                        {jobItem.requiredSkills.map((skill, sIdx) => (
+                        {jobSkills.map((skill, sIdx) => (
                           <span
                             key={sIdx}
                             className="px-2 py-0.5 bg-slate-50 text-slate-700 text-[10.5px] font-medium rounded-md border border-slate-200"
