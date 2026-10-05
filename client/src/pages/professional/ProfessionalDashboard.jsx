@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import { getProfessionalDashboardData } from "../../services/professionalDashboardService";
@@ -86,6 +87,7 @@ const ProfessionalDashboard = () => {
   const resolveTab = (tab) => (tab === "opportunities" || tab === "insights" ? "jobs" : tab);
   const [activeTab, setActiveTabRaw] = useState(() => resolveTab(searchParams.get("tab") || "dashboard"));
   const setActiveTab = (tab) => setActiveTabRaw(resolveTab(tab));
+  useTabInUrl(activeTab, "dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);

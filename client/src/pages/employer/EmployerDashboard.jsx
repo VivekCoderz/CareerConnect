@@ -1,6 +1,7 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import useTabInUrl from "../../hooks/useTabInUrl";
 import { useDispatch, useSelector } from "react-redux";
 import { FEATURES } from "../../config/features";
 import PostInternship from "./PostInternship";
@@ -57,7 +58,10 @@ const EmployerDashboard = () => {
   const { user } = useSelector((state) => state.auth);
 
   // Layout & Tab State
-  const [activeTab, setActiveTab] = useState("overview");
+  // Open the tab named in ?tab= (kept in the URL by useTabInUrl, so a refresh stays put).
+  const [tabSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => tabSearchParams.get("tab") || "overview");
+  useTabInUrl(activeTab, "overview");
   // Job the ATS tab opens filtered to ("All" = every job); set by "View applications".
   const [atsJobId, setAtsJobId] = useState("All");
   const selectTab = (tab) => {
