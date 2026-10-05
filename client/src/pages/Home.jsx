@@ -493,7 +493,11 @@ const Home = () => {
             <div className="relative hidden lg:block">
               <div className="absolute -top-6 -right-4 w-72 h-72 bg-[#f59e0b]/10 rounded-full blur-3xl" />
               <div className="relative space-y-4">
-                {(featuredJobs.length > 0 ? featuredJobs.slice(0, 3) : []).map((job, i) => (
+                {(featuredJobs.length > 0 ? featuredJobs.slice(0, 3) : []).map((job, i) => {
+                  const jobType = job.opportunityType || job.type;
+                  const jobCompany = job.company?.name || job.company;
+                  const jobPay = job.salary || (job.stipend?.amount ? `₹${job.stipend.amount}/month` : typeof job.stipend === "string" ? job.stipend : null);
+                  return (
                   <div
                     key={job.id || job._id || job.title || i}
                     className={`bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5 ${
@@ -502,16 +506,19 @@ const Home = () => {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#eff6ff] text-[#1e3a8a]">
-                          {job.opportunityType || job.type || "Live Opportunity"}
-                        </span>
+                        {jobType && (
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#eff6ff] text-[#1e3a8a]">
+                            {jobType}
+                          </span>
+                        )}
                         <p className="mt-2 text-[15px] font-semibold text-slate-900 line-clamp-1">{job.title}</p>
-                        <p className="text-sm text-slate-500">{job.company?.name || job.company || "Verified Company"}</p>
+                        {jobCompany && <p className="text-sm text-slate-500">{jobCompany}</p>}
                       </div>
-                      <p className="text-sm font-bold text-[#1e3a8a] shrink-0">{job.salary || (job.stipend?.amount ? `₹${job.stipend.amount}/month` : "Verified")}</p>
+                      {jobPay && <p className="text-sm font-bold text-[#1e3a8a] shrink-0">{jobPay}</p>}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -667,23 +674,29 @@ const Home = () => {
                   className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-md transition flex flex-col justify-between gap-3 group"
                 >
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                        {item.workMode || "Remote"}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {item.postedAt || "Recently"}
-                      </span>
-                    </div>
+                    {(item.workMode || item.postedAt) && (
+                      <div className="flex items-center justify-between">
+                        {item.workMode ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                            {item.workMode}
+                          </span>
+                        ) : <span />}
+                        {item.postedAt && (
+                          <span className="text-[10px] text-slate-400">
+                            {item.postedAt}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition line-clamp-1">
                       {item.title}
                     </h3>
-                    <p className="text-xs font-semibold text-slate-600 line-clamp-1">{item.company}</p>
-                    <p className="text-[11px] text-slate-400">📍 {item.location}</p>
+                    {item.company && <p className="text-xs font-semibold text-slate-600 line-clamp-1">{item.company}</p>}
+                    {item.location && <p className="text-[11px] text-slate-400">📍 {item.location}</p>}
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-bold text-emerald-700">{item.stipend || "Paid"}</span>
+                    <span className="font-bold text-emerald-700">{item.stipend || ""}</span>
                     <Link
                       to="/internships"
                       className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
@@ -755,23 +768,29 @@ const Home = () => {
                   className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-md transition flex flex-col justify-between gap-3 group"
                 >
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
-                        {jobItem.employmentType || "Full Time"}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {jobItem.postedAt || "Recently"}
-                      </span>
-                    </div>
+                    {(jobItem.employmentType || jobItem.postedAt) && (
+                      <div className="flex items-center justify-between">
+                        {jobItem.employmentType ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
+                            {jobItem.employmentType}
+                          </span>
+                        ) : <span />}
+                        {jobItem.postedAt && (
+                          <span className="text-[10px] text-slate-400">
+                            {jobItem.postedAt}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition line-clamp-1">
                       {jobItem.title}
                     </h3>
-                    <p className="text-xs font-semibold text-slate-600 line-clamp-1">{jobItem.company}</p>
-                    <p className="text-[11px] text-slate-400">📍 {jobItem.location}</p>
+                    {jobItem.company && <p className="text-xs font-semibold text-slate-600 line-clamp-1">{jobItem.company}</p>}
+                    {jobItem.location && <p className="text-[11px] text-slate-400">📍 {jobItem.location}</p>}
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-800">{jobItem.salary || "Competitive"}</span>
+                    <span className="font-bold text-slate-800">{jobItem.salary || ""}</span>
                     <Link
                       to="/jobs"
                       className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"

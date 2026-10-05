@@ -4,6 +4,7 @@ const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const { escapeRegex } = require("../utils/listingSecurity");
 const { openListingQuery } = require("../utils/listingExpiry");
+const { formatSalary, formatStipend, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 
 // =========================================================================
 // 1. CLEAN DEGREE KEYWORD MAP (SIMPLIFIED NAMES)
@@ -296,8 +297,8 @@ async function findStoredExternalOpportunities({ keywords = "", source = "all" }
         type: EXTERNAL_TYPE_LABELS[doc.source] || doc.source,
         platformSource: doc.source,
         opportunityType,
-        workMode: doc.workMode === "Remote" ? "Remote" : "On-Site / Hybrid",
-        postedDate: doc.createdAt ? new Date(doc.createdAt).toISOString().split("T")[0] : "Recently",
+        workMode: textOrNull(doc.workMode),
+        postedDate: doc.createdAt ? new Date(doc.createdAt).toISOString().split("T")[0] : null,
         applyLink: doc.applyUrl,
         isExclusive: false,
         isExternal: true,
@@ -673,27 +674,22 @@ async function getAggregatedOpportunities({
         dbInterns = [...(internDocs || []), ...(jobInternDocs || [])];
       }
 
+      // Missing values are null (the client hides them), never invented text.
       const formattedJobs = dbJobs.map((j) => ({
         _id: j._id.toString(),
         id: j._id.toString(),
         title: j.title,
-        company: j.employerId?.companyName || "E2Job Partner",
-        location: j.location || "On-Campus / Hybrid",
-        opportunityType: j.employmentType || "Full-Time",
-        workMode: j.workMode || "On-Site",
-        salary: j.salaryRange?.max
-          ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive Package",
-        stipend: j.salaryRange?.max
-          ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive Package",
+        company: companyOf(j),
+        location: textOrNull(j.location),
+        opportunityType: textOrNull(j.employmentType),
+        workMode: textOrNull(j.workMode),
+        salary: formatSalary(j.salaryRange),
+        stipend: null,
         description: j.description,
         skills: j.requiredSkills || [],
         skillsRequired: j.requiredSkills || [],
-        deadline: j.deadline ? new Date(j.deadline).toLocaleDateString() : "Open",
-        postedDate: j.createdAt
-          ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-          : "Recently",
+        deadline: formatDate(j.deadline),
+        postedDate: formatDate(j.createdAt),
         applyLink: `/jobs/${j._id}`,
         isExclusive: true,
         isExternal: false,
@@ -706,21 +702,18 @@ async function getAggregatedOpportunities({
         _id: i._id.toString(),
         id: i._id.toString(),
         title: i.title,
-        company: i.companyName || i.employerId?.companyName || "E2Job Partner",
-        location: i.location || "Panipat / Remote",
+        company: companyOf(i),
+        location: textOrNull(i.location),
         opportunityType: "Internship",
-        workMode: i.workMode || "On-Site",
-        salary: i.stipend ? `₹${i.stipend}/month` : "Paid Internship",
-        stipend: i.stipend ? `₹${i.stipend}/month` : "Paid Internship",
+        workMode: textOrNull(i.workMode),
+        salary: formatStipend(i),
+        stipend: formatStipend(i),
+        duration: textOrNull(i.duration),
         description: i.description,
         skills: i.skillsRequired || i.requiredSkills || [],
         skillsRequired: i.skillsRequired || i.requiredSkills || [],
-        deadline: i.applicationDeadline || i.deadline
-          ? new Date(i.applicationDeadline || i.deadline).toLocaleDateString()
-          : "Open",
-        postedDate: i.createdAt
-          ? new Date(i.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-          : "Recently",
+        deadline: formatDate(i.applicationDeadline || i.deadline),
+        postedDate: formatDate(i.createdAt),
         applyLink: `/internships/${i._id}`,
         isExclusive: true,
         isExternal: false,

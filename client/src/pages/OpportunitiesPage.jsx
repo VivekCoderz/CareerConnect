@@ -252,12 +252,16 @@ export default function OpportunitiesPage() {
         </span>
       );
     }
+    if (!item.platformSource) return null;
     return (
       <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-        {item.platformSource || "Verified Portal"}
+        {item.platformSource}
       </span>
     );
   };
+
+  const pickSkills = (item) =>
+    [item?.skills, item?.skillsRequired, item?.requiredSkills].find((l) => Array.isArray(l) && l.length) || [];
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800">
@@ -571,19 +575,23 @@ export default function OpportunitiesPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         {getSourceBadge(item)}
 
-                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                          {item.opportunityType || "Full-Time"}
-                        </span>
+                        {item.opportunityType && (
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                            {item.opportunityType}
+                          </span>
+                        )}
 
-                        <span
-                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-md ${
-                            item.workMode === "Remote"
-                              ? "bg-purple-50 text-purple-700 border border-purple-200"
-                              : "bg-blue-50 text-blue-700 border border-blue-100"
-                          }`}
-                        >
-                          {item.workMode}
-                        </span>
+                        {item.workMode && (
+                          <span
+                            className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-md ${
+                              item.workMode === "Remote"
+                                ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                : "bg-blue-50 text-blue-700 border border-blue-100"
+                            }`}
+                          >
+                            {item.workMode}
+                          </span>
+                        )}
 
                         {item.postedDate && (
                           <span className="text-[10.5px] text-slate-400 ml-auto hidden sm:inline">
@@ -597,17 +605,23 @@ export default function OpportunitiesPage() {
                         <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
                           {item.title}
                         </h3>
-                        <p className="text-xs font-semibold text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
-                          <span className="text-blue-900 font-bold flex items-center gap-1">
-                            <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                            {item.company}
-                          </span>
-                          <span>•</span>
-                          <span className="text-slate-500 flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                            {item.location}
-                          </span>
-                        </p>
+                        {(item.company || item.location) && (
+                          <p className="text-xs font-semibold text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
+                            {item.company && (
+                              <span className="text-blue-900 font-bold flex items-center gap-1">
+                                <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                                {item.company}
+                              </span>
+                            )}
+                            {item.company && item.location && <span>•</span>}
+                            {item.location && (
+                              <span className="text-slate-500 flex items-center gap-1">
+                                <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                {item.location}
+                              </span>
+                            )}
+                          </p>
+                        )}
                       </div>
 
                       {/* Campus Drive Perks / Notes */}
@@ -659,9 +673,9 @@ export default function OpportunitiesPage() {
                               fullName: user.fullName || "",
                               email: user.email || "",
                               phone: user.phone || "",
-                              education: user.education || "B.Tech",
-                              skills: Array.isArray(item.skills) ? item.skills.join(", ") : "React, Node.js",
-                              experience: "Fresher",
+                              education: user.education || "",
+                              skills: pickSkills(item).join(", "),
+                              experience: "",
                               resumeUrl: user.resumeUrl || "",
                             });
                           }}
@@ -785,39 +799,55 @@ export default function OpportunitiesPage() {
               >
                 ✕
               </button>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                  {selectedOpportunity.opportunityType || "Full-Time"}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-white border border-white/20">
-                  {selectedOpportunity.workMode || "On-Site"}
-                </span>
-              </div>
+              {(selectedOpportunity.opportunityType || selectedOpportunity.workMode) && (
+                <div className="flex items-center gap-2 mb-2">
+                  {selectedOpportunity.opportunityType && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                      {selectedOpportunity.opportunityType}
+                    </span>
+                  )}
+                  {selectedOpportunity.workMode && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-white border border-white/20">
+                      {selectedOpportunity.workMode}
+                    </span>
+                  )}
+                </div>
+              )}
               <h2 className="text-xl font-bold">{selectedOpportunity.title}</h2>
-              <p className="text-xs font-semibold text-blue-200 mt-1 flex items-center gap-2">
-                <span>{selectedOpportunity.company}</span>
-                <span>•</span>
-                <span>{selectedOpportunity.location}</span>
-              </p>
+              {(selectedOpportunity.company || selectedOpportunity.location) && (
+                <p className="text-xs font-semibold text-blue-200 mt-1 flex items-center gap-2">
+                  {selectedOpportunity.company && <span>{selectedOpportunity.company}</span>}
+                  {selectedOpportunity.company && selectedOpportunity.location && <span>•</span>}
+                  {selectedOpportunity.location && <span>{selectedOpportunity.location}</span>}
+                </p>
+              )}
             </div>
 
             {/* Modal Body */}
             <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
               {/* Highlights row */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
-                <div>
-                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Compensation</span>
-                  <span className="font-bold text-slate-800">{selectedOpportunity.salary || selectedOpportunity.stipend || "Competitive"}</span>
+              {(selectedOpportunity.salary || selectedOpportunity.stipend || selectedOpportunity.deadline || selectedOpportunity.postedDate) && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+                  {(selectedOpportunity.salary || selectedOpportunity.stipend) && (
+                    <div>
+                      <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Compensation</span>
+                      <span className="font-bold text-slate-800">{selectedOpportunity.salary || selectedOpportunity.stipend}</span>
+                    </div>
+                  )}
+                  {selectedOpportunity.deadline && (
+                    <div>
+                      <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Deadline</span>
+                      <span className="font-bold text-slate-800">{selectedOpportunity.deadline}</span>
+                    </div>
+                  )}
+                  {selectedOpportunity.postedDate && (
+                    <div>
+                      <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Posted</span>
+                      <span className="font-bold text-slate-800">{selectedOpportunity.postedDate}</span>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Deadline</span>
-                  <span className="font-bold text-slate-800">{selectedOpportunity.deadline || "Open"}</span>
-                </div>
-                <div>
-                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Posted</span>
-                  <span className="font-bold text-slate-800">{selectedOpportunity.postedDate || "Recently"}</span>
-                </div>
-              </div>
+              )}
 
               {/* Description */}
               <div>
@@ -828,11 +858,11 @@ export default function OpportunitiesPage() {
               </div>
 
               {/* Required Skills */}
-              {(selectedOpportunity.skills?.length > 0 || selectedOpportunity.skillsRequired?.length > 0) && (
+              {pickSkills(selectedOpportunity).length > 0 && (
                 <div>
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Required Skills</h4>
                   <div className="flex flex-wrap gap-1.5">
-                    {(selectedOpportunity.skills || selectedOpportunity.skillsRequired || []).map((skill, idx) => (
+                    {pickSkills(selectedOpportunity).map((skill, idx) => (
                       <span key={idx} className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100">
                         ✓ {skill}
                       </span>

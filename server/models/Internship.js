@@ -49,7 +49,8 @@ const internshipSchema = new mongoose.Schema(
     hasJobOffer: { type: Boolean, default: false, index: true },
     isInternational: { type: Boolean, default: false, index: true },
     isFeatured: { type: Boolean, default: false, index: true },
-    stipend: { type: String, default: "Not disclosed", trim: true },
+    // Empty when the employer didn't give one (older internships stored "Not disclosed").
+    stipend: { type: String, default: "", trim: true },
     stipendAmount: {
       min: { type: Number, default: 0 },
       max: { type: Number, default: 0 },

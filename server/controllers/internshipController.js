@@ -26,6 +26,7 @@ const {
 } = require("../utils/listingSecurity");
 const { sanitizeRecruitmentStages } = require("./jobController");
 const { isListingExpired, withOpenDeadline, openListingQuery } = require("../utils/listingExpiry");
+const { formatStipend, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 const { getPlatformSettings } = require("../services/platformSettings");
 const { isEmployerApproved } = require("../middleware/employerVerification");
 const { notifyListingClosedInBackground } = require("../services/listingClosure");
@@ -360,14 +361,9 @@ exports.getInternships = async (req, res, next) => {
 
         const combined = [...(intDocs || []), ...(jobDocs || [])];
 
+        // Missing values are null (the client hides them), never invented text.
         campusList = combined.map((int) => {
-          const stipendStr =
-            int.stipend ||
-            (int.salaryRange?.min > 0
-              ? `₹${int.salaryRange.min.toLocaleString("en-IN")}/month`
-              : int.stipendAmount?.min > 0
-              ? `₹${int.stipendAmount.min.toLocaleString("en-IN")}/month`
-              : int.isPaid ? "Paid Stipend" : "Unpaid / Academic");
+          const stipendStr = formatStipend(int);
 
           return {
             ...int,
@@ -375,20 +371,20 @@ exports.getInternships = async (req, res, next) => {
             id: int._id.toString(),
             jobId: int._id.toString(),
             title: int.title,
-            company: int.employerId?.companyName || int.companyName || "Partner Employer",
-            companyName: int.employerId?.companyName || int.companyName || "Partner Employer",
+            company: companyOf(int),
+            companyName: companyOf(int),
             companyId: int.employerId?._id || "",
             logo: int.employerId?.logo || "",
             location: int.location,
             city: int.city || "",
-            category: int.category || "Web Development",
-            subCategory: int.subCategory || "Full Stack",
+            category: textOrNull(int.category),
+            subCategory: textOrNull(int.subCategory),
             stipend: stipendStr,
             salary: stipendStr,
-            duration: int.duration || "3-6 Months",
+            duration: textOrNull(int.duration),
             type: "Internship",
             opportunityType: "Internship",
-            workMode: int.workMode || "Remote",
+            workMode: textOrNull(int.workMode),
             isPaid: int.isPaid !== false,
             hasJobOffer: !!int.hasJobOffer,
             isInternational: !!int.isInternational,
@@ -400,9 +396,9 @@ exports.getInternships = async (req, res, next) => {
             skills: int.requiredSkills || int.skillsRequired || [],
             description: int.description || "",
             responsibilities: int.responsibilities || [],
-            deadline: int.applicationDeadline || int.deadline ? new Date(int.applicationDeadline || int.deadline).toLocaleDateString() : "Open",
-            postedAt: int.createdAt ? new Date(int.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Recently",
-            openings: int.openings || 1,
+            deadline: formatDate(int.applicationDeadline || int.deadline),
+            postedAt: formatDate(int.createdAt),
+            openings: int.openings || null,
             applicantsCount: int.applicantsCount || 0,
           };
         });
@@ -453,31 +449,31 @@ exports.getInternships = async (req, res, next) => {
             companyName: item.company,
             companyId: "",
             logo: "",
-            location: item.location || "Remote",
-            city: item.location?.split(",")[0]?.trim() || "Delhi NCR",
-            category: category && category !== "All" ? category : "Software Development",
-            subCategory: "Engineering",
-            stipend: item.stipend || "Competitive Stipend",
-            salary: item.stipend || "Competitive Stipend",
-            duration: item.duration || "3-6 Months",
+            location: textOrNull(item.location),
+            city: item.location?.split(",")[0]?.trim() || null,
+            category: null,
+            subCategory: null,
+            stipend: textOrNull(item.stipend),
+            salary: textOrNull(item.stipend),
+            duration: textOrNull(item.duration),
             type: item.opportunityType || "Internship",
             opportunityType: "Internship",
-            workMode: item.workMode || "Remote",
+            workMode: textOrNull(item.workMode),
             isPaid: true,
             hasJobOffer: item.opportunityType === "Full-Time & Internship",
             isInternational: !!item.location?.toLowerCase().includes("worldwide") || !item.location?.toLowerCase().includes("india"),
             isExclusive: false,
             isExternal: true,
-            skillsRequired: item.skills?.length ? item.skills : [item.title.split(" ")[0] || "Development", "Problem Solving"],
-            requiredSkills: item.skills?.length ? item.skills : [item.title.split(" ")[0] || "Development", "Problem Solving"],
-            postedAt: item.postedDate || "Recently Posted",
-            createdAt: item.createdAt || new Date(),
-            deadline: "Open until filled",
+            skillsRequired: item.skills || [],
+            requiredSkills: item.skills || [],
+            postedAt: textOrNull(item.postedDate),
+            createdAt: item.createdAt || null,
+            deadline: formatDate(item.deadline),
             description: item.description || `${item.title} opportunity at ${item.company}. Apply directly through ${item.platformSource}.`,
             attribution: item.attribution || "",
-            responsibilities: ["Contribute to ongoing development", "Collaborate with mentors and team"],
-            openings: 2,
-            applicantsCount: 5,
+            responsibilities: [],
+            openings: null,
+            applicantsCount: null,
             applyLink: item.applyLink,
             applyUrl: item.applyLink,
             platformSource: item.platformSource,
