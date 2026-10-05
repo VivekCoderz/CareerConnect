@@ -344,7 +344,7 @@ export default function CreateOpportunityPage() {
 
     const formError = listingFormError(formData, oppType === "Internship"
       // Stipend is required only for paid internships.
-      ? ["title", "category", "workMode", "location", ...(formData.isPaid === false ? [] : ["stipend"]), "duration", "description", "requiredSkills", "openings"]
+      ? ["title", "category", "workMode", "location", ...(formData.isPaid ? ["stipend"] : []), "duration", "description", "requiredSkills", "openings"]
       : ["title", "category", "employmentType", "workMode", "location", "description", "requiredSkills", "openings"]);
     if (formError) {
       setError(formError);
