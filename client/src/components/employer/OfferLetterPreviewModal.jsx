@@ -19,6 +19,7 @@ const PRINT_CSS = `
 /** The letter itself: only what the employer entered, on the employer's letterhead. */
 const LetterBody = ({ offer, companyName }) => {
   const company = companyName || offer.employerId?.companyName || offer.signatoryOrganization || "";
+  const logo = /^(https?:\/\/|\/)/i.test(offer.employerId?.logo || "") ? offer.employerId.logo : "";
   const candidateName = offer.candidateId?.fullName || "the candidate";
   const candidateEmail = offer.candidateId?.email || "";
   const designation = offer.designation || "";
@@ -51,7 +52,17 @@ const LetterBody = ({ offer, companyName }) => {
     <div className="bg-white text-slate-800 space-y-6 text-[13px] leading-relaxed">
       {/* Letterhead: the employer's company */}
       <div className="border-b-2 border-slate-900/80 pb-4 flex flex-wrap justify-between items-end gap-4 avoid-break">
-        <h1 className="text-2xl font-black text-[#1e3a8a] tracking-tight wrap-break-word">{company || "Offer letter"}</h1>
+        <div className="flex items-center gap-3 min-w-0">
+          {logo && (
+            <img
+              src={logo}
+              alt={company ? `${company} logo` : "Company logo"}
+              className="h-12 w-auto max-w-35 object-contain"
+              onError={(e) => { e.currentTarget.style.display = "none"; }}
+            />
+          )}
+          <h1 className="text-2xl font-black text-[#1e3a8a] tracking-tight wrap-break-word">{company || "Offer letter"}</h1>
+        </div>
         <div className="text-right space-y-0.5">
           <p className="text-[11px] font-bold text-slate-900 uppercase tracking-wider">Offer of employment</p>
           {refNo && <p className="text-[11px] text-slate-600 font-mono">Ref: <span className="font-bold text-slate-800">{refNo}</span></p>}

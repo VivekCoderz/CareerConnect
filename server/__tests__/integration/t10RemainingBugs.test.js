@@ -212,6 +212,8 @@ describe("public company profile", () => {
     const res = await request(app).get(path);
     expect(res.statusCode).toBe(200);
     expect(res.body.company.companyName).toBe("Fake Employer Co");
+    // The page shows "Verified employer" from this field.
+    expect(res.body.company.verificationStatus).toBe("approved");
   });
 
   it("an employer can't approve their own profile through a profile update", async () => {

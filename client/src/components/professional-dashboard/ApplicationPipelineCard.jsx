@@ -92,7 +92,12 @@ const ApplicationPipelineCard = ({
           >
             <div>
               <h3 className="text-sm font-bold text-slate-900">
-                {app.title} <span className="text-slate-400 font-normal">·</span> {app.company}
+                {app.title}
+                {app.company && (
+                  <>
+                    {" "}<span className="text-slate-400 font-normal">·</span> {app.company}
+                  </>
+                )}
               </h3>
             </div>
 

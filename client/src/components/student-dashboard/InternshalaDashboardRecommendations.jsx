@@ -96,7 +96,7 @@ const InternshalaDashboardRecommendations = ({
             </span>
           </div>
           <span className="text-xs font-semibold text-slate-500 hidden sm:inline-block">
-            Open roles from verified employers
+            Open roles for students and freshers
           </span>
         </div>
 
@@ -114,7 +114,7 @@ const InternshalaDashboardRecommendations = ({
               <h3 className="text-base font-bold mt-2.5 group-hover:text-[#facc15] transition leading-snug line-clamp-1">
                 Internships for students
               </h3>
-              <p className="text-xs text-blue-100/80 mt-1">Paid, remote and in-office roles from verified employers</p>
+              <p className="text-xs text-blue-100/80 mt-1">Paid, remote and in-office internships</p>
             </div>
             <span className="text-xs font-bold text-[#facc15] mt-3 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
               <span>Explore Internships</span>
@@ -135,7 +135,7 @@ const InternshalaDashboardRecommendations = ({
               <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-300 transition leading-snug line-clamp-1">
                 Jobs for freshers
               </h3>
-              <p className="text-xs text-sky-100/90 mt-1">Entry-level openings, every listing reviewed by our team</p>
+              <p className="text-xs text-sky-100/90 mt-1">Entry-level and fresher openings</p>
             </div>
             <span className="text-xs font-bold text-sky-200 mt-3 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
               <span>Explore jobs</span>
