@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { FEATURES } from "../../config/features";
 import { Link } from "react-router-dom";
+import ViewDetailsButton from "../common/ViewDetailsButton";
 
 const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], appliedJobIds = new Set(), limit = 1 }) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -141,6 +142,8 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
                       {isSaved ? "★ Saved" : "☆ Save"}
                     </button>
                   )}
+
+                  <ViewDetailsButton item={job} type="Job" />
 
                   {isApplied ? (
                     <button type="button" disabled className="px-4 py-2.5 bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl cursor-not-allowed">

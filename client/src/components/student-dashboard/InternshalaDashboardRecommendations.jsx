@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FEATURES } from "../../config/features";
 import OpportunityTitleLink from "../common/OpportunityTitleLink";
+import ViewDetailsButton from "../common/ViewDetailsButton";
 
 const EmptyOpportunityCard = ({ type, href }) => (
   <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between min-h-[290px]">
@@ -351,6 +352,8 @@ const InternshalaDashboardRecommendations = ({
                     </button>
                   )}
 
+                  <ViewDetailsButton item={topJob} type="Job" className="flex-1 py-2.5 px-3" />
+
                   {isJobApplied ? (
                     <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
                       ✓ Applied
@@ -504,6 +507,8 @@ const InternshalaDashboardRecommendations = ({
                       {isInternshipSaved ? "★" : "☆"}
                     </button>
                   )}
+
+                  <ViewDetailsButton item={topInternship} type="Internship" className="flex-1 py-2.5 px-3" />
 
                   {isInternshipApplied ? (
                     <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">

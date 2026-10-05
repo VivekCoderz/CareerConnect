@@ -9,6 +9,8 @@ import { logoutUser } from "../services/authService";
 import internshipService from "../services/internshipService";
 import jobService from "../services/jobService";
 import BrandLogo from "../components/common/BrandLogo";
+import ViewDetailsButton from "../components/common/ViewDetailsButton";
+import { opportunityLink } from "../utils/opportunityApply";
 import { FEATURES } from "../config/features";
 import useSeo from "../hooks/useSeo";
 
@@ -98,11 +100,12 @@ const Home = () => {
       {/* ================= 1. INTERNSHALA-STYLE NAVBAR ================= */}
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200/90 shadow-2xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-[68px] gap-4">
+          <div className="flex items-center justify-between h-[68px] gap-2 sm:gap-4">
             {/* Left: Logo & Dropdowns */}
             <div className="flex items-center gap-3 sm:gap-4 shrink-0">
               <Link to="/" className="flex items-center gap-2">
-                <BrandLogo className="h-10 w-44" />
+                {/* Smaller on phones so Login, Register and the menu fit at 360px */}
+                <BrandLogo className="h-8 w-32 sm:h-10 sm:w-44" />
               </Link>
 
               {/* Navigation Dropdowns like Internshala */}
@@ -132,7 +135,7 @@ const Home = () => {
 
 
             {/* Right: Auth / Actions */}
-            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
               {user ? (
                 <>
                   <div className="hidden sm:flex items-center gap-2 pr-1">
@@ -165,7 +168,7 @@ const Home = () => {
                 <>
                   <Link
                     to="/login"
-                    className="h-9 px-4 rounded-xl border border-[#008bdc] text-[#008bdc] hover:bg-[#008bdc]/5 text-xs font-bold transition inline-flex items-center justify-center"
+                    className="h-9 px-3 sm:px-4 rounded-xl border border-[#008bdc] text-[#008bdc] hover:bg-[#008bdc]/5 text-xs font-bold transition inline-flex items-center justify-center"
                   >
                     Login
                   </Link>
@@ -173,7 +176,7 @@ const Home = () => {
                   <div className="relative group">
                     <Link
                       to="/register/student"
-                      className="h-9 px-4 rounded-xl bg-[#008bdc] hover:bg-[#0074b7] text-white text-xs font-bold transition inline-flex items-center justify-center shadow-xs"
+                      className="h-9 px-3 sm:px-4 rounded-xl bg-[#008bdc] hover:bg-[#0074b7] text-white text-xs font-bold transition inline-flex items-center justify-center shadow-xs"
                     >
                       Register
                     </Link>
@@ -699,12 +702,16 @@ const Home = () => {
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                     <span className="font-bold text-emerald-700">{item.stipend || ""}</span>
-                    <Link
-                      to="/internships"
-                      className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      Apply ›
-                    </Link>
+                    {opportunityLink(item, "Internship") ? (
+                      <ViewDetailsButton item={item} type="Internship" size="sm" />
+                    ) : (
+                      <Link
+                        to="/internships"
+                        className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
+                      >
+                        Apply ›
+                      </Link>
+                    )}
                   </div>
                 </div>
               ))
@@ -793,12 +800,16 @@ const Home = () => {
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-800">{jobItem.salary || ""}</span>
-                    <Link
-                      to="/jobs"
-                      className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      Apply ›
-                    </Link>
+                    {opportunityLink(jobItem, "Job") ? (
+                      <ViewDetailsButton item={jobItem} type="Job" size="sm" />
+                    ) : (
+                      <Link
+                        to="/jobs"
+                        className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
+                      >
+                        Apply ›
+                      </Link>
+                    )}
                   </div>
                 </div>
               ))

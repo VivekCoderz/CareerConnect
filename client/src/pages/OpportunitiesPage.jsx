@@ -26,6 +26,7 @@ import {
 } from "../services/applicationService";
 import ResumeUploadInput from "../components/common/ResumeUploadInput";
 import BrandLogo from "../components/common/BrandLogo";
+import ViewDetailsButton from "../components/common/ViewDetailsButton";
 
 export default function OpportunitiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -654,6 +655,11 @@ export default function OpportunitiesPage() {
                       >
                         <Share2 className="w-4 h-4" />
                       </button>
+
+                      <ViewDetailsButton
+                        item={item}
+                        type={/internship/i.test(item.opportunityType || item.type || "") ? "Internship" : "Job"}
+                      />
 
                       {appliedMap[item._id] ? (
                         <span className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-2xs">

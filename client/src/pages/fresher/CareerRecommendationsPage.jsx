@@ -6,6 +6,7 @@ import useLogout from "../../hooks/useLogout";
 import recommendationService from "../../services/recommendationService";
 import api from "../../api/api";
 import { FEATURES } from "../../config/features";
+import ViewDetailsButton from "../../components/common/ViewDetailsButton";
 
 // Layout
 import FresherSidebar from "../../components/fresher-dashboard/FresherSidebar";
@@ -599,12 +600,15 @@ const CareerRecommendationsPage = () => {
                             >
                               ℹ️ Why this match?
                             </button>
-                            <button
-                              onClick={() => handleApplyJob(job)}
-                              className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-2xs"
-                            >
-                              Apply Now
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <ViewDetailsButton item={job} type="Job" size="sm" />
+                              <button
+                                onClick={() => handleApplyJob(job)}
+                                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-2xs"
+                              >
+                                Apply Now
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
