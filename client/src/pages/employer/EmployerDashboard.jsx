@@ -91,8 +91,8 @@ const EmployerDashboard = () => {
     companyName: "",
     officialCompanyEmail: "",
     companyWebsite: "",
-    industry: "Information Technology",
-    companySize: "11-50",
+    industry: "",
+    companySize: "",
     verificationDocument: "",
     verificationDocumentName: "",
     requestingEmployeeName: "",
@@ -650,13 +650,13 @@ const EmployerDashboard = () => {
         prev.industry ||
         pre.industry ||
         prof.industry ||
-        "Information Technology",
+        "",
       companySize:
         existingReq?.companySize ||
         prev.companySize ||
         pre.companySize ||
         prof.companySize ||
-        "11-50",
+        "",
       verificationDocument:
         existingReq?.verificationDocument ||
         prev.verificationDocument ||
@@ -2105,6 +2105,7 @@ const EmployerDashboard = () => {
                             onChange={(e) => setOrgForm({ ...orgForm, industry: e.target.value })}
                             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition bg-white"
                           >
+                            <option value="">Select industry</option>
                             <option value="Information Technology">Information Technology &amp; Software</option>
                             <option value="Financial Services">Financial Services &amp; Banking</option>
                             <option value="Healthcare">Healthcare &amp; Life Sciences</option>
@@ -2128,6 +2129,7 @@ const EmployerDashboard = () => {
                             onChange={(e) => setOrgForm({ ...orgForm, companySize: e.target.value })}
                             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition bg-white"
                           >
+                            <option value="">Select company size</option>
                             <option value="1-10">1-10 Employees (Seed / Early Stage)</option>
                             <option value="11-50">11-50 Employees (Small Business)</option>
                             <option value="51-200">51-200 Employees (Growth Scale)</option>

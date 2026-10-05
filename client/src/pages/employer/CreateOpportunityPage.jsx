@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams, useLocation, Link } from "react-router-dom";
 import { createJob, getJobById, updateJob, updateJobStatus } from "../../services/jobService";
 import {
   create as createInternship,
@@ -123,9 +123,14 @@ export default function CreateOpportunityPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const { id: routeId } = useParams();
+  const { pathname } = useLocation();
+  const onInternshipRoute = pathname.startsWith("/employer/internships/");
+
   const editJobId = searchParams.get("edit");
-  const editInternshipId = searchParams.get("editInternship");
-  const initialType = searchParams.get("type") === "internship" ? "Internship" : "Job";
+  // My Internships links to /employer/internships/:id/edit
+  const editInternshipId = searchParams.get("editInternship") || (onInternshipRoute ? routeId : null) || null;
+  const initialType = searchParams.get("type") === "internship" || onInternshipRoute ? "Internship" : "Job";
 
   const [oppType, setOppType] = useState(initialType);
   const [loading, setLoading] = useState(false);
@@ -140,32 +145,32 @@ export default function CreateOpportunityPage() {
     title: "",
     category: "",
     subCategory: "",
-    department: "Engineering",
+    department: "",
     employmentType: "Full-time",
     workMode: "Hybrid",
     location: "",
     city: "",
     country: "India",
     isPaid: true,
-    hasJobOffer: true,
+    hasJobOffer: false,
     isInternational: false,
-    salaryMin: "600000",
-    salaryMax: "1200000",
+    salaryMin: "",
+    salaryMax: "",
     currency: "INR",
     isNegotiable: false,
-    stipend: "₹20,000/month",
-    duration: "3 months",
+    stipend: "",
+    duration: "",
     experienceLevel: "",
-    minYears: 0,
-    maxYears: 1,
-    education: "B.Tech / BCA / MCA / Any Graduate",
-    eligibility: "Open to recent graduates and final year students",
+    minYears: "",
+    maxYears: "",
+    education: "",
+    eligibility: "",
     description: "",
     responsibilities: "",
-    requiredSkills: "React, Node.js, JavaScript, Tailwind CSS",
-    preferredSkills: "TypeScript, MongoDB, Redux",
-    bonusSkills: "Docker, AWS, Git",
-    openings: 2,
+    requiredSkills: "",
+    preferredSkills: "",
+    bonusSkills: "",
+    openings: 1,
     deadline: "",
     status: "",
   });
@@ -182,7 +187,7 @@ export default function CreateOpportunityPage() {
               title: j.title || "",
               category: j.category || "",
               subCategory: j.subCategory || "",
-              department: j.department || "Engineering",
+              department: j.department || "",
               employmentType: j.employmentType || "Full-time",
               workMode: j.workMode || "Hybrid",
               location: j.location || "",
@@ -198,8 +203,8 @@ export default function CreateOpportunityPage() {
               stipend: j.stipend || "",
               duration: j.duration || "",
               experienceLevel: j.experience?.level || "",
-              minYears: j.experience?.minYears ?? 0,
-              maxYears: j.experience?.maxYears ?? 1,
+              minYears: j.experience?.maxYears ? j.experience.minYears ?? "" : "",
+              maxYears: j.experience?.maxYears || "",
               education: j.education || "",
               eligibility: j.eligibility || "",
               description: j.description || "",
@@ -253,12 +258,12 @@ export default function CreateOpportunityPage() {
               salaryMax: "",
               currency: "INR",
               isNegotiable: false,
-              stipend: i.stipend || "₹15,000/month",
-              duration: i.duration || "3 months",
+              stipend: i.stipend && i.stipend !== "Unpaid" && i.stipend !== "Not disclosed" ? i.stipend : "",
+              duration: i.duration || "",
               experienceLevel: "",
-              minYears: 0,
-              maxYears: 0,
-              education: i.education || "Any Graduate",
+              minYears: "",
+              maxYears: "",
+              education: i.education || "",
               eligibility: i.eligibility || "",
               description: i.description || "",
               responsibilities: (i.responsibilities || []).join("\n"),
@@ -392,6 +397,20 @@ export default function CreateOpportunityPage() {
       setError("Please configure at least one recruitment stage.");
       return;
     }
+    if (oppType === "Job") {
+      const [minSal, maxSal] = [Number(formData.salaryMin), Number(formData.salaryMax)];
+      const [minYrs, maxYrs] = [Number(formData.minYears), Number(formData.maxYears)];
+      if (minSal && maxSal && maxSal < minSal) {
+        setError("Max salary can't be less than min salary.");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      if (formData.maxYears !== "" && maxYrs < minYrs) {
+        setError("Max experience can't be less than min experience.");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+    }
 
     setLoading(true);
 
@@ -440,8 +459,8 @@ export default function CreateOpportunityPage() {
           isPaid: formData.isPaid,
           hasJobOffer: formData.hasJobOffer,
           isInternational: formData.isInternational,
-          stipend: formData.isPaid ? (formData.stipend || "₹15,000/month") : "Unpaid",
-          duration: formData.duration || "3 months",
+          stipend: formData.isPaid ? (formData.stipend.trim() || "Not disclosed") : "Unpaid",
+          duration: formData.duration.trim(),
           openings: Number(formData.openings) || 1,
           education: formData.education,
           eligibility: formData.eligibility,
@@ -492,7 +511,7 @@ export default function CreateOpportunityPage() {
           experience: {
             ...(formData.experienceLevel ? { level: formData.experienceLevel } : {}),
             minYears: Number(formData.minYears) || 0,
-            maxYears: Number(formData.maxYears) || 1,
+            maxYears: Number(formData.maxYears) || 0,
           },
           education: formData.education,
           eligibility: formData.eligibility,
@@ -754,7 +773,7 @@ export default function CreateOpportunityPage() {
                   name="location"
                   value={formData.location}
                   onChange={handleChange}
-                  placeholder="e.g. Bangalore, Karnataka"
+                  placeholder="City, or Remote"
                   className={inputClass}
                   required
                 />
@@ -830,7 +849,7 @@ export default function CreateOpportunityPage() {
                     name="salaryMin"
                     value={formData.salaryMin}
                     onChange={handleChange}
-                    placeholder="600000"
+                    placeholder="e.g. 300000"
                     className={inputClass}
                   />
                 </div>
@@ -841,7 +860,7 @@ export default function CreateOpportunityPage() {
                     name="salaryMax"
                     value={formData.salaryMax}
                     onChange={handleChange}
-                    placeholder="1200000"
+                    placeholder="e.g. 500000"
                     className={inputClass}
                   />
                 </div>
@@ -932,6 +951,78 @@ export default function CreateOpportunityPage() {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Education</label>
+                  <input
+                    type="text"
+                    name="education"
+                    value={formData.education}
+                    onChange={handleChange}
+                    placeholder="e.g. B.Tech / BCA / Any Graduate"
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Eligibility</label>
+                  <input
+                    type="text"
+                    name="eligibility"
+                    value={formData.eligibility}
+                    onChange={handleChange}
+                    placeholder="e.g. Final year students and 2025 graduates"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              {oppType === "Job" && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className={labelClass}>Experience Level</label>
+                    <select
+                      name="experienceLevel"
+                      value={formData.experienceLevel}
+                      onChange={handleChange}
+                      className={inputClass}
+                    >
+                      <option value="">Not specified</option>
+                      <option>Fresher / Entry-Level</option>
+                      <option>Junior (1-3 yrs)</option>
+                      <option>Mid-Level (3-5 yrs)</option>
+                      <option>Senior (5+ yrs)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Min Experience (Years)</label>
+                    <input
+                      type="number"
+                      name="minYears"
+                      min="0"
+                      value={formData.minYears}
+                      onChange={handleChange}
+                      placeholder="e.g. 0"
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Max Experience (Years)</label>
+                    <input
+                      type="number"
+                      name="maxYears"
+                      min="0"
+                      value={formData.maxYears}
+                      onChange={handleChange}
+                      placeholder="e.g. 2"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -155,7 +155,7 @@ const EmployerRegister = () => {
     designation: "",
     website: "",
     companyType: "Private",
-    industry: "Information Technology",
+    industry: "",
     location: "",
   });
 
