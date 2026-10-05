@@ -226,8 +226,9 @@ const ATSPipelineView = ({
           : activeStages.findIndex((s) => s.name.toLowerCase() === name);
       }
       // A stage this view has no column for (e.g. "All jobs"): keep the candidate visible by round number.
-      if (col === -1) col = Math.min(stageData.currentIndex, activeStages.length - 1);
-      columns[col].push(app);
+      if (col === -1) col = Math.max(0, Math.min(stageData.currentIndex, activeStages.length - 1));
+      // Guard: a bad stored index or a view without columns must not crash the board.
+      if (columns[col]) columns[col].push(app);
     });
     return columns;
   }, [jobFilteredApps, activeStages]);
