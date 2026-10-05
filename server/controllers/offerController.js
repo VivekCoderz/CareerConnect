@@ -3,6 +3,8 @@ const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
 const { notifyOfferSent, notifyOfferResponse } = require("../services/accountNotifications");
+
+const OFFER_TYPES = ["Full-time", "Part-time", "Contract", "Internship"];
 const { checkTransition, guardedStatusUpdate } = require("../utils/applicationStatus");
 const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
 const { startOfTodayIST } = require("../utils/listingExpiry");
@@ -91,7 +93,8 @@ exports.createOffer = async (req, res, next) => {
     }
 
     const scope = await getOwnerScope(req.user);
-    const job = await Job.findOne({ _id: jobId, $or: listingOwnerClauses(scope) }).select("_id").lean();
+    const job = await Job.findOne({ _id: jobId, $or: listingOwnerClauses(scope) })
+      .select("_id title department employmentType location").lean();
     const application = job && await Application.findOne({ _id: applicationId, candidateId, jobId: job._id })
       .select("_id status").lean();
     if (!application) {
@@ -163,15 +166,17 @@ exports.createOffer = async (req, res, next) => {
         candidateId,
         jobId,
         applicationId: application._id,
-        designation: designation || "Associate Engineer",
-        department: department || "Engineering",
-        employmentType: employmentType || "Full-time",
+        // Missing details come from the job, never invented values (QA bug 12).
+        designation: designation || job.title || "",
+        department: department || job.department || "",
+        // Only values the schema accepts; otherwise the schema default applies.
+        employmentType: [employmentType, job.employmentType].find((t) => OFFER_TYPES.includes(t)),
         salary: parsedSalary,
         salaryPeriod: salaryPeriod || "Per Annum (LPA)",
         currency: currency || "INR (₹)",
         joiningDate: parsedJoiningDate,
-        location: location || "Gurugram / Hybrid",
-        benefits: Array.isArray(benefits) ? benefits : ["Health Insurance", "Performance Bonus"],
+        location: location || job.location || "",
+        benefits: Array.isArray(benefits) ? benefits : [],
         expiryDate: parsedExpiryDate,
         additionalTerms: additionalTerms || "",
         status: "Sent",
