@@ -55,6 +55,8 @@ After (dry run first, share lists with Ram, then `--apply`):
 10. `node scripts/approve-existing-employers.js --before=<deploy date>` (also backfills listing approval dates).
 11. `node scripts/clean-fake-student-profiles.js`.
 12. `node scripts/clean-fake-fresher-professional-profiles.js` (also clears old "Industry" / "Working Professional" values).
+13. `node scripts/migrate-allowcontact-false.js --before=<deploy date>` (recruiter contact becomes opt-in for profiles created before the deploy: dry run, share the count with Ram, then `--apply`).
+14. Admin → Settings: set the site name to "E2Job" if it still says CareerConnect.
 
 ## 5. Rollback
 
