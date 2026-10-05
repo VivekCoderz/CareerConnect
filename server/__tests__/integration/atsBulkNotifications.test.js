@@ -159,6 +159,7 @@ describe("admin posts on behalf of an employer", () => {
 
     const res = await as(admin.token, "post", "/api/admin/opportunities").send({
       type: "job", employerProfileId: profile._id, title: "Backend Intern", description: "Node.js work", location: "Delhi",
+      employmentType: "Full-time", workMode: "On-site",
     });
 
     expect(res.statusCode).toBe(201);

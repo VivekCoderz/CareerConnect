@@ -106,7 +106,10 @@ describe("listings: location required, no Bangalore / category / level defaults"
     await createEmployerProfile(employer.user._id, { companyName: "Fake Location Co" });
     return employer;
   };
-  const jobBody = { title: "Fake Support Role", description: "A fake listing used only in tests." };
+  const jobBody = {
+    title: "Fake Support Role", employmentType: "Full-time", workMode: "Remote",
+    description: "A fake listing used only in tests.",
+  };
 
   it("jobs: 400 without a location, 201 with Remote and nothing invented", async () => {
     const employer = await setup();

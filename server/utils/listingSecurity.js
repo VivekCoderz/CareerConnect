@@ -36,6 +36,32 @@ const requiresReapproval = (listing, updates) => {
 const LOCATION_REQUIRED = "Location is required";
 const hasLocation = (value) => typeof value === "string" && value.trim().length > 0;
 
+// Employment type (jobs) and work mode (jobs and internships) have no default: the
+// employer chooses them. Allowed values come from the models. Internships have no
+// employment type field.
+const enumOf = (modelName, path) => require(`../models/${modelName}`).schema.path(path).enumValues;
+const KIND_FIELDS = {
+  job: [["employmentType", "Employment type", "Job"], ["workMode", "Work mode", "Job"]],
+  internship: [["workMode", "Work mode", "Internship"]],
+};
+
+/**
+ * Returns a message when employment type / work mode are missing or not allowed, else null.
+ * On create both are required; on update (`partial`) only the fields sent are checked, and
+ * sending an empty value is refused (it can't be cleared).
+ */
+const checkListingKind = (fields, kind, { partial = false } = {}) => {
+  for (const [path, label, modelName] of KIND_FIELDS[kind]) {
+    const sent = Object.prototype.hasOwnProperty.call(fields, path);
+    if (partial && !sent) continue;
+    const value = fields[path];
+    if (typeof value !== "string" || !value.trim()) return `${label} is required`;
+    const allowed = enumOf(modelName, path);
+    if (!allowed.includes(value)) return `${label} must be one of: ${allowed.join(", ")}`;
+  }
+  return null;
+};
+
 // Pay ranges by listing field. A max of 0 means "no maximum" (shown as "₹X+").
 const PAY_RANGE_FIELDS = { salaryRange: "Salary", stipendAmount: "Stipend" };
 
@@ -150,6 +176,7 @@ const withoutListed = (extra, listed) => {
 module.exports = {
   LOCATION_REQUIRED,
   hasLocation,
+  checkListingKind,
   checkListingInput,
   mergePayRanges,
   pickListingUpdate,

@@ -54,10 +54,12 @@ const createApplication = async (employer, candidate, status) => {
 };
 
 const jobBody = (overrides = {}) => ({
-  title: "Fake QA Intern Role", location: "Remote", description: "A fake listing used only in tests.", ...overrides,
+  title: "Fake QA Intern Role", employmentType: "Full-time", workMode: "Remote", location: "Remote",
+  description: "A fake listing used only in tests.", ...overrides,
 });
 const internshipBody = (overrides = {}) => ({
-  title: "Fake Design Internship", location: "Remote", description: "A fake internship used only in tests.", ...overrides,
+  title: "Fake Design Internship", workMode: "Remote", location: "Remote",
+  description: "A fake internship used only in tests.", ...overrides,
 });
 
 describe("BUG-20 listing deadlines", () => {
