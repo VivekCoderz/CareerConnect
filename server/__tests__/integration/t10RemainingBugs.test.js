@@ -132,7 +132,10 @@ describe("ADM-11/12 inactive or deleted company", () => {
     expect(await Application.exists({ _id: application._id })).toBeTruthy();
 
     const post = await as(employer.token, "post", "/api/jobs")
-      .send({ title: "Should not post", location: "Remote", description: "A listing from an inactive company." });
+      .send({
+        title: "Should not post", employmentType: "Full-time", workMode: "Remote", location: "Remote",
+        description: "A listing from an inactive company.",
+      });
     expect(post.statusCode).toBe(403);
     expect(post.body.code).toBe("COMPANY_INACTIVE");
 
@@ -158,7 +161,10 @@ describe("ADM-11/12 inactive or deleted company", () => {
     // Reactivating restores posting (listings stay closed, like a rejected employer's).
     await as(data.superAdmin.token, "patch", `/api/admin/companies/${data.company._id}/status`).send({ status: "active" });
     const post = await as(data.employer.token, "post", "/api/jobs")
-      .send({ title: "Back in business", location: "Remote", description: "A listing after reactivation." });
+      .send({
+        title: "Back in business", employmentType: "Full-time", workMode: "Remote", location: "Remote",
+        description: "A listing after reactivation.",
+      });
     expect(post.statusCode).toBe(201);
   });
 

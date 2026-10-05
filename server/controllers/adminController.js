@@ -19,7 +19,14 @@ const { notifyListingDecision } = require("../services/accountNotifications");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
-const { escapeRegex, pickListingUpdate, checkListingInput, hasLocation, LOCATION_REQUIRED } = require("../utils/listingSecurity");
+const {
+  escapeRegex,
+  pickListingUpdate,
+  checkListingInput,
+  checkListingKind,
+  hasLocation,
+  LOCATION_REQUIRED,
+} = require("../utils/listingSecurity");
 const { clearSearchCache } = require("../services/jobScraperService");
 const { runExternalJobSync } = require("../services/externalJobSync");
 const { createNotification } = require("../services/notificationService");
@@ -2390,7 +2397,7 @@ exports.createOpportunityForEmployer = async (req, res, next) => {
       }
     }
 
-    const invalid = checkListingInput(fields);
+    const invalid = checkListingKind(fields, type) || checkListingInput(fields);
     if (invalid) return res.status(400).json({ success: false, message: invalid });
 
     const Model = type === "internship" ? Internship : Job;

@@ -3,7 +3,12 @@ import { createOpportunityForEmployer, getAdminEmployers } from "../../services/
 
 // Super Admin: post a job or internship on behalf of an approved employer
 // (assisted posting). The listing belongs to the employer, who manages applicants.
-const EMPTY = { type: "job", title: "", location: "", workMode: "On-site", description: "", requiredSkills: "", deadline: "", applyUrl: "" };
+// Nothing pre-selected: work mode and (for jobs) employment type are chosen by the admin.
+const EMPTY = {
+  type: "job", title: "", location: "", employmentType: "", workMode: "", description: "",
+  requiredSkills: "", deadline: "", applyUrl: "",
+};
+const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Freelance", "Trainee"];
 
 const PostForEmployerModal = ({ open, onClose, onPosted }) => {
   const [search, setSearch] = useState("");
@@ -40,8 +45,11 @@ const PostForEmployerModal = ({ open, onClose, onPosted }) => {
     if (!employerId) return setError("Choose an approved employer.");
     setSaving(true);
     try {
+      const { employmentType, ...rest } = form;
       const payload = {
-        ...form,
+        ...rest,
+        // Internships have no employment type.
+        ...(form.type === "job" ? { employmentType } : {}),
         employerProfileId: employerId,
         requiredSkills: form.requiredSkills.split(",").map((s) => s.trim()).filter(Boolean),
         deadline: form.deadline || undefined,
@@ -95,13 +103,24 @@ const PostForEmployerModal = ({ open, onClose, onPosted }) => {
           </label>
           <label className="block text-sm font-semibold text-slate-800">
             Work mode
-            <select value={form.workMode} onChange={set("workMode")} className={`${input} mt-1`}>
+            <select value={form.workMode} onChange={set("workMode")} required className={`${input} mt-1`}>
+              <option value="">Select work mode…</option>
               <option>On-site</option>
               <option>Hybrid</option>
               <option>Remote</option>
             </select>
           </label>
         </div>
+
+        {form.type === "job" && (
+          <label className="block text-sm font-semibold text-slate-800">
+            Employment type
+            <select value={form.employmentType} onChange={set("employmentType")} required className={`${input} mt-1`}>
+              <option value="">Select employment type…</option>
+              {JOB_TYPES.map((type) => <option key={type}>{type}</option>)}
+            </select>
+          </label>
+        )}
 
         <label className="block text-sm font-semibold text-slate-800">
           Title
