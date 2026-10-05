@@ -531,7 +531,7 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
           <div className="flex items-center gap-2">
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Trending now
+              Explore opportunities
             </h2>
             <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
               📈

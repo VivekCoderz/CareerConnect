@@ -313,7 +313,7 @@ const InternshipDiscoveryPage = () => {
               <span className="px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 text-[11px] font-bold">
                 🎯 {totalCount} Opportunities Found
               </span>
-              <span className="text-xs text-blue-200/80">· Verified E2Job Partner Employers</span>
+              <span className="text-xs text-blue-200/80">· Employers on E2Job</span>
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">

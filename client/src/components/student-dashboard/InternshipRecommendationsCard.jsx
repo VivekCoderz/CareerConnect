@@ -17,7 +17,7 @@ const InternshipRecommendationsCard = ({
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xl">🔥</span>
-            <h2 className="text-lg font-bold text-slate-900">Trending & Recommended Internship</h2>
+            <h2 className="text-lg font-bold text-slate-900">Recommended Internship</h2>
             <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
               Top #1 Pick
             </span>
@@ -48,9 +48,6 @@ const InternshipRecommendationsCard = ({
               >
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                      🔥 Trending Now
-                    </span>
                     <h3 className="text-base font-bold text-slate-900">
                       <OpportunityTitleLink item={int} type="Internship">{int.title}</OpportunityTitleLink>
                     </h3>

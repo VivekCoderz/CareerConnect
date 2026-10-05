@@ -88,14 +88,14 @@ const InternshalaDashboardRecommendations = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              Trending now
+              Explore opportunities
             </h2>
             <span className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shadow-xs">
               📈
             </span>
           </div>
           <span className="text-xs font-semibold text-slate-500 hidden sm:inline-block">
-            Curated hiring drives for E2Job Students
+            Open roles from verified employers
           </span>
         </div>
 
@@ -111,9 +111,9 @@ const InternshalaDashboardRecommendations = ({
                 INTERNSHIPS
               </span>
               <h3 className="text-base font-bold mt-2.5 group-hover:text-[#facc15] transition leading-snug line-clamp-1">
-                Summer Internship Fair 2026
+                Internships for students
               </h3>
-              <p className="text-xs text-blue-100/80 mt-1">Stipend up to ₹45,000/month</p>
+              <p className="text-xs text-blue-100/80 mt-1">Paid, remote and in-office roles from verified employers</p>
             </div>
             <span className="text-xs font-bold text-[#facc15] mt-3 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
               <span>Explore Internships</span>
@@ -132,12 +132,12 @@ const InternshalaDashboardRecommendations = ({
                 JOBS
               </span>
               <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-300 transition leading-snug line-clamp-1">
-                Fresher Tech Hiring Fest
+                Jobs for freshers
               </h3>
-              <p className="text-xs text-sky-100/90 mt-1">Min CTC ₹6 LPA - ₹15 LPA</p>
+              <p className="text-xs text-sky-100/90 mt-1">Entry-level openings, every listing reviewed by our team</p>
             </div>
             <span className="text-xs font-bold text-sky-200 mt-3 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
-              <span>Explore 100+ Jobs</span>
+              <span>Explore jobs</span>
               <span>→</span>
             </span>
           </Link>
@@ -309,12 +309,10 @@ const InternshalaDashboardRecommendations = ({
                     </div>
                   )}
 
-                  {topJob.type && (
+                  {(topJob.type || topJob.employmentType) && (
                     <div className="flex items-center gap-2">
                       <span className="text-slate-400 shrink-0">💼</span>
-                      <span className="text-slate-500 font-medium">
-                        {topJob.type}
-                      </span>
+                      <span className="text-slate-500 font-medium">{topJob.type || topJob.employmentType}</span>
                     </div>
                   )}
                 </div>

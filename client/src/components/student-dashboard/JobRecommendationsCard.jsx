@@ -32,7 +32,7 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xl">🔥</span>
             <h2 className="text-lg font-bold text-slate-900">
-              {isFullView ? "Recommended & Campus Jobs" : "Trending & Recommended Job"}
+              {isFullView ? "Recommended & Campus Jobs" : "Recommended Jobs"}
             </h2>
             {isFullView ? (
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#1e3a8a] border border-blue-200">
@@ -85,9 +85,6 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
               >
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                      🔥 Trending Now
-                    </span>
                     <h3 className="text-base font-bold text-slate-900">{job.title}</h3>
                     {typeMode && (
                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">

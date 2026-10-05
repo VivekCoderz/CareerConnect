@@ -227,7 +227,7 @@ export default function OpportunitiesPage() {
     if (src.includes("linkedin")) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
-          LinkedIn Verified
+          LinkedIn
         </span>
       );
     }

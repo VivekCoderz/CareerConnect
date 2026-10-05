@@ -97,7 +97,7 @@ const CompanyPublicProfile = () => {
           <div className="h-44 bg-gradient-to-r from-[#92400e] via-[#b45309] to-[#d97706] relative p-6 text-white flex items-end">
             <div className="absolute top-4 right-4 flex items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-bold text-amber-100 border border-white/20">
-                ✓ E2Job Partner
+                ✓ Verified employer
               </span>
             </div>
           </div>
