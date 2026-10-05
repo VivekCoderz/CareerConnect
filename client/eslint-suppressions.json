@@ -346,9 +346,6 @@
     }
   },
   "src/components/employer/OfferLetterPreviewModal.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    },
     "react-hooks/purity": {
       "count": 1
     }
@@ -369,10 +366,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 2
-    },
-    "react-hooks/purity": {
-      "count": 2
+      "count": 1
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
