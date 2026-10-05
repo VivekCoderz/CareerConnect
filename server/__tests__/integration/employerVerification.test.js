@@ -19,12 +19,15 @@ const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
 
 const jobPayload = (overrides = {}) => ({
   title: "Verified Backend Developer",
+  employmentType: "Full-time",
+  workMode: "On-site",
   location: "Bangalore",
   description: "Build APIs.",
   ...overrides,
 });
 const internshipPayload = (overrides = {}) => ({
   title: "Verified Design Intern",
+  workMode: "Remote",
   location: "Remote",
   description: "Design things.",
   ...overrides,

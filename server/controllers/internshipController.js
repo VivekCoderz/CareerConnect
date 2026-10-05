@@ -15,6 +15,7 @@ const { getAggregatedOpportunities, CAMPUS_DRIVES, clearSearchCache } = require(
 const {
   pickListingUpdate,
   checkListingInput,
+  checkListingKind,
   hasLocation,
   LOCATION_REQUIRED,
   mergePayRanges,
@@ -78,7 +79,7 @@ exports.createInternship = async (req, res, next) => {
     if (!hasLocation(fields.location)) {
       return res.status(400).json({ success: false, message: LOCATION_REQUIRED });
     }
-    const invalid = checkListingInput(fields);
+    const invalid = checkListingKind(fields, "internship") || checkListingInput(fields);
     if (invalid) return res.status(400).json({ success: false, message: invalid });
 
     const stages = sanitizeRecruitmentStages(req.body.recruitmentStages);
@@ -673,7 +674,7 @@ exports.updateInternship = async (req, res, next) => {
     }
 
     const updates = pickListingUpdate(req.body);
-    const invalid = checkListingInput(updates, internship);
+    const invalid = checkListingKind(updates, "internship", { partial: true }) || checkListingInput(updates, internship);
     if (invalid) return res.status(400).json({ success: false, message: invalid });
     mergePayRanges(updates, internship);
     // A published internship whose content changes must be approved again (BUG-02).

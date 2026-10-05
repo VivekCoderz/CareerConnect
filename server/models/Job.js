@@ -87,14 +87,13 @@ const jobSchema = new mongoose.Schema(
     },
     employmentType: {
       type: String,
+      // No default: the employer chooses it (required when an employer creates a listing).
       enum: ["Full-time", "Part-time", "Contract", "Internship", "Freelance", "Trainee"],
-      default: "Full-time",
       index: true,
     },
     workMode: {
       type: String,
       enum: ["On-site", "Hybrid", "Remote"],
-      default: "Hybrid",
       index: true,
     },
     location: {

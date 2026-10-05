@@ -282,7 +282,7 @@ ${locationLine(item)}
 ${item.stipend ? `**Stipend:** ${item.stipend}\n` : ""}${item.duration ? `**Duration:** ${item.duration}` : ""}
 
 **Skills In Focus:**
-${(item.skillsRequired || item.skills || []).map((s) => `• ${s}`).join("\n") || "• Technical & Problem-solving skills"}
+${(item.skillsRequired || item.skills || []).map((s) => `• ${s}`).join("\n") || "• See the listing"}
 
 Submit your resume and statement of purpose before the deadline.
       `.trim();

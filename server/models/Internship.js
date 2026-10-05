@@ -33,8 +33,8 @@ const internshipSchema = new mongoose.Schema(
     subCategory: { type: String, default: "", trim: true },
     workMode: {
       type: String,
+      // No default: the employer chooses it (required when an employer creates a listing).
       enum: ["On-site", "Hybrid", "Remote"],
-      default: "Hybrid",
       index: true,
     },
     location: {

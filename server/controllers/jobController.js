@@ -10,6 +10,7 @@ const { formatSalary, companyOf, formatDate, textOrNull } = require("../utils/li
 const {
   pickListingUpdate,
   checkListingInput,
+  checkListingKind,
   hasLocation,
   LOCATION_REQUIRED,
   mergePayRanges,
@@ -386,7 +387,7 @@ exports.createJob = async (req, res, next) => {
       });
     }
 
-    const invalid = checkListingInput({ deadline, salaryRange });
+    const invalid = checkListingKind({ employmentType, workMode }, "job") || checkListingInput({ deadline, salaryRange });
     if (invalid) return res.status(400).json({ success: false, message: invalid });
 
     const stages = sanitizeRecruitmentStages(recruitmentStages);
@@ -428,8 +429,8 @@ exports.createJob = async (req, res, next) => {
       category: category?.trim() || "",
       subCategory: subCategory?.trim() || "",
       department: department?.trim() || "General",
-      employmentType: employmentType || "Full-time",
-      workMode: workMode || "Hybrid",
+      employmentType,
+      workMode,
       location: location.trim(),
       city: city?.trim() || "",
       state: state?.trim() || "",
@@ -485,7 +486,7 @@ exports.updateJob = async (req, res, next) => {
 
     // Only listing fields are editable; ownership and counters are not.
     const updates = pickListingUpdate(req.body);
-    const invalid = checkListingInput(updates, job);
+    const invalid = checkListingKind(updates, "job", { partial: true }) || checkListingInput(updates, job);
     if (invalid) return res.status(400).json({ success: false, message: invalid });
     mergePayRanges(updates, job);
     if (req.body.recruitmentStages) {
