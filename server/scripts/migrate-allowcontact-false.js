@@ -10,6 +10,13 @@
  * Only profiles created before --before are touched, so a professional who opts in after
  * the deploy isn't switched back off by a later run.
  *
+ * Safe to re-run: the profiles to change are read once before anything is written, and
+ * each changed profile gets allowContactMigratedAt (see lib/cleanupMarkers.js). Profiles
+ * with that marker are never changed again, so a professional who opts back in after
+ * being migrated keeps their choice even though their profile predates --before.
+ * The marker also tells clean-fake-fresher-professional-profiles that this allowContact
+ * value came from a script.
+ *
  * Usage (from server/):
  *   node scripts/migrate-allowcontact-false.js --before=2026-10-06           # dry run
  *   node scripts/migrate-allowcontact-false.js --before=2026-10-06 --apply   # apply
@@ -17,13 +24,17 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
+const { ALLOW_CONTACT_MIGRATED } = require("./lib/cleanupMarkers");
 
-async function migrateAllowContact({ apply = false, before = null, log = console.log } = {}) {
+async function migrateAllowContact({ apply = false, before = null, log = console.log, now = new Date() } = {}) {
   const ALLOWED = {
     "recruiterPreferences.allowContact": true,
+    [ALLOW_CONTACT_MIGRATED]: { $exists: false },
     ...(before ? { createdAt: { $lt: before } } : {}),
   };
-  const matched = await ProfessionalProfile.countDocuments(ALLOWED);
+  // Decide from this one read; the update below only touches these profiles.
+  const ids = await ProfessionalProfile.find(ALLOWED).distinct("_id");
+  const matched = ids.length;
   log(`${matched} professional profile(s) have recruiter contact allowed (allowContact: true).`);
 
   if (!apply) {
@@ -32,9 +43,9 @@ async function migrateAllowContact({ apply = false, before = null, log = console
   }
 
   const result = await ProfessionalProfile.updateMany(
-    ALLOWED,
-    { $set: { "recruiterPreferences.allowContact": false } },
-    { timestamps: false }
+    { _id: { $in: ids }, ...ALLOWED },
+    { $set: { "recruiterPreferences.allowContact": false, [ALLOW_CONTACT_MIGRATED]: now } },
+    { strict: false, timestamps: false }
   );
   log(`Set allowContact to false on ${result.modifiedCount} profile(s).`);
   return { matched, updated: result.modifiedCount };

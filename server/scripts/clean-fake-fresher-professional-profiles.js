@@ -21,6 +21,14 @@
  * people choose, so it is only cleared on a profile that also still has the placeholder
  * company or job title.
  *
+ * Safe to re-run. Every decision is made from one read before anything is written, and
+ * each profile the script decides about gets a marker (see lib/cleanupMarkers.js):
+ * sampleDataCleanedAt where it cleared something, sampleDataLeftAloneAt where it found
+ * sample data with other edits. Profiles with either marker are never looked at again,
+ * so a value the script itself cleared can't later make a profile look like sample data.
+ * A profile whose allowContact was switched by migrate-allowcontact-false is left alone
+ * too: that value came from a script, not from the sample data or the user.
+ *
  * Usage (from server/):
  *   node scripts/clean-fake-fresher-professional-profiles.js           # dry run: lists matches
  *   node scripts/clean-fake-fresher-professional-profiles.js --apply   # clear the sample fields
@@ -29,6 +37,12 @@ require("dotenv").config();
 const mongoose = require("mongoose");
 const FresherProfile = require("../models/FresherProfile");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
+const {
+  SAMPLE_DATA_CLEANED,
+  ALLOW_CONTACT_MIGRATED,
+  NOT_YET_DECIDED,
+  markLeftAlone,
+} = require("./lib/cleanupMarkers");
 
 // The sample data used `new Date(y, m, d)`, so the stored instant depends on the server's
 // time zone. Accept that calendar date in UTC or IST.
@@ -309,7 +323,9 @@ function classifyProfile(profile, { kind, Model, sets }) {
     valueMatches(getPath(profile, path), value, Model.schema.path(path)?.schema)));
   if (!set) return null;
 
-  const edited = leafPaths(Model).some(({ path, schemaType }) =>
+  // allowContact set by migrate-allowcontact-false now equals today's default, but the
+  // sample data never had that value: count it as a change, as before the migration.
+  const edited = Boolean(profile[ALLOW_CONTACT_MIGRATED]) || leafPaths(Model).some(({ path, schemaType }) =>
     !(path in set.fields) && !untouched(getPath(profile, path), schemaType, OLD_DEFAULTS[kind][path]));
   return { set, edited };
 }
@@ -331,11 +347,13 @@ function clearUpdate(profile, Model) {
   return update;
 }
 
-async function cleanFakeFresherProfessionalProfiles({ apply = false, log = console.log } = {}) {
-  const summary = { matched: 0, skipped: 0, cleared: 0, ids: [] };
+const withCleanedMarker = (update, now) => ({ ...update, $set: { ...(update.$set || {}), [SAMPLE_DATA_CLEANED]: now } });
 
+// Reads and classifies; writes nothing. Profiles an earlier run decided about are not read.
+async function planSampleCleanup(log) {
+  const plans = [];
   for (const target of TARGETS) {
-    const candidates = await target.Model.find(target.query).lean();
+    const candidates = await target.Model.find({ ...target.query, ...NOT_YET_DECIDED }).lean();
     const matches = [];
     const skipped = [];
     for (const profile of candidates) {
@@ -350,72 +368,121 @@ async function cleanFakeFresherProfessionalProfiles({ apply = false, log = conso
       log(`${skipped.length} ${target.kind} profile(s) with sample data but other edits (left alone):`);
       skipped.forEach(({ profile }) => log(`  - ${profile._id} (user ${profile.userId})`));
     }
+    plans.push({ target, matches, skipped });
+  }
+  return plans;
+}
 
+async function applySampleCleanup(plans, { apply, log, now }) {
+  const summary = { matched: 0, skipped: 0, cleared: 0, markedLeftAlone: 0, ids: [] };
+  for (const { target, matches, skipped } of plans) {
     summary.matched += matches.length;
     summary.skipped += skipped.length;
     summary.ids.push(...matches.map((m) => String(m.profile._id)));
+    if (!apply) continue;
 
-    if (apply) {
-      for (const { profile } of matches) {
-        // Only clear if the profile hasn't changed since it was read.
-        const result = await target.Model.updateOne(
-          { _id: profile._id, updatedAt: profile.updatedAt },
-          clearUpdate(profile, target.Model)
-        );
-        summary.cleared += result.modifiedCount;
-      }
+    for (const { profile } of matches) {
+      // Only clear if the profile hasn't changed since it was read.
+      const result = await target.Model.updateOne(
+        { _id: profile._id, updatedAt: profile.updatedAt, ...NOT_YET_DECIDED },
+        withCleanedMarker(clearUpdate(profile, target.Model), now),
+        { strict: false }
+      );
+      summary.cleared += result.modifiedCount;
     }
+    summary.markedLeftAlone += await markLeftAlone(target.Model, skipped.map((s) => s.profile._id), now);
   }
 
   log("");
-  if (apply) log(`Cleared sample data from ${summary.cleared} profile(s).`);
-  else log("Dry run: nothing changed. Re-run with --apply to clear the sample fields.");
+  if (apply) {
+    log(`Cleared sample data from ${summary.cleared} profile(s); marked ${summary.markedLeftAlone} as left alone.`);
+  } else {
+    log("Dry run: nothing changed. Re-run with --apply to clear the sample fields.");
+  }
   return summary;
 }
 
+async function cleanFakeFresherProfessionalProfiles({ apply = false, log = console.log, now = new Date() } = {}) {
+  const plans = await planSampleCleanup(log);
+  return applySampleCleanup(plans, { apply, log, now });
+}
+
 // Signup (before T04) saved these when a professional left the fields blank.
-const COMPANY_PLACEHOLDER = { "currentEmployment.company": "Industry" };
-const TITLE_PLACEHOLDER = { "currentEmployment.jobTitle": "Working Professional" };
 const SIGNUP_PLACEHOLDERS = [
   { path: "currentEmployment.company", placeholder: "Industry" },
   { path: "currentEmployment.jobTitle", placeholder: "Working Professional" },
   // A real industry too: only the default when the same profile still has a placeholder
   // company or job title.
-  {
-    path: "currentEmployment.industry",
-    placeholder: "Information Technology",
-    onlyIf: { $or: [COMPANY_PLACEHOLDER, TITLE_PLACEHOLDER] },
-  },
+  { path: "currentEmployment.industry", placeholder: "Information Technology", needsPlaceholderBeside: true },
 ];
 
-async function cleanSignupPlaceholders({ apply = false, log = console.log } = {}) {
-  // Find every match before clearing anything: clearing the company first would hide the
-  // profiles whose industry depends on it.
-  const found = [];
-  for (const { path, placeholder, onlyIf } of SIGNUP_PLACEHOLDERS) {
-    const filter = { [path]: placeholder, ...(onlyIf || {}) };
-    const ids = await ProfessionalProfile.find(filter).distinct("_id");
-    log(`${ids.length} professional profile(s) with ${path} = "${placeholder}"${onlyIf ? " and a placeholder company or title" : ""}:`);
-    ids.forEach((id) => log(`  - ${id}`));
-    found.push({ path, placeholder, ids });
-  }
+// The placeholders a profile still holds, judged from one read of that profile.
+const placeholdersIn = (profile) => {
+  const holds = ({ path, placeholder }) => getPath(profile, path) === placeholder;
+  const besidePlaceholder = SIGNUP_PLACEHOLDERS.some((p) => !p.needsPlaceholderBeside && holds(p));
+  return SIGNUP_PLACEHOLDERS.filter((p) => holds(p) && (!p.needsPlaceholderBeside || besidePlaceholder));
+};
 
-  const summary = {};
-  for (const { path, placeholder, ids } of found) {
-    let cleared = 0;
-    if (apply && ids.length) {
-      // Exact value in the filter: a profile edited since it was read is left alone.
-      const result = await ProfessionalProfile.updateMany(
-        { _id: { $in: ids }, [path]: placeholder },
-        { $set: { [path]: "" } }
+// Reads and decides; writes nothing. `excludeIds`: profiles the sample-data pass decided about.
+async function planSignupPlaceholders(log, excludeIds = new Set()) {
+  const candidates = await ProfessionalProfile.find({
+    $or: SIGNUP_PLACEHOLDERS.filter((p) => !p.needsPlaceholderBeside).map(({ path, placeholder }) => ({ [path]: placeholder })),
+    ...NOT_YET_DECIDED,
+  }).select(SIGNUP_PLACEHOLDERS.map((p) => p.path).join(" ")).lean();
+
+  const plan = candidates
+    .filter((profile) => !excludeIds.has(String(profile._id)))
+    .map((profile) => ({ id: profile._id, placeholders: placeholdersIn(profile) }))
+    .filter(({ placeholders }) => placeholders.length > 0);
+
+  for (const { path, placeholder, needsPlaceholderBeside } of SIGNUP_PLACEHOLDERS) {
+    const ids = plan.filter((p) => p.placeholders.some((ph) => ph.path === path)).map((p) => p.id);
+    log(`${ids.length} professional profile(s) with ${path} = "${placeholder}"${needsPlaceholderBeside ? " and a placeholder company or title" : ""}:`);
+    ids.forEach((id) => log(`  - ${id}`));
+  }
+  return plan;
+}
+
+async function applySignupPlaceholders(plan, { apply, log, now }) {
+  const summary = Object.fromEntries(SIGNUP_PLACEHOLDERS.map(({ path }) => {
+    const ids = plan.filter((p) => p.placeholders.some((ph) => ph.path === path)).map((p) => String(p.id));
+    return [path, { matched: ids.length, cleared: 0, ids }];
+  }));
+
+  if (apply) {
+    for (const { id, placeholders } of plan) {
+      // Exact values in the filter: a profile edited since it was read is left alone.
+      const result = await ProfessionalProfile.updateOne(
+        { _id: id, ...NOT_YET_DECIDED, ...Object.fromEntries(placeholders.map((p) => [p.path, p.placeholder])) },
+        { $set: { ...Object.fromEntries(placeholders.map((p) => [p.path, ""])), [SAMPLE_DATA_CLEANED]: now } },
+        { strict: false }
       );
-      cleared = result.modifiedCount;
+      if (result.modifiedCount) placeholders.forEach(({ path }) => { summary[path].cleared += 1; });
     }
-    summary[path] = { matched: ids.length, cleared, ids: ids.map(String) };
   }
   log("");
   log(apply ? "Cleared the signup placeholders." : "Dry run: placeholders not changed. Re-run with --apply to clear them.");
   return summary;
+}
+
+async function cleanSignupPlaceholders({ apply = false, log = console.log, now = new Date() } = {}) {
+  const plan = await planSignupPlaceholders(log);
+  return applySignupPlaceholders(plan, { apply, log, now });
+}
+
+// Both passes, decided from one read before anything is written. A profile the sample-data
+// pass decided about (cleared or left alone) is not also handled by the placeholder pass.
+async function cleanFresherProfessionalSampleData({ apply = false, log = console.log, now = new Date() } = {}) {
+  const samplePlans = await planSampleCleanup(log);
+  log("");
+  const decided = new Set(samplePlans.flatMap(({ matches, skipped }) =>
+    [...matches, ...skipped].map(({ profile }) => String(profile._id))));
+  const placeholderPlan = await planSignupPlaceholders(log, decided);
+
+  log("");
+  const samples = await applySampleCleanup(samplePlans, { apply, log, now });
+  const placeholders = await applySignupPlaceholders(placeholderPlan, { apply, log, now });
+  return { samples, placeholders };
 }
 
 async function main() {
@@ -427,9 +494,7 @@ async function main() {
   console.log(`Connected. Mode: ${apply ? "APPLY" : "DRY RUN"}`);
   console.log("");
   try {
-    await cleanFakeFresherProfessionalProfiles({ apply });
-    console.log("");
-    await cleanSignupPlaceholders({ apply });
+    await cleanFresherProfessionalSampleData({ apply });
   } finally {
     await mongoose.disconnect();
   }
@@ -443,6 +508,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  cleanFresherProfessionalSampleData,
   cleanFakeFresherProfessionalProfiles,
   cleanSignupPlaceholders,
   FRESHER_SAMPLE_SETS,
