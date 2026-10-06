@@ -689,7 +689,7 @@ exports.createAdminCompany = async (req, res, next) => {
       email: email || "",
       phone: phone || "",
       website: website || "",
-      industry: industry || "Information Technology",
+      industry: String(industry || "").trim(),
       location: location || "",
       status: status || "active",
     });
@@ -1598,7 +1598,7 @@ exports.approveOrganizationRequest = async (req, res, next) => {
         phone: request.phone ? request.phone.trim() : "",
         website: request.website ? request.website.trim() : "",
         companyType: request.organizationType || "Private",
-        industry: request.industry || "Information Technology",
+        industry: request.industry || "",
         location: fullLocation,
         address: request.address ? request.address.trim() : "",
         contactPerson: request.requestingEmployeeName || request.contactPerson.trim(),
