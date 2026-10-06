@@ -1,6 +1,7 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import {
@@ -53,7 +54,9 @@ const StudentDashboard = () => {
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // Open the tab named in ?tab= right away (kept in the URL by useTabInUrl).
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "dashboard");
+  useTabInUrl(activeTab, "dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [selectedOpportunityForTailoring, setSelectedOpportunityForTailoring] = useState(null);
   const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
