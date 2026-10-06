@@ -552,6 +552,7 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
         locations: profile.hiringPreferences?.locations || [],
       },
       isPublished: profile.isPublished,
+      verificationStatus: profile.verificationStatus,
       createdAt: profile.createdAt,
     };
 

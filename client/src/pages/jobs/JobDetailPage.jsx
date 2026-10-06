@@ -9,6 +9,7 @@ import ShareButtons from "../../components/common/ShareButtons";
 import ReportListingButton from "../../components/common/ReportListingButton";
 import useSeo from "../../hooks/useSeo";
 import { buildJobPostingSchema, toJsonLd } from "../../utils/jobPostingSchema";
+import { isPastDeadline } from "../../utils/listingDeadline";
 import BrandLogo from "../../components/common/BrandLogo";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
@@ -40,8 +41,8 @@ const formatExperience = (exp) => {
 const formatHeadquarters = (hq) =>
   typeof hq === "string" ? hq : [hq?.city, hq?.state, hq?.country].filter(Boolean).join(", ");
 
-const isClosed = (job) =>
-  job.status !== "Published" || (job.deadline && new Date(job.deadline) < new Date());
+// Open until the end of the deadline day in IST, like the server.
+const isClosed = (job) => job.status !== "Published" || isPastDeadline(job.deadline);
 
 const Header = ({ user }) => (
   <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">

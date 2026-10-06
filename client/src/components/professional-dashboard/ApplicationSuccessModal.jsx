@@ -27,13 +27,15 @@ const ApplicationSuccessModal = ({
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight pt-1">
             {application.title}
           </h2>
-          <p className="text-sm font-bold text-purple-700">
-            {application.company}
-          </p>
+          {application.company && (
+            <p className="text-sm font-bold text-purple-700">
+              {application.company}
+            </p>
+          )}
         </div>
 
         <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto font-medium">
-          Your profile and executive ATS resume have been successfully transmitted to the {application.company} talent acquisition team.
+          Your profile and resume have been sent to {application.company ? `the ${application.company} hiring team` : "the employer"}.
         </p>
 
         {/* Action Buttons */}

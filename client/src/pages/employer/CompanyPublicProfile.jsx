@@ -110,11 +110,14 @@ const CompanyPublicProfile = () => {
         {/* Banner Card with Logo and Header details */}
         <div className="rounded-3xl bg-white border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="h-44 bg-gradient-to-r from-[#92400e] via-[#b45309] to-[#d97706] relative p-6 text-white flex items-end">
-            <div className="absolute top-4 right-4 flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-bold text-amber-100 border border-white/20">
-                ✓ Verified employer
-              </span>
-            </div>
+            {/* Only admin-approved companies (an employer's own preview can still be pending). */}
+            {company.verificationStatus === "approved" && (
+              <div className="absolute top-4 right-4 flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-bold text-amber-100 border border-white/20">
+                  ✓ Verified employer
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="p-6 sm:p-8 pt-0 relative">
