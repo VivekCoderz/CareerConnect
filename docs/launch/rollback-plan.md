@@ -39,7 +39,7 @@ Before:
 4. Render env check (values never shared in chat or the repo):
    - Already set: `TZ=Asia/Kolkata`; `CLIENT_URL` = `https://www.e2job.com,https://e2job.com,https://www.codeformode.in,https://careerconnect-v1.vercel.app` (www.e2job.com must be first; email links use the first entry).
    - Vercel: `VITE_API_URL=https://api.e2job.com`.
-   - New, set if ready: `FALLBACK_EMAIL_PROVIDER`, `FALLBACK_EMAIL_API_KEY`, `FALLBACK_EMAIL_FROM` = `no-reply@e2job.com`, address only, no name (all three or none; the server logs a warning at startup if half set), optional `BREVO_DAILY_LIMIT` (default 300), `NOTIFICATION_EMAIL_DAILY_BUDGET` (default 150), `BREVO_RATE_LIMIT_RETRY_MS` (default 1500).
+   - New, set if ready: `FALLBACK_EMAIL_PROVIDER`, `FALLBACK_EMAIL_API_KEY`, `FALLBACK_EMAIL_FROM` = `noreply@e2job.com`, address only, no name (all three or none; the server logs a warning at startup if half set), optional `BREVO_DAILY_LIMIT` (default 300), `NOTIFICATION_EMAIL_DAILY_BUDGET` (default 150), `BREVO_RATE_LIMIT_RETRY_MS` (default 1500).
    - From I08: Sentry and analytics variables (ask Imran for the exact names).
 
 Deploy:
