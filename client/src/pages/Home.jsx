@@ -417,7 +417,7 @@ const Home = () => {
               </h1>
 
               <p className="mt-5 text-[16px] text-slate-600 leading-relaxed max-w-xl">
-                Explore verified internships, jobs and projects. Build your profile, apply in one click, and take the next step — built for students, freshers & professionals.
+                Explore internships, jobs and projects. Build your profile, apply in one click, and take the next step — built for students, freshers & professionals.
               </p>
 
               {/* Search */}
@@ -556,7 +556,7 @@ const Home = () => {
                 <h3 className="text-base font-bold mt-2.5 group-hover:text-blue-300 transition leading-snug">
                   Internships for students
                 </h3>
-                <p className="text-xs text-slate-300 mt-1">Paid, remote and in-office roles from verified employers</p>
+                <p className="text-xs text-slate-300 mt-1">Paid, remote and in-office internships</p>
               </div>
               <span className="text-xs font-bold text-blue-400 mt-4 inline-flex items-center gap-1">
                 Apply now →
@@ -575,7 +575,7 @@ const Home = () => {
                 <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-300 transition leading-snug">
                   Jobs for freshers
                 </h3>
-                <p className="text-xs text-sky-100 mt-1">Entry-level openings, every listing reviewed by our team</p>
+                <p className="text-xs text-sky-100 mt-1">Entry-level and fresher openings</p>
               </div>
               <span className="text-xs font-bold text-sky-200 mt-4 inline-flex items-center gap-1">
                 Explore jobs →
@@ -881,7 +881,7 @@ const Home = () => {
 
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              { step: "1", title: "Register & verify", desc: "Create your account with email OTP verification as student, fresher or professional." },
+              { step: "1", title: "Register & verify", desc: "Sign up with Google, or with email and a one-time code, as a student, fresher or professional." },
               { step: "2", title: "Complete your profile", desc: "Add education, skills, projects and resume so recruiters can find you." },
               { step: "3", title: "Apply & get hired", desc: "Browse opportunities, apply in one click, and track interviews & offers." },
             ].map((item) => (
@@ -911,8 +911,8 @@ const Home = () => {
               <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">fees an employer can ask you for</p>
             </div>
             <div>
-              <p className="text-3xl sm:text-4xl font-black text-[#facc15]">Reviewed</p>
-              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">every listing, before it goes live</p>
+              <p className="text-3xl sm:text-4xl font-black text-[#facc15]">Report</p>
+              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">any listing that looks fake or asks for money</p>
             </div>
             <div>
               <p className="text-3xl sm:text-4xl font-black text-white">Verified</p>

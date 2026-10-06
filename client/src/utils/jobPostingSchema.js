@@ -1,4 +1,5 @@
 import { SITE_NAME, SITE_URL } from "../config/site";
+import { deadlineEndIST } from "./listingDeadline";
 
 // Google for Jobs structured data (G02): https://developers.google.com/search/docs/appearance/structured-data/job-posting
 const EMPLOYMENT_TYPES = {
@@ -12,10 +13,14 @@ const EMPLOYMENT_TYPES = {
 
 const isHttpUrl = (url) => typeof url === "string" && /^https?:\/\//i.test(url);
 
+// Google prefers ISO 3166-1 alpha-2 codes for addressCountry.
+const countryCode = (country) => (/^india$/i.test(String(country).trim()) ? "IN" : String(country).trim());
+
 /**
  * Builds a schema.org JobPosting for a job posted on E2Job by an employer (stored with source "CareerConnect").
- * Returns null for external or scraped listings: Google penalises JobPosting markup
- * on jobs the site doesn't own.
+ * Returns null for external or scraped listings (Google penalises JobPosting markup on jobs the
+ * site doesn't own) and when there is no company name (hiringOrganization is required).
+ * Only fields the job actually has are included; nothing is filled in.
  * @param {object} job - job from GET /api/jobs/:id (employerId populated)
  * @returns {object|null}
  */
@@ -23,30 +28,40 @@ export const buildJobPostingSchema = (job) => {
   if (!job || job.isExternal || (job.source && job.source !== "CareerConnect")) return null;
 
   const company = job.employerId && typeof job.employerId === "object" ? job.employerId : {};
+  const companyName = (company.companyName || job.companyName || "").trim();
+  if (!companyName) return null;
+
   const remote = job.workMode === "Remote";
   const schema = {
     "@context": "https://schema.org/",
     "@type": "JobPosting",
     title: job.title,
     description: (job.description || job.title || "").replace(/\n/g, "<br>"),
-    datePosted: job.createdAt,
-    employmentType: EMPLOYMENT_TYPES[job.employmentType] || "FULL_TIME",
+    // Visible to candidates from approval, not from when the draft was created.
+    datePosted: job.approvedAt || job.createdAt,
     identifier: { "@type": "PropertyValue", name: SITE_NAME, value: String(job._id) },
     url: `${SITE_URL}/jobs/${job._id}`,
     directApply: true,
     hiringOrganization: {
       "@type": "Organization",
-      name: company.companyName || job.companyName || `${SITE_NAME} employer`,
+      name: companyName,
       ...(isHttpUrl(company.website) ? { sameAs: company.website } : {}),
       ...(isHttpUrl(company.logo) ? { logo: company.logo } : {}),
     },
   };
 
-  if (job.deadline) schema.validThrough = job.deadline;
+  if (EMPLOYMENT_TYPES[job.employmentType]) schema.employmentType = EMPLOYMENT_TYPES[job.employmentType];
+
+  // Applications close at the end of the deadline day in IST (same rule as the server).
+  const validThrough = deadlineEndIST(job.deadline);
+  if (validThrough) schema.validThrough = validThrough.toISOString();
 
   if (remote) {
     schema.jobLocationType = "TELECOMMUTE";
-    schema.applicantLocationRequirements = { "@type": "Country", name: "India" };
+    // Restrict applicants to a country only when the job names one and isn't open internationally.
+    if (job.country && !job.isInternational) {
+      schema.applicantLocationRequirements = { "@type": "Country", name: job.country };
+    }
   }
   if (!remote || job.city) {
     schema.jobLocation = {
@@ -55,7 +70,7 @@ export const buildJobPostingSchema = (job) => {
         "@type": "PostalAddress",
         addressLocality: job.city || job.location || undefined,
         ...(job.state ? { addressRegion: job.state } : {}),
-        addressCountry: "IN",
+        ...(job.country ? { addressCountry: countryCode(job.country) } : {}),
       },
     };
   }
