@@ -441,6 +441,10 @@ async function getAggregatedOpportunities({
         (job.workMode || "").toLowerCase().includes("remote") ||
         fullLocation.includes("remote") ||
         fullLocation.includes("work from home");
+      // A city filter shows remote roles only when they say they're open to India. Worldwide or
+      // APAC remote roles stay under "All regions" and "Remote Jobs" (QA, 6 Oct: Delhi NCR
+      // listed "Europe, USA, Canada, APAC" roles).
+      const remoteForIndia = isRemote && /\bindia\b/.test(fullLocation);
 
       if (regLower === "international") {
         const hasIndianKeyword = INDIAN_GEO_KEYWORDS.some((keyword) =>
@@ -451,7 +455,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "delhi ncr" || regLower === "delhi") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("delhi") ||
           fullLocation.includes("noida") ||
           fullLocation.includes("gurgaon") ||
@@ -464,7 +468,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "bangalore" || regLower === "bengaluru") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("bengaluru") ||
           fullLocation.includes("bangalore") ||
           fullLocation.includes("karnataka")
@@ -473,7 +477,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "hyderabad") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("hyderabad") ||
           fullLocation.includes("secunderabad") ||
           fullLocation.includes("telangana")
@@ -482,7 +486,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "pune") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("pune") ||
           fullLocation.includes("maharashtra")
         );
@@ -490,7 +494,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "mumbai") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("mumbai") ||
           fullLocation.includes("navi mumbai") ||
           fullLocation.includes("thane") ||
@@ -500,7 +504,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "chennai") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("chennai") ||
           fullLocation.includes("tamil nadu")
         );
@@ -508,7 +512,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "kolkata") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("kolkata") ||
           fullLocation.includes("west bengal")
         );
@@ -516,7 +520,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "chandigarh") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("chandigarh") ||
           fullLocation.includes("mohali") ||
           fullLocation.includes("panchkula") ||
@@ -526,13 +530,13 @@ async function getAggregatedOpportunities({
 
       if (regLower === "jaipur") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("jaipur") ||
           fullLocation.includes("rajasthan")
         );
       }
 
-      return isRemote || fullLocation.includes(regLower);
+      return remoteForIndia || fullLocation.includes(regLower);
     });
   }
 
