@@ -12,6 +12,10 @@
  * jobPreferences are unset or still the sample values, and bio, projects, certifications,
  * achievements and experience are empty. Near-matches are listed as skipped.
  *
+ * Safe to re-run: decisions are made from one read before anything is written, cleared
+ * profiles get sampleDataCleanedAt and skipped ones sampleDataLeftAloneAt (see
+ * lib/cleanupMarkers.js), and profiles with either marker are never looked at again.
+ *
  * Usage (from server/):
  *   node scripts/clean-fake-student-profiles.js           # dry run: lists matches
  *   node scripts/clean-fake-student-profiles.js --apply   # clear the sample fields
@@ -19,6 +23,7 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 const StudentProfile = require("../models/StudentProfile");
+const { SAMPLE_DATA_CLEANED, NOT_YET_DECIDED, markLeftAlone } = require("./lib/cleanupMarkers");
 
 const SAMPLE_EDUCATION = {
   institution: "Geeta University",
@@ -94,11 +99,13 @@ function clearUpdate(profile, set) {
   return update;
 }
 
-async function cleanFakeStudentProfiles({ apply = false, log = console.log } = {}) {
-  // Narrow in the database, then compare exactly in code.
+async function cleanFakeStudentProfiles({ apply = false, log = console.log, now = new Date() } = {}) {
+  // Narrow in the database, then compare exactly in code. Every decision comes from this
+  // one read; profiles an earlier run decided about are not read.
   const candidates = await StudentProfile.find({
     "education.institution": SAMPLE_EDUCATION.institution,
     technicalSkills: { $all: ["JavaScript", "React", "Node.js"] },
+    ...NOT_YET_DECIDED,
   }).lean();
 
   const matches = [];
@@ -116,24 +123,31 @@ async function cleanFakeStudentProfiles({ apply = false, log = console.log } = {
     skipped.forEach(({ profile }) => log(`  - ${profile._id} (user ${profile.userId})`));
   }
 
+  const summary = {
+    matched: matches.length, skipped: skipped.length, cleared: 0, markedLeftAlone: 0,
+    ids: matches.map((m) => String(m.profile._id)),
+  };
   if (!apply) {
     log("");
     log("Dry run: nothing changed. Re-run with --apply to clear the sample fields.");
-    return { matched: matches.length, skipped: skipped.length, cleared: 0, ids: matches.map((m) => String(m.profile._id)) };
+    return summary;
   }
 
-  let cleared = 0;
   for (const { profile, set } of matches) {
+    const update = clearUpdate(profile, set);
+    update.$set[SAMPLE_DATA_CLEANED] = now;
     // Only clear if the profile hasn't changed since it was read.
     const result = await StudentProfile.updateOne(
-      { _id: profile._id, updatedAt: profile.updatedAt },
-      clearUpdate(profile, set)
+      { _id: profile._id, updatedAt: profile.updatedAt, ...NOT_YET_DECIDED },
+      update,
+      { strict: false }
     );
-    cleared += result.modifiedCount;
+    summary.cleared += result.modifiedCount;
   }
+  summary.markedLeftAlone = await markLeftAlone(StudentProfile, skipped.map((s) => s.profile._id), now);
   log("");
-  log(`Cleared sample data from ${cleared} profile(s).`);
-  return { matched: matches.length, skipped: skipped.length, cleared, ids: matches.map((m) => String(m.profile._id)) };
+  log(`Cleared sample data from ${summary.cleared} profile(s); marked ${summary.markedLeftAlone} as left alone.`);
+  return summary;
 }
 
 async function main() {
