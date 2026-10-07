@@ -37,7 +37,7 @@ const companySchema = new mongoose.Schema(
     industry: {
       type: String,
       trim: true,
-      default: "Information Technology",
+      default: "",
     },
     companyType: {
       type: String,

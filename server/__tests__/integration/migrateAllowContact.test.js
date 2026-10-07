@@ -40,8 +40,9 @@ describe("migrate-allowcontact-false script", () => {
 
     const after = await read(allowed);
     expect(after.recruiterPreferences).toEqual({ allowContact: false, preferredContactMethod: "LinkedIn" });
-    // Nothing else on the document changed, timestamps included.
-    const { recruiterPreferences: _a, ...restAfter } = after;
+    // Nothing else on the document changed, timestamps included; only the run marker is added.
+    expect(after.allowContactMigratedAt).toBeInstanceOf(Date);
+    const { recruiterPreferences: _a, allowContactMigratedAt: _m, ...restAfter } = after;
     const { recruiterPreferences: _b, ...restBefore } = before;
     expect(restAfter).toEqual(restBefore);
     expect(after.updatedAt).toEqual(FIXED_TIME);

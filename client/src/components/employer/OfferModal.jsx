@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from "react";
 
+// JobOffer doesn't store these yet (work mode, CTC breakdown, stock options, probation, notice,
+// reporting manager, signatory), so they never reach the letter. Hidden until they're saved (after launch).
+const SHOW_UNSTORED_FIELDS = false;
+
 // Every field starts blank: the employer fills the offer in. Role, location and CTC come
 // from the job; the letterhead and signatory organisation are the employer's company.
 const EMPTY_OFFER = {
@@ -247,8 +251,8 @@ const OfferModal = ({
           {[
             { id: "role", label: "1. Role & Candidate" },
             { id: "compensation", label: "2. Compensation & CTC" },
-            { id: "terms", label: "3. Dates & Policy" },
-            { id: "signatory", label: "4. Signatory & Terms" },
+            { id: "terms", label: SHOW_UNSTORED_FIELDS ? "3. Dates & Policy" : "3. Dates & Benefits" },
+            { id: "signatory", label: SHOW_UNSTORED_FIELDS ? "4. Signatory & Terms" : "4. Additional Terms" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -323,20 +327,22 @@ const OfferModal = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Work Mode</label>
-                  <select
-                    name="workLocationType"
-                    value={formData.workLocationType}
-                    onChange={handleChange}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  >
-                    <option value="">Select work mode</option>
-                    <option value="On-site">On-site</option>
-                    <option value="Hybrid">Hybrid</option>
-                    <option value="Remote">Remote</option>
-                  </select>
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Work Mode</label>
+                    <select
+                      name="workLocationType"
+                      value={formData.workLocationType}
+                      onChange={handleChange}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    >
+                      <option value="">Select work mode</option>
+                      <option value="On-site">On-site</option>
+                      <option value="Hybrid">Hybrid</option>
+                      <option value="Remote">Remote</option>
+                    </select>
+                  </div>
+                )}
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Work Location</label>
@@ -354,9 +360,11 @@ const OfferModal = ({
           {/* TAB 2: Compensation & Breakdown */}
           {activeTab === "compensation" && (
             <div className="space-y-4 animate-fade-in">
-              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-amber-900 text-xs">
-                💡 Changing the Total CTC automatically calculates standard breakdown percentages (70% Base, 20% Allowances, 10% Bonus), which you can fine-tune below.
-              </div>
+              {SHOW_UNSTORED_FIELDS && (
+  <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-amber-900 text-xs">
+                  💡 Changing the Total CTC automatically calculates standard breakdown percentages (70% Base, 20% Allowances, 10% Bonus), which you can fine-tune below.
+                </div>
+              )}
 
               <div className="grid sm:grid-cols-2 gap-3.5">
                 <div>
@@ -386,46 +394,54 @@ const OfferModal = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Base Salary (₹)</label>
-                  <input
-                    type="number"
-                    value={formData.baseSalary}
-                    onChange={(e) => handleCustomBreakdown("baseSalary", e.target.value)}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Base Salary (₹)</label>
+                    <input
+                      type="number"
+                      value={formData.baseSalary}
+                      onChange={(e) => handleCustomBreakdown("baseSalary", e.target.value)}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Allowances & HRA (₹)</label>
-                  <input
-                    type="number"
-                    value={formData.allowances}
-                    onChange={(e) => handleCustomBreakdown("allowances", e.target.value)}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Allowances & HRA (₹)</label>
+                    <input
+                      type="number"
+                      value={formData.allowances}
+                      onChange={(e) => handleCustomBreakdown("allowances", e.target.value)}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Variable / Performance Bonus (₹)</label>
-                  <input
-                    type="number"
-                    value={formData.variableBonus}
-                    onChange={(e) => handleCustomBreakdown("variableBonus", e.target.value)}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Variable / Performance Bonus (₹)</label>
+                    <input
+                      type="number"
+                      value={formData.variableBonus}
+                      onChange={(e) => handleCustomBreakdown("variableBonus", e.target.value)}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Stock Options / ESOPs (Optional)</label>
-                  <input
-                    name="stockOptions"
-                    value={formData.stockOptions}
-                    onChange={handleChange}
-                    placeholder="e.g. 500 Stock Units vested over 4 years"
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Stock Options / ESOPs (Optional)</label>
+                    <input
+                      name="stockOptions"
+                      value={formData.stockOptions}
+                      onChange={handleChange}
+                      placeholder="e.g. 500 Stock Units vested over 4 years"
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -458,37 +474,43 @@ const OfferModal = ({
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Probation Period</label>
-                  <input
-                    name="probationPeriod"
-                    value={formData.probationPeriod}
-                    onChange={handleChange}
-                    placeholder="3 Months"
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Probation Period</label>
+                    <input
+                      name="probationPeriod"
+                      value={formData.probationPeriod}
+                      onChange={handleChange}
+                      placeholder="3 Months"
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Notice Period</label>
-                  <input
-                    name="noticePeriod"
-                    value={formData.noticePeriod}
-                    onChange={handleChange}
-                    placeholder="30 Days"
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Notice Period</label>
+                    <input
+                      name="noticePeriod"
+                      value={formData.noticePeriod}
+                      onChange={handleChange}
+                      placeholder="30 Days"
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Reporting Manager / Team Lead</label>
-                  <input
-                    name="reportingManager"
-                    value={formData.reportingManager}
-                    onChange={handleChange}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Reporting Manager / Team Lead</label>
+                    <input
+                      name="reportingManager"
+                      value={formData.reportingManager}
+                      onChange={handleChange}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Perks & Benefits (Comma separated)</label>
@@ -508,35 +530,41 @@ const OfferModal = ({
           {activeTab === "signatory" && (
             <div className="space-y-4 animate-fade-in">
               <div className="grid sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Authorized HR Signatory Name</label>
-                  <input
-                    name="signatoryName"
-                    value={formData.signatoryName}
-                    onChange={handleChange}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Authorized HR Signatory Name</label>
+                    <input
+                      name="signatoryName"
+                      value={formData.signatoryName}
+                      onChange={handleChange}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Signatory Title</label>
-                  <input
-                    name="signatoryTitle"
-                    value={formData.signatoryTitle}
-                    onChange={handleChange}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Signatory Title</label>
+                    <input
+                      name="signatoryTitle"
+                      value={formData.signatoryTitle}
+                      onChange={handleChange}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Signatory Department / Org</label>
-                  <input
-                    name="signatoryOrganization"
-                    value={formData.signatoryOrganization}
-                    onChange={handleChange}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Signatory Department / Org</label>
+                    <input
+                      name="signatoryOrganization"
+                      value={formData.signatoryOrganization}
+                      onChange={handleChange}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Additional Terms & Conditions Clauses</label>
