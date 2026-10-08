@@ -1,6 +1,7 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { FEATURES } from "../../config/features";
 import { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
 import { getJobs } from "../../services/jobService";
@@ -25,6 +26,8 @@ export default function Jobs({
   const [localSavedIds, setLocalSavedIds] = useState(savedIds);
   const [appliedIds, setAppliedIds] = useState([]);
   const [toast, setToast] = useState(null);
+  const [applyingId, setApplyingId] = useState(null);
+  const { user } = useSelector((state) => state.auth);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -67,9 +70,11 @@ export default function Jobs({
       onApply(item);
       return;
     }
+    if (applyingId) return;
 
+    setApplyingId(item._id || item.id);
     try {
-      const res = await applyToOpportunity(item, "Job");
+      const res = await applyToOpportunity(item, "Job", user);
       if (res.external) {
         if (!res.opened) showToast("This listing has no apply link.", "error");
         return;
@@ -80,6 +85,8 @@ export default function Jobs({
       }
     } catch (err) {
       showToast(err.response?.data?.message || err.message || "Failed to apply", "error");
+    } finally {
+      setApplyingId(null);
     }
   };
 
@@ -292,9 +299,10 @@ export default function Jobs({
                         <button
                           type="button"
                           onClick={() => handleApplyClick(item)}
-                          className="inline-flex items-center justify-center h-10 px-5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold shadow-sm transition"
+                          disabled={Boolean(applyingId)}
+                          className="inline-flex items-center justify-center h-10 px-5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] disabled:opacity-60 text-white text-xs font-bold shadow-sm transition"
                         >
-                          Apply Now
+                          {applyingId === (item._id || item.id) ? "Applying…" : "Apply Now"}
                         </button>
                       )}
                       <ViewDetailsButton item={item} type="Job" className="h-10" />
