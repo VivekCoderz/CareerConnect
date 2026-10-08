@@ -17,14 +17,13 @@ const InternshipRecommendationsCard = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xl">🔥</span>
-            <h2 className="text-lg font-bold text-slate-900">Recommended Internship</h2>
+            <h2 className="text-lg font-bold text-slate-900">Latest Internship</h2>
             <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-              Top #1 Pick
+              Latest
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Top trending internship tailored to your branch, year, and skill proficiencies
+            The newest internship on E2Job
           </p>
         </div>
         <Link
