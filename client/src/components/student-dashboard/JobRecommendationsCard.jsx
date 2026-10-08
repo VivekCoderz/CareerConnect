@@ -31,9 +31,8 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xl">🔥</span>
             <h2 className="text-lg font-bold text-slate-900">
-              {isFullView ? "Recommended & Campus Jobs" : "Recommended Jobs"}
+              {isFullView ? "Jobs" : "Latest Jobs"}
             </h2>
             {isFullView ? (
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#1e3a8a] border border-blue-200">
@@ -41,14 +40,14 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
               </span>
             ) : (
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                Top #1 Pick
+                Latest
               </span>
             )}
           </div>
           <p className="text-xs text-slate-500 mt-1">
             {isFullView
-              ? "Showing verified campus placement drives & curated external opportunities (10 per page)"
-              : "Top trending full-time opportunity curated for entry-level and campus graduates"}
+              ? "Jobs from employers on E2Job and remote roles from job boards (10 per page)"
+              : "The newest opening on E2Job"}
           </p>
         </div>
         {!isFullView && (

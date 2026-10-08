@@ -395,7 +395,7 @@ const AdminOpportunities = () => {
             <p className="text-2xl font-black text-slate-900 mt-2">{stats.total || 0}</p>
             <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
               <span>{stats.totalJobs || 0} Jobs</span>
-              <span>ΓÇó</span>
+              <span>•</span>
               <span>{stats.totalInternships || 0} Internships</span>
             </div>
           </div>
@@ -488,7 +488,7 @@ const AdminOpportunities = () => {
         <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             {/* Search Input */}
-            <div className="relative flex-1">
+            <div className="relative flex-1 lg:min-w-[280px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
@@ -644,7 +644,7 @@ const AdminOpportunities = () => {
                               </span>
                               {opp.department && (
                                 <>
-                                  <span>ΓÇó</span>
+                                  <span>•</span>
                                   <span>{opp.department}</span>
                                 </>
                               )}

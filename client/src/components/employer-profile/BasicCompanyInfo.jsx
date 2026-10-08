@@ -210,6 +210,11 @@ const BasicCompanyInfo = ({
             className={inputClass("industry")}
           >
             <option value="">Select Industry</option>
+            {/* Keep a saved value that is not in the list (older or admin-entered), so saving
+                this step again does not clear it. */}
+            {formData.industry && !industries.includes(formData.industry) && (
+              <option value={formData.industry}>{formData.industry}</option>
+            )}
             {industries.map((ind) => (
               <option key={ind} value={ind}>
                 {ind}

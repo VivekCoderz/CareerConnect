@@ -201,36 +201,36 @@ const CandidateInterviewsView = () => {
       return {
         label: "Cancelled",
         cls: "bg-rose-50 text-rose-700 border-rose-200 font-bold",
-        icon: "Γ£ò",
+        icon: "✕",
       };
     }
 
     if (r === "selected") {
       return {
-        label: "Selected ≡ƒÅå",
+        label: "Selected 🏆",
         cls: "bg-emerald-100 text-emerald-900 border-emerald-300 font-bold",
-        icon: "≡ƒÅå",
+        icon: "🏆",
       };
     }
     if (r === "next_round") {
       return {
-        label: "Next Round Γ₧í∩╕Å",
+        label: "Next Round ➡️",
         cls: "bg-blue-50 text-blue-800 border-blue-200 font-bold",
-        icon: "Γ₧í∩╕Å",
+        icon: "➡️",
       };
     }
     if (r === "passed") {
       return {
-        label: "Round Cleared Γ£ô",
+        label: "Round Cleared ✓",
         cls: "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold",
-        icon: "Γ£ô",
+        icon: "✓",
       };
     }
     if (r === "rejected") {
       return {
         label: "Rejected",
         cls: "bg-rose-50 text-rose-700 border-rose-200 font-bold",
-        icon: "Γ£ò",
+        icon: "✕",
       };
     }
 
@@ -239,25 +239,25 @@ const CandidateInterviewsView = () => {
         return {
           label: "Scheduled",
           cls: "bg-blue-50 text-blue-700 border-blue-200 font-bold",
-          icon: "≡ƒôà",
+          icon: "📅",
         };
       case "rescheduled":
         return {
           label: "Rescheduled",
           cls: "bg-purple-50 text-purple-700 border-purple-200 font-bold",
-          icon: "≡ƒöä",
+          icon: "🔄",
         };
       case "completed":
         return {
           label: "Completed",
           cls: "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold",
-          icon: "Γ£ô",
+          icon: "✓",
         };
       default:
         return {
           label: status || "Scheduled",
           cls: "bg-slate-50 text-slate-700 border-slate-200 font-bold",
-          icon: "≡ƒôî",
+          icon: "📌",
         };
     }
   };
@@ -281,7 +281,7 @@ const CandidateInterviewsView = () => {
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-[#1e3a8a] to-blue-900 text-white p-6 sm:p-8 shadow-sm">
         <div className="relative z-10 space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-xs text-[11px] font-semibold tracking-wider uppercase text-blue-200 border border-white/10">
-            <span>≡ƒÄÖ∩╕Å</span> Campus Placement & Recruiter Interviews
+            <span>🎙️</span> Campus Placement & Recruiter Interviews
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
             My Interviews
@@ -332,7 +332,7 @@ const CandidateInterviewsView = () => {
                   : "bg-[#1e3a8a] text-white shadow-xs"
               }`}
             >
-              ΓÅ░
+              ⏰
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -353,7 +353,7 @@ const CandidateInterviewsView = () => {
                 {nearestCountdown.text}
               </h3>
               <p className="text-xs text-slate-600">
-                <strong className="text-slate-900">{getCompanyName(nearestUpcoming)}</strong> ΓÇó{" "}
+                <strong className="text-slate-900">{getCompanyName(nearestUpcoming)}</strong> •{" "}
                 {nearestUpcoming.roundName || `Round ${nearestUpcoming.roundNumber}`} ({nearestUpcoming.jobId?.title || nearestUpcoming.internshipId?.title || "Role"})
               </p>
             </div>
@@ -379,7 +379,7 @@ const CandidateInterviewsView = () => {
                     : "bg-[#1e3a8a] hover:bg-[#1e40af]"
                 }`}
               >
-                <span>≡ƒÄÑ</span>
+                <span>🎥</span>
                 <span>Join Interview</span>
               </a>
             )}
@@ -399,7 +399,7 @@ const CandidateInterviewsView = () => {
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            <span>≡ƒòÆ Upcoming Interviews</span>
+            <span>🕒 Upcoming Interviews</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-black ${
                 activeTab === "upcoming" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
@@ -418,7 +418,7 @@ const CandidateInterviewsView = () => {
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            <span>≡ƒô£ Past / Interview History</span>
+            <span>📜 Past / Interview History</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-black ${
                 activeTab === "history" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
@@ -467,7 +467,7 @@ const CandidateInterviewsView = () => {
             onClick={fetchCandidateInterviews}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition shadow-2xs cursor-pointer"
           >
-            <span>≡ƒöä</span> Refresh
+            <span>🔄</span> Refresh
           </button>
         </div>
       </div>
@@ -494,7 +494,7 @@ const CandidateInterviewsView = () => {
         upcomingInterviews.length === 0 ? (
           <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-2xs space-y-3">
             <div className="w-14 h-14 rounded-3xl bg-blue-50 text-blue-600 text-2xl flex items-center justify-center mx-auto">
-              ≡ƒôà
+              📅
             </div>
             <h3 className="text-base font-bold text-slate-900">No Upcoming Interviews Scheduled</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -552,7 +552,7 @@ const CandidateInterviewsView = () => {
                       </span>
                       {countdown && (
                         <span className={`text-[11px] font-bold ${countdown.urgent ? "text-amber-700 animate-pulse" : "text-slate-500"}`}>
-                          ΓÅ▒∩╕Å {countdown.text}
+                          ⏱️ {countdown.text}
                         </span>
                       )}
                     </div>
@@ -560,27 +560,27 @@ const CandidateInterviewsView = () => {
                     {/* Date, Time, Duration, Mode */}
                     <div className="p-3.5 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-2 text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-600">≡ƒôà Date:</span>
+                        <span className="font-semibold text-slate-600">📅 Date:</span>
                         <strong className="text-slate-900 font-bold">{item.scheduledDate}</strong>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-600">≡ƒòÆ Time Slot:</span>
+                        <span className="font-semibold text-slate-600">🕒 Time Slot:</span>
                         <strong className="text-slate-900 font-mono font-bold">
                           {item.startTime || item.scheduledTime}
                         </strong>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-600">Γî¢ Duration:</span>
+                        <span className="font-semibold text-slate-600">⌛ Duration:</span>
                         <span className="text-slate-800 font-medium">
                           {item.duration || item.durationMinutes || 45} Minutes
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-600">≡ƒôì Mode:</span>
+                        <span className="font-semibold text-slate-600">📍 Mode:</span>
                         <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold ${
                           isOffline ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-[#1e3a8a]"
                         }`}>
-                          {isOffline ? "≡ƒÅó Offline (In-Person)" : "≡ƒîÉ Online"}
+                          {isOffline ? "🏢 Offline (In-Person)" : "🌐 Online"}
                         </span>
                       </div>
                     </div>
@@ -613,7 +613,7 @@ const CandidateInterviewsView = () => {
                       onClick={() => setPrepareInterview(item)}
                       className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition cursor-pointer flex items-center gap-1"
                     >
-                      <span>≡ƒÆí</span>
+                      <span>💡</span>
                       <span>Prepare</span>
                     </button>
 
@@ -624,12 +624,12 @@ const CandidateInterviewsView = () => {
                         rel="noreferrer"
                         className="flex-1 py-2 px-3 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold text-center shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <span>≡ƒÄÑ</span>
+                        <span>🎥</span>
                         <span>Join Interview</span>
                       </a>
                     ) : isOffline ? (
                       <span className="flex-1 text-[11px] text-slate-500 font-medium text-right pr-1">
-                        ≡ƒÅó Physical venue
+                        🏢 Physical venue
                       </span>
                     ) : (
                       <span className="flex-1 text-[11px] text-slate-400 font-medium text-right pr-1">
@@ -647,7 +647,7 @@ const CandidateInterviewsView = () => {
         historyInterviews.length === 0 ? (
           <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-2xs space-y-3">
             <div className="w-14 h-14 rounded-3xl bg-slate-100 text-slate-600 text-2xl flex items-center justify-center mx-auto">
-              ≡ƒô£
+              📜
             </div>
             <h3 className="text-base font-bold text-slate-900">No Past Interviews Yet</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -708,8 +708,8 @@ const CandidateInterviewsView = () => {
                         <strong className="text-slate-800">{item.roundName || `Round ${item.roundNumber}`}</strong>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-600">≡ƒôà Date & Time:</span>
-                        <span className="text-slate-800 font-medium">{item.scheduledDate} ┬╖ {item.startTime || item.scheduledTime}</span>
+                        <span className="font-semibold text-slate-600">📅 Date & Time:</span>
+                        <span className="text-slate-800 font-medium">{item.scheduledDate} · {item.startTime || item.scheduledTime}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-slate-600">Interviewer:</span>
@@ -721,7 +721,7 @@ const CandidateInterviewsView = () => {
                     {isCancelled && (
                       <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 space-y-1">
                         <div className="flex items-center justify-between font-bold text-rose-900">
-                          <span>Γ£ò Interview Cancelled</span>
+                          <span>✕ Interview Cancelled</span>
                           {item.cancelledAt && (
                             <span className="text-[10px] text-rose-600 font-mono font-normal">
                               {new Date(item.cancelledAt).toLocaleDateString()}
@@ -752,7 +752,7 @@ const CandidateInterviewsView = () => {
                         {(scorecard.overallScore > 0 || feedback.rating > 0) && (
                           <div className="flex items-center gap-2">
                             <span className="text-amber-700 font-bold font-mono">
-                              Γÿà {scorecard.overallScore || feedback.rating}/5.0
+                              ★ {scorecard.overallScore || feedback.rating}/5.0
                             </span>
                             <span className="text-slate-500 text-[11px]">Overall Score</span>
                           </div>
@@ -800,7 +800,7 @@ const CandidateInterviewsView = () => {
                   {selectedInterview.roundName || `Round ${selectedInterview.roundNumber}`}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  {getCompanyName(selectedInterview)} ΓÇó {selectedInterview.jobId?.title || selectedInterview.internshipId?.title || "Role"}
+                  {getCompanyName(selectedInterview)} • {selectedInterview.jobId?.title || selectedInterview.internshipId?.title || "Role"}
                 </p>
               </div>
               <button
@@ -808,7 +808,7 @@ const CandidateInterviewsView = () => {
                 onClick={() => setSelectedInterview(null)}
                 className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-sm font-bold transition cursor-pointer"
               >
-                Γ£ò
+                ✕
               </button>
             </div>
 
@@ -865,7 +865,7 @@ const CandidateInterviewsView = () => {
                 <div>
                   <h4 className="font-bold text-slate-900 mb-1">Physical Venue / Location</h4>
                   <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-950 font-medium">
-                    ≡ƒôì {selectedInterview.location || "Office location will be shared by recruiter"}
+                    📍 {selectedInterview.location || "Office location will be shared by recruiter"}
                   </div>
                 </div>
               ) : selectedInterview.meetingLink ? (
@@ -879,7 +879,7 @@ const CandidateInterviewsView = () => {
                       rel="noreferrer"
                       className="px-3 py-1.5 rounded-lg bg-[#1e3a8a] text-white font-bold hover:bg-[#1e40af] transition whitespace-nowrap cursor-pointer"
                     >
-                      Join Link ΓåÆ
+                      Join Link →
                     </a>
                   </div>
                 </div>
@@ -942,7 +942,7 @@ const CandidateInterviewsView = () => {
                       rel="noreferrer"
                       className="w-full py-2.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold text-center block shadow-xs transition cursor-pointer"
                     >
-                      Join Interview Room ΓåÆ
+                      Join Interview Room →
                     </a>
                   </div>
                 )}
@@ -959,13 +959,13 @@ const CandidateInterviewsView = () => {
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-slide-in-top my-4">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-amber-50/90">
               <div className="flex items-center gap-2.5">
-                <span className="text-xl">≡ƒÆí</span>
+                <span className="text-xl">💡</span>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
                     Interview Preparation Guide
                   </h3>
                   <p className="text-xs text-slate-500">
-                    {prepareInterview.roundName || `Round ${prepareInterview.roundNumber}`} ΓÇó {getCompanyName(prepareInterview)}
+                    {prepareInterview.roundName || `Round ${prepareInterview.roundNumber}`} • {getCompanyName(prepareInterview)}
                   </p>
                 </div>
               </div>
@@ -974,7 +974,7 @@ const CandidateInterviewsView = () => {
                 onClick={() => setPrepareInterview(null)}
                 className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-sm font-bold transition cursor-pointer"
               >
-                Γ£ò
+                ✕
               </button>
             </div>
 
@@ -992,19 +992,19 @@ const CandidateInterviewsView = () => {
                 <h4 className="font-bold text-slate-900">Recommended Preparation Checklist</h4>
                 <ul className="space-y-2 text-slate-700">
                   <li className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-emerald-600 font-bold">Γ£ô</span>
+                    <span className="text-emerald-600 font-bold">✓</span>
                     <span>Review core concepts relevant to the role ({prepareInterview.jobId?.title || prepareInterview.internshipId?.title || "Position"}) and practice explaining past projects.</span>
                   </li>
                   <li className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-emerald-600 font-bold">Γ£ô</span>
+                    <span className="text-emerald-600 font-bold">✓</span>
                     <span>Ensure you have a quiet setting, stable high-speed internet, working webcam and microphone.</span>
                   </li>
                   <li className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-emerald-600 font-bold">Γ£ô</span>
+                    <span className="text-emerald-600 font-bold">✓</span>
                     <span>Join or arrive at least 5-10 minutes prior to the scheduled start time ({prepareInterview.startTime || prepareInterview.scheduledTime}).</span>
                   </li>
                   <li className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-emerald-600 font-bold">Γ£ô</span>
+                    <span className="text-emerald-600 font-bold">✓</span>
                     <span>Keep a digital copy of your resume and portfolio handy to share during the interview.</span>
                   </li>
                 </ul>

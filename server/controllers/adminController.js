@@ -2854,7 +2854,7 @@ exports.updateOpportunityStatus = async (req, res, next) => {
  */
 exports.getAdminApplications = async (req, res, next) => {
   try {
-    const { status = "all", search = "", page = 1, limit = 15 } = req.query;
+    const { status = "all", type = "all", page = 1, limit = 15 } = req.query;
     const filter = {};
 
     // Strict Scope: Company Admins only see applications for their company
@@ -2864,12 +2864,22 @@ exports.getAdminApplications = async (req, res, next) => {
       filter.companyId = req.query.companyId;
     }
 
+    if (type === "Job" || type === "Internship") {
+      filter.opportunityType = type;
+    }
+    // Stage cards count the whole scope, not just the selected stage. aggregate() does not
+    // cast ids the way find() does.
+    const scope = { ...filter };
+    if (scope.companyId && mongoose.isValidObjectId(scope.companyId)) {
+      scope.companyId = new mongoose.Types.ObjectId(String(scope.companyId));
+    }
+
     if (status !== "all") {
-      filter.status = status;
+      filter.status = String(status);
     }
 
     const skip = (Number(page) - 1) * Number(limit);
-    const [applications, total] = await Promise.all([
+    const [applications, total, byStatus] = await Promise.all([
       Application.find(filter)
         .populate("candidateId", "fullName email profileImage phone city")
         .populate("companyId", "name logo")
@@ -2878,7 +2888,21 @@ exports.getAdminApplications = async (req, res, next) => {
         .limit(Number(limit))
         .lean(),
       Application.countDocuments(filter),
+      Application.aggregate([{ $match: scope }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
     ]);
+
+    const counts = Object.fromEntries(byStatus.map((row) => [row._id, row.count]));
+    const sum = (...names) => names.reduce((acc, name) => acc + (counts[name] || 0), 0);
+    const stats = {
+      total: byStatus.reduce((acc, row) => acc + row.count, 0),
+      applied: sum("Applied"),
+      reviewing: sum("Under Review", "In Progress", "Assessment", "Approved"),
+      shortlisted: sum("Shortlisted"),
+      interview: sum("Interview", "Interview Scheduled", "Interview Completed"),
+      hired: sum("Hired", "Selected", "Offer", "Offered"),
+      rejected: sum("Rejected"),
+    };
+    const pagination = { page: Number(page), limit: Number(limit), total, pages: Math.max(1, Math.ceil(total / Number(limit))) };
 
     return res.status(200).json({
       success: true,
@@ -2886,6 +2910,8 @@ exports.getAdminApplications = async (req, res, next) => {
       total,
       page: Number(page),
       totalPages: Math.ceil(total / Number(limit)),
+      // Shape the admin Applications page reads.
+      data: { applications, stats, pagination },
     });
   } catch (error) {
     next(error);
