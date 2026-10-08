@@ -9,7 +9,7 @@ import {
 } from "../../services/internshipService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import ModerationBadge from "../../components/employer/ModerationBadge";
-import { EMPTY_LISTING_FORM, listingFormError, experiencePayload } from "../../utils/listingForm";
+import { EMPTY_LISTING_FORM, CATEGORY_OPTIONS, listingFormError, experiencePayload } from "../../utils/listingForm";
 
 const STAGE_TYPES = [
   "Resume Screening",
@@ -437,7 +437,8 @@ export default function CreateOpportunityPage() {
 
         if (res.success) {
           setSuccessMsg(getSuccessMessage("Internship", targetStatus, res));
-          setTimeout(() => navigate("/employer/internships"), 1200);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          setTimeout(() => navigate("/employer/internships"), 2500);
         } else {
           setError(res.message || "Failed to save internship");
         }
@@ -486,7 +487,9 @@ export default function CreateOpportunityPage() {
 
         if (res.success) {
           setSuccessMsg(getSuccessMessage("Job", targetStatus, res));
-          setTimeout(() => navigate("/employer/dashboard"), 1200);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          // Job Management lists pending and draft jobs; the overview only shows live ones.
+          setTimeout(() => navigate("/employer/dashboard?tab=jobs"), 2500);
         } else {
           setError(res.message || "Failed to post job");
         }
@@ -630,16 +633,12 @@ export default function CreateOpportunityPage() {
                   <label className={labelClass}>Domain / Category</label>
                   <select name="category" value={formData.category} onChange={handleChange} className={inputClass}>
                     <option value="">Select category</option>
-                    <option>Web Development</option>
-                    <option>Mobile App Development</option>
-                    <option>Artificial Intelligence / ML</option>
-                    <option>Data Science & Analytics</option>
-                    <option>DevOps & Cloud Computing</option>
-                    <option>Cybersecurity</option>
-                    <option>UI/UX Design</option>
-                    <option>Product Management</option>
-                    <option>Business Development</option>
-                    <option>General Engineering</option>
+                    {formData.category && !CATEGORY_OPTIONS.includes(formData.category) && (
+                      <option>{formData.category}</option>
+                    )}
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -1267,30 +1266,31 @@ export default function CreateOpportunityPage() {
           </div>
 
           {/* Sticky Bottom Action Bar */}
-          <div className="sticky bottom-4 z-20 bg-white/95 backdrop-blur-md p-4 rounded-3xl border border-slate-200 shadow-xl flex items-center justify-between gap-4">
+          <div className="sticky bottom-4 z-20 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-3xl border border-slate-200 shadow-xl flex items-center justify-between gap-2 sm:gap-4">
             <Link
               to="/employer/dashboard"
-              className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition"
+              className="px-3 sm:px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition whitespace-nowrap"
             >
               Cancel
             </Link>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {(!isEditing || formData.status === "Draft") && (
                 <button
                   type="button"
                   disabled={loading}
                   onClick={() => handleSubmit("Draft")}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition"
+                  className="px-3 sm:px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition whitespace-nowrap"
                 >
-                  Save as Draft
+                  <span className="sm:hidden">Save draft</span>
+                  <span className="hidden sm:inline">Save as Draft</span>
                 </button>
               )}
 
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-black shadow-md hover:shadow-lg transition flex items-center gap-2 disabled:opacity-50"
+                className="px-4 sm:px-6 py-2.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-black shadow-md hover:shadow-lg transition flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
               >
                 {loading ? (
                   <>
@@ -1299,8 +1299,8 @@ export default function CreateOpportunityPage() {
                   </>
                 ) : (
                   <>
-                    <span>🚀</span>
-                    <span>{canSubmitForApproval ? "Submit for approval" : "Update Opportunity"}</span>
+                    <span className="sm:hidden">{canSubmitForApproval ? "Submit" : "Update"}</span>
+                    <span className="hidden sm:inline">{canSubmitForApproval ? "Submit for approval" : "Update Opportunity"}</span>
                   </>
                 )}
               </button>

@@ -10,7 +10,8 @@ const formatRoleTitle = (str) => {
   if (!str) return "Candidate Role";
   return str
     .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    // Only raise the first letter, so acronyms like LAP, HR or SBFC stay as typed.
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 };
 

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getMyPosts, updateStatus, remove } from "../../services/internshipService";
 import ModerationBadge from "../../components/employer/ModerationBadge";
+import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import { canEmployerRepublish } from "../../utils/listingModeration";
 
 export default function MyInternships() {
@@ -54,8 +55,9 @@ export default function MyInternships() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] py-8 px-4">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-[#f8fafc]">
+      <EmployerNavbar />
+      <div className="max-w-5xl mx-auto py-8 px-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-5 mb-6">
           <div>
             <h1 className="text-2xl font-extrabold text-[#f59e0b]">Manage Internships</h1>

@@ -35,7 +35,7 @@
       "count": 8
     },
     "no-unused-vars": {
-      "count": 13
+      "count": 12
     }
   },
   "controllers/applicationController.js": {
