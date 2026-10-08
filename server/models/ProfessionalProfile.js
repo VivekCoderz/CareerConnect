@@ -402,19 +402,17 @@ const professionalProfileSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [100, "Specialization cannot exceed 100 characters"],
-      default: "Full Stack & Cloud Architecture",
+      default: "",
     },
 
     currentLevel: {
       type: String,
       enum: ["Mid-Level", "Senior", "Lead / Staff", "Principal", "Manager / Director", "Executive (VP/CTO)"],
-      default: "Senior",
     },
 
     targetLevel: {
       type: String,
       enum: ["Senior", "Lead / Staff", "Principal", "Manager / Director", "Executive (VP/CTO)"],
-      default: "Lead / Staff",
     },
 
     // ==================================================
@@ -436,7 +434,7 @@ const professionalProfileSchema = new mongoose.Schema(
       department: {
         type: String,
         trim: true,
-        default: "Engineering",
+        default: "",
         maxlength: [100, "Department cannot exceed 100 characters"],
       },
       employmentType: {
@@ -447,7 +445,7 @@ const professionalProfileSchema = new mongoose.Schema(
       industry: {
         type: String,
         trim: true,
-        default: "Information Technology",
+        default: "",
         maxlength: [100, "Industry cannot exceed 100 characters"],
       },
       location: {
@@ -515,7 +513,6 @@ const professionalProfileSchema = new mongoose.Schema(
     experienceLevelCategory: {
       type: String,
       enum: ["1-3 years", "3-5 years", "5-8 years", "8-12 years", "12+ years"],
-      default: "3-5 years",
     },
 
     // ==================================================
@@ -642,22 +639,21 @@ const professionalProfileSchema = new mongoose.Schema(
       targetRole: {
         type: String,
         trim: true,
-        default: "Engineering Lead / Staff Engineer",
+        default: "",
         maxlength: [100, "Target role cannot exceed 100 characters"],
       },
       targetIndustry: {
         type: String,
         trim: true,
-        default: "Information Technology & Services",
+        default: "",
       },
       targetLevel: {
         type: String,
-        default: "Lead / Staff",
+        default: "",
       },
       timeline: {
         type: String,
         enum: ["Immediate (1-3 Months)", "Next 6 Months", "Next 1-2 Years", "Exploring Long-term"],
-        default: "Next 6 Months",
       },
     },
 
@@ -704,7 +700,6 @@ const professionalProfileSchema = new mongoose.Schema(
       status: {
         type: String,
         enum: ["Employed (Actively Looking)", "Employed (Passive / Open)", "Serving Notice Period", "Available Immediately"],
-        default: "Employed (Passive / Open)",
       },
       expectedJoiningDate: {
         type: Date,
@@ -712,7 +707,6 @@ const professionalProfileSchema = new mongoose.Schema(
       noticePeriod: {
         type: String,
         enum: ["Immediate", "7 Days", "15 Days", "30 Days", "45 Days", "60 Days", "90 Days", "Other"],
-        default: "30 Days",
       },
     },
 
@@ -743,7 +737,6 @@ const professionalProfileSchema = new mongoose.Schema(
       willingToRelocate: {
         type: String,
         enum: ["Yes", "No", "Depends on Opportunity"],
-        default: "Depends on Opportunity",
       },
       preferredCities: [
         {
@@ -760,9 +753,11 @@ const professionalProfileSchema = new mongoose.Schema(
     },
 
     recruiterPreferences: {
+      // Opt-in (DPDP): recruiters see the email only after the professional allows it.
+      // Existing profiles keep their stored value.
       allowContact: {
         type: Boolean,
-        default: true,
+        default: false,
       },
       preferredContactMethod: {
         type: String,

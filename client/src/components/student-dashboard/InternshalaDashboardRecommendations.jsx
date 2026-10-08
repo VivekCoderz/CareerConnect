@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FEATURES } from "../../config/features";
+import OpportunityTitleLink from "../common/OpportunityTitleLink";
+import ViewDetailsButton from "../common/ViewDetailsButton";
 
 const EmptyOpportunityCard = ({ type, href }) => (
   <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between min-h-[290px]">
@@ -22,7 +24,7 @@ const EmptyOpportunityCard = ({ type, href }) => (
 const FALLBACK_COURSE = {
   id: "crs-fb-1",
   title: "Full Stack Web Development Masterclass",
-  provider: "CareerConnect Academy",
+  provider: "E2Job Academy",
   duration: "8 Weeks (Certified)",
   level: "Beginner to Advanced",
   rating: "4.9",
@@ -53,8 +55,10 @@ const InternshalaDashboardRecommendations = ({
   const isInternshipApplied = topInternship && appliedInternshipIds.has(String(topInternship.id || topInternship._id));
 
   // Normalize skills arrays safely
-  const jobSkills = topJob?.skillsRequired || topJob?.skills || [];
-  const internshipSkills = topInternship?.skillsRequired || topInternship?.skills || [];
+  const pickSkills = (item) =>
+    [item?.skillsRequired, item?.skills, item?.requiredSkills].find((l) => Array.isArray(l) && l.length) || [];
+  const jobSkills = pickSkills(topJob);
+  const internshipSkills = pickSkills(topInternship);
   const courseSkills = topCourse.skillsCovered || topCourse.skills || ["Full Stack", "Live Projects"];
 
   // Normalize salary / stipend strings
@@ -62,13 +66,13 @@ const InternshalaDashboardRecommendations = ({
     topJob?.salary ||
     (topJob?.salaryRange?.min
       ? `₹${topJob.salaryRange.min.toLocaleString()} - ₹${(topJob.salaryRange.max || topJob.salaryRange.min).toLocaleString()}`
-      : "Competitive CTC");
+      : null);
 
   const internshipStipend =
     topInternship?.stipend ||
     (topInternship?.stipendAmount?.min
       ? `₹${topInternship.stipendAmount.min.toLocaleString()} / month`
-      : "Competitive Stipend");
+      : null);
 
   // Format apply link for job
   const jobApplyHref = topJob?.applyLink || topJob?.applyUrl;
@@ -85,14 +89,14 @@ const InternshalaDashboardRecommendations = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              Trending now
+              Explore opportunities
             </h2>
             <span className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shadow-xs">
               📈
             </span>
           </div>
           <span className="text-xs font-semibold text-slate-500 hidden sm:inline-block">
-            Curated hiring drives for CareerConnect Students
+            Open roles for students and freshers
           </span>
         </div>
 
@@ -108,9 +112,9 @@ const InternshalaDashboardRecommendations = ({
                 INTERNSHIPS
               </span>
               <h3 className="text-base font-bold mt-2.5 group-hover:text-[#facc15] transition leading-snug line-clamp-1">
-                Summer Internship Fair 2026
+                Internships for students
               </h3>
-              <p className="text-xs text-blue-100/80 mt-1">Stipend up to ₹45,000/month</p>
+              <p className="text-xs text-blue-100/80 mt-1">Paid, remote and in-office internships</p>
             </div>
             <span className="text-xs font-bold text-[#facc15] mt-3 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
               <span>Explore Internships</span>
@@ -129,12 +133,12 @@ const InternshalaDashboardRecommendations = ({
                 JOBS
               </span>
               <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-300 transition leading-snug line-clamp-1">
-                Fresher Tech Hiring Fest
+                Jobs for freshers
               </h3>
-              <p className="text-xs text-sky-100/90 mt-1">Min CTC ₹6 LPA - ₹15 LPA</p>
+              <p className="text-xs text-sky-100/90 mt-1">Entry-level and fresher openings</p>
             </div>
             <span className="text-xs font-bold text-sky-200 mt-3 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
-              <span>Explore 100+ Jobs</span>
+              <span>Explore jobs</span>
               <span>→</span>
             </span>
           </Link>
@@ -247,26 +251,24 @@ const InternshalaDashboardRecommendations = ({
                   <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
                     💼 JOB • #1 PICK
                   </span>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                    <span>⚡</span>
-                    <span>Actively hiring</span>
-                  </span>
                 </div>
 
                 {/* Company & Title */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 min-w-0">
                     <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition line-clamp-1">
-                      {topJob.title}
+                      <OpportunityTitleLink item={topJob} type="Job">{topJob.title}</OpportunityTitleLink>
                     </h3>
-                    <p className="text-xs font-semibold text-slate-600 line-clamp-1">
-                      {topJob.company}
-                    </p>
+                    {topJob.company && (
+                      <p className="text-xs font-semibold text-slate-600 line-clamp-1">
+                        {topJob.company}
+                      </p>
+                    )}
                   </div>
                   {topJob.logo || topJob.companyLogo ? (
                     <img
                       src={topJob.logo || topJob.companyLogo}
-                      alt={topJob.company}
+                      alt={topJob.company || ""}
                       className="w-11 h-11 rounded-xl object-contain p-1 bg-white border border-slate-200 shrink-0"
                       onError={(e) => {
                         e.currentTarget.style.display = "none";
@@ -274,7 +276,7 @@ const InternshalaDashboardRecommendations = ({
                     />
                   ) : (
                     <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-base flex items-center justify-center shrink-0">
-                      {(topJob.company || "J")[0]}
+                      {(topJob.company || topJob.title || "?")[0]}
                     </div>
                   )}
                 </div>
@@ -284,28 +286,36 @@ const InternshalaDashboardRecommendations = ({
 
                 {/* Metadata List with Icons */}
                 <div className="space-y-2 text-xs text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400 shrink-0">📍</span>
-                    <span className="font-medium text-slate-700 line-clamp-1">
-                      {topJob.location || "Bangalore / Remote"}
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
-                      {topJob.workMode || "Hybrid"}
-                    </span>
-                  </div>
+                  {(topJob.location || topJob.workMode) && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 shrink-0">📍</span>
+                      {topJob.location && (
+                        <span className="font-medium text-slate-700 line-clamp-1">
+                          {topJob.location}
+                        </span>
+                      )}
+                      {topJob.location && topJob.workMode && <span className="text-slate-300">•</span>}
+                      {topJob.workMode && (
+                        <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                          {topJob.workMode}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-emerald-600 font-bold shrink-0">💵</span>
-                    <span className="font-bold text-emerald-700">{jobSalary}</span>
-                  </div>
+                  {jobSalary && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-600 font-bold shrink-0">💵</span>
+                      <span className="font-bold text-emerald-700">{jobSalary}</span>
+                    </div>
+                  )}
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400 shrink-0">💼</span>
-                    <span className="text-slate-500 font-medium">
-                      {topJob.type || "Full Time Opportunity"}
-                    </span>
-                  </div>
+                  {(topJob.type || topJob.employmentType) && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 shrink-0">💼</span>
+                      <span className="text-slate-500 font-medium">{topJob.type || topJob.employmentType}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Skills Tags */}
@@ -326,18 +336,23 @@ const InternshalaDashboardRecommendations = ({
               {/* Bottom Actions Row */}
               <div>
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => onSave && onSave(topJob)}
-                    className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                      isJobSaved
-                        ? "bg-amber-50 border-amber-300 text-amber-600"
-                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                    }`}
-                    title={isJobSaved ? "Saved" : "Save Job"}
-                  >
-                    {isJobSaved ? "★" : "☆"}
-                  </button>
+                  {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                  {FEATURES.savedJobs && (
+                    <button
+                      type="button"
+                      onClick={() => onSave && onSave(topJob)}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                        isJobSaved
+                          ? "bg-amber-50 border-amber-300 text-amber-600"
+                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                      }`}
+                      title={isJobSaved ? "Saved" : "Save Job"}
+                    >
+                      {isJobSaved ? "★" : "☆"}
+                    </button>
+                  )}
+
+                  <ViewDetailsButton item={topJob} type="Job" className="flex-1 py-2.5 px-3" />
 
                   {isJobApplied ? (
                     <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
@@ -390,26 +405,24 @@ const InternshalaDashboardRecommendations = ({
                   <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
                     🎓 INTERNSHIP • #1 PICK
                   </span>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                    <span>⚡</span>
-                    <span>Actively hiring</span>
-                  </span>
                 </div>
 
                 {/* Company & Title */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 min-w-0">
                     <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition line-clamp-1">
-                      {topInternship.title}
+                      <OpportunityTitleLink item={topInternship} type="Internship">{topInternship.title}</OpportunityTitleLink>
                     </h3>
-                    <p className="text-xs font-semibold text-slate-600 line-clamp-1">
-                      {topInternship.company}
-                    </p>
+                    {topInternship.company && (
+                      <p className="text-xs font-semibold text-slate-600 line-clamp-1">
+                        {topInternship.company}
+                      </p>
+                    )}
                   </div>
                   {topInternship.logo || topInternship.companyLogo ? (
                     <img
                       src={topInternship.logo || topInternship.companyLogo}
-                      alt={topInternship.company}
+                      alt={topInternship.company || ""}
                       className="w-11 h-11 rounded-xl object-contain p-1 bg-white border border-slate-200 shrink-0"
                       onError={(e) => {
                         e.currentTarget.style.display = "none";
@@ -417,7 +430,7 @@ const InternshalaDashboardRecommendations = ({
                     />
                   ) : (
                     <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-black text-base flex items-center justify-center shrink-0">
-                      {(topInternship.company || "I")[0]}
+                      {(topInternship.company || topInternship.title || "?")[0]}
                     </div>
                   )}
                 </div>
@@ -427,28 +440,38 @@ const InternshalaDashboardRecommendations = ({
 
                 {/* Metadata List with Icons */}
                 <div className="space-y-2 text-xs text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400 shrink-0">📍</span>
-                    <span className="font-medium text-slate-700 line-clamp-1">
-                      {topInternship.location || "Delhi / Remote"}
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
-                      {topInternship.workMode || "Remote"}
-                    </span>
-                  </div>
+                  {(topInternship.location || topInternship.workMode) && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 shrink-0">📍</span>
+                      {topInternship.location && (
+                        <span className="font-medium text-slate-700 line-clamp-1">
+                          {topInternship.location}
+                        </span>
+                      )}
+                      {topInternship.location && topInternship.workMode && <span className="text-slate-300">•</span>}
+                      {topInternship.workMode && (
+                        <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                          {topInternship.workMode}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-emerald-600 font-bold shrink-0">💵</span>
-                    <span className="font-bold text-emerald-700">{internshipStipend}</span>
-                  </div>
+                  {internshipStipend && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-600 font-bold shrink-0">💵</span>
+                      <span className="font-bold text-emerald-700">{internshipStipend}</span>
+                    </div>
+                  )}
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400 shrink-0">⏳</span>
-                    <span className="text-slate-500 font-medium">
-                      {topInternship.duration || "3 - 6 Months"}
-                    </span>
-                  </div>
+                  {topInternship.duration && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 shrink-0">⏳</span>
+                      <span className="text-slate-500 font-medium">
+                        {topInternship.duration}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Skills Tags */}
@@ -469,18 +492,23 @@ const InternshalaDashboardRecommendations = ({
               {/* Bottom Actions Row */}
               <div>
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => onSave && onSave(topInternship)}
-                    className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                      isInternshipSaved
-                        ? "bg-amber-50 border-amber-300 text-amber-600"
-                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                    }`}
-                    title={isInternshipSaved ? "Saved" : "Save Internship"}
-                  >
-                    {isInternshipSaved ? "★" : "☆"}
-                  </button>
+                  {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                  {FEATURES.savedJobs && (
+                    <button
+                      type="button"
+                      onClick={() => onSave && onSave(topInternship)}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                        isInternshipSaved
+                          ? "bg-amber-50 border-amber-300 text-amber-600"
+                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                      }`}
+                      title={isInternshipSaved ? "Saved" : "Save Internship"}
+                    >
+                      {isInternshipSaved ? "★" : "☆"}
+                    </button>
+                  )}
+
+                  <ViewDetailsButton item={topInternship} type="Internship" className="flex-1 py-2.5 px-3" />
 
                   {isInternshipApplied ? (
                     <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
@@ -536,7 +564,7 @@ const InternshalaDashboardRecommendations = ({
                   </span>
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                     <span>★</span>
-                    <span>{topCourse.rating || "4.8"} Rating</span>
+                    <span>{topCourse.rating ? `${topCourse.rating} Rating` : "Not yet rated"}</span>
                   </span>
                 </div>
 
@@ -547,7 +575,7 @@ const InternshalaDashboardRecommendations = ({
                       {topCourse.title}
                     </h3>
                     <p className="text-xs font-semibold text-slate-600 line-clamp-1">
-                      {topCourse.provider || "CareerConnect Academy"}
+                      {topCourse.provider || "E2Job Academy"}
                     </p>
                   </div>
                   <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 font-black text-xl flex items-center justify-center shrink-0">

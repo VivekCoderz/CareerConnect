@@ -3,10 +3,9 @@ const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
 const Job = require("../models/Job");
-const EmployerProfile = require("../models/EmployerProfile");
-const Internship = require("../models/Internship");
 const Application = require("../models/Application");
 const { escapeRegex } = require("../utils/listingSecurity");
+const { getOwnerScope, listingOwnerClauses, applicationOwnerClauses } = require("../utils/employerOwnership");
 const mongoose = require("mongoose");
 
 /**
@@ -66,58 +65,37 @@ const extractProfileSkills = (prof) => {
   return Array.from(skillsSet);
 };
 
+const NOT_ENOUGH_DATA = "Not enough data";
+
 /**
- * Modular match score calculation algorithm
+ * Skill match between a candidate and a job's required / preferred skills.
+ * Only skills that are actually listed count: with no skills on either side there is no
+ * score (null + reason), never a default percentage. Required skills weigh 70%,
+ * preferred 30%; when only one list exists it carries the full weight.
  */
 const calculateMatch = (candidateSkills = [], jobRequiredSkills = [], jobPreferredSkills = []) => {
-  const normCandidate = (Array.isArray(candidateSkills) ? candidateSkills : [])
-    .filter(Boolean)
-    .map((s) => String(s).toLowerCase().trim());
-  const normRequired = (Array.isArray(jobRequiredSkills) ? jobRequiredSkills : [])
-    .filter(Boolean)
-    .map((s) => String(s).toLowerCase().trim());
-  const normPreferred = (Array.isArray(jobPreferredSkills) ? jobPreferredSkills : [])
-    .filter(Boolean)
-    .map((s) => String(s).toLowerCase().trim());
+  const clean = (list) => (Array.isArray(list) ? list : []).filter(Boolean).map((s) => String(s).toLowerCase().trim());
+  const normCandidate = clean(candidateSkills);
+  const normRequired = clean(jobRequiredSkills);
+  const normPreferred = clean(jobPreferredSkills);
 
-  if (!normRequired.length && !normPreferred.length) {
-    return {
-      matchPercentage: 85,
-      strongSkills: normCandidate.slice(0, 3),
-      missingSkills: [],
-    };
+  if ((!normRequired.length && !normPreferred.length) || !normCandidate.length) {
+    return { matchPercentage: null, matchReason: NOT_ENOUGH_DATA, strongSkills: [], missingSkills: normRequired };
   }
 
-  const strongSkills = [];
-  const missingSkills = [];
+  const has = (skill) => normCandidate.some((c) => c.includes(skill) || skill.includes(c));
+  const strongSkills = normRequired.filter(has);
+  const missingSkills = normRequired.filter((skill) => !has(skill));
+  const preferredMatched = normPreferred.filter(has);
+  preferredMatched.forEach((skill) => { if (!strongSkills.includes(skill)) strongSkills.push(skill); });
 
-  normRequired.forEach((reqSkill) => {
-    if (normCandidate.some((cSkill) => cSkill.includes(reqSkill) || reqSkill.includes(cSkill))) {
-      strongSkills.push(reqSkill);
-    } else {
-      missingSkills.push(reqSkill);
-    }
-  });
+  const requiredRatio = normRequired.length ? (normRequired.length - missingSkills.length) / normRequired.length : null;
+  const preferredRatio = normPreferred.length ? preferredMatched.length / normPreferred.length : null;
+  const score = requiredRatio !== null && preferredRatio !== null
+    ? requiredRatio * 70 + preferredRatio * 30
+    : (requiredRatio ?? preferredRatio) * 100;
 
-  const reqScore = normRequired.length > 0 ? (strongSkills.length / normRequired.length) * 70 : 50;
-  
-  let prefMatches = 0;
-  normPreferred.forEach((prefSkill) => {
-    if (normCandidate.some((cSkill) => cSkill.includes(prefSkill) || prefSkill.includes(cSkill))) {
-      prefMatches++;
-      if (!strongSkills.includes(prefSkill)) strongSkills.push(prefSkill);
-    }
-  });
-
-  const prefScore = normPreferred.length > 0 ? (prefMatches / normPreferred.length) * 30 : 20;
-
-  const totalMatch = Math.min(100, Math.max(30, Math.round(reqScore + prefScore)));
-
-  return {
-    matchPercentage: totalMatch,
-    strongSkills,
-    missingSkills,
-  };
+  return { matchPercentage: Math.round(score), matchReason: null, strongSkills, missingSkills };
 };
 
 /**
@@ -130,20 +108,9 @@ const formatLocation = (location) => {
   return [location.city, location.state].filter(Boolean).join(", ") || null;
 };
 
-const getApplicantIdsForEmployer = async (userId, candidateIds) => {
+const getApplicantIdsForEmployer = async (user, candidateIds) => {
   if (candidateIds.length === 0) return new Set();
-  const profile = await EmployerProfile.findOne({ userId }).select("_id").lean();
-  const ownerClauses = [{ createdBy: userId }, ...(profile ? [{ employerId: profile._id }] : [])];
-  const [jobIds, internshipIds] = await Promise.all([
-    Job.find({ $or: ownerClauses }).distinct("_id"),
-    Internship.find({ $or: ownerClauses }).distinct("_id"),
-  ]);
-  const applicationClauses = [
-    ...(profile ? [{ employerId: profile._id }] : []),
-    ...(jobIds.length ? [{ jobId: { $in: jobIds } }] : []),
-    ...(internshipIds.length ? [{ internshipId: { $in: internshipIds } }] : []),
-  ];
-  if (applicationClauses.length === 0) return new Set();
+  const applicationClauses = await applicationOwnerClauses(await getOwnerScope(user));
   const applicantIds = await Application.find({
     candidateId: { $in: candidateIds },
     $or: applicationClauses,
@@ -172,10 +139,7 @@ exports.searchCandidates = async (req, res, next) => {
 
     let targetJob = null;
     if (jobId) {
-      const employer = await EmployerProfile.findOne({ userId: req.user._id }).select("_id").lean();
-      targetJob = await Job.findOne({ _id: jobId, $or: [
-        { createdBy: req.user._id }, ...(employer ? [{ employerId: employer._id }] : []),
-      ] });
+      targetJob = await Job.findOne({ _id: jobId, $or: listingOwnerClauses(await getOwnerScope(req.user)) });
       if (!targetJob) return res.status(404).json({ success: false, message: "Job not found" });
     }
 
@@ -215,7 +179,7 @@ exports.searchCandidates = async (req, res, next) => {
       professionalProfiles.filter((p) => p?.userId).map((p) => [p.userId.toString(), p])
     );
 
-    const applicantIds = await getApplicantIdsForEmployer(req.user._id, userIds);
+    const applicantIds = await getApplicantIdsForEmployer(req.user, userIds);
 
     const candidates = users.map((user) => {
       const uId = user._id.toString();
@@ -236,8 +200,9 @@ exports.searchCandidates = async (req, res, next) => {
       //   ...(Array.isArray(pProf?.skills) ? pProf.skills : []),
       // ].filter(Boolean);
 
-      // Match scoring
-      let matchInfo = { matchPercentage: 80, strongSkills: candidateSkills.slice(0, 4), missingSkills: [] };
+      // Match scoring: only against a target job or searched skills; otherwise there is
+      // nothing to match, so no percentage.
+      let matchInfo = { matchPercentage: null, matchReason: NOT_ENOUGH_DATA, strongSkills: [], missingSkills: [] };
       if (targetJob) {
         matchInfo = calculateMatch(
           candidateSkills,
@@ -250,12 +215,16 @@ exports.searchCandidates = async (req, res, next) => {
       }
 
       const education = sProf?.education?.[0] || fProf?.education?.[0] || pProf?.education?.[0] || {};
-      const experience = pProf?.workExperience?.[0] || {};
+      // Real profile fields: a professional's current role (or latest experience entry),
+      // a fresher's latest internship role.
       const jobTitle =
-        experience.jobTitle ||
-        experience.designation ||
+        pProf?.currentEmployment?.jobTitle ||
+        pProf?.experience?.[0]?.jobTitle ||
+        fProf?.internships?.[0]?.role ||
         null;
-      const cgpa = education.score || education.grade || education.cgpa || null;
+      const experienceYears = pProf?.experience?.length ? pProf.totalExperienceYears ?? null : null;
+      // Fresher / professional education uses graduationYear and percentageOrCgpa.
+      const cgpa = education.score || education.grade || education.cgpa || education.percentageOrCgpa || null;
 
       return {
         _id: user._id,
@@ -270,11 +239,12 @@ exports.searchCandidates = async (req, res, next) => {
         skills: candidateSkills,
         degree: education.degree || null,
         institution: education.institution || null,
-        graduationYear: education.endYear || null,
+        graduationYear: education.endYear || education.graduationYear || null,
         cgpa,
         jobTitle,
-        experienceYears: null,
+        experienceYears,
         matchPercentage: matchInfo.matchPercentage,
+        matchReason: matchInfo.matchReason,
         strongSkills: matchInfo.strongSkills,
         missingSkills: matchInfo.missingSkills,
         location: formatLocation(sProf?.location || fProf?.location || pProf?.location),
@@ -283,8 +253,8 @@ exports.searchCandidates = async (req, res, next) => {
       };
     });
 
-    // Sort by match percentage desc
-    candidates.sort((a, b) => b.matchPercentage - a.matchPercentage);
+    // Sort by match percentage desc; candidates without a score go last.
+    candidates.sort((a, b) => (b.matchPercentage ?? -1) - (a.matchPercentage ?? -1));
 
     return res.status(200).json({
       success: true,
@@ -320,7 +290,7 @@ exports.getCandidateById = async (req, res, next) => {
       ])
     );
 
-    const applicantIds = await getApplicantIdsForEmployer(req.user._id, [user._id]);
+    const applicantIds = await getApplicantIdsForEmployer(req.user, [user._id]);
     if (!applicantIds.has(String(user._id))) {
       user.email = null;
       user.phone = null;

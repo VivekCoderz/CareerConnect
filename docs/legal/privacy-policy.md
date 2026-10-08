@@ -4,11 +4,11 @@
 
 **Last updated:** [date of publishing]
 
-CareerConnect ("we", "us") is operated by **[legal entity name]**, [registered address], India. This policy explains what personal data we collect when you use CareerConnect (the website and its services), why we collect it, who we share it with, and the choices you have.
+E2Job ("we", "us") is operated by **[legal entity name]**, [registered address], India. This policy explains what personal data we collect when you use E2Job (the website and its services), why we collect it, who we share it with, and the choices you have.
 
 By creating an account you confirm that you have read this policy and that you agree to us processing your personal data as described here.
 
-## 1. Who can use CareerConnect
+## 1. Who can use E2Job
 
 You must be **18 years or older** to create an account. If you are younger than 18, please do not register.
 
@@ -51,12 +51,15 @@ We process your data based on your **consent**, which you give when you create a
 
 - **Employers you apply to** can see the profile, resume and application you send them.
 - **Your public profile:** if you set your profile visibility to *public*, the parts of your profile marked public (for example your headline, skills and projects) can be seen by anyone. Your email, phone number, date of birth and resume are **not** shown on your public profile.
-- **Service providers** who help us run CareerConnect, and only for that purpose:
+- **Service providers** who help us run E2Job, and only for that purpose:
   - hosting and databases: Render, Vercel, MongoDB Atlas
   - file storage: Cloudinary (resumes and images)
-  - email delivery: Brevo
+  - network and security: Cloudflare
+  - email delivery: Brevo, with [Mailjet / Resend] as a backup for sign-up codes
   - sign-in: Google Firebase
   - AI features: Google Gemini, which processes resume and job-description text when you use our resume tools
+  - error monitoring: Sentry, which receives technical details when something breaks (browser and device type, the page or API address without its query, and an internal account number). It does not receive your name, email, password, resume or the text you type.
+  - visit statistics: Umami, which counts page views without cookies and without identifying you
 - **Authorities**, if the law requires it.
 
 Some of these providers store data on servers **outside India**. We choose providers that protect data with reasonable security safeguards.

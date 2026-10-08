@@ -67,16 +67,18 @@ const jobSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    // No defaults for category, city, experience level or education: an empty value stays
+    // empty rather than being saved as something the employer never chose.
     category: {
       type: String,
       trim: true,
-      default: "Web Development",
+      default: "",
       index: true,
     },
     subCategory: {
       type: String,
       trim: true,
-      default: "Full Stack Development",
+      default: "",
     },
     department: {
       type: String,
@@ -85,14 +87,13 @@ const jobSchema = new mongoose.Schema(
     },
     employmentType: {
       type: String,
+      // No default: the employer chooses it (required when an employer creates a listing).
       enum: ["Full-time", "Part-time", "Contract", "Internship", "Freelance", "Trainee"],
-      default: "Full-time",
       index: true,
     },
     workMode: {
       type: String,
       enum: ["On-site", "Hybrid", "Remote"],
-      default: "Hybrid",
       index: true,
     },
     location: {
@@ -103,13 +104,13 @@ const jobSchema = new mongoose.Schema(
     city: {
       type: String,
       trim: true,
-      default: "Bangalore",
+      default: "",
       index: true,
     },
     state: {
       type: String,
       trim: true,
-      default: "Karnataka",
+      default: "",
     },
     country: {
       type: String,
@@ -160,7 +161,7 @@ const jobSchema = new mongoose.Schema(
     // ---------- Experience & Education ----------
     experience: {
       minYears: { type: Number, default: 0 },
-      maxYears: { type: Number, default: 2 },
+      maxYears: { type: Number, default: 0 }, // 0 = not specified; nothing shown
       level: {
         type: String,
         enum: [
@@ -169,12 +170,11 @@ const jobSchema = new mongoose.Schema(
           "Mid-Level (3-5 yrs)",
           "Senior (5+ yrs)",
         ],
-        default: "Fresher / Entry-Level",
       },
     },
     education: {
       type: String,
-      default: "Any Graduate / B.Tech / BCA / MCA",
+      default: "",
     },
     eligibility: {
       type: String,
@@ -234,7 +234,18 @@ const jobSchema = new mongoose.Schema(
     // "auto" when published by the autoApproveJobs setting (approvedBy stays null).
     approvalMethod: {
       type: String,
-      enum: ["admin", "auto", null],
+      enum: ["admin", "auto", "legacy", null],
+      default: null,
+    },
+    // Why the platform closed the listing (deadline passed, its employer was rejected, or its
+    // company was deactivated or deleted).
+    closedReason: {
+      type: String,
+      enum: ["expired", "employer_rejected", "company_inactive", null],
+      default: null,
+    },
+    closedAt: {
+      type: Date,
       default: null,
     },
     rejectedBy: {
@@ -267,7 +278,7 @@ const jobSchema = new mongoose.Schema(
     source: {
       type: String,
       enum: ["CareerConnect", "LinkedIn", "Internshala", "Remotive", "Arbeitnow", "GU Drives", "Jooble", "Other"],
-      default: "CareerConnect",
+      default: "CareerConnect", // stored value for own listings (old brand); shown as E2Job
       index: true,
     },
     isExternal: {
@@ -283,6 +294,17 @@ const jobSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+    },
+    // Credit line shown with feed listings, e.g. "Job listing from Remotive (remotive.com)"
+    attribution: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    // Last time the scheduled feed sync saw this listing (external listings only)
+    lastSyncedAt: {
+      type: Date,
+      default: null,
     },
 
     // ---------- Interview & Selection Rounds ----------
@@ -370,6 +392,15 @@ const jobSchema = new mongoose.Schema(
 
 // ---------- Indexes (no duplicates) ----------
 jobSchema.index({ employerId: 1, status: 1 });
+// Expiry sweep and public "still open" filter
+jobSchema.index({ status: 1, deadline: 1 });
+// Public job list: status filter + newest-first sort (_id breaks createdAt ties for stable paging)
+jobSchema.index({ status: 1, createdAt: -1, _id: -1 });
+// Keyword search in getJobs. "none" = no stemming or stop words, so "IT" or "C" still match.
+jobSchema.index(
+  { title: "text", requiredSkills: "text", description: "text" },
+  { name: "job_text_search", weights: { title: 10, requiredSkills: 5, description: 1 }, default_language: "none" }
+);
 jobSchema.index({ category: 1, status: 1 });
 jobSchema.index({ city: 1, status: 1 });
 jobSchema.index({ workMode: 1, status: 1 });
@@ -381,14 +412,14 @@ jobSchema.index(
   { unique: true, partialFilterExpression: { isExternal: true } }
 );
 
-// Optional: readable salary / stipend for UI
+// Optional: readable salary / stipend for UI; null when the listing gives none.
 jobSchema.virtual("compensationLabel").get(function () {
   if (this.employmentType === "Internship" || this.employmentType === "Trainee") {
     if (this.stipend) return this.stipend;
     if (this.salaryRange?.min) {
       return `₹${this.salaryRange.min.toLocaleString("en-IN")}/month`;
     }
-    return "Stipend not disclosed";
+    return null;
   }
 
   const { min, max, isNegotiable } = this.salaryRange || {};
@@ -397,7 +428,7 @@ jobSchema.virtual("compensationLabel").get(function () {
     return isNegotiable ? `${base} (Negotiable)` : base;
   }
   if (min) return `₹${(min / 100000).toFixed(1)}+ LPA`;
-  return "Not disclosed";
+  return null;
 });
 
 jobSchema.set("toJSON", { virtuals: true });

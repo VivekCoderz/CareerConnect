@@ -5,12 +5,15 @@ const sanitizeEmployerUpdate = (body) => {
   const data = sanitizeProfileUpdate(body);
   delete data.__v;
   delete data.isPublished;
+  delete data.verifiedAt;
+  delete data.verifiedBy;
   return data;
 };
 // server/controllers/employerController.js
 const EmployerProfile = require("../models/EmployerProfile");
 const User = require("../models/User");
 const Company = require("../models/Company");
+const { escapeRegex } = require("../utils/listingSecurity");
 const OrganizationRequest = require("../models/OrganizationRequest");
 const AuditLog = require("../models/AuditLog");
 const Job = require("../models/Job");
@@ -21,7 +24,14 @@ const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
 const Course = require("../models/Course");
 const { getEmployerDashboardData } = require("../services/employerDashboardService");
+const { getActiveCompany } = require("../utils/employerOwnership");
 const { ipKeyGenerator } = require("express-rate-limit");
+
+// Company size options offered by the connect-company form (EmployerDashboard).
+const ORG_COMPANY_SIZES = ["1-10", "11-50", "51-200", "201-500", "500+"];
+
+// The employer profile stores sizes with an en dash ("11–50"); the request form uses a hyphen.
+const normalizeCompanySize = (size) => String(size || "").trim().replace(/[–—]/g, "-");
 
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
@@ -346,7 +356,7 @@ exports.getEmployerDashboard = async (req, res, next) => {
     }
 
     // Resolve effective companyId
-    let effectiveCompanyId = req.user.companyId || null;
+    const effectiveCompanyId = req.user.companyId || null;
 
     let profile = await EmployerProfile.findOne({ userId });
     if (!profile) {
@@ -361,20 +371,9 @@ exports.getEmployerDashboard = async (req, res, next) => {
       });
     }
 
-    if (!effectiveCompanyId) {
-      // Check if Company exists matching profile or user
-      const matchedCompany = await Company.findOne({
-        $or: [
-          { email: profile.officialEmail || req.user.email },
-          { name: profile.companyName },
-        ],
-      });
-      if (matchedCompany) {
-        effectiveCompanyId = matchedCompany._id;
-        req.user.companyId = matchedCompany._id;
-        await User.findByIdAndUpdate(userId, { companyId: matchedCompany._id });
-      }
-    }
+    // An employer joins a company only through a Super Admin-approved organization request
+    // or a company admin's invite. Matching by company name or email let anyone attach
+    // themselves to another company and read its applicants.
 
     const completion = calculateEmployerCompletion(profile, req.user);
 
@@ -452,9 +451,9 @@ exports.getEmployerDashboard = async (req, res, next) => {
       type: app.opportunityType || (app.internshipId ? "Internship" : "Full-time"),
       status: app.status || "Reviewing",
       appliedDate: app.createdAt ? new Date(app.createdAt).toISOString().split("T")[0] : "Recent",
-      matchScore: app.matchScore || 85,
-      cgpa: app.cgpa || "8.5",
-      degree: app.degree || "Geeta University Student",
+      matchScore: app.matchScore ?? null,
+      cgpa: app.cgpa || "",
+      degree: app.degree || "",
     }));
 
     const activeListings = [
@@ -505,10 +504,17 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
     if (isObjectId) {
       profile = await EmployerProfile.findOne({
         $or: [{ _id: companyId }, { userId: companyId }],
-      }).populate("userId", "fullName email profileImage");
+      }).populate("userId", "fullName email profileImage companyId");
     }
 
-    if (!profile) {
+    // Only published, admin-approved profiles are public, and not while the employer's
+    // company is inactive or deleted (ADM-11/12). Anything else looks like "not found".
+    const isPublic = Boolean(profile) &&
+      profile.isPublished === true &&
+      profile.verificationStatus === "approved" &&
+      (!profile.userId?.companyId || Boolean(await getActiveCompany(profile.userId)));
+
+    if (!isPublic) {
       return res.status(404).json({
         success: false,
         message: "Company profile not found",
@@ -552,6 +558,7 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
         locations: profile.hiringPreferences?.locations || [],
       },
       isPublished: profile.isPublished,
+      verificationStatus: profile.verificationStatus,
       createdAt: profile.createdAt,
     };
 
@@ -630,8 +637,8 @@ exports.getOrganizationStatus = async (req, res, next) => {
       companyName: profile?.companyName || user?.companyName || "",
       officialCompanyEmail: profile?.officialEmail || "",
       companyWebsite: profile?.website || "",
-      industry: profile?.industry || "Information Technology",
-      companySize: profile?.companySize || profile?.employeesCount || "11-50",
+      industry: profile?.industry || "",
+      companySize: normalizeCompanySize(profile?.companySize || profile?.employeesCount),
       requestingEmployeeName: req.user.fullName || profile?.contactPerson || "",
       employeeDesignation: req.user.designation || profile?.designation || "Talent Acquisition / HR",
       officialEmployeeEmail: req.user.email || "",
@@ -653,8 +660,8 @@ exports.getOrganizationStatus = async (req, res, next) => {
           officialEmail: orgRequest.officialEmail,
           companyWebsite: orgRequest.website,
           website: orgRequest.website,
-          industry: orgRequest.industry || "Information Technology",
-          companySize: orgRequest.companySize || "11-50",
+          industry: orgRequest.industry || "",
+          companySize: orgRequest.companySize || "",
           verificationDocument: orgRequest.verificationDocument || "",
           requestingEmployeeName: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
           contactPerson: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
@@ -708,8 +715,8 @@ exports.requestCompanyApproval = async (req, res, next) => {
     const trimmedCompanyName = (companyName || organizationName || "").trim();
     const cleanCompanyEmail = (officialCompanyEmail || officialEmail || "").trim().toLowerCase();
     const cleanWebsite = (companyWebsite || website || "").trim();
-    const cleanIndustry = (industry || "Information Technology").trim();
-    const cleanCompanySize = (companySize || "11-50").trim();
+    const cleanIndustry = String(industry || "").trim();
+    const cleanCompanySize = normalizeCompanySize(companySize);
     const cleanVerificationDoc = (verificationDocument || "").trim();
     const cleanEmployeeName = (requestingEmployeeName || contactPerson || req.user.fullName || "").trim();
     const cleanDesignation = (employeeDesignation || designation || req.user.designation || "").trim();
@@ -730,6 +737,12 @@ exports.requestCompanyApproval = async (req, res, next) => {
     }
     if (!cleanCompanySize) {
       return res.status(400).json({ success: false, message: "Company size is required." });
+    }
+    if (!ORG_COMPANY_SIZES.includes(cleanCompanySize)) {
+      return res.status(400).json({
+        success: false,
+        message: `Company size must be one of: ${ORG_COMPANY_SIZES.join(", ")}.`,
+      });
     }
     if (!cleanVerificationDoc) {
       return res.status(400).json({
@@ -760,19 +773,17 @@ exports.requestCompanyApproval = async (req, res, next) => {
     const existingActiveCompany = await Company.findOne({
       $or: [
         { email: cleanCompanyEmail },
-        { name: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+        { name: { $regex: `^${escapeRegex(trimmedCompanyName)}$`, $options: "i" } },
       ],
       status: "active",
     });
 
     if (existingActiveCompany) {
-      req.user.companyId = existingActiveCompany._id;
-      await req.user.save();
-      return res.status(200).json({
-        success: true,
-        status: "APPROVED",
-        message: `Your company "${existingActiveCompany.name}" is already verified on CareerConnect! Your account is connected.`,
-        company: existingActiveCompany,
+      // Never connect automatically: a matching name or email doesn't prove the person works there.
+      return res.status(409).json({
+        success: false,
+        status: "COMPANY_EXISTS",
+        message: "This company is already on E2Job. Ask your company admin to invite you, or contact support.",
       });
     }
 

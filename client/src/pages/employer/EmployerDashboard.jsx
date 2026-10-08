@@ -1,6 +1,7 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import useTabInUrl from "../../hooks/useTabInUrl";
 import { useDispatch, useSelector } from "react-redux";
 import { FEATURES } from "../../config/features";
 import PostInternship from "./PostInternship";
@@ -57,7 +58,16 @@ const EmployerDashboard = () => {
   const { user } = useSelector((state) => state.auth);
 
   // Layout & Tab State
-  const [activeTab, setActiveTab] = useState("overview");
+  // Open the tab named in ?tab= (kept in the URL by useTabInUrl, so a refresh stays put).
+  const [tabSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => tabSearchParams.get("tab") || "overview");
+  useTabInUrl(activeTab, "overview");
+  // Job the ATS tab opens filtered to ("All" = every job); set by "View applications".
+  const [atsJobId, setAtsJobId] = useState("All");
+  const selectTab = (tab) => {
+    setAtsJobId("All");
+    setActiveTab(tab);
+  };
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -85,8 +95,8 @@ const EmployerDashboard = () => {
     companyName: "",
     officialCompanyEmail: "",
     companyWebsite: "",
-    industry: "Information Technology",
-    companySize: "11-50",
+    industry: "",
+    companySize: "",
     verificationDocument: "",
     verificationDocumentName: "",
     requestingEmployeeName: "",
@@ -444,6 +454,35 @@ const EmployerDashboard = () => {
     }
   };
 
+  // Bulk shortlist / review / interview / reject from the applicant list
+  const handleBulkStatus = async (applicationIds, status) => {
+    try {
+      // The server accepts up to 300 per request; send larger selections in batches.
+      const res = { success: true, updated: 0, skipped: 0 };
+      for (let i = 0; i < applicationIds.length; i += 300) {
+        const part = await recruitmentService.bulkUpdateApplicationStatus(applicationIds.slice(i, i + 300), status);
+        if (!part?.success) {
+          showToast(part?.message || "Bulk update failed", "error");
+          return false;
+        }
+        res.updated += part.updated || 0;
+        res.skipped += part.skipped || 0;
+      }
+      res.message = `${res.updated} application${res.updated === 1 ? "" : "s"} marked as ${status}`;
+      const chosen = new Set(applicationIds);
+      setApplications((prev) =>
+        prev.map((a) =>
+          chosen.has(a._id) && !["Withdrawn", "Hired"].includes(a.status) ? { ...a, status, stage: status } : a
+        )
+      );
+      showToast(res.skipped ? `${res.message} (${res.skipped} skipped)` : res.message);
+      return true;
+    } catch (err) {
+      showToast(err.response?.data?.message || "Bulk update failed", "error");
+      return false;
+    }
+  };
+
   const handleRejectCandidate = async (appId, remarks) => {
     try {
       const res = await recruitmentService.rejectCandidate(appId, remarks);
@@ -579,7 +618,7 @@ const EmployerDashboard = () => {
     ? dashboardData.employerVerification?.status || profile.verificationStatus || "pending"
     : null;
   const postingDisabled = Boolean(employerVerificationStatus) && employerVerificationStatus !== "approved";
-  const completion = dashboardData?.profileCompletion || profile.profileCompletion || 85;
+  const completion = dashboardData?.profileCompletion ?? profile.profileCompletion ?? 0;
 
   // Synchronize employer info & dynamic pre-fill into Connect Company form
   useEffect(() => {
@@ -615,13 +654,13 @@ const EmployerDashboard = () => {
         prev.industry ||
         pre.industry ||
         prof.industry ||
-        "Information Technology",
+        "",
       companySize:
         existingReq?.companySize ||
         prev.companySize ||
         pre.companySize ||
         prof.companySize ||
-        "11-50",
+        "",
       verificationDocument:
         existingReq?.verificationDocument ||
         prev.verificationDocument ||
@@ -947,7 +986,7 @@ const EmployerDashboard = () => {
         profileCompletion={dashboardData?.profileCompletion || completion}
         unreadNotifications={dashboardData?.unreadNotificationsCount || 0}
         activity={dashboardData?.activity || []}
-        onSelectTab={setActiveTab}
+        onSelectTab={selectTab}
       />
 
       {/* Main Container */}
@@ -955,7 +994,7 @@ const EmployerDashboard = () => {
         {/* Sidebar */}
         <EmployerSidebar
           activeTab={activeTab}
-          onSelectTab={setActiveTab}
+          onSelectTab={selectTab}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           stats={stats}
@@ -980,6 +1019,10 @@ const EmployerDashboard = () => {
                 setInternshipView("new");
               }}
               onViewApplications={() => setActiveTab("ats")}
+              onViewJobApplications={(jobId) => {
+                setAtsJobId(String(jobId));
+                setActiveTab("ats");
+              }}
               onScheduleInterview={() => {
                 setInterviewCandidate(null);
                 setIsInterviewModalOpen(true);
@@ -1083,7 +1126,9 @@ const EmployerDashboard = () => {
                             ? "bg-slate-100 text-slate-600"
                             : "bg-amber-50 text-amber-700"
                         }`}>
-                          {job.status === "Pending Approval" ? "Pending approval" : job.status}
+                          {job.isExpired || job.closedReason === "expired"
+                            ? "Expired"
+                            : job.status === "Pending Approval" ? "Pending approval" : job.status}
                         </span>
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10.5px] font-semibold">
                           {job.employmentType}
@@ -1203,6 +1248,8 @@ const EmployerDashboard = () => {
               </div>
 
               <ATSPipelineView
+                key={atsJobId}
+                initialJobId={atsJobId}
                 jobs={jobs}
                 applications={applications}
                 jobs={jobs}
@@ -1220,6 +1267,7 @@ const EmployerDashboard = () => {
                   setIsOfferModalOpen(true);
                 }}
                 onAddNote={handleAddAppNote}
+                onBulkStatus={handleBulkStatus}
               />
             </div>
           )}
@@ -1231,7 +1279,7 @@ const EmployerDashboard = () => {
             <div className="space-y-5 animate-fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">CareerConnect Talent Pool</h2>
+                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">E2Job Talent Pool</h2>
                   <p className="text-xs text-slate-500">Live candidate matching with strong & missing skill analysis</p>
                 </div>
               </div>
@@ -1346,7 +1394,7 @@ const EmployerDashboard = () => {
             <OfferManagementHub
               offers={offers}
               jobs={jobs}
-              companyName={user?.fullName || "CareerConnect Partner"}
+              companyName={profile.companyName || orgStatusData?.company?.name || ""}
               onRefresh={async () => {
                 const offersRes = await recruitmentService.getOffers().catch(() => ({ offers: [] }));
                 setOffers(offersRes?.offers || []);
@@ -1609,7 +1657,7 @@ const EmployerDashboard = () => {
           )}
 
           {/* ======================================================== */}
-          {/* TAB: CONNECT COMPANY WITH CAREERCONNECT                   */}
+          {/* TAB: CONNECT COMPANY WITH E2JOB                   */}
           {/* ======================================================== */}
           {safeActiveTab === "organization" && (
             <div className="space-y-6 animate-fade-in">
@@ -1618,7 +1666,7 @@ const EmployerDashboard = () => {
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                      Connect Company with CareerConnect
+                      Connect Company with E2Job
                     </h2>
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
@@ -1641,7 +1689,7 @@ const EmployerDashboard = () => {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Connect your organization to CareerConnect to unlock verified enterprise workspace status, post jobs, and manage candidates.
+                    Connect your organization to E2Job to unlock verified enterprise workspace status, post jobs, and manage candidates.
                   </p>
                 </div>
 
@@ -1749,13 +1797,13 @@ const EmployerDashboard = () => {
                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
                         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Industry</p>
                         <p className="text-sm font-bold text-slate-800 mt-1">
-                          {orgStatusData?.company?.industry || profile.industry || "Information Technology"}
+                          {orgStatusData?.company?.industry || profile.industry || "Not provided"}
                         </p>
                       </div>
                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
                         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Headquarters</p>
                         <p className="text-sm font-bold text-slate-800 mt-1">
-                          {orgStatusData?.company?.location || profile.headquarters?.city || "Gurugram, India"}
+                          {orgStatusData?.company?.location || profile.headquarters?.city || "Not provided"}
                         </p>
                       </div>
                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
@@ -1810,7 +1858,7 @@ const EmployerDashboard = () => {
                             </span>
                           </div>
                           <p className="text-xs text-amber-100/80 mt-1 max-w-xl">
-                            Your organization approval request was received and forwarded to the CareerConnect Super Admin team for compliance verification and enterprise tenant provisioning.
+                            Your organization approval request was received and forwarded to the E2Job Super Admin team for compliance verification and enterprise tenant provisioning.
                           </p>
                         </div>
                       </div>
@@ -1981,7 +2029,7 @@ const EmployerDashboard = () => {
                   <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h3 className="text-base font-bold text-slate-900">
-                        {isEditingOrgRequest ? "Update Company Connection Details" : "Connect Company with CareerConnect"}
+                        {isEditingOrgRequest ? "Update Company Connection Details" : "Connect Company with E2Job"}
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Submit your organization credentials below. Super Admin will verify and activate your enterprise connection.
@@ -2061,6 +2109,7 @@ const EmployerDashboard = () => {
                             onChange={(e) => setOrgForm({ ...orgForm, industry: e.target.value })}
                             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition bg-white"
                           >
+                            <option value="">Select industry</option>
                             <option value="Information Technology">Information Technology &amp; Software</option>
                             <option value="Financial Services">Financial Services &amp; Banking</option>
                             <option value="Healthcare">Healthcare &amp; Life Sciences</option>
@@ -2084,6 +2133,7 @@ const EmployerDashboard = () => {
                             onChange={(e) => setOrgForm({ ...orgForm, companySize: e.target.value })}
                             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition bg-white"
                           >
+                            <option value="">Select company size</option>
                             <option value="1-10">1-10 Employees (Seed / Early Stage)</option>
                             <option value="11-50">11-50 Employees (Small Business)</option>
                             <option value="51-200">51-200 Employees (Growth Scale)</option>
@@ -2245,7 +2295,7 @@ const EmployerDashboard = () => {
                             </>
                           ) : (
                             <>
-                              <span>Connect Company with CareerConnect</span>
+                              <span>Connect Company with E2Job</span>
                               <span>→</span>
                             </>
                           )}
@@ -2463,6 +2513,7 @@ const EmployerDashboard = () => {
         onCreateOffer={handleCreateOffer}
         application={offerApplication}
         jobs={jobs}
+        companyName={profile.companyName || orgStatusData?.company?.name || ""}
       />
 
         {FEATURES.assessments && (
@@ -2496,7 +2547,7 @@ const EmployerDashboard = () => {
         jobs={jobs}
         applications={applications}
         initialJobId={exportJobId}
-        companyName={user?.companyName || dashboardData?.company?.name || user?.name || "CareerConnect Partner"}
+        companyName={user?.companyName || dashboardData?.company?.name || user?.name || "E2Job Partner"}
       />
     </div>
   );

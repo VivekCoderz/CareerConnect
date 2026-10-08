@@ -1,6 +1,7 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import { getFresherDashboardData } from "../../services/fresherDashboardService";
@@ -36,7 +37,10 @@ const FresherDashboard = () => {
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // Start on the tab named in ?tab= (email links open e.g. ?tab=applications).
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "dashboard");
+  useTabInUrl(activeTab, "dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
@@ -110,12 +114,12 @@ const FresherDashboard = () => {
       title: item.title,
       company: item.company || item.companyName,
       companyName: item.company || item.companyName,
-      type: item.type || "Job",
+      type: item.type || null,
       opportunityType:
-        item.type?.toLowerCase().includes("intern") ? "Internship" : "Job",
+        `${item.opportunityType || ""} ${item.type || ""}`.toLowerCase().includes("intern") ? "Internship" : "Job",
       description: item.description || item.aboutRole || "",
       requirements: item.requirements || [],
-      skillsRequired: item.skillsRequired || item.skills || [],
+      skillsRequired: [item.skillsRequired, item.skills, item.requiredSkills].find((l) => Array.isArray(l) && l.length) || [],
     });
     setIsTailoredModalOpen(true);
   };
@@ -137,14 +141,16 @@ const FresherDashboard = () => {
   // ─── Derived data ──────────────────────────────────────────────────────
   const currentUser = dashboardData?.user || user;
   const profile = dashboardData?.profile || {};
-  const completion = dashboardData?.profileCompletion ?? 80;
+  const completion = dashboardData?.profileCompletion ?? 0;
+  // Only what the fresher actually set; empty values show as "not set" in the UI.
   const careerTarget = dashboardData?.careerTarget || {
-    targetRole: profile.targetRole || "Full Stack Developer",
-    jobType: "Full-time opportunities",
-    workMode: "Remote / Hybrid",
-    preferredLocations: ["Bangalore", "Pune", "Remote"],
-    careerGoal: "Get my first job",
+    targetRole: profile.targetRole || "",
+    jobType: "",
+    workMode: "",
+    preferredLocations: [],
+    careerGoal: "",
   };
+  const targetRoleLabel = careerTarget.targetRole || "your target role";
 
   const recommendedJobs = dashboardData?.recommendedJobs || [];
   const skillDev = dashboardData?.skillDevelopment || {
@@ -233,7 +239,7 @@ const FresherDashboard = () => {
                   <FresherSkillDevelopment
                     userSkills={skillDev.userSkills}
                     recommendedSkills={skillDev.recommendedSkills}
-                    targetRole={careerTarget.targetRole}
+                    targetRole={targetRoleLabel}
                   />
                 )}
                 <FresherCareerRecommendations
@@ -245,7 +251,7 @@ const FresherDashboard = () => {
               {FEATURES.courses && (
                 <FresherRecommendedCourses
                   courses={recommendedCourses}
-                  targetRole={careerTarget.targetRole}
+                  targetRole={targetRoleLabel}
                 />
               )}
 
@@ -364,13 +370,13 @@ const FresherDashboard = () => {
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Skill Development</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Your skill profile and gap analysis for {careerTarget.targetRole}
+                  Your skill profile and gap analysis for {targetRoleLabel}
                 </p>
               </div>
               <FresherSkillDevelopment
                 userSkills={skillDev.userSkills}
                 recommendedSkills={skillDev.recommendedSkills}
-                targetRole={careerTarget.targetRole}
+                targetRole={targetRoleLabel}
               />
             </div>
           )}
@@ -450,7 +456,7 @@ const FresherDashboard = () => {
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Career Recommendations</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  AI-powered career advice tailored for {careerTarget.targetRole}
+                  AI-powered career advice tailored for {targetRoleLabel}
                 </p>
               </div>
               <FresherCareerRecommendations

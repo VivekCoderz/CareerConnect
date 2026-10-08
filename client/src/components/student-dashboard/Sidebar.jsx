@@ -66,7 +66,7 @@ const Sidebar = ({
               {!collapsed && (
                 <div className="transition-opacity duration-200 whitespace-nowrap">
                   <span className="font-bold text-slate-900 tracking-tight text-base block leading-none">
-                    CareerConnect
+                    E2Job
                   </span>
                   <span className="block text-[10px] font-semibold text-blue-600 tracking-wider uppercase mt-0.5">
                     Student Hub
@@ -107,7 +107,7 @@ const Sidebar = ({
 
           {/* Nav List */}
           <div className="py-4 px-2.5 space-y-1 overflow-y-auto max-h-[calc(100vh-140px)] scrollbar-thin">
-            {NAV_ITEMS.filter((item) => item.id !== "courses" || FEATURES.courses).map((item) =>{
+            {NAV_ITEMS.filter((item) => (item.id !== "courses" || FEATURES.courses) && (item.id !== "saved" || FEATURES.savedJobs)).map((item) =>{
               const isActive = activeTab === item.id;
               if (item.link) {
                 return (

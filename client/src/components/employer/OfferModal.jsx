@@ -1,5 +1,65 @@
 import React, { useState, useEffect } from "react";
 
+// JobOffer doesn't store these yet (work mode, CTC breakdown, stock options, probation, notice,
+// reporting manager, signatory), so they never reach the letter. Hidden until they're saved (after launch).
+const SHOW_UNSTORED_FIELDS = false;
+
+// Every field starts blank: the employer fills the offer in. Role, location and CTC come
+// from the job; the letterhead and signatory organisation are the employer's company.
+const EMPTY_OFFER = {
+  candidateId: "",
+  jobId: "",
+  designation: "",
+  department: "",
+  employmentType: "",
+  workLocationType: "",
+  location: "",
+  reportingManager: "",
+  probationPeriod: "",
+  noticePeriod: "",
+  salary: "",
+  baseSalary: "",
+  allowances: "",
+  variableBonus: "",
+  stockOptions: "",
+  salaryPeriod: "Per Annum (LPA)",
+  currency: "INR (₹)",
+  joiningDate: "",
+  expiryDate: "",
+  benefits: "",
+  additionalTerms: "",
+  signatoryName: "",
+  signatoryTitle: "",
+  signatoryOrganization: "",
+};
+
+const DEPARTMENTS = [
+  "Engineering",
+  "Product & Design",
+  "Data Science & AI",
+  "Marketing & Growth",
+  "Sales & Business Dev",
+  "Human Resources",
+  "Operations & Support",
+];
+
+// Fields an offer takes from its job (only what the employer entered on the job).
+const fromJob = (job) => {
+  if (!job || typeof job !== "object") return {};
+  const { min = 0, max = 0 } = job.salaryRange || {};
+  return {
+    designation: job.title || "",
+    department: job.department || "",
+    employmentType: job.employmentType || "",
+    workLocationType: job.workMode || "",
+    location: job.location || [job.city, job.state].filter(Boolean).join(", "),
+    salary: max || min || "",
+  };
+};
+
+const toDateInput = (value) => (value ? new Date(value).toISOString().split("T")[0] : "");
+const withExtraOption = (options, value) => (value && !options.includes(value) ? [...options, value] : options);
+
 const OfferModal = ({
   isOpen,
   onClose,
@@ -8,37 +68,12 @@ const OfferModal = ({
   offerToEdit = null,
   application = null,
   jobs = [],
-  candidates = [],
+  companyName = "",
 }) => {
   const isEditing = Boolean(offerToEdit);
 
   const [activeTab, setActiveTab] = useState("role"); // role | compensation | terms | signatory
-  const [formData, setFormData] = useState({
-    candidateId: "",
-    jobId: "",
-    designation: "Associate Software Engineer",
-    department: "Engineering",
-    employmentType: "Full-time",
-    workLocationType: "Hybrid",
-    location: "Gurugram / CareerConnect Campus",
-    reportingManager: "Lead Technical Architect / VP Engineering",
-    probationPeriod: "3 Months",
-    noticePeriod: "30 Days",
-    salary: 800000,
-    baseSalary: 560000,
-    allowances: 160000,
-    variableBonus: 80000,
-    stockOptions: "",
-    salaryPeriod: "Per Annum (LPA)",
-    currency: "INR (₹)",
-    joiningDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-    expiryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-    benefits: "Comprehensive Health & Medical Insurance, Annual Performance Bonus, Learning & Certification Allowance, Hybrid Work Allowance",
-    additionalTerms: "The candidate must submit verified graduation marksheets and identity proofs upon acceptance. Standard NDA and intellectual property assignment clauses apply.",
-    signatoryName: "Dr. Rajesh Verma",
-    signatoryTitle: "Head of Talent Acquisition & Campus Partnerships",
-    signatoryOrganization: "CareerConnect Placement & Career Center",
-  });
+  const [formData, setFormData] = useState(() => ({ ...EMPTY_OFFER, signatoryOrganization: companyName }));
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -46,36 +81,33 @@ const OfferModal = ({
   useEffect(() => {
     if (offerToEdit) {
       setFormData({
+        ...EMPTY_OFFER,
         candidateId: offerToEdit.candidateId?._id || offerToEdit.candidateId || "",
         jobId: offerToEdit.jobId?._id || offerToEdit.jobId || "",
         designation: offerToEdit.designation || "",
-        department: offerToEdit.department || "Engineering",
-        employmentType: offerToEdit.employmentType || "Full-time",
-        workLocationType: offerToEdit.workLocationType || "Hybrid",
+        department: offerToEdit.department || "",
+        employmentType: offerToEdit.employmentType || "",
+        workLocationType: offerToEdit.workLocationType || "",
         location: offerToEdit.location || "",
         reportingManager: offerToEdit.reportingManager || "",
-        probationPeriod: offerToEdit.probationPeriod || "3 Months",
-        noticePeriod: offerToEdit.noticePeriod || "30 Days",
-        salary: offerToEdit.salary || 600000,
-        baseSalary: offerToEdit.baseSalary || Math.round((offerToEdit.salary || 600000) * 0.7),
-        allowances: offerToEdit.allowances || Math.round((offerToEdit.salary || 600000) * 0.2),
-        variableBonus: offerToEdit.variableBonus || Math.round((offerToEdit.salary || 600000) * 0.1),
+        probationPeriod: offerToEdit.probationPeriod || "",
+        noticePeriod: offerToEdit.noticePeriod || "",
+        salary: offerToEdit.salary || "",
+        baseSalary: offerToEdit.baseSalary || "",
+        allowances: offerToEdit.allowances || "",
+        variableBonus: offerToEdit.variableBonus || "",
         stockOptions: offerToEdit.stockOptions || "",
-        salaryPeriod: offerToEdit.salaryPeriod || "Per Annum (LPA)",
-        currency: offerToEdit.currency || "INR (₹)",
-        joiningDate: offerToEdit.joiningDate
-          ? new Date(offerToEdit.joiningDate).toISOString().split("T")[0]
-          : "",
-        expiryDate: offerToEdit.expiryDate
-          ? new Date(offerToEdit.expiryDate).toISOString().split("T")[0]
-          : "",
+        salaryPeriod: offerToEdit.salaryPeriod || EMPTY_OFFER.salaryPeriod,
+        currency: offerToEdit.currency || EMPTY_OFFER.currency,
+        joiningDate: toDateInput(offerToEdit.joiningDate),
+        expiryDate: toDateInput(offerToEdit.expiryDate),
         benefits: Array.isArray(offerToEdit.benefits)
           ? offerToEdit.benefits.join(", ")
           : offerToEdit.benefits || "",
         additionalTerms: offerToEdit.additionalTerms || "",
-        signatoryName: offerToEdit.signatoryName || "Dr. Rajesh Verma",
-        signatoryTitle: offerToEdit.signatoryTitle || "Head of Talent Acquisition & Campus Partnerships",
-        signatoryOrganization: offerToEdit.signatoryOrganization || "CareerConnect Placement & Career Center",
+        signatoryName: offerToEdit.signatoryName || "",
+        signatoryTitle: offerToEdit.signatoryTitle || "",
+        signatoryOrganization: offerToEdit.signatoryOrganization || companyName,
       });
     } else if (application) {
       const candidateId =
@@ -86,19 +118,24 @@ const OfferModal = ({
         (application.fullName ? application._id : "");
       const jobId = application.jobId?._id || application.jobId || "";
       const internshipId = application.internshipId?._id || application.internshipId || "";
-      const designation = application.jobId?.title || application.internshipId?.title || "";
+      // The application may carry only the job id; the full job is in the employer's job list.
+      const job = jobs.find((j) => String(j._id) === String(jobId)) ||
+        (typeof application.jobId === "object" ? application.jobId : null) ||
+        (typeof application.internshipId === "object" ? application.internshipId : null);
       setFormData((prev) => ({
         ...prev,
+        ...fromJob(job),
         candidateId,
         jobId,
         internshipId,
-        designation: designation || prev.designation,
-        department: application.jobId?.department || prev.department,
+        signatoryOrganization: prev.signatoryOrganization || companyName,
       }));
-    } else if (jobs.length > 0 && !formData.jobId) {
-      setFormData((prev) => ({ ...prev, jobId: jobs[0]._id, designation: jobs[0].title }));
+    } else if (jobs.length > 0) {
+      setFormData((prev) => (prev.jobId
+        ? { ...prev, signatoryOrganization: prev.signatoryOrganization || companyName }
+        : { ...prev, ...fromJob(jobs[0]), jobId: jobs[0]._id, signatoryOrganization: prev.signatoryOrganization || companyName }));
     }
-  }, [offerToEdit, application, jobs]);
+  }, [offerToEdit, application, jobs, companyName]);
 
   if (!isOpen) return null;
 
@@ -112,13 +149,14 @@ const OfferModal = ({
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "salary") {
-      const num = Number(value);
+      // Suggest a 70/20/10 split as the employer types; they can change each part.
+      const num = value === "" ? "" : Number(value);
       setFormData((prev) => ({
         ...prev,
         salary: num,
-        baseSalary: Math.round(num * 0.7),
-        allowances: Math.round(num * 0.2),
-        variableBonus: Math.round(num * 0.1),
+        baseSalary: num === "" ? "" : Math.round(num * 0.7),
+        allowances: num === "" ? "" : Math.round(num * 0.2),
+        variableBonus: num === "" ? "" : Math.round(num * 0.1),
       }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
@@ -126,11 +164,16 @@ const OfferModal = ({
   };
 
   const handleCustomBreakdown = (name, val) => {
-    setFormData((prev) => ({ ...prev, [name]: Number(val) }));
+    setFormData((prev) => ({ ...prev, [name]: val === "" ? "" : Number(val) }));
   };
 
   const handleSubmitWithStatus = async (targetStatus) => {
-    if (!formData.salary || !formData.joiningDate || !formData.expiryDate) {
+    if (!formData.designation.trim()) {
+      setActiveTab("role");
+      setError("Please enter the position / designation.");
+      return;
+    }
+    if (!Number(formData.salary) || !formData.joiningDate || !formData.expiryDate) {
       setError("Please provide Compensation, Joining Date, and Expiry Date.");
       return;
     }
@@ -208,8 +251,8 @@ const OfferModal = ({
           {[
             { id: "role", label: "1. Role & Candidate" },
             { id: "compensation", label: "2. Compensation & CTC" },
-            { id: "terms", label: "3. Dates & Policy" },
-            { id: "signatory", label: "4. Signatory & Terms" },
+            { id: "terms", label: SHOW_UNSTORED_FIELDS ? "3. Dates & Policy" : "3. Dates & Benefits" },
+            { id: "signatory", label: SHOW_UNSTORED_FIELDS ? "4. Signatory & Terms" : "4. Additional Terms" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -258,13 +301,10 @@ const OfferModal = ({
                     onChange={handleChange}
                     className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
                   >
-                    <option value="Engineering">Engineering</option>
-                    <option value="Product & Design">Product & Design</option>
-                    <option value="Data Science & AI">Data Science & AI</option>
-                    <option value="Marketing & Growth">Marketing & Growth</option>
-                    <option value="Sales & Business Dev">Sales & Business Dev</option>
-                    <option value="Human Resources">Human Resources</option>
-                    <option value="Operations & Support">Operations & Support</option>
+                    <option value="">Select department</option>
+                    {withExtraOption(DEPARTMENTS, formData.department).map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -276,26 +316,33 @@ const OfferModal = ({
                     onChange={handleChange}
                     className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
                   >
-                    <option value="Full-time">Full-time Regular</option>
-                    <option value="Internship">Internship (PPO Track)</option>
-                    <option value="Contract">Fixed Contract</option>
+                    <option value="">Select type</option>
+                    <option value="Full-time">Full-time</option>
+                    <option value="Internship">Internship</option>
+                    <option value="Contract">Contract</option>
                     <option value="Part-time">Part-time</option>
+                    {formData.employmentType && !["Full-time", "Internship", "Contract", "Part-time"].includes(formData.employmentType) && (
+                      <option value={formData.employmentType}>{formData.employmentType}</option>
+                    )}
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Work Mode</label>
-                  <select
-                    name="workLocationType"
-                    value={formData.workLocationType}
-                    onChange={handleChange}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  >
-                    <option value="Hybrid">Hybrid (Campus / Remote)</option>
-                    <option value="On-site">On-site Campus / Office</option>
-                    <option value="Remote">100% Remote</option>
-                  </select>
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Work Mode</label>
+                    <select
+                      name="workLocationType"
+                      value={formData.workLocationType}
+                      onChange={handleChange}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    >
+                      <option value="">Select work mode</option>
+                      <option value="On-site">On-site</option>
+                      <option value="Hybrid">Hybrid</option>
+                      <option value="Remote">Remote</option>
+                    </select>
+                  </div>
+                )}
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Work Location</label>
@@ -313,9 +360,11 @@ const OfferModal = ({
           {/* TAB 2: Compensation & Breakdown */}
           {activeTab === "compensation" && (
             <div className="space-y-4 animate-fade-in">
-              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-amber-900 text-xs">
-                💡 Changing the Total CTC automatically calculates standard breakdown percentages (70% Base, 20% Allowances, 10% Bonus), which you can fine-tune below.
-              </div>
+              {SHOW_UNSTORED_FIELDS && (
+  <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-amber-900 text-xs">
+                  💡 Changing the Total CTC automatically calculates standard breakdown percentages (70% Base, 20% Allowances, 10% Bonus), which you can fine-tune below.
+                </div>
+              )}
 
               <div className="grid sm:grid-cols-2 gap-3.5">
                 <div>
@@ -325,7 +374,7 @@ const OfferModal = ({
                     name="salary"
                     value={formData.salary}
                     onChange={handleChange}
-                    placeholder="800000"
+                    placeholder="e.g. 600000"
                     className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 outline-none focus:border-[#f59e0b]"
                     required
                   />
@@ -345,46 +394,54 @@ const OfferModal = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Base Salary (₹)</label>
-                  <input
-                    type="number"
-                    value={formData.baseSalary}
-                    onChange={(e) => handleCustomBreakdown("baseSalary", e.target.value)}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Base Salary (₹)</label>
+                    <input
+                      type="number"
+                      value={formData.baseSalary}
+                      onChange={(e) => handleCustomBreakdown("baseSalary", e.target.value)}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Allowances & HRA (₹)</label>
-                  <input
-                    type="number"
-                    value={formData.allowances}
-                    onChange={(e) => handleCustomBreakdown("allowances", e.target.value)}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Allowances & HRA (₹)</label>
+                    <input
+                      type="number"
+                      value={formData.allowances}
+                      onChange={(e) => handleCustomBreakdown("allowances", e.target.value)}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Variable / Performance Bonus (₹)</label>
-                  <input
-                    type="number"
-                    value={formData.variableBonus}
-                    onChange={(e) => handleCustomBreakdown("variableBonus", e.target.value)}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Variable / Performance Bonus (₹)</label>
+                    <input
+                      type="number"
+                      value={formData.variableBonus}
+                      onChange={(e) => handleCustomBreakdown("variableBonus", e.target.value)}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Stock Options / ESOPs (Optional)</label>
-                  <input
-                    name="stockOptions"
-                    value={formData.stockOptions}
-                    onChange={handleChange}
-                    placeholder="e.g. 500 Stock Units vested over 4 years"
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Stock Options / ESOPs (Optional)</label>
+                    <input
+                      name="stockOptions"
+                      value={formData.stockOptions}
+                      onChange={handleChange}
+                      placeholder="e.g. 500 Stock Units vested over 4 years"
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -417,37 +474,43 @@ const OfferModal = ({
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Probation Period</label>
-                  <input
-                    name="probationPeriod"
-                    value={formData.probationPeriod}
-                    onChange={handleChange}
-                    placeholder="3 Months"
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Probation Period</label>
+                    <input
+                      name="probationPeriod"
+                      value={formData.probationPeriod}
+                      onChange={handleChange}
+                      placeholder="3 Months"
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Notice Period</label>
-                  <input
-                    name="noticePeriod"
-                    value={formData.noticePeriod}
-                    onChange={handleChange}
-                    placeholder="30 Days"
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Notice Period</label>
+                    <input
+                      name="noticePeriod"
+                      value={formData.noticePeriod}
+                      onChange={handleChange}
+                      placeholder="30 Days"
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Reporting Manager / Team Lead</label>
-                  <input
-                    name="reportingManager"
-                    value={formData.reportingManager}
-                    onChange={handleChange}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Reporting Manager / Team Lead</label>
+                    <input
+                      name="reportingManager"
+                      value={formData.reportingManager}
+                      onChange={handleChange}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Perks & Benefits (Comma separated)</label>
@@ -467,35 +530,41 @@ const OfferModal = ({
           {activeTab === "signatory" && (
             <div className="space-y-4 animate-fade-in">
               <div className="grid sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Authorized HR Signatory Name</label>
-                  <input
-                    name="signatoryName"
-                    value={formData.signatoryName}
-                    onChange={handleChange}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Authorized HR Signatory Name</label>
+                    <input
+                      name="signatoryName"
+                      value={formData.signatoryName}
+                      onChange={handleChange}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Signatory Title</label>
-                  <input
-                    name="signatoryTitle"
-                    value={formData.signatoryTitle}
-                    onChange={handleChange}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Signatory Title</label>
+                    <input
+                      name="signatoryTitle"
+                      value={formData.signatoryTitle}
+                      onChange={handleChange}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Signatory Department / Org</label>
-                  <input
-                    name="signatoryOrganization"
-                    value={formData.signatoryOrganization}
-                    onChange={handleChange}
-                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
-                  />
-                </div>
+                {SHOW_UNSTORED_FIELDS && (
+  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Signatory Department / Org</label>
+                    <input
+                      name="signatoryOrganization"
+                      value={formData.signatoryOrganization}
+                      onChange={handleChange}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
+                    />
+                  </div>
+                )}
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Additional Terms & Conditions Clauses</label>

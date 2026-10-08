@@ -23,11 +23,17 @@ const SavedOpportunitiesCard = ({ savedItems = [], onRemove, onApply }) => {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-slate-900">{item.title}</h3>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600">
-                    {item.type}
-                  </span>
+                  {item.type && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600">
+                      {item.type}
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs text-slate-600 mt-0.5">{item.company} • Deadline: {item.deadline || "Open"}</p>
+                {(item.company || item.deadline) && (
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {[item.company, item.deadline && `Deadline: ${item.deadline}`].filter(Boolean).join(" • ")}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-2 self-start sm:self-center shrink-0">

@@ -25,6 +25,8 @@ import {
   getMyApplications,
 } from "../services/applicationService";
 import ResumeUploadInput from "../components/common/ResumeUploadInput";
+import BrandLogo from "../components/common/BrandLogo";
+import ViewDetailsButton from "../components/common/ViewDetailsButton";
 
 export default function OpportunitiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -58,6 +60,19 @@ export default function OpportunitiesPage() {
   // Data States
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [appliedMap, setAppliedMap] = useState({});
+  const [selectedOpportunity, setSelectedOpportunity] = useState(null);
+  const [applying, setApplying] = useState(false);
+  const [coverNote, setCoverNote] = useState("");
+  const [appFormData, setAppFormData] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    education: "",
+    skills: "",
+    experience: "",
+    resumeUrl: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -213,14 +228,14 @@ export default function OpportunitiesPage() {
     if (src.includes("linkedin")) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
-          LinkedIn Verified
+          LinkedIn
         </span>
       );
     }
     if (src.includes("internshala")) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
-          Internshala Partner
+          Internshala
         </span>
       );
     }
@@ -238,12 +253,16 @@ export default function OpportunitiesPage() {
         </span>
       );
     }
+    if (!item.platformSource) return null;
     return (
       <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-        {item.platformSource || "Verified Portal"}
+        {item.platformSource}
       </span>
     );
   };
+
+  const pickSkills = (item) =>
+    [item?.skills, item?.skillsRequired, item?.requiredSkills].find((l) => Array.isArray(l) && l.length) || [];
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800">
@@ -267,17 +286,7 @@ export default function OpportunitiesPage() {
       <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center gap-4">
           <Link to="/home" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              CC
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-                CAREERCONNECT
-              </h1>
-              <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
-                CareerConnect · Matrix Gateway
-              </p>
-            </div>
+            <BrandLogo markOnly className="h-8 w-10 sm:hidden" /><BrandLogo className="hidden h-8 w-36 sm:block" />
           </Link>
 
           <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-slate-500 pl-4 border-l border-slate-200">
@@ -329,7 +338,7 @@ export default function OpportunitiesPage() {
                 Live Job & Internship Aggregator Matrix
               </span>
               <span className="text-xs text-blue-200/80">
-                · LinkedIn + Internshala + Remotive + Arbeitnow + GU Drives
+                · E2Job employers + Remotive + Arbeitnow + campus drives
               </span>
             </div>
 
@@ -337,7 +346,7 @@ export default function OpportunitiesPage() {
               Opportunities tailored for your Degree & Domain
             </h2>
             <p className="text-xs sm:text-sm text-blue-100/90 max-w-2xl leading-relaxed">
-              Real-time multi-source crawler scraping top job boards, remote platforms, and campus placement drives calibrated specifically to CareerConnect curriculum & specializations.
+              Real-time multi-source crawler scraping top job boards, remote platforms, and campus placement drives calibrated specifically to E2Job curriculum & specializations.
             </p>
 
             {/* Quick stats pills */}
@@ -346,7 +355,7 @@ export default function OpportunitiesPage() {
                 🎯 {opportunities.length} Results Available
               </div>
               <div className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold text-white border border-white/10">
-                🏛️ CareerConnect Placement Cell
+                🏛️ E2Job Placement Cell
               </div>
               <div className="px-3 py-1 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold text-white border border-white/10">
                 ⚡ 30-min Auto-Refreshed Cache
@@ -462,9 +471,7 @@ export default function OpportunitiesPage() {
                 onChange={(e) => setSource(e.target.value)}
                 className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium outline-none focus:border-blue-600"
               >
-                <option value="all">All Platforms (100+ Live Jobs)</option>
-                <option value="linkedin">LinkedIn Verified</option>
-                <option value="internshala">Internshala Portal</option>
+                <option value="all">All Platforms</option>
                 <option value="remotive">Remotive Remote</option>
                 <option value="arbeitnow">Arbeitnow Global</option>
                 <option value="campus">GU Campus Drives Only</option>
@@ -538,7 +545,7 @@ export default function OpportunitiesPage() {
               Scraping and Aggregating Live Multi-Source Feed...
             </p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Querying LinkedIn, Internshala, Remotive, Arbeitnow APIs and CareerConnect placement drives for "{program} · {specialization}".
+              Checking E2Job listings, Remotive, Arbeitnow and campus drives for "{program} · {specialization}".
             </p>
           </div>
         ) : opportunities.length > 0 ? (
@@ -569,19 +576,23 @@ export default function OpportunitiesPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         {getSourceBadge(item)}
 
-                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                          {item.opportunityType || "Full-Time"}
-                        </span>
+                        {item.opportunityType && (
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                            {item.opportunityType}
+                          </span>
+                        )}
 
-                        <span
-                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-md ${
-                            item.workMode === "Remote"
-                              ? "bg-purple-50 text-purple-700 border border-purple-200"
-                              : "bg-blue-50 text-blue-700 border border-blue-100"
-                          }`}
-                        >
-                          {item.workMode}
-                        </span>
+                        {item.workMode && (
+                          <span
+                            className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-md ${
+                              item.workMode === "Remote"
+                                ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                : "bg-blue-50 text-blue-700 border border-blue-100"
+                            }`}
+                          >
+                            {item.workMode}
+                          </span>
+                        )}
 
                         {item.postedDate && (
                           <span className="text-[10.5px] text-slate-400 ml-auto hidden sm:inline">
@@ -595,24 +606,30 @@ export default function OpportunitiesPage() {
                         <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
                           {item.title}
                         </h3>
-                        <p className="text-xs font-semibold text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
-                          <span className="text-blue-900 font-bold flex items-center gap-1">
-                            <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                            {item.company}
-                          </span>
-                          <span>•</span>
-                          <span className="text-slate-500 flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                            {item.location}
-                          </span>
-                        </p>
+                        {(item.company || item.location) && (
+                          <p className="text-xs font-semibold text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
+                            {item.company && (
+                              <span className="text-blue-900 font-bold flex items-center gap-1">
+                                <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                                {item.company}
+                              </span>
+                            )}
+                            {item.company && item.location && <span>•</span>}
+                            {item.location && (
+                              <span className="text-slate-500 flex items-center gap-1">
+                                <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                {item.location}
+                              </span>
+                            )}
+                          </p>
+                        )}
                       </div>
 
                       {/* Campus Drive Perks / Notes */}
                       {isCampusDrive && (
                         <div className="text-[11px] font-medium text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200/80 flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                          <span>Exclusive on-campus recruitment drive for enrolled CareerConnect students.</span>
+                          <span>Exclusive on-campus recruitment drive for enrolled E2Job students.</span>
                         </div>
                       )}
                     </div>
@@ -639,6 +656,11 @@ export default function OpportunitiesPage() {
                         <Share2 className="w-4 h-4" />
                       </button>
 
+                      <ViewDetailsButton
+                        item={item}
+                        type={/internship/i.test(item.opportunityType || item.type || "") ? "Internship" : "Job"}
+                      />
+
                       {appliedMap[item._id] ? (
                         <span className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
                           <CheckCircle className="w-4 h-4 text-emerald-600" />
@@ -657,9 +679,9 @@ export default function OpportunitiesPage() {
                               fullName: user.fullName || "",
                               email: user.email || "",
                               phone: user.phone || "",
-                              education: user.education || "B.Tech",
-                              skills: Array.isArray(item.skills) ? item.skills.join(", ") : "React, Node.js",
-                              experience: "Fresher",
+                              education: user.education || "",
+                              skills: pickSkills(item).join(", "),
+                              experience: "",
                               resumeUrl: user.resumeUrl || "",
                             });
                           }}
@@ -783,39 +805,55 @@ export default function OpportunitiesPage() {
               >
                 ✕
               </button>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                  {selectedOpportunity.opportunityType || "Full-Time"}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-white border border-white/20">
-                  {selectedOpportunity.workMode || "On-Site"}
-                </span>
-              </div>
+              {(selectedOpportunity.opportunityType || selectedOpportunity.workMode) && (
+                <div className="flex items-center gap-2 mb-2">
+                  {selectedOpportunity.opportunityType && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                      {selectedOpportunity.opportunityType}
+                    </span>
+                  )}
+                  {selectedOpportunity.workMode && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-white border border-white/20">
+                      {selectedOpportunity.workMode}
+                    </span>
+                  )}
+                </div>
+              )}
               <h2 className="text-xl font-bold">{selectedOpportunity.title}</h2>
-              <p className="text-xs font-semibold text-blue-200 mt-1 flex items-center gap-2">
-                <span>{selectedOpportunity.company}</span>
-                <span>•</span>
-                <span>{selectedOpportunity.location}</span>
-              </p>
+              {(selectedOpportunity.company || selectedOpportunity.location) && (
+                <p className="text-xs font-semibold text-blue-200 mt-1 flex items-center gap-2">
+                  {selectedOpportunity.company && <span>{selectedOpportunity.company}</span>}
+                  {selectedOpportunity.company && selectedOpportunity.location && <span>•</span>}
+                  {selectedOpportunity.location && <span>{selectedOpportunity.location}</span>}
+                </p>
+              )}
             </div>
 
             {/* Modal Body */}
             <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
               {/* Highlights row */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
-                <div>
-                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Compensation</span>
-                  <span className="font-bold text-slate-800">{selectedOpportunity.salary || selectedOpportunity.stipend || "Competitive"}</span>
+              {(selectedOpportunity.salary || selectedOpportunity.stipend || selectedOpportunity.deadline || selectedOpportunity.postedDate) && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+                  {(selectedOpportunity.salary || selectedOpportunity.stipend) && (
+                    <div>
+                      <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Compensation</span>
+                      <span className="font-bold text-slate-800">{selectedOpportunity.salary || selectedOpportunity.stipend}</span>
+                    </div>
+                  )}
+                  {selectedOpportunity.deadline && (
+                    <div>
+                      <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Deadline</span>
+                      <span className="font-bold text-slate-800">{selectedOpportunity.deadline}</span>
+                    </div>
+                  )}
+                  {selectedOpportunity.postedDate && (
+                    <div>
+                      <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Posted</span>
+                      <span className="font-bold text-slate-800">{selectedOpportunity.postedDate}</span>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Deadline</span>
-                  <span className="font-bold text-slate-800">{selectedOpportunity.deadline || "Open"}</span>
-                </div>
-                <div>
-                  <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Posted</span>
-                  <span className="font-bold text-slate-800">{selectedOpportunity.postedDate || "Recently"}</span>
-                </div>
-              </div>
+              )}
 
               {/* Description */}
               <div>
@@ -826,11 +864,11 @@ export default function OpportunitiesPage() {
               </div>
 
               {/* Required Skills */}
-              {(selectedOpportunity.skills?.length > 0 || selectedOpportunity.skillsRequired?.length > 0) && (
+              {pickSkills(selectedOpportunity).length > 0 && (
                 <div>
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Required Skills</h4>
                   <div className="flex flex-wrap gap-1.5">
-                    {(selectedOpportunity.skills || selectedOpportunity.skillsRequired || []).map((skill, idx) => (
+                    {pickSkills(selectedOpportunity).map((skill, idx) => (
                       <span key={idx} className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100">
                         ✓ {skill}
                       </span>

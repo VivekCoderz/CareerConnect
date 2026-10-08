@@ -12,6 +12,7 @@ import {
 import { createInterview } from "../../services/interviewService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import { openResume } from "../../utils/resumeAccess";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 const DEFAULT_STAGES = [
   { name: "Resume Screening", type: "Resume Screening", order: 0 },
@@ -116,8 +117,8 @@ export default function EmployerApplicationDetailPage() {
   const studentName = application.studentName || appData.fullName || application.candidateId?.fullName || "Applicant";
   const studentEmail = application.studentEmail || appData.email || application.candidateId?.email || "";
   const studentPhone = application.studentPhone || appData.phone || application.candidateId?.phone || "";
-  const education = application.education || appData.education || appData.degree || "B.Tech";
-  const college = appData.college || "CareerConnect";
+  const education = application.education || appData.education || appData.degree || "Not provided";
+  const college = appData.college || "Not provided";
   const graduationYear = appData.graduationYear || "";
   const skills = Array.isArray(application.skills) && application.skills.length > 0
     ? application.skills
@@ -579,7 +580,7 @@ export default function EmployerApplicationDetailPage() {
                             <span className="text-slate-400 block text-[10px]">Meeting Link</span>
                             {interview?.meetingLink || historyItem?.meetingLink ? (
                               <a
-                                href={interview?.meetingLink || historyItem?.meetingLink}
+                                href={safeHttpUrl(interview?.meetingLink || historyItem?.meetingLink)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-700 font-bold hover:underline truncate block"

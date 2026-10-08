@@ -1,13 +1,16 @@
 const Application = require("../models/Application");
 const Internship = require("../models/Internship");
 const Job = require("../models/Job");
-const User = require("../models/User");
 const EmployerProfile = require("../models/EmployerProfile");
 const Interview = require("../models/Interview");
-const notificationService = require("../services/notificationService");
 
 const JobOffer = require("../models/JobOffer");
 const socketService = require("../services/socketService");
+const mongoose = require("mongoose");
+const { notifyApplicationUpdates } = require("../services/applicationNotifications");
+const { acceptsApplications, APPLICATIONS_CLOSED } = require("../utils/listingExpiry");
+const { checkTransition, canTransition, statusesThatCanMoveTo } = require("../utils/applicationStatus");
+const { getOwnerScope, applicationOwnerClauses, findOwnedApplication } = require("../utils/employerOwnership");
 
 // ==========================================
 // HELPERS
@@ -49,63 +52,15 @@ const getEmployerProfile = async (userId) => {
   return EmployerProfile.findOne({ userId });
 };
 
-const getEmployerOwnershipOrClauses = async (userId) => {
-  const profile = await getEmployerProfile(userId);
-  const profileId = profile ? profile._id : null;
-  const user = await User.findById(userId).select("companyId").lean();
-  const companyId = user?.companyId || null;
+// The pipeline endpoints need the listing's recruitment stages and the candidate.
+const OWNED_APPLICATION_POPULATE = [["jobId"], ["internshipId"], ["candidateId", "fullName email phone profileImage"]];
 
-  const jobOwnerConditions = [
-    { createdBy: userId },
-    ...(profileId ? [{ employerId: profileId }] : []),
-    ...(companyId ? [{ companyId }] : []),
-  ];
-
-  const allEmployerJobs = await Job.find({
-    $or: jobOwnerConditions,
-  }, "_id");
-
-  const allEmployerInternships = await Internship.find({
-    $or: jobOwnerConditions,
-  }, "_id");
-
-  const jobIds = allEmployerJobs.map((j) => j._id);
-  const internshipIds = allEmployerInternships.map((i) => i._id);
-
-  const orClauses = [];
-  if (profileId) orClauses.push({ employerId: profileId });
-  orClauses.push({ employerId: userId });
-  if (companyId) orClauses.push({ companyId });
-  if (jobIds.length > 0) orClauses.push({ jobId: { $in: jobIds } });
-  if (internshipIds.length > 0) orClauses.push({ internshipId: { $in: internshipIds } });
-
-  return orClauses.length > 0 ? orClauses : [{ _id: null }];
-};
-
-const verifyEmployerApplicationAccess = async (userId, applicationId) => {
-  const allEmployerJobs = await Job.find({ createdBy: userId }, "_id");
-  const allEmployerInternships = await Internship.find({ createdBy: userId }, "_id");
-  const jobIds = allEmployerJobs.map((j) => j._id);
-  const internshipIds = allEmployerInternships.map((i) => i._id);
-
-  const orConditions = [];
-  if (jobIds.length > 0) orConditions.push({ jobId: { $in: jobIds } });
-  if (internshipIds.length > 0) orConditions.push({ internshipId: { $in: internshipIds } });
-
-  const empProf = await EmployerProfile.findOne({ userId });
-  if (empProf) {
-    orConditions.push({ employerId: empProf._id });
-  }
-  orConditions.push({ employerId: userId });
-
-  if (orConditions.length === 0) return null;
-
-  return await Application.findOne({
-    _id: applicationId,
-    $or: orConditions,
-  })
-    .populate("jobId")
-    .populate("candidateId", "fullName email phone profileImage");
+// Responds 409 with the reason when the shared transition map forbids the move.
+const rejectTransition = (res, from, to, options) => {
+  const problem = checkTransition(from, to, options);
+  if (!problem) return false;
+  res.status(409).json({ success: false, code: "INVALID_STATUS_TRANSITION", message: problem });
+  return true;
 };
 
 // ==========================================
@@ -141,7 +96,10 @@ exports.applyToInternship = async (req, res, next) => {
       if (internship) isFromJob = true;
     }
 
-    if (!internship || (internship.status !== "Published" && internship.status !== "Active")) {
+    if (internship && !acceptsApplications(internship)) {
+      return res.status(400).json({ success: false, message: APPLICATIONS_CLOSED });
+    }
+    if (!internship) {
       return res.status(404).json({
         success: false,
         message: "Internship not found or closed",
@@ -321,7 +279,10 @@ exports.applyToJob = async (req, res, next) => {
       if (job) isFromInternship = true;
     }
 
-    if (!job || (job.status !== "Published" && job.status !== "Active")) {
+    if (job && !acceptsApplications(job)) {
+      return res.status(400).json({ success: false, message: APPLICATIONS_CLOSED });
+    }
+    if (!job) {
       return res.status(404).json({
         success: false,
         message: "Job not found or closed",
@@ -500,14 +461,15 @@ exports.getMyApplications = async (req, res, next) => {
       .populate("internshipId", "title stipend duration location workMode status companyName")
       .populate("jobId", "title location employmentType workMode status companyName recruitmentStages")
       .populate("employerId", "companyName logo industry")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     const appIds = applications.map((a) => a._id);
     const interviews = await Interview.find({
       applicationId: { $in: appIds },
     }).select(
       "applicationId scheduledDate scheduledTime startTime duration durationMinutes meetingMode meetingLink location instructions roundName roundNumber status result"
-    );
+    ).lean();
 
     const interviewMap = {};
     interviews.forEach((inv) => {
@@ -565,12 +527,7 @@ exports.withdrawApplication = async (req, res, next) => {
       });
     }
 
-    if (["Hired", "Rejected", "Withdrawn"].includes(application.status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot withdraw application with status: ${application.status}`,
-      });
-    }
+    if (rejectTransition(res, application.status, "Withdrawn", { actor: "candidate" })) return;
 
     application.status = "Withdrawn";
     application.stage = "Withdrawn";
@@ -611,16 +568,8 @@ exports.getApplicationById = async (req, res, next) => {
 
     let isEmployer = false;
     if (req.user.role === "employer" || req.user.userType === "employer") {
-      const profile = await getEmployerProfile(req.user._id);
-      const profileId = profile ? profile._id.toString() : null;
-      const appEmpId = application.employerId?._id?.toString() || application.employerId?.toString();
-      if ((profileId && appEmpId && profileId === appEmpId) || (appEmpId && appEmpId === req.user._id.toString())) {
-        isEmployer = true;
-      }
-      if (!isEmployer) {
-        if (application.jobId?.createdBy?.toString() === req.user._id.toString()) isEmployer = true;
-        if (application.internshipId?.createdBy?.toString() === req.user._id.toString()) isEmployer = true;
-      }
+      const ownerClauses = await applicationOwnerClauses(await getOwnerScope(req.user));
+      isEmployer = Boolean(await Application.exists({ _id: application._id, $or: ownerClauses }));
     }
 
     if (!isCandidate && !isEmployer && req.user.role !== "admin") {
@@ -645,39 +594,7 @@ exports.getApplicationById = async (req, res, next) => {
 // ==========================================
 exports.getEmployerApplications = async (req, res, next) => {
   try {
-    const profile = await getEmployerProfile(req.user._id);
-    const profileId = profile ? profile._id : null;
-
-    const allEmployerJobs = await Job.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
-
-    const allEmployerInternships = await Internship.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
-
-    const jobIds = allEmployerJobs.map((j) => j._id);
-    const internshipIds = allEmployerInternships.map((i) => i._id);
-
-    const orClauses = [];
-    if (profileId) orClauses.push({ employerId: profileId });
-    orClauses.push({ employerId: req.user._id });
-    if (jobIds.length > 0) orClauses.push({ jobId: { $in: jobIds } });
-    if (internshipIds.length > 0) orClauses.push({ internshipId: { $in: internshipIds } });
-
-    if (orClauses.length === 0) {
-      return res.status(200).json({
-        success: true,
-        count: 0,
-        applications: [],
-      });
-    }
+    const orClauses = await applicationOwnerClauses(await getOwnerScope(req.user));
 
     const { status, opportunityType, internshipId, jobId } = req.query;
     const filter = { $or: orClauses };
@@ -691,12 +608,13 @@ exports.getEmployerApplications = async (req, res, next) => {
       .populate("candidateId", "fullName email phone profileImage userType location skills")
       .populate("internshipId", "title stipend duration location workMode")
       .populate("jobId", "title employmentType location workMode")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     const appIds = applications.map((a) => a._id);
     const interviews = await Interview.find({ applicationId: { $in: appIds } }).select(
       "applicationId scheduledDate scheduledTime startTime duration durationMinutes meetingMode meetingLink location instructions roundName roundNumber status result scorecard"
-    );
+    ).lean();
 
     const interviewMap = {};
     interviews.forEach((inv) => {
@@ -760,36 +678,7 @@ exports.updateApplicationStatus = async (req, res, next) => {
       });
     }
 
-    const profile = await getEmployerProfile(req.user._id);
-    const profileId = profile ? profile._id : null;
-
-    const allEmployerJobs = await Job.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
-
-    const allEmployerInternships = await Internship.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
-
-    const jobIds = allEmployerJobs.map((j) => j._id);
-    const internshipIds = allEmployerInternships.map((i) => i._id);
-
-    const orConditions = [];
-    if (profileId) orConditions.push({ employerId: profileId });
-    orConditions.push({ employerId: req.user._id });
-    if (jobIds.length > 0) orConditions.push({ jobId: { $in: jobIds } });
-    if (internshipIds.length > 0) orConditions.push({ internshipId: { $in: internshipIds } });
-
-    const application = await Application.findOne({
-      _id: req.params.id,
-      $or: orConditions,
-    });
+    const application = await findOwnedApplication(req.user, req.params.id);
 
     if (!application) {
       return res.status(404).json({
@@ -798,6 +687,9 @@ exports.updateApplicationStatus = async (req, res, next) => {
       });
     }
 
+    if (rejectTransition(res, application.status, statusMap[rawStatus])) return;
+
+    const previousStatus = application.status;
     application.status = statusMap[rawStatus];
     application.stage = rawStatus;
     application.updatedAt = new Date();
@@ -814,11 +706,87 @@ exports.updateApplicationStatus = async (req, res, next) => {
 
     // Broadcast live event via Socket.IO
     socketService.emitApplicationUpdated(application);
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
+    }
 
     return res.status(200).json({
       success: true,
       message: `Application marked as ${rawStatus}`,
       application,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// EMPLOYER — BULK STATUS UPDATE
+// PATCH /api/applications/bulk-status
+// body: { applicationIds: [...], status }
+// Lets an employer shortlist or reject many applicants at once (e.g. 300).
+// Offers and hiring stay one at a time on purpose.
+// ==========================================
+const BULK_STATUSES = ["Under Review", "Shortlisted", "Interview", "Rejected"];
+const MAX_BULK_APPLICATIONS = 300;
+
+exports.bulkUpdateApplicationStatus = async (req, res, next) => {
+  try {
+    const { applicationIds, status } = req.body || {};
+    if (!BULK_STATUSES.includes(status)) {
+      return res.status(400).json({ success: false, message: `Bulk status must be one of: ${BULK_STATUSES.join(", ")}` });
+    }
+    if (!Array.isArray(applicationIds) || applicationIds.length === 0 || applicationIds.length > MAX_BULK_APPLICATIONS) {
+      return res.status(400).json({ success: false, message: `Select between 1 and ${MAX_BULK_APPLICATIONS} applications` });
+    }
+    const ids = [...new Set(applicationIds.map(String))].filter((id) => mongoose.isValidObjectId(id));
+    if (ids.length === 0) {
+      return res.status(400).json({ success: false, message: "No valid application ids" });
+    }
+
+    const owned = await Application.find({ _id: { $in: ids }, $or: await applicationOwnerClauses(await getOwnerScope(req.user)) })
+      .select("_id candidateId employerId status opportunityTitle companyName")
+      .lean();
+    // Skip applications already at the target status and moves the transition map forbids
+    // (e.g. Hired, Withdrawn or Rejected ones).
+    const toUpdate = owned.filter((a) => a.status !== status && canTransition(a.status, status));
+
+    let updated = [];
+    if (toUpdate.length > 0) {
+      const now = new Date();
+      const historyEntry = { stage: status, notes: `Bulk update to ${status}`, changedBy: req.user._id, changedAt: now };
+      // The status is checked again in the write itself: an application that changed since it
+      // was read (e.g. the candidate withdrew a moment ago) is left alone and counted as skipped.
+      await Application.updateMany(
+        {
+          _id: { $in: toUpdate.map((a) => a._id) },
+          status: { $in: statusesThatCanMoveTo(status).filter((s) => s !== status) },
+        },
+        {
+          $set: { status, stage: status, overallStatus: status === "Rejected" ? "Rejected" : "In Progress", updatedAt: now },
+          $push: { stageHistory: historyEntry },
+        }
+      );
+      // The ones this request changed carry its history entry.
+      const changedIds = new Set((await Application.find({
+        _id: { $in: toUpdate.map((a) => a._id) },
+        stageHistory: { $elemMatch: { changedAt: now, changedBy: req.user._id, notes: historyEntry.notes } },
+      }).distinct("_id")).map(String));
+      updated = toUpdate.filter((a) => changedIds.has(String(a._id))).map((a) => ({ ...a, status }));
+
+      if (status === "Rejected") await JobOffer.withdrawPending(updated.map((a) => a._id));
+      updated.forEach((a) => socketService.emitApplicationUpdated(a));
+      await notifyApplicationUpdates(updated, status, { senderId: req.user._id })
+        .catch((err) => console.warn("Bulk application notifications failed:", err.message));
+    }
+
+    return res.status(200).json({
+      success: true,
+      updated: updated.length,
+      skipped: owned.length - updated.length,
+      notFound: ids.length - owned.length,
+      message: `${updated.length} application${updated.length === 1 ? "" : "s"} marked as ${status}`,
     });
   } catch (error) {
     next(error);
@@ -842,37 +810,7 @@ exports.updateApplicationStage = async (req, res, next) => {
 
     const stage = rawStage.trim();
 
-    const profile = await getEmployerProfile(req.user._id);
-    const profileId = profile ? profile._id : null;
-
-    const allEmployerJobs = await Job.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
-
-    const allEmployerInternships = await Internship.find({
-      $or: [
-        { createdBy: req.user._id },
-        ...(profileId ? [{ employerId: profileId }] : []),
-      ],
-    }, "_id");
-
-    const jobIds = allEmployerJobs.map((j) => j._id);
-    const internshipIds = allEmployerInternships.map((i) => i._id);
-
-    const orConditions = [];
-    if (profileId) orConditions.push({ employerId: profileId });
-    orConditions.push({ employerId: req.user._id });
-    if (jobIds.length > 0) orConditions.push({ jobId: { $in: jobIds } });
-    if (internshipIds.length > 0) orConditions.push({ internshipId: { $in: internshipIds } });
-
-    const application = await Application.findOne({
-      _id: req.params.id,
-      $or: orConditions,
-    });
-
+    const application = await findOwnedApplication(req.user, req.params.id);
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -911,6 +849,9 @@ exports.updateApplicationStage = async (req, res, next) => {
       ? canonicalStage
       : (allowedStatuses.includes(application.status) ? application.status : "Under Review");
 
+    if (nextStatus !== application.status && rejectTransition(res, application.status, nextStatus)) return;
+
+    const previousStatus = application.status;
     application.stage = canonicalStage;
     application.status = nextStatus;
     application.updatedAt = new Date();
@@ -940,6 +881,10 @@ exports.updateApplicationStage = async (req, res, next) => {
 
     // Broadcast live event via Socket.IO
     socketService.emitApplicationUpdated(application);
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
+    }
 
     return res.status(200).json({
       success: true,
@@ -976,7 +921,7 @@ exports.addApplicationNote = async (req, res, next) => {
 
     const application = await Application.findOne({
       _id: req.params.id,
-      $or: await getEmployerOwnershipOrClauses(req.user._id),
+      $or: await applicationOwnerClauses(await getOwnerScope(req.user)),
     });
 
     if (!application) {
@@ -1014,7 +959,7 @@ exports.addApplicationNote = async (req, res, next) => {
 exports.moveToNextStage = async (req, res, next) => {
   try {
     const { remarks = "", metadata = {} } = req.body;
-    const application = await verifyEmployerApplicationAccess(req.user._id, req.params.id);
+    const application = await findOwnedApplication(req.user, req.params.id, OWNED_APPLICATION_POPULATE);
 
     if (!application) {
       return res.status(404).json({
@@ -1023,13 +968,11 @@ exports.moveToNextStage = async (req, res, next) => {
       });
     }
 
-    if (
-      ["Rejected", "Selected", "Hired", "Withdrawn"].includes(application.overallStatus) ||
-      ["Rejected", "Withdrawn"].includes(application.status)
-    ) {
-      return res.status(400).json({
+    if (["Selected", "Hired"].includes(application.overallStatus)) {
+      return res.status(409).json({
         success: false,
-        message: `Cannot advance application with status: ${application.overallStatus || application.status}`,
+        code: "INVALID_STATUS_TRANSITION",
+        message: `Cannot advance application with status: ${application.overallStatus}`,
       });
     }
 
@@ -1071,6 +1014,8 @@ exports.moveToNextStage = async (req, res, next) => {
     const currentStage = stages[currentIndex];
     const nextIndex = currentIndex + 1;
     const nextStage = stages[nextIndex];
+    const nextStatus = nextStage.type?.includes("Interview") ? "Interview" : "Under Review";
+    if (rejectTransition(res, application.status, nextStatus)) return;
 
     const now = new Date();
     let historyEntryFound = false;
@@ -1137,11 +1082,7 @@ exports.moveToNextStage = async (req, res, next) => {
     application.stage = nextStage.name;
     application.overallStatus = "In Progress";
 
-    if (nextStage.type?.includes("Interview")) {
-      application.status = "Interview";
-    } else {
-      application.status = "Under Review";
-    }
+    application.status = nextStatus;
 
     if (remarks) {
       application.notes.push({
@@ -1152,27 +1093,10 @@ exports.moveToNextStage = async (req, res, next) => {
     }
 
     await application.save();
+    // Tell the candidate about every stage advance, with the stage name
+    await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id, stageName: nextStage.name })
+      .catch((err) => console.warn("Application notification failed:", err.message));
 
-    // Dispatch notification to candidate
-    try {
-      const oppTitle = application.opportunityTitle || application.jobId?.title || "Opportunity";
-      await notificationService.createNotification({
-        recipientId: application.candidateId?._id || application.candidateId,
-        senderId: req.user._id,
-        title: "Recruitment Stage Advanced 🚀",
-        message: `Congratulations! You have advanced to stage "${nextStage.name}" for ${oppTitle}.`,
-        notificationType: "APPLICATION_STAGE_ADVANCED",
-        relatedApplicationId: application._id,
-        actionUrl: "/student/my-applications",
-        metadata: {
-          previousStage: currentStage.name,
-          nextStage: nextStage.name,
-          stageIndex: nextIndex,
-        },
-      });
-    } catch (notifErr) {
-      console.warn("Stage advance notification error:", notifErr.message);
-    }
 
     return res.status(200).json({
       success: true,
@@ -1192,7 +1116,7 @@ exports.moveToNextStage = async (req, res, next) => {
 exports.selectCandidate = async (req, res, next) => {
   try {
     const { remarks = "" } = req.body;
-    const application = await verifyEmployerApplicationAccess(req.user._id, req.params.id);
+    const application = await findOwnedApplication(req.user, req.params.id, OWNED_APPLICATION_POPULATE);
 
     if (!application) {
       return res.status(404).json({
@@ -1201,12 +1125,7 @@ exports.selectCandidate = async (req, res, next) => {
       });
     }
 
-    if (["Rejected", "Withdrawn"].includes(application.status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot select candidate with status: ${application.status}`,
-      });
-    }
+    if (rejectTransition(res, application.status, "Selected")) return;
 
     const now = new Date();
 
@@ -1225,6 +1144,8 @@ exports.selectCandidate = async (req, res, next) => {
       }
     }
 
+    const previousStatus = application.status;
+
     application.overallStatus = "Selected";
     application.status = "Selected";
     application.stage = "Selected";
@@ -1236,22 +1157,11 @@ exports.selectCandidate = async (req, res, next) => {
     });
 
     await application.save();
-
-    // Dispatch in-app notification
-    try {
-      const oppTitle = application.opportunityTitle || application.jobId?.title || "Position";
-      await notificationService.createNotification({
-        recipientId: application.candidateId?._id || application.candidateId,
-        senderId: req.user._id,
-        title: "Congratulations! You are Selected! 🎉",
-        message: `You have successfully cleared all selection rounds and have been SELECTED for ${oppTitle}!`,
-        notificationType: "APPLICATION_SELECTED",
-        relatedApplicationId: application._id,
-        actionUrl: "/student/my-applications",
-      });
-    } catch (notifErr) {
-      console.warn("Selection notification error:", notifErr.message);
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
     }
+
 
     return res.status(200).json({
       success: true,
@@ -1271,7 +1181,7 @@ exports.selectCandidate = async (req, res, next) => {
 exports.rejectCandidate = async (req, res, next) => {
   try {
     const { remarks = "" } = req.body;
-    const application = await verifyEmployerApplicationAccess(req.user._id, req.params.id);
+    const application = await findOwnedApplication(req.user, req.params.id, OWNED_APPLICATION_POPULATE);
 
     if (!application) {
       return res.status(404).json({
@@ -1286,6 +1196,7 @@ exports.rejectCandidate = async (req, res, next) => {
         message: "Candidate is already rejected",
       });
     }
+    if (rejectTransition(res, application.status, "Rejected")) return;
 
     const now = new Date();
 
@@ -1304,6 +1215,8 @@ exports.rejectCandidate = async (req, res, next) => {
       }
     }
 
+    const previousStatus = application.status;
+
     application.overallStatus = "Rejected";
     application.status = "Rejected";
     application.stage = "Rejected";
@@ -1315,28 +1228,49 @@ exports.rejectCandidate = async (req, res, next) => {
     });
 
     await application.save();
-
-    // In-app notification to candidate
-    try {
-      const oppTitle = application.opportunityTitle || application.jobId?.title || "the position";
-      await notificationService.createNotification({
-        recipientId: application.candidateId?._id || application.candidateId,
-        senderId: req.user._id,
-        title: "Application Status Update",
-        message: `Thank you for your interest in ${oppTitle}. After review, the hiring team has decided not to proceed with your application at this time.`,
-        notificationType: "APPLICATION_REJECTED",
-        relatedApplicationId: application._id,
-        actionUrl: "/student/my-applications",
-      });
-    } catch (notifErr) {
-      console.warn("Rejection notification error:", notifErr.message);
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
     }
+
 
     return res.status(200).json({
       success: true,
       message: "Application marked as rejected",
       application,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// EMPLOYER — REOPEN A REJECTED APPLICATION
+// PATCH /api/applications/:id/pipeline/reopen
+// body: { remarks }
+// The only way back from Rejected (shared transition map); goes to Under Review.
+// ==========================================
+exports.reopenApplication = async (req, res, next) => {
+  try {
+    const remarks = typeof req.body?.remarks === "string" ? req.body.remarks.trim().slice(0, 2000) : "";
+    const application = await findOwnedApplication(req.user, req.params.id);
+    if (!application) {
+      return res.status(404).json({ success: false, message: "Application not found or access denied" });
+    }
+    if (rejectTransition(res, application.status, "Under Review", { reopen: true })) return;
+
+    const now = new Date();
+    application.status = "Under Review";
+    application.stage = "Under Review";
+    application.overallStatus = "In Progress";
+    application.stageHistory.push({ stage: "Reopened", notes: remarks || "Application reopened", changedBy: req.user._id, changedAt: now });
+    application.notes.push({ text: `[Reopened] ${remarks || "Application reopened"}`, addedBy: req.user._id, createdAt: now });
+    await application.save();
+
+    socketService.emitApplicationUpdated(application);
+    await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
+      .catch((err) => console.warn("Application notification failed:", err.message));
+    return res.status(200).json({ success: true, message: "Application reopened", application });
   } catch (error) {
     next(error);
   }
@@ -1350,7 +1284,7 @@ exports.rejectCandidate = async (req, res, next) => {
 exports.markStageFailed = async (req, res, next) => {
   try {
     const { remarks = "", shouldReject = false } = req.body;
-    const application = await verifyEmployerApplicationAccess(req.user._id, req.params.id);
+    const application = await findOwnedApplication(req.user, req.params.id, OWNED_APPLICATION_POPULATE);
 
     if (!application) {
       return res.status(404).json({
@@ -1358,6 +1292,7 @@ exports.markStageFailed = async (req, res, next) => {
         message: "Application not found or access denied",
       });
     }
+    if (shouldReject && rejectTransition(res, application.status, "Rejected")) return;
 
     const now = new Date();
 
@@ -1388,6 +1323,10 @@ exports.markStageFailed = async (req, res, next) => {
     });
 
     await application.save();
+    if (shouldReject) {
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
+    }
 
     return res.status(200).json({
       success: true,
@@ -1405,7 +1344,7 @@ exports.markStageFailed = async (req, res, next) => {
 // ==========================================
 exports.updateApplicationRound = async (req, res, next) => {
   try {
-    const application = await verifyEmployerApplicationAccess(req.user._id, req.params.id);
+    const application = await findOwnedApplication(req.user, req.params.id, OWNED_APPLICATION_POPULATE);
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -1446,6 +1385,16 @@ exports.updateApplicationRound = async (req, res, next) => {
 
     const targetStage = stages[targetIndex];
     const now = new Date();
+
+    const roundTargetStatus = {
+      Scheduled: "Interview Scheduled",
+      Selected: "Selected",
+      Rejected: "Rejected",
+    }[status] || (status === "Passed" && advanceNext && targetIndex < stages.length - 1
+      ? (stages[targetIndex + 1].type?.includes("Interview") ? "Interview" : "Under Review")
+      : null);
+    if (roundTargetStatus && rejectTransition(res, application.status, roundTargetStatus)) return;
+    const previousStatus = application.status;
 
     if (!Array.isArray(application.stageHistory)) {
       application.stageHistory = [];
@@ -1539,6 +1488,10 @@ exports.updateApplicationRound = async (req, res, next) => {
     }
 
     await application.save();
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject({ depopulate: true })], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
+    }
 
     return res.status(200).json({
       success: true,
@@ -1599,7 +1552,7 @@ exports.exportJobApplicantsPdf = async (req, res, next) => {
     const pdfBuffer = await generateJobApplicantsPdf(job, applications, {
       stageFilter: stage || "All",
       generatedBy: req.user.fullName || req.user.name || "Employer",
-      companyName: job.companyName || req.user.companyName || "CareerConnect Partner",
+      companyName: job.companyName || req.user.companyName || "E2Job Partner",
     });
 
     const safeTitle = (job.title || "Job").replace(/[^a-zA-Z0-9_-]/g, "_");

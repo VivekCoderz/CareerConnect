@@ -5,9 +5,12 @@ const Application = require("../models/Application");
 const Course = require("../models/Course");
 const { isEligibleForInternship } = require("../utils/eligibility");
 const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { withoutListed } = require("../utils/listingSecurity");
 const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 const mongoose = require("mongoose")
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
+const { openListingQuery } = require("../utils/listingExpiry");
+const { formatSalary, formatStipend, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 
 // Skill benchmarks for target roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -18,6 +21,16 @@ const ROLE_SKILL_BENCHMARKS = {
   "Data Scientist / Analyst": ["Python", "SQL", "Pandas", "NumPy", "Machine Learning", "Data Visualization", "PowerBI"],
   "DevOps Engineer": ["Linux", "Docker", "Kubernetes", "AWS", "CI/CD", "Git", "Terraform"],
 };
+
+// A student without a profile gets an empty one: only schema defaults, never sample
+// skills, education or goals (those would show up as the student's own data).
+// Upsert so two concurrent first requests don't race to create duplicates.
+const createEmptyStudentProfile = (userId) =>
+  StudentProfile.findOneAndUpdate(
+    { userId },
+    { $setOnInsert: { userId } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
 
 // Calculate profile completion percentage (0 - 100)
 const calculateProfileCompletion = (profile, user) => {
@@ -121,30 +134,9 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     const userId = req.user._id;
     let profile = await StudentProfile.findOne({ userId });
 
-    // Auto-create initial profile if none exists
+    // Auto-create an empty profile if none exists
     if (!profile) {
-      profile = await StudentProfile.create({
-        userId,
-        technicalSkills: ["JavaScript", "React", "Node.js", "Git"],
-        softSkills: ["Communication", "Problem Solving", "Teamwork"],
-        education: [
-          {
-            institution: "Geeta University",
-            degree: "B.Tech Computer Science",
-            fieldOfStudy: "Computer Science & Engineering",
-            startYear: 2024,
-            endYear: 2028,
-            currentlyStudying: true,
-          },
-        ],
-        careerGoal: "Full Stack Developer",
-        jobPreferences: {
-          preferredRoles: ["Full Stack Developer", "Frontend Developer"],
-          preferredLocations: ["Bangalore", "Gurgaon", "Remote"],
-          jobTypes: ["internship", "full-time"],
-          remote: true,
-        },
-      });
+      profile = await createEmptyStudentProfile(userId);
     }
 
     // Fallback sync: if profile has no resumeUrl, but req.user has resumeUrl, sync it now
@@ -196,25 +188,23 @@ module.exports.getStudentDashboard = async (req, res, next) => {
       try {
         const Internship = require("../models/Internship");
         const [internshipDocs, jobInternDocs, dbJobsDocs] = await Promise.all([
-          Internship.find({ status: "Published", _id: { $nin: appliedInternshipIds } })
+          Internship.find(openListingQuery({ _id: { $nin: appliedInternshipIds } }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
             .lean(),
-          Job.find({
-            status: "Published",
+          Job.find(openListingQuery({
             employmentType: { $regex: /^internship$/i },
             _id: { $nin: appliedInternshipIds },
-          })
+          }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
             .lean(),
-          Job.find({
-            status: "Published",
+          Job.find(openListingQuery({
             employmentType: { $not: /^internship$/i },
             _id: { $nin: appliedJobIds },
-          })
+          }))
             .populate("employerId", "companyName logo headquarters")
             .sort({ createdAt: -1 })
             .limit(20)
@@ -229,60 +219,48 @@ module.exports.getStudentDashboard = async (req, res, next) => {
       }
     }
 
+    // Missing values are null (the client hides them), never invented text.
     const recommendedInternships = (dbInternships || []).map((job) => {
-      const stipendStr =
-        job.stipend ||
-        (job.salaryRange?.min > 0
-          ? `₹${job.salaryRange.min.toLocaleString()} / month`
-          : job.stipendAmount?.min > 0
-          ? `₹${job.stipendAmount.min.toLocaleString()} / month`
-          : "Competitive Stipend");
+      const stipendStr = formatStipend(job);
 
       return {
         _id: job._id,
         id: job._id.toString(),
         jobId: job._id.toString(),
         title: job.title,
-        company: job.employerId?.companyName || job.companyName || "Partner Employer",
+        company: companyOf(job),
         companyId: job.employerId?._id || "",
         location: job.location,
         stipend: stipendStr,
         salary: stipendStr,
-        duration: job.duration || "3-6 Months",
+        duration: textOrNull(job.duration),
         type: "Internship",
         opportunityType: "Internship",
-        workMode: job.workMode || "Remote",
+        workMode: textOrNull(job.workMode),
         skillsRequired: job.requiredSkills || job.skillsRequired || [],
-        postedAt: "Active",
-        deadline: job.deadline || job.applicationDeadline
-          ? new Date(job.deadline || job.applicationDeadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-          : "Open until filled",
+        postedAt: formatDate(job.createdAt),
+        deadline: formatDate(job.deadline || job.applicationDeadline),
         description: job.description,
         responsibilities: job.responsibilities,
       };
     });
 
     const recommendedJobs = (dbJobs || []).map((job) => {
-      const salaryStr =
-        job.salaryRange?.max > 0
-          ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive Package";
-
       return {
         _id: job._id,
         id: job._id.toString(),
         jobId: job._id.toString(),
         title: job.title,
-        company: job.employerId?.companyName || "Partner Employer",
+        company: companyOf(job),
         companyId: job.employerId?._id || "",
         location: job.location,
-        salary: salaryStr,
-        type: job.employmentType || "Full-Time",
-        opportunityType: job.employmentType || "Full-Time",
-        workMode: job.workMode || "On-Site",
+        salary: formatSalary(job.salaryRange),
+        type: textOrNull(job.employmentType),
+        opportunityType: textOrNull(job.employmentType),
+        workMode: textOrNull(job.workMode),
         skillsRequired: job.requiredSkills || job.skillsRequired || [],
-        postedAt: "Active",
-        deadline: job.deadline ? new Date(job.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
+        postedAt: formatDate(job.createdAt),
+        deadline: formatDate(job.deadline),
         description: job.description,
         responsibilities: job.responsibilities,
       };
@@ -323,29 +301,31 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           }
 
           const mappedInt = intList.filter((job) => /^https?:\/\//i.test(job.applyLink || ""))
-            .slice(0, 20).map((job, idx) => ({
-            _id: `scraped-rec-int-${idx}`,
-            id: `scraped-rec-int-${idx}`,
-            jobId: `scraped-rec-int-${idx}`,
+            .slice(0, 20).map((job) => ({
+            // Stored feed listing: its MongoDB id is stable across syncs (I04).
+            _id: String(job._id),
+            id: String(job._id),
+            jobId: String(job._id),
             title: job.title,
-            company: job.company,
+            company: textOrNull(job.company),
             companyId: "",
             location: job.location,
-            stipend: job.stipend || "Competitive Stipend",
-            salary: job.stipend || "Competitive Stipend",
-            duration: job.duration || "3-6 Months",
+            stipend: textOrNull(job.stipend),
+            salary: textOrNull(job.stipend),
+            duration: textOrNull(job.duration),
             type: "Internship",
-            workMode: job.workMode || "Remote",
-            skillsRequired: [job.title.split(" ")[0] || "Development", "Teamwork"],
-            postedAt: job.postedDate || "Recently",
-            deadline: "Open until filled",
+            workMode: textOrNull(job.workMode),
+            skillsRequired: job.skills || [],
+            postedAt: textOrNull(job.postedDate),
+            deadline: formatDate(job.deadline),
             description: `${job.title} at ${job.company}. Apply directly at ${job.applyLink}`,
             applyLink: job.applyLink,
             applyUrl: job.applyLink,
             isExternal: true,
             platformSource: job.platformSource,
+            attribution: job.attribution,
           }));
-          finalRecommendedInternships = [...recommendedInternships, ...mappedInt];
+          finalRecommendedInternships = [...recommendedInternships, ...withoutListed(mappedInt, recommendedInternships)];
         }
 
         if (finalRecommendedJobs.length < 10) {
@@ -360,27 +340,29 @@ module.exports.getStudentDashboard = async (req, res, next) => {
           }
 
           const mappedJobs = jobList.filter((job) => /^https?:\/\//i.test(job.applyLink || ""))
-            .slice(0, 20).map((job, idx) => ({
-            _id: `scraped-rec-job-${idx}`,
-            id: `scraped-rec-job-${idx}`,
-            jobId: `scraped-rec-job-${idx}`,
+            .slice(0, 20).map((job) => ({
+            // Stored feed listing: its MongoDB id is stable across syncs (I04).
+            _id: String(job._id),
+            id: String(job._id),
+            jobId: String(job._id),
             title: job.title,
-            company: job.company,
+            company: textOrNull(job.company),
             companyId: "",
             location: job.location,
-            salary: "₹4.5 - 12.0 LPA",
-            type: job.opportunityType || "Full-Time",
-            workMode: job.workMode || "On-Site",
-            skillsRequired: [job.title.split(" ")[0] || "Engineering", "Problem Solving"],
-            postedAt: job.postedDate || "Recently",
-            deadline: "Open until filled",
+            salary: textOrNull(job.salary),
+            type: textOrNull(job.opportunityType),
+            workMode: textOrNull(job.workMode),
+            skillsRequired: job.skills || [],
+            postedAt: textOrNull(job.postedDate),
+            deadline: formatDate(job.deadline),
             description: `${job.title} at ${job.company}. Apply directly at ${job.applyLink}`,
             applyLink: job.applyLink,
             applyUrl: job.applyLink,
             isExternal: true,
             platformSource: job.platformSource,
+            attribution: job.attribution,
           }));
-          finalRecommendedJobs = [...recommendedJobs, ...mappedJobs];
+          finalRecommendedJobs = [...recommendedJobs, ...withoutListed(mappedJobs, recommendedJobs)];
         }
       } catch (e) {
         console.warn("Aggregated opportunities fallback error:", e.message);
@@ -395,7 +377,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         _id: c._id,
         id: c._id.toString(),
         title: c.title,
-        provider: "CareerConnect Academy",
+        provider: "E2Job Academy",
         level: c.level || "Intermediate",
         duration: `${c.duration || 6} ${c.durationUnit || "Weeks"}`,
         rating: 4.9,
@@ -420,7 +402,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         app.opportunityTitle ||
         app.internshipId?.title ||
         app.jobId?.title ||
-        "Position";
+        null;
       const compName =
         app.companyName ||
         app.internshipId?.companyName ||
@@ -428,7 +410,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         app.jobId?.companyName ||
         app.jobId?.employerId?.companyName ||
         app.employerId?.companyName ||
-        "Employer";
+        null;
       const appliedDateStr = new Date(app.createdAt || app.appliedAt || Date.now()).toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
@@ -445,7 +427,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         company: compName,
         appliedDate: appliedDateStr,
         status: app.status,
-        lastUpdated: "Recently",
+        lastUpdated: formatDate(app.updatedAt),
       };
     });
 
@@ -458,7 +440,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     const notifications = [
       {
         id: "notif-1",
-        title: "Welcome to Geeta University CareerConnect 🎉",
+        title: "Welcome to Geeta University E2Job 🎉",
         message: "Explore live internship opportunities directly posted by verified employers.",
         date: "Today",
         isRead: false,
@@ -502,7 +484,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         achievements: profile.achievements || [],
         experience: profile.experience || [],
         resume: profile.resume || {},
-        careerGoal: profile.careerGoal || "Full Stack Developer",
+        careerGoal: profile.careerGoal || "",
         jobPreferences: profile.jobPreferences || {},
         recommendedInternships: finalRecommendedInternships,
         recommendedJobs: finalRecommendedJobs,
@@ -537,19 +519,7 @@ module.exports.getStudentProfile = async (req, res, next) => {
     );
 
     if (!profile) {
-      profile = await StudentProfile.create({
-        userId,
-        technicalSkills: ["JavaScript", "React", "Node.js"],
-        education: [
-          {
-            institution: "Geeta University",
-            degree: "B.Tech Computer Science",
-            startYear: 2024,
-            endYear: 2028,
-            currentlyStudying: true,
-          },
-        ],
-      });
+      profile = await createEmptyStudentProfile(userId);
       profile = await profile.populate(
         "userId",
         "fullName email username phone profileImage socialLinks resumeUrl resumeName"
@@ -683,18 +653,9 @@ module.exports.updateStudentProfile = async (req, res, next) => {
 // ==========================================
 // SAVE / BOOKMARK OPPORTUNITY
 // ==========================================
-module.exports.toggleSaveOpportunity = async (req, res, next) => {
-  try {
-    const { opportunityId, title, type } = req.body;
-    return res.status(200).json({
-      success: true,
-      message: "Opportunity saved to your workspace",
-      savedItem: { id: opportunityId, title, type, savedAt: new Date() },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+// Saved jobs are not stored yet; say so instead of returning a fake success.
+module.exports.toggleSaveOpportunity = (req, res) =>
+  res.status(501).json({ success: false, code: "NOT_IMPLEMENTED", message: "Not available yet" });
 
 // ==========================================
 // APPLY TO OPPORTUNITY (RETIRED)

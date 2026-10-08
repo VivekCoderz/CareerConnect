@@ -3,6 +3,7 @@ const StudentProfile = require("../models/StudentProfile.js");
 const FresherProfile = require("../models/FresherProfile.js");
 const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const jwt = require("jsonwebtoken");
+const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies.js");
 const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP.js");
 const sendEmail = require("../utils/sendEmail.js");
@@ -13,6 +14,7 @@ const getFirebaseAdmin = require("../config/firebaseAdmin.js");
 const { validateEmail, maskEmail } = require("../services/emailValidationService.js");
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
 const { deleteAccount } = require("../services/accountDeletion.js");
+const { CONSENT_REQUIRED, readConsent } = require("../utils/consent.js");
 
 // ==========================================
 // PASSWORD VALIDATION & HELPERS
@@ -46,12 +48,7 @@ const setTokenCookie = (res, token, keepSignedIn = false) => {
     ? 7 * 24 * 60 * 60 * 1000   // 7 days in ms
     : 25 * 60 * 60 * 1000;       // 25 hours in ms
 
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-    maxAge,
-  });
+  res.cookie("token", token, authCookieOptions(maxAge));
 };
 
 // Helper: Generate username from email
@@ -143,6 +140,8 @@ const userPayload = (user, extra = {}) => ({
   ...extra,
 });
 
+const EMAIL_SIGNUP_BUSY_MESSAGE = "Email sign-up is busy right now. Please use Continue with Google or try again later.";
+
 // ==========================================
 // SEND OTP (Step 1 Continue pe call hoga)
 // ==========================================
@@ -164,7 +163,7 @@ module.exports.sendOTP = async (req, res, next) => {
       const validationResult = await validateEmail(email);
       
       if (!validationResult.isValid) {
-        console.log("❌ [Email Validation Failed]:", validationResult);
+        console.log("❌ [Email Validation Failed]:", maskEmail(email), validationResult?.reason);
         return res.status(400).json({
           success: false,
           field: "email",
@@ -193,13 +192,14 @@ module.exports.sendOTP = async (req, res, next) => {
 
     // Send email
     const delivery = await sendEmail({
+      kind: "otp",
       to: normalizedEmail,
-      subject: "Your CareerConnect verification code",
+      subject: "Your E2Job verification code",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
           <h2 style="color: #1e40af; margin-bottom: 8px;">Verify your email</h2>
           <p style="color: #475569;">Hi${fullName ? ` ${fullName}` : ""},</p>
-          <p style="color: #475569;">Use this code to continue creating your CareerConnect account:</p>
+          <p style="color: #475569;">Use this code to continue creating your E2Job account:</p>
           <div style="background: #f1f5f9; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0;">
             <span style="font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #0f172a;">${otp}</span>
           </div>
@@ -210,7 +210,8 @@ module.exports.sendOTP = async (req, res, next) => {
     });
     if (delivery?.error || (isProduction && delivery?.messageId === "simulated-email")) {
       await PendingOTP.deleteOne({ email: normalizedEmail, otpHash });
-      return res.status(503).json({ success: false, message: "Verification email is temporarily unavailable." });
+      // Brevo and the fallback provider (if any) both failed: point the student to Google sign-up.
+      return res.status(503).json({ success: false, code: "EMAIL_SIGNUP_BUSY", message: EMAIL_SIGNUP_BUSY_MESSAGE });
     }
 
     return res.status(200).json({
@@ -359,6 +360,11 @@ module.exports.registerUser = async (req, res, next) => {
     ).trim();
 
     // -------------------- Validation --------------------
+    const consent = readConsent(req.body);
+    if (!consent) {
+      return res.status(400).json(CONSENT_REQUIRED);
+    }
+
     if (!finalFullName) {
       return res.status(400).json({
         success: false,
@@ -518,6 +524,7 @@ module.exports.registerUser = async (req, res, next) => {
       username: await generateUniqueUsername(normalizedEmail),
       resumeUrl: resumeUrl?.trim() || "",
       resumeName: resumeName?.trim() || (resumeUrl ? "Uploaded Resume.pdf" : ""),
+      consent,
     };
 
     // -------------------- Create user --------------------
@@ -592,9 +599,10 @@ module.exports.registerUser = async (req, res, next) => {
           },
           skills: userData.interests,
           currentEmployment: {
-            company: currentCompany?.trim() || resolvedCollege || "Industry",
-            jobTitle: jobTitle?.trim() || "Working Professional",
-            industry: industry?.trim() || "Information Technology",
+            // Only what the user entered; blanks stay blank (no invented employer).
+            company: currentCompany?.trim() || "",
+            jobTitle: jobTitle?.trim() || "",
+            industry: industry?.trim() || "",
           },
           ...(initialResumeData ? { resume: initialResumeData } : {}),
           education: [
@@ -731,7 +739,7 @@ module.exports.loginUser = async (req, res, next) => {
 //   - Email+password sign-in (Firebase-managed passwords)
 //
 // Frontend signs in via Firebase SDK → gets ID Token → sends here.
-// Backend verifies the ID Token with Firebase Admin SDK → issues CareerConnect JWT.
+// Backend verifies the ID Token with Firebase Admin SDK → issues E2Job JWT.
 // ==========================================
 module.exports.firebaseLogin = async (req, res, next) => {
   try {
@@ -797,7 +805,7 @@ module.exports.firebaseLogin = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message:
-          "No CareerConnect account found. Please sign up first or use Google sign-in.",
+          "No E2Job account found. Please sign up first or use Google sign-in.",
       });
     }
 
@@ -928,10 +936,11 @@ module.exports.googleAuth = async (req, res, next) => {
     if (!uid || !normalizedEmail || !isGoogleProvider || !isEmailVerified) {
       console.warn("[GoogleAuth] Rejected Google sign-in claims:", {
         uid: Boolean(uid),
-        email: normalizedEmail,
+        email: maskEmail(normalizedEmail),
         email_verified: decoded.email_verified,
         sign_in_provider: decoded.firebase?.sign_in_provider,
-        identities: decoded.firebase?.identities,
+        // Identity providers only; the identities object itself lists the user's emails.
+        identities: Object.keys(decoded.firebase?.identities || {}),
         isGoogleProvider,
         isEmailVerified,
       });
@@ -1094,18 +1103,8 @@ module.exports.cancelGoogleSignup = async (req, res, next) => {
       }));
     }
 
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
-    });
-
-    res.clearCookie("sid", {
-      path: "/",
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
-    });
+    res.clearCookie("token", authCookieBaseOptions());
+    res.clearCookie("sid", authCookieBaseOptions());
 
     if (req.session) {
       req.session.destroy(() => {});
@@ -1126,7 +1125,7 @@ module.exports.cancelGoogleSignup = async (req, res, next) => {
 // Called after user enters password on /set-password.
 // Updates password in Firebase via Firebase Admin SDK,
 // hashes and stores password in MongoDB (user.password),
-// sets hasPassword=true, and issues full CareerConnect JWT.
+// sets hasPassword=true, and issues full E2Job JWT.
 // ==========================================
 module.exports.completePasswordSetup = async (req, res, next) => {
   try {
@@ -1157,7 +1156,7 @@ module.exports.completePasswordSetup = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "CareerConnect account not found. Please sign in again.",
+        message: "E2Job account not found. Please sign in again.",
       });
     }
 
@@ -1244,7 +1243,7 @@ module.exports.deleteMyAccount = async (req, res, next) => {
     if (["SUPER_ADMIN", "COMPANY_ADMIN", "admin"].includes(user.role)) {
       return res.status(403).json({
         success: false,
-        message: "Admin accounts are removed by a CareerConnect administrator.",
+        message: "Admin accounts are removed by a E2Job administrator.",
       });
     }
 
@@ -1275,19 +1274,10 @@ module.exports.deleteMyAccount = async (req, res, next) => {
 // ==========================================
 module.exports.logoutUser = async (req, res) => {
   // 1. Clear token cookie
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-  });
+  res.clearCookie("token", authCookieBaseOptions());
 
   // 2. Clear session cookie
-  res.clearCookie("sid", {
-    path: "/",
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-  });
+  res.clearCookie("sid", authCookieBaseOptions());
 
   // 3. Destroy session in Redis
   if (req.session) {
@@ -1381,8 +1371,9 @@ module.exports.forgotPassword = async (req, res, next) => {
     const { code: otp, otpHash } = await issueOtp(normalizedEmail, "reset-password");
 
     const delivery = await sendEmail({
+      kind: "otp",
       to: normalizedEmail,
-      subject: "Reset your CareerConnect password",
+      subject: "Reset your E2Job password",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
           <h2 style="color: #1e3a8a;">Password Reset</h2>
@@ -1539,6 +1530,11 @@ module.exports.registerEmployer = async (req, res, next) => {
     } = req.body;
 
     // ---------- Validation ----------
+    const consent = readConsent(req.body);
+    if (!consent) {
+      return res.status(400).json(CONSENT_REQUIRED);
+    }
+
     if (!companyName?.trim()) {
       return res.status(400).json({
         success: false,
@@ -1681,6 +1677,7 @@ module.exports.registerEmployer = async (req, res, next) => {
       profileCompletion: 20,
       authProviders: ["email"],
       hasPassword: true,
+      consent,
     });
 
     // ---------- Create Employer Profile ----------
@@ -1798,6 +1795,14 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
 
     const userId = req.user.id;
 
+    // Finishing onboarding is the Google signup; a profile completed earlier
+    // (before consent was collected) is not asked again.
+    const isNewSignup = !req.user.isProfileComplete;
+    const consent = readConsent(req.body);
+    if (isNewSignup && !consent) {
+      return res.status(400).json(CONSENT_REQUIRED);
+    }
+
     // -------- Basic Validation --------
     if (!phone?.trim()) {
       return res.status(400).json({
@@ -1881,6 +1886,7 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
     if (lastName) updateData.lastName = lastName.trim();
     if (fullName) updateData.fullName = fullName.trim();
     if (resumeUrl) updateData.resumeUrl = resumeUrl.trim();
+    if (isNewSignup) updateData.consent = consent;
 
     const user = await User.findByIdAndUpdate(userId, updateData, { new: true });
 
@@ -1977,9 +1983,10 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
             },
             skills: updateData.interests,
             currentEmployment: {
-              company: currentCompany?.trim() || resolvedCollege || "Industry",
-              jobTitle: jobTitle?.trim() || "Working Professional",
-              industry: industry?.trim() || "Information Technology",
+              // Only what the user entered; blanks stay blank (no invented employer).
+              company: currentCompany?.trim() || "",
+              jobTitle: jobTitle?.trim() || "",
+              industry: industry?.trim() || "",
             },
             education: [
               {
@@ -2035,6 +2042,10 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
     if (!existingProfile && !settings.allowEmployerRegistration) {
       return res.status(403).json(EMPLOYER_REGISTRATION_CLOSED);
     }
+    const consent = readConsent(req.body);
+    if (!existingProfile && !consent) {
+      return res.status(400).json(CONSENT_REQUIRED);
+    }
 
     // -------- Validation --------
     if (!phone?.trim()) {
@@ -2088,6 +2099,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
         role: "employer",
         userType: "employer",
         profileCompletion: 40,
+        ...(existingProfile ? {} : { consent }),
       },
       { new: true }
     );

@@ -36,6 +36,7 @@ const {
   moveToNextStage,
   selectCandidate,
   rejectCandidate,
+  reopenApplication,
   markStageFailed,
   updateApplicationRound,
   exportJobApplicantsPdf,
@@ -90,6 +91,13 @@ router.get(
 );
 
 router.patch(
+  "/bulk-status",
+  protect,
+  employerOnly,
+  ensureFn(applicationController.bulkUpdateApplicationStatus, "bulkUpdateApplicationStatus")
+);
+
+router.patch(
   "/:id/status",
   protect,
   employerOnly,
@@ -130,6 +138,13 @@ router.patch(
   protect,
   employerOnly,
   ensureFn(rejectCandidate, "rejectCandidate")
+);
+
+router.patch(
+  "/:id/pipeline/reopen",
+  protect,
+  employerOnly,
+  ensureFn(reopenApplication, "reopenApplication")
 );
 
 router.patch(

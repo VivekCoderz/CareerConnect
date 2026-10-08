@@ -29,9 +29,11 @@ const {
   selectBestATSResume,
 } = require("../services/atsScoringService.js");
 const { runWithGeminiCascade } = require("../services/geminiCascade");
-const { splitOtherSkills } = require("../utils/skills");
+const { splitOtherSkills, mergeSkillStrings } = require("../utils/skills");
+const { webUrlOrEmpty } = require("../utils/webUrl");
 const mongoose = require("mongoose");
 const atsPdfWorkflow = require("../services/atsPdfWorkflow");
+const { openListingQuery } = require("../utils/listingExpiry");
 
 /**
  * POST /api/resume/generate
@@ -156,7 +158,7 @@ const updateResumeHandler = async (req, res) => {
 
 const syncPrimaryResumeWithProfile = async (userId, resume) => {
   try {
-    const resumeName = resume.title || "CareerConnect Resume";
+    const resumeName = resume.title || "E2Job Resume";
     const userUpdates = { resumeName };
     if (resume.resumeUrl) {
       userUpdates.resumeUrl = resume.resumeUrl;
@@ -564,8 +566,8 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
 
   profile.socialLinks = {
     ...profile.socialLinks?.toObject?.(),
-    linkedin: String(rawData.personal?.linkedin || user.socialLinks?.linkedin || "").trim(),
-    github: String(rawData.personal?.github || user.socialLinks?.github || "").trim(),
+    linkedin: webUrlOrEmpty(rawData.personal?.linkedin) || webUrlOrEmpty(user.socialLinks?.linkedin),
+    github: webUrlOrEmpty(rawData.personal?.github) || webUrlOrEmpty(user.socialLinks?.github),
     portfolio: String(rawData.personal?.portfolio || user.socialLinks?.portfolio || "").trim(),
   };
 
@@ -612,8 +614,8 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
         item.description?.trim() ||
         "Developed full-stack web application with responsive UI, secure authentication, and database integration.",
       technologies: splitSkills(item.technologies),
-      githubUrl: item.github?.trim() || item.githubUrl?.trim() || "",
-      liveUrl: item.live?.trim() || item.liveUrl?.trim() || "",
+      githubUrl: webUrlOrEmpty(item.github) || webUrlOrEmpty(item.githubUrl),
+      liveUrl: webUrlOrEmpty(item.live) || webUrlOrEmpty(item.liveUrl),
       projectType: "Personal",
     }));
 
@@ -733,8 +735,8 @@ const syncProfileFromResume = async (user, rawData, resumeUrl, resumeName) => {
       isProfileComplete: true,
       profileCompletion: 100,
       socialLinks: {
-        linkedin: String(rawData.personal?.linkedin || user.socialLinks?.linkedin || "").trim(),
-        github: String(rawData.personal?.github || user.socialLinks?.github || "").trim(),
+        linkedin: webUrlOrEmpty(rawData.personal?.linkedin) || webUrlOrEmpty(user.socialLinks?.linkedin),
+        github: webUrlOrEmpty(rawData.personal?.github) || webUrlOrEmpty(user.socialLinks?.github),
         portfolio: String(rawData.personal?.portfolio || user.socialLinks?.portfolio || "").trim(),
       },
       ...(effectiveResumeUrl
@@ -1379,6 +1381,7 @@ const uploadAndParseResumeHandler = async (req, res) => {
     }
 
     // Fallback if AI parse fails: construct minimum structured JSON from user data
+    const aiParsed = Boolean(parsedData);
     if (!parsedData) {
       parsedData = {
         personal: {
@@ -1454,7 +1457,10 @@ const uploadAndParseResumeHandler = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Resume uploaded, parsed by AI, and profile saved successfully!",
+      message: aiParsed
+        ? "Resume uploaded, parsed by AI, and profile saved successfully!"
+        : "Resume uploaded. Our AI is busy right now, so your profile was not filled in automatically. You can add your details yourself.",
+      aiParsed,
       resumeUrl,
       resumeName,
       publicId,
@@ -1736,8 +1742,8 @@ const confirmParsedProfileHandler = async (req, res) => {
     }
 
     const mergedSocialLinks = {
-      linkedin: parsedData.personal?.linkedin || user.socialLinks?.linkedin || "",
-      github: parsedData.personal?.github || user.socialLinks?.github || "",
+      linkedin: webUrlOrEmpty(parsedData.personal?.linkedin) || webUrlOrEmpty(user.socialLinks?.linkedin),
+      github: webUrlOrEmpty(parsedData.personal?.github) || webUrlOrEmpty(user.socialLinks?.github),
       portfolio: parsedData.personal?.portfolio || user.socialLinks?.portfolio || "",
     };
     userUpdates.socialLinks = mergedSocialLinks;
@@ -1825,8 +1831,8 @@ const confirmParsedProfileHandler = async (req, res) => {
             name: title,
             description: rawDesc.trim() || "Project details",
             technologies: splitSkills(np.technologies),
-            githubUrl: np.github?.trim() || "",
-            liveUrl: np.live?.trim() || "",
+            githubUrl: webUrlOrEmpty(np.github),
+            liveUrl: webUrlOrEmpty(np.live),
           });
         }
       }
@@ -1919,15 +1925,18 @@ const confirmParsedProfileHandler = async (req, res) => {
           ...currentSkills.toObject?.(),
           programmingLanguages: mergeSkillStrings(
             currentSkills.programmingLanguages || [],
-            splitSkills(parsedData.skills?.programmingLanguages)
+            splitSkills(parsedData.skills?.programmingLanguages),
+            { asObjects: true }
           ),
           frameworks: mergeSkillStrings(
             currentSkills.frameworks || [],
-            splitSkills(parsedData.skills?.frameworks)
+            splitSkills(parsedData.skills?.frameworks),
+            { asObjects: true }
           ),
           tools: mergeSkillStrings(
             currentSkills.tools || [],
-            splitSkills(parsedData.skills?.tools)
+            splitSkills(parsedData.skills?.tools),
+            { asObjects: true }
           ),
         };
       }
@@ -2177,7 +2186,7 @@ const analyzeATSResumeHandler = async (req, res) => {
       }
       const isInternship = String(opportunityType || "").toLowerCase() === "internship";
       const Model = isInternship ? Internship : Job;
-      const record = await Model.findOne({ _id: opportunityId, status: "Published" }).lean();
+      const record = await Model.findOne(openListingQuery({ _id: opportunityId })).lean();
       if (!record) return res.status(404).json({ success: false, message: "Published opportunity not found" });
       opportunity = {
         title: record.title,
@@ -2631,7 +2640,11 @@ const buildATSOpportunity = (jobDescription, targetRole = "") => {
   };
 };
 
-const percentageOf = (value, maximum) => Math.round((Number(value || 0) / maximum) * 100);
+// Null when any part couldn't be measured (no invented score for it).
+const percentageOf = (value, maximum) => (value === null || value === undefined
+  ? null
+  : Math.round((Number(value) / maximum) * 100));
+const sumOrNull = (...values) => (values.some((v) => v === null) ? null : values.reduce((a, b) => a + b, 0));
 
 const mergeVerifiedATSReport = (richReport, deterministic, candidateData, targetRole, companyName) => {
   const formatAssessment = assessATSResumeFormat(candidateData);
@@ -2647,19 +2660,15 @@ const mergeVerifiedATSReport = (richReport, deterministic, candidateData, target
   return ({
   ...(richReport || {}),
   atsScore: deterministic.overallScore,
+  scoreUnavailable: deterministic.scoreUnavailable,
+  scoreUnavailableReason: deterministic.scoreUnavailableReason,
   matchGrade: deterministic.rating,
   targetRole: targetRole || richReport?.targetRole || "Target Opportunity",
   companyName: companyName || richReport?.companyName || "",
   scoreBreakdown: {
     keywordMatch: percentageOf(deterministic.sections.keywords, 25),
-    experienceImpact: percentageOf(
-      deterministic.sections.experience + deterministic.sections.impact,
-      20
-    ),
-    formattingAndClarity: percentageOf(
-      deterministic.sections.completeness + deterministic.sections.readability,
-      15
-    ),
+    experienceImpact: percentageOf(sumOrNull(deterministic.sections.experience, deterministic.sections.impact), 20),
+    formattingAndClarity: percentageOf(sumOrNull(deterministic.sections.completeness, deterministic.sections.readability), 15),
     skillsCoverage: percentageOf(deterministic.sections.skills, 40),
   },
   skillGapAnalysis: {
@@ -2674,11 +2683,11 @@ const mergeVerifiedATSReport = (richReport, deterministic, candidateData, target
     totalJdSkillsCount: deterministic.matchedSkills.length + deterministic.missingSkills.length,
     matchedCount: deterministic.matchedSkills.length,
   },
-  scoreMethod: "CareerConnect deterministic ATS matcher",
+  scoreMethod: "E2Job deterministic ATS matcher",
   scoreDisclaimer: deterministic.disclaimer,
   scoreParameters,
   formatAssessment,
-  requiresFix: deterministic.overallScore < 80 || !formatAssessment.isProperFormat,
+  requiresFix: (deterministic.overallScore !== null && deterministic.overallScore < 80) || !formatAssessment.isProperFormat,
   candidateData,
   });
 };
@@ -2878,6 +2887,24 @@ const atsFixHandler = async (req, res) => {
 
     const originalAnalysis = analyzeATSMatch(enriched, opportunity);
     const originalFormat = assessATSResumeFormat(enriched);
+    if (originalAnalysis.scoreUnavailable) {
+      return res.status(200).json({
+        success: true,
+        fixedResume: enriched,
+        previousAtsScore: null,
+        improvedAtsScore: null,
+        scoreImprovement: null,
+        scoreUnavailable: true,
+        scoreUnavailableReason: originalAnalysis.scoreUnavailableReason,
+        scoreAnalysis: originalAnalysis,
+        formatAssessment: originalFormat,
+        selectedSource: "original",
+        fixesAppliedCount: 0,
+        wasModified: false,
+        template: template || "classic",
+        message: "No changes were made: without skills or keywords in the job description, an improvement can't be measured.",
+      });
+    }
     if (originalAnalysis.overallScore >= 80 && originalFormat.isProperFormat) {
       return res.status(200).json({
         success: true,
@@ -2988,6 +3015,14 @@ const atsPdfOptimizeHandler = async (req, res) => {
       return res.status(400).json({ success: false, message: "Project, coursework or experience details must be 2,500 characters or fewer." });
     }
     const original = atsPdfWorkflow.scorePdfText(resumeText, jdText);
+    if (original.scoreUnavailable) {
+      return res.status(422).json({
+        success: false,
+        code: "SCORE_UNAVAILABLE",
+        message: original.scoreUnavailableReason,
+        original,
+      });
+    }
     let confirmedSkills;
     try {
       confirmedSkills = req.body?.confirmedSkills ? JSON.parse(req.body.confirmedSkills) : [];
@@ -3038,7 +3073,7 @@ const atsPdfOptimizeHandler = async (req, res) => {
       metTarget: true,
       latex,
       pdfBase64: pdf.toString("base64"),
-      fileName: "CareerConnect_ATS_Resume.pdf",
+      fileName: "E2Job_ATS_Resume.pdf",
     });
   } catch (error) {
     console.error("atsPdfOptimizeHandler failed:", error.code || error.name || "unknown error");

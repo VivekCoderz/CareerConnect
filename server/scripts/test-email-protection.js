@@ -39,7 +39,7 @@ const runTest = async (testName, fn) => {
 
 const runAllTests = async () => {
   console.log(`\n${colors.bold}${colors.cyan}====================================================${colors.reset}`);
-  console.log(`${colors.bold}${colors.cyan} 🛡️ CareerConnect Disposable Email Protection Test Suite${colors.reset}`);
+  console.log(`${colors.bold}${colors.cyan} 🛡️ E2Job Disposable Email Protection Test Suite${colors.reset}`);
   console.log(`${colors.bold}${colors.cyan}====================================================${colors.reset}\n`);
 
   // ─── 1. Valid Standard & Institutional Emails ─────────────────────────────────

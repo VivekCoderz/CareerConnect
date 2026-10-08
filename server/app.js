@@ -1,11 +1,13 @@
 require("dotenv").config({ override: true });
 const express = require("express");
 const cors = require("cors");
+const compression = require("compression");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
 
 const maintenanceMode = require("./middleware/maintenanceMode");
+const { requireTextFields } = require("./middleware/textFields");
 const { parseClientUrls, isLocalDevOrigin } = require("./utils/clientOrigins");
 
 const authRoutes = require("./routes/authRoutes.js");
@@ -36,12 +38,17 @@ const opportunityRoutes = require("./routes/opportunityRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
 const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
+const reportRoutes = require("./routes/reportRoutes.js");
 const { configureTrustProxy } = require("./config/trustProxy");
 const { globalLimiter } = require("./middleware/rateLimitMiddleware");
 const dbStatus = require("./utils/dbStatus");
+const Sentry = require("@sentry/node");
 
 const app = express();
 configureTrustProxy(app);
+
+// Gzip responses over 1 KB (job and internship lists in particular)
+app.use(compression());
 
 const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
 
@@ -124,6 +131,9 @@ if (process.env.ENABLE_IP_DEBUG === "true") {
 }
 
 // Base & User Profile Routes
+// Text fields must be text and meeting links http(s) on the job portal write routes.
+app.use(["/api/jobs", "/api/internships", "/api/applications", "/api/admin", "/api/interviews", "/api/offers"], requireTextFields);
+
 app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/profile/student", studentRoutes);
@@ -166,14 +176,18 @@ app.use("/api/fresher/recommendations", recommendationRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiAssistantRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/reports", reportRoutes);
 
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
+
+// G02: public sitemap (www.e2job.com/sitemap.xml is rewritten here by client/vercel.json).
+app.get("/sitemap.xml", require("./controllers/sitemapController").getSitemap);
 
 // Gateway Health Check Endpoint
 app.get("/", (req, res) => {
   return res.status(200).json({
     status: "active",
-    message: "CareerConnect API Gateway is running smoothly 🚀",
+    message: "E2Job API Gateway is running smoothly 🚀",
     timestamp: new Date().toISOString(),
   });
 });
@@ -185,7 +199,7 @@ app.get("/health", (req, res) => {
   return res.status(databaseConnected ? 200 : 503).json({
     status: databaseConnected ? "OK" : "degraded",
     database: databaseConnected ? "connected" : "unavailable",
-    message: databaseConnected ? "CareerConnect backend is running" : "Database unavailable",
+    message: databaseConnected ? "E2Job backend is running" : "Database unavailable",
     timestamp: new Date().toISOString(),
   });
 });
@@ -223,6 +237,10 @@ app.use((err, req, res, next) => {
   }
   console.error("Server Global Error:", err);
   const status = err.code === "LIMIT_FILE_SIZE" ? 413 : err.statusCode || err.status || 500;
+  // Server faults go to Sentry (a no-op without SENTRY_DSN). Rejected CORS origins are not bugs.
+  if (status >= 500 && !String(err.message).startsWith("Not allowed by CORS")) {
+    Sentry.captureException(err, { tags: { status_code: status, route: req.route?.path || req.baseUrl || req.path } });
+  }
   return res.status(status).json({
     success: false,
     message: status >= 500 && isProduction ? "Internal server error" : err.message || "Internal server error",

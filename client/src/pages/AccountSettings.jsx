@@ -60,7 +60,7 @@ const AccountSettings = () => {
         <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
           <h1 className="text-xl font-bold text-slate-900">Your account has been deleted</h1>
           <p className="text-sm text-slate-600 mt-2">
-            Your profile, resumes and personal details have been removed from CareerConnect.
+            Your profile, resumes and personal details have been removed from E2Job.
           </p>
           <Link to="/" className="inline-block mt-6 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">
             Go to home

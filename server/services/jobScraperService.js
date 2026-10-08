@@ -1,10 +1,10 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
 const mongoose = require("mongoose");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const { escapeRegex } = require("../utils/listingSecurity");
+const { openListingQuery } = require("../utils/listingExpiry");
+const { formatSalary, formatStipend, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 
 // =========================================================================
 // 1. CLEAN DEGREE KEYWORD MAP (SIMPLIFIED NAMES)
@@ -241,240 +241,78 @@ function clearSearchCache() {
   }
 }
 
-const USER_AGENTS = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-];
-
 // ==========================================
-// 4. MULTI-SOURCE SCRAPERS & APIS
+// 4. EXTERNAL LISTINGS (stored by the scheduled feed sync)
 // ==========================================
+// Requests never call external sites. services/externalJobSync.js fetches the approved
+// feeds (Remotive, Arbeitnow) on a schedule and stores them as Job/Internship documents
+// with isExternal: true; this reads them back in the shape the feed consumers expect.
+// LinkedIn and Internshala scraping was removed (S07).
 
-async function scrapeLinkedIn(queryKeywords, targetLocation, jobTypeParam) {
-  const startOffsets = [0, 25];
-  const results = [];
+const DEFAULT_KEYWORDS = "Developer OR Engineer OR Analyst OR Trainee";
+const EXTERNAL_LIST_LIMIT = 300;
+const EXTERNAL_TYPE_LABELS = { Remotive: "Remotive Remote", Arbeitnow: "Arbeitnow Global" };
+const EXTERNAL_FIELDS =
+  "title companyName location workMode employmentType requiredSkills description deadline " +
+  "source applyUrl attribution createdAt";
 
-  const cleanQuery = queryKeywords
-    ? queryKeywords
-        .slice(0, 100)
-        .replace(/[^\w\s]/gi, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-    : "Developer";
-
-  const requests = startOffsets.map(async (start) => {
-    const selectedAgent =
-      USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-    let searchUrl = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${encodeURIComponent(
-      cleanQuery,
-    )}&location=${encodeURIComponent(targetLocation || "India")}&start=${start}`;
-
-    const normalizedParam = (jobTypeParam || "").toLowerCase().replace(/[-_ ]/g, "");
-    if (normalizedParam === "internship" || normalizedParam === "intern") searchUrl += "&f_JT=I";
-    if (normalizedParam === "fulltime" || normalizedParam === "job") searchUrl += "&f_JT=F";
-    if (normalizedParam === "parttime") searchUrl += "&f_JT=P";
-
-    try {
-      const response = await axios.get(searchUrl, {
-        headers: {
-          "User-Agent": selectedAgent,
-          "Accept-Language": "en-US,en;q=0.9",
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-        timeout: 9000,
-      });
-
-      const $ = cheerio.load(response.data);
-      const pageData = [];
-
-      $("li").each((_, element) => {
-        const title = $(element).find(".base-search-card__title").text().trim();
-        const company =
-          $(element).find(".base-search-card__subtitle a").text().trim() ||
-          $(element).find(".base-search-card__subtitle").text().trim();
-        const loc = $(element).find(".job-search-card__location").text().trim();
-        const rawLink = $(element).find("a.base-card__full-link").attr("href");
-        const posted = $(element).find("time").text().trim() || "Recently";
-
-        if (title && rawLink) {
-          const isRemote =
-            loc.toLowerCase().includes("remote") ||
-            title.toLowerCase().includes("remote");
-          const isIntern =
-            title.toLowerCase().includes("intern") ||
-            title.toLowerCase().includes("trainee");
-          const isPart =
-            title.toLowerCase().includes("part time") ||
-            title.toLowerCase().includes("part-time");
-
-          let derivedType = "Full-Time Job";
-          if (isIntern) derivedType = "Internship";
-          if (isPart) derivedType = "Part-Time Job";
-
-          pageData.push({
-            title,
-            company: company || "Verified Employer",
-            location: loc || targetLocation || "India",
-            type: "LinkedIn Verified",
-            platformSource: "LinkedIn",
-            opportunityType: derivedType,
-            workMode: isRemote ? "Remote" : "On-Site / Hybrid",
-            postedDate: posted,
-            applyLink: rawLink.split("?")[0],
-            isExclusive: false,
-          });
-        }
-      });
-      return pageData;
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const pages = await Promise.all(requests);
-  pages.forEach((p) => results.push(...p));
-  return results;
+/** Approved feed sources for a `source` filter value ("all", "external", or one feed name). */
+function externalSourcesFor(source = "all") {
+  const { APPROVED_SOURCES } = require("./externalJobSync");
+  const wanted = String(source || "all").toLowerCase();
+  if (wanted === "all" || wanted === "external") return APPROVED_SOURCES;
+  return APPROVED_SOURCES.filter((name) => name.toLowerCase() === wanted);
 }
 
-async function scrapeInternshala(queryKeywords) {
-  try {
-    const cleanQuery = queryKeywords
-      ? queryKeywords
-          .split(" OR ")[0]
-          .replace(/[^a-zA-Z0-9 ]/g, "")
-          .trim()
-          .replace(/\s+/g, "-")
-          .toLowerCase()
-      : "web-development";
+async function findStoredExternalOpportunities({ keywords = "", source = "all" } = {}) {
+  const sources = externalSourcesFor(source);
+  if (sources.length === 0 || mongoose.connection.readyState !== 1) return [];
 
-    const url = `https://internshala.com/internships/keywords-${cleanQuery}/`;
-    const selectedAgent =
-      USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-
-    const response = await axios.get(url, {
-      headers: {
-        "User-Agent": selectedAgent,
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
-      timeout: 6000,
-    });
-
-    const $ = cheerio.load(response.data);
-    const results = [];
-
-    $(".individual_internship").each((_, el) => {
-      const title = $(el).find(".job-internship-name").text().trim();
-      const company = $(el).find(".company-name").text().trim();
-      const loc = $(el).find(".row-1-item.locations").text().trim();
-      const link = $(el).find(".job-title-href").attr("href");
-
-      if (title && link) {
-        const isPart =
-          title.toLowerCase().includes("part time") ||
-          title.toLowerCase().includes("part-time");
-
-        results.push({
-          title,
-          company: company || "Internshala Partner",
-          location: loc || "India (Multiple)",
-          type: "Internshala Portal",
-          platformSource: "Internshala",
-          opportunityType: isPart ? "Part-Time Job" : "Internship",
-          workMode: loc.toLowerCase().includes("work from home")
-            ? "Remote"
-            : "On-Site / Hybrid",
-          postedDate: "Live on Internshala",
-          applyLink: link.startsWith("http")
-            ? link
-            : `https://internshala.com${link}`,
-          isExclusive: false,
-        });
-      }
-    });
-
-    return results;
-  } catch (err) {
-    return [];
+  const filter = openListingQuery({ isExternal: true, source: { $in: sources } });
+  const terms = keywords
+    .split(/\s+OR\s+/i)
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .slice(0, 10);
+  if (terms.length > 0) {
+    const keywordRegex = new RegExp(terms.map(escapeRegex).join("|"), "i");
+    filter.$or = [{ title: keywordRegex }, { requiredSkills: keywordRegex }, { description: keywordRegex }];
   }
-}
 
-async function fetchRemotiveJobs(queryKeywords) {
   try {
-    let searchWord = "developer";
-    if (queryKeywords) {
-      const words = queryKeywords
-        .split(" ")
-        .filter((w) => w.toLowerCase() !== "or" && w.length > 2);
-      if (words.length > 0) searchWord = words[0].toLowerCase();
-    }
-
-    const url = `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(
-      searchWord,
-    )}&limit=50`;
-    const res = await axios.get(url, { timeout: 7000 });
-
-    if (res.data && res.data.jobs) {
-      return res.data.jobs.map((j) => {
-        let opp = "Full-Time Job";
-        if (j.job_type === "internship") opp = "Internship";
-        if (j.job_type === "part_time") opp = "Part-Time Job";
-
-        return {
-          title: j.title,
-          company: j.company_name,
-          location: j.candidate_required_location || "Worldwide (Remote)",
-          type: "Remotive Remote",
-          platformSource: "Remotive",
-          opportunityType: opp,
-          workMode: "Remote",
-          postedDate: j.publication_date
-            ? j.publication_date.split("T")[0]
-            : "Recently",
-          applyLink: j.url,
-          isExclusive: false,
-        };
-      });
-    }
-    return [];
-  } catch (e) {
-    return [];
-  }
-}
-
-async function fetchArbeitnowJobs(queryKeywords) {
-  try {
-    let searchWord = "software";
-    if (queryKeywords) {
-      const words = queryKeywords
-        .split(" ")
-        .filter((w) => w.toLowerCase() !== "or" && w.length > 2);
-      if (words.length > 0) searchWord = words[0].toLowerCase();
-    }
-
-    const url = `https://www.arbeitnow.com/api/job-board-api?search=${encodeURIComponent(
-      searchWord,
-    )}`;
-    const res = await axios.get(url, { timeout: 7000 });
-
-    if (res.data && res.data.data) {
-      return res.data.data.slice(0, 50).map((j) => ({
-        title: j.title,
-        company: j.company_name,
-        location: j.location || "Global / Remote",
-        type: "Arbeitnow Global",
-        platformSource: "Arbeitnow",
-        opportunityType: "Full-Time Job",
-        workMode: j.remote ? "Remote" : "On-Site / Hybrid",
-        postedDate: "Active",
-        applyLink: j.url,
+    const [jobs, internships] = await Promise.all([
+      Job.find(filter).select(EXTERNAL_FIELDS).sort({ createdAt: -1 }).limit(EXTERNAL_LIST_LIMIT).lean(),
+      Internship.find(filter).select(EXTERNAL_FIELDS).sort({ createdAt: -1 }).limit(EXTERNAL_LIST_LIMIT).lean(),
+    ]);
+    const toItem = (doc, isInternship) => {
+      let opportunityType = "Full-Time Job";
+      if (isInternship || /^internship$/i.test(doc.employmentType || "")) opportunityType = "Internship";
+      else if (/part-time/i.test(doc.employmentType || "")) opportunityType = "Part-Time Job";
+      return {
+        _id: doc._id.toString(),
+        id: doc._id.toString(),
+        title: doc.title,
+        company: doc.companyName,
+        location: doc.location,
+        type: EXTERNAL_TYPE_LABELS[doc.source] || doc.source,
+        platformSource: doc.source,
+        opportunityType,
+        workMode: textOrNull(doc.workMode),
+        postedDate: doc.createdAt ? new Date(doc.createdAt).toISOString().split("T")[0] : null,
+        applyLink: doc.applyUrl,
         isExclusive: false,
-      }));
-    }
-    return [];
-  } catch (e) {
+        isExternal: true,
+        attribution: doc.attribution,
+        description: doc.description,
+        skills: doc.requiredSkills || [],
+        skillsRequired: doc.requiredSkills || [],
+        deadline: doc.deadline,
+        createdAt: doc.createdAt,
+      };
+    };
+    return [...jobs.map((d) => toItem(d, false)), ...internships.map((d) => toItem(d, true))];
+  } catch (err) {
+    console.warn("Error querying stored external listings:", err.message);
     return [];
   }
 }
@@ -515,8 +353,10 @@ async function getAggregatedOpportunities({
   ) {
     queryKeywords = `${program} ${specialization}`.trim();
   } else {
-    queryKeywords = "Developer OR Engineer OR Analyst OR Trainee";
+    queryKeywords = DEFAULT_KEYWORDS;
   }
+  // Stored feed listings are matched on these terms (the default list means "no keyword filter").
+  const externalKeywords = queryKeywords === DEFAULT_KEYWORDS ? "" : queryKeywords;
 
   const rawOppType = (opportunityType || "all").toLowerCase().replace(/[-_ ]/g, "");
   let normalizedOppType = "all";
@@ -584,40 +424,9 @@ async function getAggregatedOpportunities({
 
   let scrapedResults = [];
 
-  // Trigger selected scrapers
-  if (scope !== "on-campus") {
-    const scraperPromises = [];
-
-    // S07: disabled - scraper removed from request flow
-    // if (source === "all" || source === "external" || source === "linkedin") {
-    //   scraperPromises.push(
-    //     scrapeLinkedIn(queryKeywords, targetLocation, normalizedOppType),
-    //   );
-    // }
-    // if (
-    //   (source === "all" || source === "external" || source === "internshala") &&
-    //   region !== "International"
-    // ) {
-    //   scraperPromises.push(scrapeInternshala(queryKeywords));
-    // }
-    if (source === "all" || source === "external" || source === "remotive") {
-      scraperPromises.push(fetchRemotiveJobs(queryKeywords));
-    }
-    if (source === "all" || source === "external" || source === "arbeitnow") {
-      scraperPromises.push(fetchArbeitnowJobs(queryKeywords));
-    }
-
-    const settled = await Promise.allSettled(scraperPromises);
-    settled.forEach((res) => {
-      if (res.status === "fulfilled" && Array.isArray(res.value)) {
-        scrapedResults.push(...res.value);
-      }
-    });
-
-    // Remove Duplicates
-    scrapedResults = Array.from(
-      new Map(scrapedResults.map((job) => [job.applyLink, job])).values(),
-    );
+  // External listings come from MongoDB (scheduled feed sync), never from a live request.
+  if (scope !== "on-campus" && source !== "campus") {
+    scrapedResults = await findStoredExternalOpportunities({ keywords: externalKeywords, source });
   }
 
   // =========================================================================
@@ -632,6 +441,10 @@ async function getAggregatedOpportunities({
         (job.workMode || "").toLowerCase().includes("remote") ||
         fullLocation.includes("remote") ||
         fullLocation.includes("work from home");
+      // A city filter shows remote roles only when they say they're open to India. Worldwide or
+      // APAC remote roles stay under "All regions" and "Remote Jobs" (QA, 6 Oct: Delhi NCR
+      // listed "Europe, USA, Canada, APAC" roles).
+      const remoteForIndia = isRemote && /\bindia\b/.test(fullLocation);
 
       if (regLower === "international") {
         const hasIndianKeyword = INDIAN_GEO_KEYWORDS.some((keyword) =>
@@ -642,7 +455,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "delhi ncr" || regLower === "delhi") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("delhi") ||
           fullLocation.includes("noida") ||
           fullLocation.includes("gurgaon") ||
@@ -655,7 +468,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "bangalore" || regLower === "bengaluru") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("bengaluru") ||
           fullLocation.includes("bangalore") ||
           fullLocation.includes("karnataka")
@@ -664,7 +477,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "hyderabad") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("hyderabad") ||
           fullLocation.includes("secunderabad") ||
           fullLocation.includes("telangana")
@@ -673,7 +486,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "pune") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("pune") ||
           fullLocation.includes("maharashtra")
         );
@@ -681,7 +494,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "mumbai") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("mumbai") ||
           fullLocation.includes("navi mumbai") ||
           fullLocation.includes("thane") ||
@@ -691,7 +504,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "chennai") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("chennai") ||
           fullLocation.includes("tamil nadu")
         );
@@ -699,7 +512,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "kolkata") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("kolkata") ||
           fullLocation.includes("west bengal")
         );
@@ -707,7 +520,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "chandigarh") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("chandigarh") ||
           fullLocation.includes("mohali") ||
           fullLocation.includes("panchkula") ||
@@ -717,13 +530,13 @@ async function getAggregatedOpportunities({
 
       if (regLower === "jaipur") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("jaipur") ||
           fullLocation.includes("rajasthan")
         );
       }
 
-      return isRemote || fullLocation.includes(regLower);
+      return remoteForIndia || fullLocation.includes(regLower);
     });
   }
 
@@ -790,8 +603,9 @@ async function getAggregatedOpportunities({
   let dbOpportunities = [];
   if (mongoose.connection.readyState === 1) {
     try {
-      const jobFilter = { status: "Published" };
-      const internFilter = { status: "Published" };
+      // Campus listings only: stored feed listings are added separately (scrapedResults).
+      const jobFilter = openListingQuery({ isExternal: { $ne: true } });
+      const internFilter = openListingQuery({ isExternal: { $ne: true } });
 
       if (customQuery) {
         const sRegex = new RegExp(escapeRegex(customQuery), "i");
@@ -864,27 +678,22 @@ async function getAggregatedOpportunities({
         dbInterns = [...(internDocs || []), ...(jobInternDocs || [])];
       }
 
+      // Missing values are null (the client hides them), never invented text.
       const formattedJobs = dbJobs.map((j) => ({
         _id: j._id.toString(),
         id: j._id.toString(),
         title: j.title,
-        company: j.employerId?.companyName || "CareerConnect Partner",
-        location: j.location || "On-Campus / Hybrid",
-        opportunityType: j.employmentType || "Full-Time",
-        workMode: j.workMode || "On-Site",
-        salary: j.salaryRange?.max
-          ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive Package",
-        stipend: j.salaryRange?.max
-          ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive Package",
+        company: companyOf(j),
+        location: textOrNull(j.location),
+        opportunityType: textOrNull(j.employmentType),
+        workMode: textOrNull(j.workMode),
+        salary: formatSalary(j.salaryRange),
+        stipend: null,
         description: j.description,
         skills: j.requiredSkills || [],
         skillsRequired: j.requiredSkills || [],
-        deadline: j.deadline ? new Date(j.deadline).toLocaleDateString() : "Open",
-        postedDate: j.createdAt
-          ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-          : "Recently",
+        deadline: formatDate(j.deadline),
+        postedDate: formatDate(j.createdAt),
         applyLink: `/jobs/${j._id}`,
         isExclusive: true,
         isExternal: false,
@@ -897,21 +706,18 @@ async function getAggregatedOpportunities({
         _id: i._id.toString(),
         id: i._id.toString(),
         title: i.title,
-        company: i.companyName || i.employerId?.companyName || "CareerConnect Partner",
-        location: i.location || "Panipat / Remote",
+        company: companyOf(i),
+        location: textOrNull(i.location),
         opportunityType: "Internship",
-        workMode: i.workMode || "On-Site",
-        salary: i.stipend ? `₹${i.stipend}/month` : "Paid Internship",
-        stipend: i.stipend ? `₹${i.stipend}/month` : "Paid Internship",
+        workMode: textOrNull(i.workMode),
+        salary: formatStipend(i),
+        stipend: formatStipend(i),
+        duration: textOrNull(i.duration),
         description: i.description,
         skills: i.skillsRequired || i.requiredSkills || [],
         skillsRequired: i.skillsRequired || i.requiredSkills || [],
-        deadline: i.applicationDeadline || i.deadline
-          ? new Date(i.applicationDeadline || i.deadline).toLocaleDateString()
-          : "Open",
-        postedDate: i.createdAt
-          ? new Date(i.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-          : "Recently",
+        deadline: formatDate(i.applicationDeadline || i.deadline),
+        postedDate: formatDate(i.createdAt),
         applyLink: `/internships/${i._id}`,
         isExclusive: true,
         isExternal: false,
@@ -951,7 +757,7 @@ async function getAggregatedOpportunities({
   };
 
   return {
-    source: "live-scrapers",
+    source: "database",
     count: combinedResults.length,
     data: combinedResults,
   };
@@ -973,8 +779,6 @@ function getFilterMetadata() {
     ],
     sources: [
       { id: "all", label: "All Sources" },
-      { id: "linkedin", label: "LinkedIn" },
-      { id: "internshala", label: "Internshala" },
       { id: "remotive", label: "Remotive Remote" },
       { id: "arbeitnow", label: "Arbeitnow Global" },
       { id: "campus", label: "GU Campus Drives" },
@@ -998,10 +802,7 @@ module.exports = {
   SPECIALIZATION_KEYWORD_MAP,
   INDIAN_GEO_KEYWORDS,
   CAMPUS_DRIVES,
-  scrapeLinkedIn,
-  scrapeInternshala,
-  fetchRemotiveJobs,
-  fetchArbeitnowJobs,
+  findStoredExternalOpportunities,
   getAggregatedOpportunities,
   getFilterMetadata,
   clearSearchCache,

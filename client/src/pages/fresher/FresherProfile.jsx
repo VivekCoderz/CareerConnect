@@ -120,14 +120,15 @@ const FresherProfile = () => {
   const [fieldErrors, setFieldErrors] = useState({});
 
   // ─── Profile State ────────────────────────────────────────────────────────
+  // Starts blank: nothing is filled in (or saved) that the fresher didn't enter.
   const [educationList, setEducationList] = useState([
     {
       qualificationType: "B.Tech",
-      degree: "B.Tech",
-      specialization: "Computer Science & Engineering",
+      degree: "",
+      specialization: "",
       institution: "",
-      startYear: 2022,
-      graduationYear: 2026,
+      startYear: "",
+      graduationYear: "",
       percentageOrCgpa: "",
     },
   ]);
@@ -149,18 +150,18 @@ const FresherProfile = () => {
   ]);
 
   // Skills
-  const [technicalSkills, setTechnicalSkills] = useState(["JavaScript", "React", "Node.js", "MongoDB", "Git"]);
-  const [softSkills, setSoftSkills] = useState(["Problem Solving", "Teamwork", "Communication"]);
-  const [primarySkills, setPrimarySkills] = useState(["JavaScript", "React"]);
+  const [technicalSkills, setTechnicalSkills] = useState([]);
+  const [softSkills, setSoftSkills] = useState([]);
+  const [primarySkills, setPrimarySkills] = useState([]);
   const [skillSearch, setSkillSearch] = useState("");
   const [customSkillInput, setCustomSkillInput] = useState("");
 
   // Career Preferences
-  const [targetRoles, setTargetRoles] = useState(["Full Stack Developer"]);
-  const [jobType, setJobType] = useState("Both"); // "Full Time", "Internship", "Both"
-  const [workModes, setWorkModes] = useState(["Remote", "Hybrid"]);
-  const [preferredLocations, setPreferredLocations] = useState(["Bangalore", "Pune", "Remote"]);
-  const [careerGoal, setCareerGoal] = useState("Get my first job");
+  const [targetRoles, setTargetRoles] = useState([]);
+  const [jobType, setJobType] = useState(""); // "Full Time", "Internship", "Both"; "" = not chosen
+  const [workModes, setWorkModes] = useState([]);
+  const [preferredLocations, setPreferredLocations] = useState([]);
+  const [careerGoal, setCareerGoal] = useState("");
   const [activelyLooking, setActivelyLooking] = useState(true);
 
   // ─── Fetch Existing Profile ───────────────────────────────────────────────
@@ -178,8 +179,8 @@ const FresherProfile = () => {
                 degree: e.degree || "",
                 specialization: e.specialization || "",
                 institution: e.institution || "",
-                startYear: e.startYear || 2022,
-                graduationYear: e.graduationYear || 2026,
+                startYear: e.startYear || "",
+                graduationYear: e.graduationYear || "",
                 percentageOrCgpa: e.percentageOrCgpa || "",
               }))
             );
@@ -275,8 +276,8 @@ const FresherProfile = () => {
         degree: "",
         specialization: "",
         institution: "",
-        startYear: new Date().getFullYear() - 4,
-        graduationYear: new Date().getFullYear(),
+        startYear: "",
+        graduationYear: "",
         percentageOrCgpa: "",
       },
     ]);
@@ -496,7 +497,7 @@ const FresherProfile = () => {
     setSaving(true);
     try {
       const payload = {
-        targetRole: targetRoles[0] || "Full Stack Developer",
+        targetRole: targetRoles[0] || "",
         targetRoles,
         careerGoal,
         activelyLooking,
@@ -524,7 +525,11 @@ const FresherProfile = () => {
           employmentTypes:
             jobType === "Both"
               ? ["Full-time", "Internship"]
-              : [jobType === "Full Time" ? "Full-time" : "Internship"],
+              : jobType === "Full Time"
+                ? ["Full-time"]
+                : jobType === "Internship"
+                  ? ["Internship"]
+                  : [],
           preferredLocations,
           workMode: workModes,
         },
@@ -742,7 +747,7 @@ const FresherProfile = () => {
                           type="text"
                           value={edu.institution}
                           onChange={(e) => handleEducationChange(idx, "institution", e.target.value)}
-                          placeholder="e.g. CareerConnect / ABC Institute"
+                          placeholder="e.g. E2Job / ABC Institute"
                           className={`w-full h-11 px-3.5 rounded-xl border bg-white text-sm outline-none focus:ring-2 ${
                             fieldErrors[`edu_${idx}_institution`]
                               ? "border-red-400 focus:ring-red-100"
@@ -1080,7 +1085,7 @@ const FresherProfile = () => {
                             type="text"
                             value={proj.title}
                             onChange={(e) => handleProjectChange(idx, "title", e.target.value)}
-                            placeholder="e.g. CareerConnect Job Portal, E-Commerce App"
+                            placeholder="e.g. E2Job Job Portal, E-Commerce App"
                             className={`w-full h-11 px-3.5 rounded-xl border bg-white text-sm outline-none focus:ring-2 ${
                               fieldErrors[`proj_${idx}_title`]
                                 ? "border-red-400 focus:ring-red-100"
@@ -1460,6 +1465,7 @@ const FresherProfile = () => {
                     onChange={(e) => setCareerGoal(e.target.value)}
                     className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100 font-medium text-slate-800"
                   >
+                    <option value="">Select a career goal</option>
                     {CAREER_GOALS.map((goal) => (
                       <option key={goal} value={goal}>
                         {goal}
@@ -1544,7 +1550,7 @@ const FresherProfile = () => {
               🎉
             </div>
             <h3 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Your CareerConnect profile is ready!
+              Your E2Job profile is ready!
             </h3>
             <p className="text-sm text-slate-500 mt-2 leading-relaxed">
               We’ll use your profile to personalize jobs, skills and career recommendations.

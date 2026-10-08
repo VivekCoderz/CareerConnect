@@ -289,7 +289,7 @@ const CourseDetailsPage = ({ id: propId, onBack, onEdit, onManageContent }) => {
         key: orderRes.keyId,
         amount: orderRes.amount,
         currency: orderRes.currency || "INR",
-        name: "CareerConnect",
+        name: "E2Job",
         description: `Enrollment: ${course.title}`,
         image: "/favicon.svg",
         order_id: orderRes.orderId,

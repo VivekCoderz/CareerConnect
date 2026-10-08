@@ -106,7 +106,7 @@ const OrganizationRequestPage = () => {
               GU
             </div>
             <div className="leading-tight">
-              <span className="text-sm font-black text-[#1e3a8a] tracking-tight">CareerConnect</span>
+              <span className="text-sm font-black text-[#1e3a8a] tracking-tight">E2Job</span>
               <p className="text-[10px] font-bold text-[#f59e0b] tracking-wider uppercase">Organizations</p>
             </div>
           </Link>
@@ -141,7 +141,7 @@ const OrganizationRequestPage = () => {
               Request Organization Access
             </h1>
             <p className="mt-2 text-xs sm:text-sm text-slate-500">
-              Partner with CareerConnect to hire top verified talent, launch internships, and streamline your recruitment pipeline.
+              Partner with E2Job to hire top verified talent, launch internships, and streamline your recruitment pipeline.
             </p>
           </div>
 
@@ -153,7 +153,7 @@ const OrganizationRequestPage = () => {
               </div>
               <h2 className="text-xl font-bold text-slate-900">Request Submitted Successfully!</h2>
               <p className="mt-2 text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
-                Thank you for your interest in CareerConnect. Your organization access request has been placed in our review queue.
+                Thank you for your interest in E2Job. Your organization access request has been placed in our review queue.
               </p>
               <div className="mt-6 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left max-w-md mx-auto space-y-2 text-xs">
                 <div className="flex justify-between">
@@ -424,7 +424,7 @@ const OrganizationRequestPage = () => {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Reason for using CareerConnect <span className="text-rose-500">*</span>
+                        Reason for using E2Job <span className="text-rose-500">*</span>
                       </label>
                       <textarea
                         name="reason"

@@ -20,8 +20,8 @@ const CandidateOfferResponseModal = ({
   if (!isOpen || !offer) return null;
 
   const candidateName = offer.candidateId?.fullName || "Candidate";
-  const salary = offer.salary ? `₹${offer.salary.toLocaleString()} ${offer.salaryPeriod || "Per Annum"}` : "Competitive";
-  const joiningDate = offer.joiningDate ? new Date(offer.joiningDate).toLocaleDateString("en-IN") : "Immediate";
+  const salary = offer.salary ? `₹${offer.salary.toLocaleString()} ${offer.salaryPeriod || "Per Annum"}` : "Not specified";
+  const joiningDate = offer.joiningDate ? new Date(offer.joiningDate).toLocaleDateString("en-IN") : "Not specified";
   const expiryDate = offer.expiryDate ? new Date(offer.expiryDate).toLocaleDateString("en-IN") : "Shortly";
 
   const isResponded = ["Accepted", "Rejected"].includes(offer.status);
@@ -97,7 +97,7 @@ const CandidateOfferResponseModal = ({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold text-slate-900">{offer.designation}</span>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200">
-                  {offer.employmentType || "Full-time"}
+                  {offer.employmentType || "Not specified"}
                 </span>
               </div>
 
@@ -108,7 +108,7 @@ const CandidateOfferResponseModal = ({
                 </div>
                 <div>
                   <span className="text-[11px] text-slate-400 block">Work Location</span>
-                  <span className="font-bold text-slate-900">{offer.location || "Hybrid"}</span>
+                  <span className="font-bold text-slate-900">{offer.location || "Not specified"}</span>
                 </div>
                 <div>
                   <span className="text-[11px] text-slate-400 block">Expected Joining</span>
@@ -279,7 +279,7 @@ const CandidateOfferResponseModal = ({
         isOpen={showFullLetter}
         onClose={() => setShowFullLetter(false)}
         offer={offer}
-        companyName={offer.employerId?.companyName || "CareerConnect Partner"}
+        companyName={offer.employerId?.companyName || ""}
       />
     </>
   );

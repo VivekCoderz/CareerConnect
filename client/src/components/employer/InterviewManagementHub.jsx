@@ -24,6 +24,7 @@ import {
 import recruitmentService from "../../services/recruitmentService";
 import InterviewScheduleModal from "./InterviewScheduleModal";
 import InterviewCancelModal from "./InterviewCancelModal";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 const TABS = [
   { id: "All", label: "All" },
@@ -802,7 +803,7 @@ const InterviewManagementHub = ({
                         {/* Join Meeting link if online and scheduled */}
                         {isScheduledOrRescheduled && meetingLink && (
                           <a
-                            href={meetingLink}
+                            href={safeHttpUrl(meetingLink)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-full text-left px-3 py-1.5 hover:bg-blue-50 text-blue-700 font-medium flex items-center gap-2 transition"
@@ -970,7 +971,7 @@ const InterviewManagementHub = ({
                             {meetingLink}
                           </span>
                           <a
-                            href={meetingLink}
+                            href={safeHttpUrl(meetingLink)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1 transition"

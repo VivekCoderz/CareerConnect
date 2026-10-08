@@ -346,9 +346,6 @@
     }
   },
   "src/components/employer/OfferLetterPreviewModal.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    },
     "react-hooks/purity": {
       "count": 1
     }
@@ -369,10 +366,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 2
-    },
-    "react-hooks/purity": {
-      "count": 2
+      "count": 1
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -434,14 +428,6 @@
   },
   "src/components/notifications/NotificationInboxDrawer.jsx": {
     "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/components/professional-dashboard/CareerCompanyInsights.jsx": {
-    "no-unused-vars": {
-      "count": 2
-    },
-    "react-hooks/set-state-in-effect": {
       "count": 1
     }
   },
@@ -778,9 +764,6 @@
     "max-lines": {
       "count": 1
     },
-    "no-undef": {
-      "count": 66
-    },
     "no-unused-vars": {
       "count": 5
     },
@@ -811,9 +794,6 @@
     "no-unused-vars": {
       "count": 20
     },
-    "react-hooks/rules-of-hooks": {
-      "count": 32
-    },
     "react-hooks/set-state-in-effect": {
       "count": 2
     }
@@ -822,9 +802,6 @@
     "no-unused-vars": {
       "count": 7
     },
-    "react-hooks/rules-of-hooks": {
-      "count": 14
-    },
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
@@ -832,9 +809,6 @@
   "src/pages/admin/AdminCompanyProfile.jsx": {
     "no-unused-vars": {
       "count": 5
-    },
-    "react-hooks/rules-of-hooks": {
-      "count": 8
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -931,9 +905,6 @@
   },
   "src/pages/auth/Signup.jsx": {
     "max-lines": {
-      "count": 1
-    },
-    "no-undef": {
       "count": 1
     },
     "no-unused-vars": {
@@ -1108,7 +1079,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 4
+      "count": 2
     },
     "react-hooks/set-state-in-effect": {
       "count": 1

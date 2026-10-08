@@ -2,6 +2,7 @@ import JourneyLoader from "../common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import recruitmentService from "../../services/recruitmentService";
 import { openResume } from "../../utils/resumeAccess";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 const InterviewDetailsModal = ({
   isOpen,
@@ -168,7 +169,7 @@ const InterviewDetailsModal = ({
                         {candidate?.fullName || application?.studentName || "Candidate"}
                       </h4>
                       <span className="text-[11px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                        {candidate?.userType || "Student"}
+                        {candidate?.userType || "Not provided"}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 mt-1 font-medium">
@@ -281,7 +282,7 @@ const InterviewDetailsModal = ({
 
                   {!isCancelled && interview?.meetingLink ? (
                     <a
-                      href={interview.meetingLink}
+                      href={safeHttpUrl(interview.meetingLink)}
                       target="_blank"
                       rel="noreferrer"
                       className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5"

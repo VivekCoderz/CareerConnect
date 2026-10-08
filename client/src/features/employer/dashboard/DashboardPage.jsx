@@ -18,6 +18,7 @@ const DashboardPage = ({
   onPostInternship,
   postingDisabled = false,
   onViewApplications,
+  onViewJobApplications,
   onScheduleInterview,
   onViewPipeline,
   onCandidateClick,
@@ -179,7 +180,9 @@ const DashboardPage = ({
             onPostJob={onPostJob}
             postingDisabled={postingDisabled}
             onViewJob={onJobClick}
-            onViewJobApplications={(jobId) => onNavigate?.(`/jobs/${jobId}/applications`)}
+            onViewJobApplications={(jobId) =>
+              onViewJobApplications ? onViewJobApplications(jobId) : onViewApplications?.()
+            }
             onViewAllJobs={onViewAllJobs}
           />
         </div>

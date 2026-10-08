@@ -1,4 +1,4 @@
-const { normalizeSkill, splitOtherSkills, normalizedSkillSet } = require("../../../utils/skills");
+const { normalizeSkill, splitOtherSkills, normalizedSkillSet, mergeSkillStrings } = require("../../../utils/skills");
 const { analyzeSkillGap } = require("../../../controllers/studentController");
 
 describe("skill helpers (T02, T03)", () => {
@@ -40,5 +40,37 @@ describe("skill helpers (T02, T03)", () => {
 
   it("builds a set of normalised names", () => {
     expect(normalizedSkillSet(["React.js", "", null]).has("react")).toBe(true);
+  });
+});
+
+describe("mergeSkillStrings (Q08)", () => {
+  it("does not duplicate a student's existing skills, even under another spelling", () => {
+    const existing = ["React.js", "Node.js", "MongoDB"];
+
+    const merged = mergeSkillStrings(existing, ["react", "NodeJS", "mongodb", "Express", "express.js"]);
+
+    expect(merged).toEqual(["React.js", "Node.js", "MongoDB", "Express"]);
+  });
+
+  it("keeps a fresher's existing { name } skills and adds only new ones as { name }", () => {
+    const existing = [{ name: "JavaScript", proficiency: "Advanced" }, { name: "Git", proficiency: "Beginner" }];
+
+    const merged = mergeSkillStrings(existing, ["javascript", "JS", "Docker", "git"], { asObjects: true });
+
+    expect(merged).toEqual([
+      { name: "JavaScript", proficiency: "Advanced" },
+      { name: "Git", proficiency: "Beginner" },
+      { name: "Docker" },
+    ]);
+  });
+
+  it("returns { name } items for a professional with no skills yet", () => {
+    expect(mergeSkillStrings([], ["Python", " ", "python"], { asObjects: true })).toEqual([{ name: "Python" }]);
+  });
+
+  it("does not change the existing array", () => {
+    const existing = ["SQL"];
+    mergeSkillStrings(existing, ["Java"]);
+    expect(existing).toEqual(["SQL"]);
   });
 });

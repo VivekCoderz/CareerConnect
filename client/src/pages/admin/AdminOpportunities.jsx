@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { Link, useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/admin/AdminLayout";
+import PostForEmployerModal from "../../components/admin/PostForEmployerModal";
+import { useSelector } from "react-redux";
 import {
   getAdminOpportunities,
   getAdminOpportunitiesCompanies,
@@ -111,6 +113,10 @@ const AdminOpportunities = () => {
   }, []);
 
   // Fetch opportunities from server with all filters & real stats
+  const { user: adminUser } = useSelector((state) => state.auth);
+  const isSuperAdmin = adminUser?.role === "SUPER_ADMIN" || (adminUser?.role === "admin" && !adminUser?.companyId);
+  const [showPostForEmployer, setShowPostForEmployer] = useState(false);
+
   const fetchOpportunities = useCallback(
     async (page = 1) => {
       setLoading(true);
@@ -331,6 +337,11 @@ const AdminOpportunities = () => {
 
   return (
     <AdminLayout onRefresh={() => fetchOpportunities(pagination.page)} isRefreshing={loading}>
+      <PostForEmployerModal
+        open={showPostForEmployer}
+        onClose={() => setShowPostForEmployer(false)}
+        onPosted={() => fetchOpportunities(1)}
+      />
       <div className="space-y-6">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -348,6 +359,15 @@ const AdminOpportunities = () => {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => setShowPostForEmployer(true)}
+                className="px-3.5 py-2 text-xs font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-xs transition cursor-pointer"
+              >
+                + Post for an employer
+              </button>
+            )}
             <button
               type="button"
               onClick={() => fetchOpportunities(pagination.page)}

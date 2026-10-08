@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
 
 const CareerSnapshotCard = ({
-  currentRole = "Senior Software Engineer",
-  experience = "4+ Years",
-  targetRole = "Engineering Lead / Staff Engineer",
+  currentRole = "Not set yet",
+  experience = "Not set yet",
+  targetRole = "Not set yet",
   onUpdateProfile,
 }) => {
   return (

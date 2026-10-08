@@ -1,6 +1,7 @@
 import axios from "axios";
 import { store } from "../redux/store";
 import { logout, setSessionExpired } from "../redux/features/authSlice";
+import { reportApiError } from "../monitoring/sentry";
 
 const PUBLIC_PREFIXES = [
   "/home", "/login", "/admin/login", "/register", "/forgot-password",
@@ -29,7 +30,7 @@ api.interceptors.request.use(
 /**
  * Response interceptor — handles 401 Unauthorized globally.
  *
- * When the CareerConnect JWT expires or becomes invalid:
+ * When the E2Job JWT expires or becomes invalid:
  *   1. Redux auth state is cleared (logout)
  *   2. sessionExpired flag is set (shows friendly message on Login page)
  *   3. Browser is redirected to /login?expired=1
@@ -85,6 +86,9 @@ api.interceptors.response.use(
         new CustomEvent("rate_limit_alert", { detail: alertPayload })
       );
     }
+
+    // Server errors (5xx) and requests with no response go to Sentry (I08).
+    reportApiError(error);
 
     return Promise.reject(error);
   }

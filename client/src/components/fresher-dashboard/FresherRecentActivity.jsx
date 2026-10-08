@@ -12,7 +12,7 @@ const ACTIVITY_ICONS = {
 };
 
 const STATIC_ACTIVITIES = [
-  { id: "a1", type: "profile", title: "Profile Created", subtitle: "Welcome to CareerConnect! Complete your profile.", timestamp: "Today" },
+  { id: "a1", type: "profile", title: "Profile Created", subtitle: "Welcome to E2Job! Complete your profile.", timestamp: "Today" },
   { id: "a2", type: "resume", title: "Upload Your Resume", subtitle: "Add a resume to apply faster to jobs.", timestamp: "Pending" },
   { id: "a3", type: "skill", title: "Add Your Skills", subtitle: "Help recruiters find you for the right roles.", timestamp: "Pending" },
   { id: "a4", type: "project", title: "Showcase a Project", subtitle: "Demonstrate your work with a portfolio project.", timestamp: "Pending" },

@@ -18,7 +18,7 @@ const HiringAnalyticsChart = ({ hiring = {} }) => {
           <p className="text-xs text-slate-500">Applicant progression from application to hire</p>
         </div>
         <div className="text-right">
-          <span className="text-xs font-bold text-slate-900">{hiring.averageTimeToHireDays || 18} Days</span>
+          <span className="text-xs font-bold text-slate-900">{hiring.averageTimeToHireDays != null ? `${hiring.averageTimeToHireDays} Days` : "—"}</span>
           <p className="text-[10px] text-slate-400">Avg. Time to Hire</p>
         </div>
       </div>
