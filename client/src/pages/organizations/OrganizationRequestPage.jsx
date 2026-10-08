@@ -332,7 +332,7 @@ const OrganizationRequestPage = () => {
                           name="phone"
                           value={formData.phone}
                           onChange={handleChange}
-                          placeholder="+91 98765 43210"
+                          placeholder="Enter your phone number"
                           className="w-full pl-9 pr-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                           required
                         />
