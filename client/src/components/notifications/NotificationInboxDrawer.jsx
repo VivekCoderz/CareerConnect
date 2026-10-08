@@ -21,11 +21,11 @@ const NotificationInboxDrawer = ({
     return notifications.filter((n) => n.category === selectedCategory);
   }, [notifications, selectedCategory]);
 
+  // The parent returns true when it navigated to the notification's page; otherwise the
+  // full message opens here (BUG-003/004).
   const handleOpenMail = (notification) => {
-    setActiveMail(notification);
-    if (onNotificationClick) {
-      onNotificationClick(notification);
-    }
+    const navigated = onNotificationClick ? onNotificationClick(notification) : false;
+    if (!navigated) setActiveMail(notification);
   };
 
   const handleRequestAiRecommendation = async () => {
@@ -40,7 +40,20 @@ const NotificationInboxDrawer = ({
     }
   };
 
-  if (!isOpen) return null;
+  // The reader stays mounted when the drawer closes, so opening a message does not lose it.
+  const reader = (
+    <MailNotificationModal
+      notification={activeMail}
+      isOpen={!!activeMail}
+      onClose={() => setActiveMail(null)}
+      onDelete={(id) => {
+        if (onDeleteNotification) onDeleteNotification(id);
+        setActiveMail(null);
+      }}
+    />
+  );
+
+  if (!isOpen) return reader;
 
   return (
     <>
@@ -216,15 +229,7 @@ const NotificationInboxDrawer = ({
       </div>
 
       {/* Full Mail Reader Modal */}
-      <MailNotificationModal
-        notification={activeMail}
-        isOpen={!!activeMail}
-        onClose={() => setActiveMail(null)}
-        onDelete={(id) => {
-          if (onDeleteNotification) onDeleteNotification(id);
-          setActiveMail(null);
-        }}
-      />
+      {reader}
     </>
   );
 };
