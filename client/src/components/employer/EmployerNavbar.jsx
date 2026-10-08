@@ -67,7 +67,8 @@ const EmployerNavbar = ({
     let live = true;
     getEmployerDashboard()
       .then((res) => { if (live && res?.success) setLoaded(res); })
-      .catch(() => {});
+      // Without the data the navbar shows the logged-in user's details instead.
+      .catch(() => { if (live) setLoaded(null); });
     return () => { live = false; };
   }, [standalone]);
   const profile = (standalone ? loaded?.profile : profileProp) || {};
