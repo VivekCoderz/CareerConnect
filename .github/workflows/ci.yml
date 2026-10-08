@@ -67,6 +67,7 @@ jobs:
     name: Server tests and audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     env:
       CI: true
       NODE_ENV: test
@@ -75,6 +76,7 @@ jobs:
       CLIENT_URL: http://localhost:5173
       MONGOMS_DOWNLOAD_DIR: /home/runner/.cache/mongodb-binaries
       MONGOMS_VERSION: 8.2.6
+      NODE_OPTIONS: --max-old-space-size=4096
 
     steps:
       - name: Check out repository
@@ -116,5 +118,5 @@ jobs:
         timeout-minutes: 5
 
       - name: Run complete server test suite
-        run: npm test -- --ci
+        run: npm test -- --ci --runInBand
         working-directory: server
