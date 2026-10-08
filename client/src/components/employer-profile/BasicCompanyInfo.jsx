@@ -190,7 +190,7 @@ const BasicCompanyInfo = ({
             name="mobile"
             value={formData.mobile || ""}
             onChange={handleChange}
-            placeholder="+91 98765 43210"
+            placeholder="Enter your phone number"
             className={inputClass("mobile")}
           />
           {fieldErrors.mobile && (
