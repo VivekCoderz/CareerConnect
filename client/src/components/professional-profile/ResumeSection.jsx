@@ -119,7 +119,7 @@ const ResumeSection = ({ profile, user, onChange }) => {
             </div>
             <div className="text-xs text-slate-600 mt-3 sm:mt-0 sm:text-right space-y-0.5 font-medium">
               <p>{user?.email || profile?.userId?.email || "email@example.com"}</p>
-              <p>{user?.phone || profile?.userId?.phone || "+91 98765 43210"}</p>
+              <p>{user?.phone || profile?.userId?.phone || "Enter your phone number"}</p>
               <p>{profile?.location?.city || "Bangalore"}, {profile?.location?.country || "India"}</p>
             </div>
           </div>

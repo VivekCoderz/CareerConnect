@@ -46,7 +46,7 @@ const ResumeSection = ({ profile, user, onChange }) => {
   // Compile full user and profile data for the live ATS Resume
   const fullName = user?.fullName || profile?.userId?.fullName || "Candidate Name";
   const email = user?.email || profile?.userId?.email || "candidate@example.com";
-  const phone = user?.phone || profile?.userId?.phone || "+91 98765 43210";
+  const phone = user?.phone || profile?.userId?.phone || "Enter your phone number";
   const city = profile?.location?.city || "Bangalore";
   const state = profile?.location?.state || "India";
   const headline = profile?.professionalHeadline || "Computer Science Graduate | Software Engineer";

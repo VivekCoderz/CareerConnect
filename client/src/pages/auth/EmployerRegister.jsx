@@ -17,6 +17,7 @@ import api from "../../api/api";
 import { getCaptchaToken } from "../../utils/captcha";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
+import PhoneInput from "../../components/common/PhoneInput";
 import { TERMS_VERSION } from "../../config/legal";
 
 // ======================================================
@@ -148,6 +149,7 @@ const EmployerRegister = () => {
   const [formData, setFormData] = useState({
     companyName: "",
     email: "",
+    countryCode: "+91",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -221,8 +223,15 @@ const EmployerRegister = () => {
     const cleanPhone = formData.phone.replace(/\D/g, "");
     if (!formData.phone.trim()) {
       errors.phone = "Mobile number is required";
-    } else if (!/^[6-9]\d{9}$/.test(cleanPhone.slice(-10)) || cleanPhone.length < 10) {
-      errors.phone = "Please enter a valid 10-digit mobile number";
+    } else if (
+      formData.countryCode === "+91"
+        ? !/^[6-9]\d{9}$/.test(cleanPhone)
+        : cleanPhone.length < 6 || cleanPhone.length > 15
+    ) {
+      errors.phone =
+        formData.countryCode === "+91"
+          ? "Please enter a valid 10-digit mobile number"
+          : "Please enter a valid mobile number (6-15 digits)";
     }
 
     if (!formData.password) {
@@ -633,6 +642,7 @@ const EmployerRegister = () => {
         companyName: formData.companyName.trim(),
         email: formData.email.trim().toLowerCase(),
         verificationToken,
+        countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
@@ -1024,21 +1034,24 @@ const EmployerRegister = () => {
 
                 {/* Phone */}
                 <div>
-
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
                     Mobile
                   </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+91 98765 43210"
-                    className={inputClass("phone")}
+                  <PhoneInput
+                    countryCode={formData.countryCode}
+                    onCountryCodeChange={(code) =>
+                      setFormData((prev) => ({ ...prev, countryCode: code }))
+                    }
+                    phone={formData.phone}
+                    onPhoneChange={(val) => {
+                      setFormData((prev) => ({ ...prev, phone: val }));
+                      if (fieldErrors.phone)
+                        setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
+                    error={fieldErrors.phone}
+                    placeholder="Enter your phone number"
+                    theme="amber"
                   />
-                  {fieldErrors.phone && (
-                    <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>
-                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
