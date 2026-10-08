@@ -9,30 +9,7 @@ import {
 } from "../../services/internshipService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import ModerationBadge from "../../components/employer/ModerationBadge";
-import { EMPTY_LISTING_FORM, listingFormError, experiencePayload } from "../../utils/listingForm";
-
-// Tech and non-tech roles; listings store free text, so older categories stay valid.
-const CATEGORY_OPTIONS = [
-  "Sales & Business Development",
-  "Banking, NBFC & Financial Services",
-  "Finance & Accounting",
-  "Human Resources (HR)",
-  "Marketing & Digital Marketing",
-  "Operations & Back Office",
-  "Customer Support / BPO",
-  "Teaching & Education",
-  "Web Development",
-  "Mobile App Development",
-  "Artificial Intelligence / ML",
-  "Data Science & Analytics",
-  "DevOps & Cloud Computing",
-  "Cybersecurity",
-  "UI/UX Design",
-  "Product Management",
-  "Business Development",
-  "General Engineering",
-  "Other",
-];
+import { EMPTY_LISTING_FORM, CATEGORY_OPTIONS, listingFormError, experiencePayload } from "../../utils/listingForm";
 
 const STAGE_TYPES = [
   "Resume Screening",
