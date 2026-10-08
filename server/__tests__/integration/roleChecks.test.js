@@ -4,6 +4,7 @@ const Application = require("../../models/Application");
 const EmployerProfile = require("../../models/EmployerProfile");
 const Internship = require("../../models/Internship");
 const { createTestJob } = require("../helpers/createTestJob");
+const { giveTestResume } = require("../helpers/createTestResume");
 const { createUserWithToken, createEmployerWithToken } = require("../helpers/createTestUser");
 
 const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
@@ -20,6 +21,8 @@ describe("candidate-only role checks (S08)", () => {
   beforeEach(async () => {
     candidate = await createUserWithToken({ email: "role-student@example.com" });
     fresher = await createUserWithToken({ email: "role-fresher@example.com", userType: "fresher" });
+    await giveTestResume(candidate.user);
+    await giveTestResume(fresher.user);
     employer = await createEmployerWithToken({ email: "role-employer@example.com" });
     // userType defaults to "student"; an admin role must still not count as a candidate.
     companyAdmin = await createUserWithToken({ email: "role-company-admin@example.com", role: "COMPANY_ADMIN" });

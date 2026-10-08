@@ -174,9 +174,10 @@ export default function JobDetailPage() {
       navigate(`/login?redirect=${encodeURIComponent(location.pathname)}`);
       return;
     }
+    if (applying) return;
     setApplying(true);
     try {
-      const res = await applyToOpportunity(job, "Job");
+      const res = await applyToOpportunity(job, "Job", user);
       if (res.external) {
         if (!res.opened) showToast("This listing has no apply link.", "error");
         return;
@@ -186,7 +187,8 @@ export default function JobDetailPage() {
         showToast(res.message || `Application submitted for "${job.title}"!`);
       }
     } catch (err) {
-      const msg = err.response?.data?.message || "Application could not be submitted.";
+      // Errors without a response come from the resume check before the request.
+      const msg = err.response?.data?.message || (!err.response && err.message) || "Application could not be submitted.";
       if (/already applied/i.test(msg)) markApplied();
       showToast(msg, "error");
     } finally {

@@ -11,6 +11,7 @@ import { applyToInternship, applyToJob } from "../../services/applicationService
 import ResumePreview from "./ResumePreview";
 import { RESUME_TEMPLATES } from "../../data/templates";
 import { openResume } from "../../utils/resumeAccess";
+import { resumeRequiredMessage } from "../../utils/opportunityApply";
 
 export default function TailoredResumeApplicationModal({
   isOpen,
@@ -263,6 +264,7 @@ export default function TailoredResumeApplicationModal({
   // Final Application Submission
   const handleSubmitApplication = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError("");
 
     let finalResumeUrl = "";
@@ -275,7 +277,7 @@ export default function TailoredResumeApplicationModal({
     } else {
       finalResumeUrl = selectedOwnResume?.resumeUrl;
       if (!finalResumeUrl) {
-        setError("Please select or upload a resume to submit with your application.");
+        setError(resumeRequiredMessage(effectiveOppType));
         return;
       }
     }

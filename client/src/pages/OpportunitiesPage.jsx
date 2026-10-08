@@ -25,6 +25,7 @@ import {
   getMyApplications,
 } from "../services/applicationService";
 import ResumeUploadInput from "../components/common/ResumeUploadInput";
+import { resumeRequiredMessage } from "../utils/opportunityApply";
 import BrandLogo from "../components/common/BrandLogo";
 import ViewDetailsButton from "../components/common/ViewDetailsButton";
 
@@ -941,6 +942,7 @@ export default function OpportunitiesPage() {
                   <ResumeUploadInput
                     value={appFormData.resumeUrl}
                     onChange={(url) => setAppFormData((p) => ({ ...p, resumeUrl: url }))}
+                    required={true}
                     label="Resume / CV"
                     helperText="Upload your resume document or paste a viewable link."
                   />
@@ -975,13 +977,18 @@ export default function OpportunitiesPage() {
                 type="button"
                 disabled={applying}
                 onClick={async () => {
+                  if (applying) return;
+                  const isIntern =
+                    selectedOpportunity.type === "internship" ||
+                    (selectedOpportunity.opportunityType &&
+                      selectedOpportunity.opportunityType.toLowerCase().includes("intern"));
+                  if (!appFormData.resumeUrl.trim()) {
+                    showToast(resumeRequiredMessage(isIntern ? "Internship" : "Job"), "error");
+                    return;
+                  }
                   try {
                     setApplying(true);
                     const oppId = selectedOpportunity._id;
-                    const isIntern =
-                      selectedOpportunity.type === "internship" ||
-                      (selectedOpportunity.opportunityType &&
-                        selectedOpportunity.opportunityType.toLowerCase().includes("intern"));
 
                     const payload = {
                       fullName: appFormData.fullName.trim(),
