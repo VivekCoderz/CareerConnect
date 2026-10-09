@@ -1,6 +1,6 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { FEATURES } from "../../config/features";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import jobService from "../../services/jobService";
@@ -86,6 +86,8 @@ const JobDiscoveryPage = () => {
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
+  // The search actually applied (on submit), so paging never picks up unsubmitted text.
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [selectedCity, setSelectedCity] = useState(cityParam ? normalizeCity(cityParam) : "All");
   const [selectedCategory, setSelectedCategory] = useState(categoryParam ? normalizeCategory(categoryParam) : "All");
   const [selectedWorkMode, setSelectedWorkMode] = useState(isWorkFromHome ? "Remote" : "All");
@@ -97,19 +99,27 @@ const JobDiscoveryPage = () => {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Sync state when URL params change
+  // Sync state when URL params change. The dropdowns navigate with fromFilters so the
+  // other filters stay applied (a city route has no category and vice versa); menu
+  // links and typed URLs start from the URL alone.
+  const fromFilters = Boolean(location.state?.fromFilters);
   useEffect(() => {
     if (cityParam) setSelectedCity(normalizeCity(cityParam));
-    else if (!pathname.includes("/in/")) setSelectedCity("All");
+    else if (!pathname.includes("/in/") && !fromFilters) setSelectedCity("All");
 
     if (categoryParam) setSelectedCategory(normalizeCategory(categoryParam));
-    else if (!pathname.includes("/category/")) setSelectedCategory("All");
+    else if (!pathname.includes("/category/") && !fromFilters) setSelectedCategory("All");
 
     if (isWorkFromHome) setSelectedWorkMode("Remote");
-  }, [pathname, cityParam, categoryParam, isWorkFromHome]);
+  }, [pathname, cityParam, categoryParam, isWorkFromHome, fromFilters]);
+
+  // Only the latest request may update the list, so a slow older response can't
+  // replace results for newer filters or another page.
+  const latestRequest = useRef(0);
 
   // Fetch Jobs
   const fetchJobs = async (pageToFetch = currentPage) => {
+    const requestId = ++latestRequest.current;
     try {
       setLoading(true);
       const params = {
@@ -118,13 +128,14 @@ const JobDiscoveryPage = () => {
         limit: 10,
       };
 
-      if (searchQuery.trim()) params.search = searchQuery.trim();
+      if (appliedSearch) params.search = appliedSearch;
       if (selectedCity !== "All") params.city = selectedCity;
       if (selectedCategory !== "All") params.category = selectedCategory;
       if (selectedWorkMode !== "All") params.workMode = selectedWorkMode;
       if (selectedEmpType !== "All") params.employmentType = selectedEmpType;
 
       const res = await jobService.getJobs(params);
+      if (requestId !== latestRequest.current) return;
       if (res?.success) {
         const jobList = res.jobs || res.data || [];
         setJobs(jobList);
@@ -133,19 +144,20 @@ const JobDiscoveryPage = () => {
         setTotalPages(res.pagination?.totalPages || Math.ceil(total / 10) || 1);
       }
     } catch (err) {
+      if (requestId !== latestRequest.current) return;
       console.error("Failed to load jobs:", err);
       setJobs([]);
       setTotalCount(0);
       setTotalPages(1);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     setCurrentPage(1);
     fetchJobs(1);
-  }, [selectedCity, selectedCategory, selectedWorkMode, selectedEmpType, sortBy]);
+  }, [appliedSearch, selectedCity, selectedCategory, selectedWorkMode, selectedEmpType, sortBy]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
@@ -157,8 +169,22 @@ const JobDiscoveryPage = () => {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    setCurrentPage(1);
-    fetchJobs(1);
+    const term = searchQuery.trim();
+    if (term !== appliedSearch) {
+      setAppliedSearch(term); // the filter effect refetches page 1
+    } else {
+      setCurrentPage(1);
+      fetchJobs(1);
+    }
+  };
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setAppliedSearch("");
+    setSelectedCity("All");
+    setSelectedCategory("All");
+    setSelectedWorkMode("All");
+    setSelectedEmpType("All");
   };
 
   // Quick Apply
@@ -347,9 +373,9 @@ const JobDiscoveryPage = () => {
                   const val = e.target.value;
                   setSelectedCategory(val);
                   if (val === "All") {
-                    if (pathname.includes("/category/")) navigate("/jobs");
+                    if (pathname.includes("/category/")) navigate("/jobs", { state: { fromFilters: true } });
                   } else {
-                    navigate(`/jobs/category/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+                    navigate(`/jobs/category/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, { state: { fromFilters: true } });
                   }
                 }}
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:border-blue-500"
@@ -373,9 +399,9 @@ const JobDiscoveryPage = () => {
                   const val = e.target.value;
                   setSelectedCity(val);
                   if (val === "All") {
-                    if (pathname.includes("/in/")) navigate("/jobs");
+                    if (pathname.includes("/in/")) navigate("/jobs", { state: { fromFilters: true } });
                   } else {
-                    navigate(`/jobs/in/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+                    navigate(`/jobs/in/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, { state: { fromFilters: true } });
                   }
                 }}
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:border-blue-500"
@@ -628,6 +654,7 @@ const JobDiscoveryPage = () => {
             <div className="pt-2">
               <Link
                 to="/jobs"
+                onClick={clearAllFilters}
                 className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-block shadow-xs transition"
               >
                 Explore All Jobs
