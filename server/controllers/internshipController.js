@@ -1,7 +1,7 @@
 // server/controllers/internshipController.js
 const mongoose = require("mongoose");
 const Internship = require("../models/Internship");
-const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
+const { getOwnerScope, listingOwnerClauses, companyListingFilter } = require("../utils/employerOwnership");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const { runExternalJobSync } = require("../services/externalJobSync");
@@ -164,10 +164,14 @@ exports.getInternships = async (req, res, next) => {
       region,
       live,
       feed,
+      company,
     } = req.query;
 
+    // One company's own internships, for its /companies/:id page (CC-01): never feed listings.
+    const forCompany = company !== undefined && myPosts !== "true";
+
     // Check if live external scraper / program matrix is requested
-    if (program || specialization || live === "true" || feed === "live") {
+    if (!forCompany && (program || specialization || live === "true" || feed === "live")) {
       try {
         const results = await getAggregatedOpportunities({
           program,
@@ -325,6 +329,13 @@ exports.getInternships = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Please narrow your search to view more results" });
     }
 
+    // Added last: the category filter above replaces filter.$and.
+    if (forCompany) {
+      const { invalid, clause } = await companyListingFilter(company);
+      if (invalid) return res.status(400).json({ success: false, message: "Invalid company id" });
+      filter.$and = [...(filter.$and || []), clause];
+    }
+
     // Candidates never see listings whose deadline has passed, even before the sweep closes them.
     if (myPosts !== "true") withOpenDeadline(filter);
     // Feed listings (isExternal) are added below as the external list, so they are not campus listings.
@@ -410,7 +421,7 @@ exports.getInternships = async (req, res, next) => {
 
     // 2. Fetch External Internships via Scraper Service (unless source is explicitly "campus" or myPosts is true)
     let externalList = [];
-    if (source !== "campus" && myPosts !== "true") {
+    if (source !== "campus" && myPosts !== "true" && !forCompany) {
       try {
         let scraped = await getAggregatedOpportunities({
           opportunityType: "internship",
