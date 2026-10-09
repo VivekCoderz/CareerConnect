@@ -321,6 +321,15 @@ const ResumeStatusCard = ({ resume, profile }) => {
 
             {/* Action buttons: Download PDF, Preview, Edit */}
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Link
+                to="/live-resume"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold rounded-xl shadow-2xs transition cursor-pointer"
+                title="View verified Live Web Resume"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Live Resume</span>
+              </Link>
+
               <button
                 type="button"
                 onClick={handleDownload}
