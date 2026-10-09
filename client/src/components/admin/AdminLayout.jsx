@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { setUser } from "../../redux/features/authSlice";
-import { searchAdminData, getAdminNotifications, adminLogout } from "../../services/adminService";
+import { getAdminNotifications, adminLogout } from "../../services/adminService";
 import BrandLogo from "../common/BrandLogo";
 import {
   LayoutDashboard,
@@ -12,14 +12,10 @@ import {
   FileSpreadsheet,
   BarChart3,
   Settings,
-  Search,
   Bell,
   LogOut,
   Menu,
   X,
-  ChevronRight,
-  ShieldCheck,
-  ExternalLink,
   Clock,
   Sparkles,
   RefreshCw,
@@ -42,45 +38,14 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
   };
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState(null);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
-
   const [notifications, setNotifications] = useState([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
-  const searchContainerRef = useRef(null);
   const notifContainerRef = useRef(null);
   const profileContainerRef = useRef(null);
-
-  // Debounced Search
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults(null);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const res = await searchAdminData(searchQuery);
-        if (res?.success) {
-          setSearchResults(res.results);
-          setSearchDropdownOpen(true);
-        }
-      } catch (err) {
-        console.error("Admin search error:", err);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   // Load Admin Notifications
   useEffect(() => {
@@ -101,9 +66,6 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
   // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
-        setSearchDropdownOpen(false);
-      }
       if (notifContainerRef.current && !notifContainerRef.current.contains(event.target)) {
         setNotificationsOpen(false);
       }
@@ -117,34 +79,16 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
 
   const isSuperAdmin = user?.role === "SUPER_ADMIN" || (user?.role === "admin" && !user?.companyId);
 
-  // Exact Section 12 Specification:
-  // SUPER_ADMIN: 9 items (incl. Employers verification)
-  // COMPANY_ADMIN: 7 items (No Companies or Company Admins)
-  const navItems = isSuperAdmin
-    ? [
-        { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
-        { label: "Companies", path: "/admin/companies", icon: Building2 },
-        { label: "Company Admins", path: "/admin/company-admins", icon: ShieldCheck },
-        { label: "Users", path: "/admin/users", icon: GraduationCap },
-        { label: "Employers", path: "/admin/employers", icon: Building2 },
-        { label: "Opportunities", path: "/admin/opportunities", icon: Briefcase },
-        { label: "Applications", path: "/admin/applications", icon: FileSpreadsheet },
-        { label: "Reports", path: "/admin/reports", icon: BarChart3 },
-        { label: "Settings", path: "/admin/settings", icon: Settings },
-      ]
-    : [
-        { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
-        { label: "Company", path: "/admin/company", icon: Building2 },
-        { label: "Users", path: "/admin/users", icon: GraduationCap },
-        { label: "Opportunities", path: "/admin/opportunities", icon: Briefcase },
-        { label: "Applications", path: "/admin/applications", icon: FileSpreadsheet },
-        { label: "Reports", path: "/admin/reports", icon: BarChart3 },
-        { label: "Settings", path: "/admin/settings", icon: Settings },
-      ];
-
-  const totalResultsCount = searchResults
-    ? Object.values(searchResults).reduce((acc, curr) => acc + (curr?.length || 0), 0)
-    : 0;
+  // FL-12: Company and Company Admin sections are hidden from admin dashboard navigation
+  const navItems = [
+    { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
+    { label: "Users", path: "/admin/users", icon: GraduationCap },
+    { label: "Employers", path: "/admin/employers", icon: Building2 },
+    { label: "Opportunities", path: "/admin/opportunities", icon: Briefcase },
+    { label: "Applications", path: "/admin/applications", icon: FileSpreadsheet },
+    { label: "Reports", path: "/admin/reports", icon: BarChart3 },
+    { label: "Settings", path: "/admin/settings", icon: Settings },
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
@@ -155,7 +99,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
           <button
             type="button"
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-            className="lg:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition"
+            className="lg:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition cursor-pointer"
             aria-label="Toggle menu"
           >
             {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -183,77 +127,6 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
           </Link>
         </div>
 
-        {/* Center: Global Search */}
-        <div ref={searchContainerRef} className="relative hidden md:block w-72 lg:w-96">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => {
-                if (searchResults) setSearchDropdownOpen(true);
-              }}
-              placeholder="Search users, jobs, employers, interviews..."
-              className="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition"
-            />
-            {isSearching && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
-          </div>
-
-          {/* Search Results Dropdown */}
-          {searchDropdownOpen && searchResults && (
-            <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden z-50 max-h-96 overflow-y-auto">
-              <div className="p-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-500">
-                <span>Search Results</span>
-                <span className="text-[11px] font-normal text-slate-400">{totalResultsCount} found</span>
-              </div>
-
-              {totalResultsCount === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400">
-                  No matching platform records found for "{searchQuery}"
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {Object.entries(searchResults).map(([category, items]) => {
-                    if (!items || items.length === 0) return null;
-                    return (
-                      <div key={category} className="p-2">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                          {category} ({items.length})
-                        </p>
-                        <div className="space-y-0.5">
-                          {items.map((item) => (
-                            <Link
-                              key={item.id}
-                              to={item.link || "#"}
-                              onClick={() => setSearchDropdownOpen(false)}
-                              className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition text-xs group"
-                            >
-                              <div className="truncate pr-2">
-                                <p className="font-semibold text-slate-800 group-hover:text-indigo-600 transition truncate">
-                                  {item.title}
-                                </p>
-                                <p className="text-[11px] text-slate-400 truncate">{item.subtitle}</p>
-                              </div>
-                              <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                                {item.badge}
-                              </span>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Right Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Refresh Action */}
@@ -263,7 +136,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
               onClick={onRefresh}
               disabled={isRefreshing}
               title="Synchronize Database Metrics"
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition"
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-indigo-600" : ""}`} />
             </button>
@@ -274,7 +147,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
             <button
               type="button"
               onClick={() => setNotificationsOpen(!notificationsOpen)}
-              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition"
+              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition cursor-pointer"
               aria-label="Admin notifications"
             >
               <Bell className="w-4 h-4" />
@@ -321,7 +194,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
             <button
               type="button"
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white transition"
+              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white transition cursor-pointer"
             >
               <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
                 {user?.fullName ? user.fullName[0].toUpperCase() : "A"}
@@ -364,8 +237,8 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
 
       {/* Main Shell: Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar for Desktop */}
-        <aside className="hidden lg:flex w-60 bg-white border-r border-slate-200/90 flex-col justify-between p-4">
+        {/* FL-10: Fixed Desktop Sidebar */}
+        <aside className="hidden lg:flex lg:fixed lg:top-16 lg:left-0 lg:bottom-0 lg:w-60 bg-white border-r border-slate-200/90 flex-col justify-between p-4 z-30 overflow-y-auto">
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
               Navigation
@@ -429,7 +302,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
                   <button
                     type="button"
                     onClick={() => setMobileSidebarOpen(false)}
-                    className="p-1 rounded-lg text-slate-400 hover:bg-slate-100"
+                    className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -468,13 +341,12 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
           </div>
         )}
 
-        {/* Main Workspace */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        {/* Main Workspace (offset by fixed sidebar on desktop) */}
+        <main className="flex-1 lg:pl-60 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 min-h-[calc(100vh-4rem)]">
           {children}
         </main>
       </div>
     </div>
   );
-};
-
+}
 export default AdminLayout;

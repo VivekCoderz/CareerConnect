@@ -148,4 +148,4 @@ const OpportunityOverview = ({ opportunities = {} }) => {
   );
 };
 
-export default OpportunityOverview;
+export default React.memo(OpportunityOverview);
