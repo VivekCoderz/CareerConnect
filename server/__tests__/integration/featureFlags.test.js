@@ -1,29 +1,29 @@
 const request = require("supertest");
-const { createUserWithToken } = require("../helpers/createTestUser");
+const jwt = require("jsonwebtoken");
 
 describe("Feature flags", () => {
   let app;
   let userToken;
 
-  beforeAll(async () => {
+  beforeAll(() => {
     // Save original env vars
     const originalEnv = { ...process.env };
-    
-    // Delete flags
-    delete process.env.ENABLE_COURSES;
-    delete process.env.ENABLE_PAYMENTS;
-    delete process.env.ENABLE_ASSESSMENTS;
+
+    // Explicitly set flags to "false" so that any internal dotenv.config() calls
+    // during require won't re-inject "true" from .env
+    process.env.ENABLE_COURSES = "false";
+    process.env.ENABLE_PAYMENTS = "false";
+    process.env.ENABLE_ASSESSMENTS = "false";
 
     // Load a fresh app
     jest.isolateModules(() => {
       app = require("../../app");
     });
 
-    // Create a test user for auth
-    const user = await createUserWithToken({ email: `featureflag-${Date.now()}@example.com` });
-    userToken = user.token;
+    const secret = process.env.JWT_SECRET || "test-secret-key-careerconnect-123";
+    userToken = jwt.sign({ id: "000000000000000000000001" }, secret, { expiresIn: "1h" });
 
-    // Restore flags so they don't break other tests
+    // Restore flags so they don't break subsequent test files
     process.env = originalEnv;
   });
 
@@ -32,7 +32,7 @@ describe("Feature flags", () => {
     "/api/course-content",
     "/api/payment/x",
     "/api/employer/learning",
-    "/api/assessments"
+    "/api/assessments",
   ];
 
   routes.forEach((route) => {
@@ -42,7 +42,9 @@ describe("Feature flags", () => {
     });
 
     it(`should return 404 for GET ${route} when flags are disabled (authenticated)`, async () => {
-      const res = await request(app).get(route).set("Cookie", `token=${userToken}`);
+      const res = await request(app)
+        .get(route)
+        .set("Cookie", `token=${userToken}`);
       expect(res.statusCode).toBe(404);
     });
   });

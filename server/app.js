@@ -155,7 +155,7 @@ app.use("/api/profile/fresher", fresherRoutes);
 app.use("/api/professional", professionalRoutes);
 app.use("/api/profile/professional", professionalRoutes);
 
-const flag = (name, defaultVal = true) =>
+const flag = (name, defaultVal = false) =>
   process.env[name] !== undefined ? String(process.env[name]).toLowerCase() === "true" : defaultVal;
 
 // Core LMS Course Routes
@@ -216,6 +216,11 @@ app.get("/health", (req, res) => {
     message: databaseConnected ? "E2Job backend is running" : "Database unavailable",
     timestamp: new Date().toISOString(),
   });
+});
+
+// 404 handler — must come after all routes so only unmatched requests reach it
+app.use((req, res) => {
+  return res.status(404).json({ success: false, message: "Not found" });
 });
 
 // Global error handling middleware
