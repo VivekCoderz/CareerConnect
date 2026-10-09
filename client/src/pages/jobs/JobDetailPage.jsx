@@ -10,23 +10,13 @@ import ReportListingButton from "../../components/common/ReportListingButton";
 import useSeo from "../../hooks/useSeo";
 import { buildJobPostingSchema, toJsonLd } from "../../utils/jobPostingSchema";
 import { isPastDeadline } from "../../utils/listingDeadline";
+import { formatPay } from "../../utils/listingPay";
 import BrandLogo from "../../components/common/BrandLogo";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
 const formatDate = (value) =>
   value ? new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
-
-const formatLakh = (n) => `₹${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 1)}L`;
-
-// Salary is shown only when the employer entered one.
-const formatPay = (job) => {
-  if (job.employmentType === "Internship" && job.stipend) return job.stipend;
-  const { min = 0, max = 0, isNegotiable } = job.salaryRange || {};
-  if (!min && !max) return null;
-  const range = min && max && min !== max ? `${formatLakh(min)} – ${formatLakh(max)}` : formatLakh(max || min);
-  return `${range} / yr${isNegotiable ? " (negotiable)" : ""}`;
-};
 
 const formatExperience = (exp) => {
   if (!exp) return null;

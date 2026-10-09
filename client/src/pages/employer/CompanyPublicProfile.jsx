@@ -1,9 +1,10 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getPublicCompanyProfile, getEmployerProfile } from "../../services/employerService";
+import { getPublicCompanyProfile, getPublicCompanyJobs, getEmployerProfile } from "../../services/employerService";
 import useSeo from "../../hooks/useSeo";
 import BrandLogo from "../../components/common/BrandLogo";
+import { formatPay } from "../../utils/listingPay";
 
 const CompanyPublicProfile = () => {
   const { companyId } = useParams();
@@ -42,6 +43,20 @@ const CompanyPublicProfile = () => {
   }, [companyId]);
 
   const isPreview = !companyId || companyId === "preview";
+
+  // Only this company's open jobs, filtered by the server (FL-02). Kept with the id they were
+  // loaded for, so another company's list never shows while the next one loads.
+  const [jobsResult, setJobsResult] = useState({ companyId: null, jobs: null, error: false });
+  useEffect(() => {
+    if (isPreview) return;
+    let cancelled = false;
+    getPublicCompanyJobs(companyId)
+      .then((res) => { if (!cancelled) setJobsResult({ companyId, jobs: res?.jobs || [], error: false }); })
+      .catch(() => { if (!cancelled) setJobsResult({ companyId, jobs: null, error: true }); });
+    return () => { cancelled = true; };
+  }, [companyId, isPreview]);
+  const jobs = jobsResult.companyId === companyId ? jobsResult.jobs : null;
+  const jobsError = jobsResult.companyId === companyId && jobsResult.error;
   const seoHq = company?.headquarters;
   const hqText = typeof seoHq === "string" ? seoHq : [seoHq?.city, seoHq?.state].filter(Boolean).join(", ");
   useSeo({
@@ -187,7 +202,8 @@ const CompanyPublicProfile = () => {
                 { id: "culture", label: "Culture & Perks" },
                 { id: "team", label: "Leadership & Team" },
                 { id: "hiring", label: "Hiring Criteria" },
-                // "Open Positions" is hidden until the jobs API can list one company's real openings.
+                // The employer's own preview has no public job list.
+                ...(isPreview ? [] : [{ id: "jobs", label: jobs ? `Open Positions (${jobs.length})` : "Open Positions" }]),
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -459,6 +475,52 @@ const CompanyPublicProfile = () => {
                   ))}
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 5: Open Positions */}
+        {activeTab === "jobs" && (
+          <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-4">
+            <h3 className="text-base font-bold text-slate-900">
+              Open Positions at {company.companyName}
+            </h3>
+
+            {jobsError ? (
+              <p className="text-xs text-slate-500">Couldn't load open positions. Please try again later.</p>
+            ) : jobs === null ? (
+              <p className="text-xs text-slate-400">Loading open positions...</p>
+            ) : jobs.length === 0 ? (
+              <div className="text-center py-8 space-y-2">
+                <div className="text-3xl">📭</div>
+                <p className="text-sm font-semibold text-slate-700">No open positions right now</p>
+                <p className="text-xs text-slate-500">
+                  {company.companyName} has no jobs open at the moment. Check back later.
+                </p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {jobs.map((job) => {
+                  const pay = formatPay(job);
+                  const place = job.location || [job.city, job.state].filter(Boolean).join(", ");
+                  return (
+                    <li key={job._id}>
+                      <Link
+                        to={`/jobs/${job._id}`}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 py-3.5 px-2 -mx-2 rounded-xl hover:bg-slate-50 transition"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-900 wrap-break-word">{job.title}</p>
+                          <p className="text-xs text-slate-500">
+                            {[place, job.workMode, job.employmentType].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
+                        {pay && <span className="text-xs font-bold text-emerald-700 shrink-0">{pay}</span>}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
         )}
