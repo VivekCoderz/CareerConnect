@@ -176,14 +176,14 @@ const InternshalaDashboardRecommendations = ({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                Recommended For You
+                Latest For You
               </h2>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                {topJob || topInternship ? "Fresh picks for you" : "Check back for new picks"}
+                {topJob || topInternship ? "New on E2Job" : "Check back soon"}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Personalized matches curated according to your skills and branch
+              The newest openings you have not applied to yet
             </p>
           </div>
 
@@ -249,7 +249,7 @@ const InternshalaDashboardRecommendations = ({
                 {/* Header Badge Row */}
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    💼 JOB • #1 PICK
+                    💼 JOB • LATEST
                   </span>
                 </div>
 
@@ -403,7 +403,7 @@ const InternshalaDashboardRecommendations = ({
                 {/* Header Badge Row */}
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
-                    🎓 INTERNSHIP • #1 PICK
+                    🎓 INTERNSHIP • LATEST
                   </span>
                 </div>
 
@@ -560,7 +560,7 @@ const InternshalaDashboardRecommendations = ({
                 {/* Header Badge Row */}
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200">
-                    📚 COURSE • #1 PICK
+                    📚 COURSE • LATEST
                   </span>
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                     <span>★</span>

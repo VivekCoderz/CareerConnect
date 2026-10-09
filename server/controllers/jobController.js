@@ -312,9 +312,10 @@ exports.getJobById = async (req, res, next) => {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(404).json({ success: false, message: "Job not found" });
     }
+    // isPublished tells the job page whether /companies/:id will open (BUG-001).
     const job = await Job.findById(req.params.id).populate(
       "employerId",
-      "companyName logo headquarters industry description website"
+      "companyName logo headquarters industry description website isPublished"
     );
 
     const publiclyVisible = job && job.status === "Published" && !isListingExpired(job);
