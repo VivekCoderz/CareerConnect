@@ -3,6 +3,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
+import useLiveNotifications from "../../hooks/useLiveNotifications";
+import NotificationInbox from "../../components/notifications/NotificationInbox";
 import { useDispatch, useSelector } from "react-redux";
 import { FEATURES } from "../../config/features";
 import PostInternship from "./PostInternship";
@@ -69,6 +71,7 @@ const EmployerDashboard = () => {
     setAtsJobId("All");
     setActiveTab(tab);
   };
+  const inbox = useLiveNotifications(selectTab);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -999,6 +1002,7 @@ const EmployerDashboard = () => {
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           stats={stats}
+          unreadNotifications={inbox.unreadCount}
         />
 
         {/* Content Area */}
@@ -2429,6 +2433,20 @@ const EmployerDashboard = () => {
           {/* HELP & SUPPORT                                           */}
           {/* ======================================================== */}
           {safeActiveTab === "support" && <SupportTickets />}
+
+          {/* ======================================================== */}
+          {/* NOTIFICATIONS                                            */}
+          {/* ======================================================== */}
+          {safeActiveTab === "notifications" && (
+            <NotificationInbox
+              notifications={inbox.notifications}
+              unreadCount={inbox.unreadCount}
+              onNotificationClick={inbox.open}
+              onMarkAllRead={inbox.markAllRead}
+              onDeleteNotification={inbox.remove}
+              showCategories={false}
+            />
+          )}
 
           {/* ======================================================== */}
           {/* TAB 13: HIRING & TRAINING ANALYTICS                      */}

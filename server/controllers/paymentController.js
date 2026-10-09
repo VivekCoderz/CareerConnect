@@ -97,7 +97,7 @@ exports.createOrder = async (req, res) => {
           preview: `You have unlocked full access to ${course.title}.`,
           message: `Congratulations! You have successfully enrolled in ${course.title}. Start learning right now!`,
           category: "course_enrollment",
-          link: "/student/courses",
+          actionUrl: `/courses/${course._id}`,
         });
       } catch (notifErr) {
         console.warn("Non-blocking notification warning:", notifErr.message);
@@ -281,7 +281,7 @@ exports.verifyPayment = async (req, res) => {
         preview: `Your enrollment in ${course.title} is now active.`,
         message: `Your payment of ₹${course.price} for "${course.title}" was verified successfully. Order ID: ${razorpayOrderId}`,
         category: "payment",
-        link: "/student/courses",
+        actionUrl: `/courses/${course._id}`,
       });
     } catch (notifErr) {
       console.warn("Non-blocking notification warning:", notifErr.message);

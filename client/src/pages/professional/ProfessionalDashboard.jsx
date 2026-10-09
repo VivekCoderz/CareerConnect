@@ -4,6 +4,7 @@ import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
+import useLiveNotifications from "../../hooks/useLiveNotifications";
 import { getProfessionalDashboardData } from "../../services/professionalDashboardService";
 import { getMyApplications } from "../../services/applicationService";
 import { openResume } from "../../utils/resumeAccess";
@@ -38,6 +39,7 @@ import StudentCoursesPage from "../courses/StudentCoursesPage";
 import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
 import CourseDetailsPage from "../courses/CourseDetailsPage";
 import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
+import NotificationInbox from "../../components/notifications/NotificationInbox";
 
 // The professional's real applications from GET /applications/me, shaped for the pipeline cards.
 const toPipelineItem = (app) => {
@@ -168,6 +170,8 @@ const ProfessionalDashboard = () => {
     }
     setMobileSidebarOpen(false);
   };
+
+  const inbox = useLiveNotifications(handleSelectTab);
 
   const handleLogout = () => {
     logout();
@@ -308,6 +312,7 @@ const ProfessionalDashboard = () => {
         onLogout={handleLogout}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+        unreadNotifications={inbox.unreadCount}
       />
 
       {/* Main Content Area */}
@@ -471,6 +476,17 @@ const ProfessionalDashboard = () => {
             <div className="animate-fade-in">
               <CandidateInterviewsView />
             </div>
+          )}
+
+          {/* ==================== NOTIFICATIONS ==================== */}
+          {activeTab === "notifications" && (
+            <NotificationInbox
+              notifications={inbox.notifications}
+              unreadCount={inbox.unreadCount}
+              onNotificationClick={inbox.open}
+              onMarkAllRead={inbox.markAllRead}
+              onDeleteNotification={inbox.remove}
+            />
           )}
 
           {/* Career Growth Dedicated Tab */}

@@ -3870,6 +3870,7 @@ exports.getAdminNotifications = async (req, res, next) => {
         title: `Report: ${r.reportType}`,
         message: r.details,
         type: "warning",
+        link: "/admin/reports",
         createdAt: r.createdAt,
       })),
       ...pendingOpportunities.map((j) => ({
@@ -3877,6 +3878,7 @@ exports.getAdminNotifications = async (req, res, next) => {
         title: `Pending Job Approval: ${j.title}`,
         message: `Opportunity posted for ${j.companyName}`,
         type: "info",
+        link: "/admin/opportunities",
         createdAt: j.createdAt,
       })),
     ];

@@ -408,11 +408,6 @@
       "count": 1
     }
   },
-  "src/components/notifications/NotificationInboxDrawer.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "src/components/professional-dashboard/CareerPathModal.jsx": {
     "no-unused-vars": {
       "count": 1
@@ -618,14 +613,6 @@
   "src/components/student-dashboard/CourseRecommendationsCard.jsx": {
     "no-unused-vars": {
       "count": 2
-    }
-  },
-  "src/components/student-dashboard/DashboardHeader.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 1
     }
   },
   "src/components/student-dashboard/JobRecommendationsCard.jsx": {

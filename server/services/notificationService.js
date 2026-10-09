@@ -7,6 +7,28 @@ const locationLine = (item) => {
   return where ? `**Location:** ${where}` : "";
 };
 
+const DASHBOARDS = {
+  student: "/student/dashboard",
+  fresher: "/fresher/dashboard",
+  professional: "/professional/dashboard",
+  employer: "/employer/dashboard",
+};
+const dashboardPath = (user) =>
+  DASHBOARDS[user?.userType] || (user?.role === "employer" ? DASHBOARDS.employer : DASHBOARDS.student);
+
+// Where clicking an in-app notification takes its recipient when the caller gives no link.
+const defaultActionUrl = (notificationType, user) => {
+  if (notificationType?.startsWith("INTERVIEW_")) return `${dashboardPath(user)}?tab=interviews`;
+  switch (notificationType) {
+    case "APPLICATION_STATUS": return "/applications";
+    // Candidates accept or decline offers on My Applications; employers track them on their dashboard.
+    case "OFFER": return dashboardPath(user) === DASHBOARDS.employer ? DASHBOARDS.employer : "/applications";
+    case "COMPANY_VERIFICATION":
+    case "LISTING_STATUS": return DASHBOARDS.employer;
+    default: return null;
+  }
+};
+
 // In-memory set of SSE client response streams: Map<userId, Set<res>>
 const sseClients = new Map();
 const locallyDelivered = new Map();
@@ -137,14 +159,14 @@ const createNotification = async ({
   notificationType = "GENERAL",
   relatedInterviewId = null,
   relatedApplicationId = null,
-  actionUrl = "",
+  actionUrl = null,
   metadata = {},
 }) => {
   try {
     if (!recipientId) return null;
 
     // Verify recipient exists
-    const recipient = await User.findById(recipientId).select("_id email fullName");
+    const recipient = await User.findById(recipientId).select("_id email fullName userType role");
     if (!recipient) return null;
 
     const notif = await Notification.create({
@@ -161,7 +183,7 @@ const createNotification = async ({
       category: "system",
       relatedInterviewId,
       relatedApplicationId,
-      actionUrl,
+      actionUrl: actionUrl || defaultActionUrl(notificationType, recipient),
       metadata,
     });
 
@@ -242,11 +264,12 @@ const createOpportunityNotification = async ({ type, item, sender = "E2Job Platf
     let content = "";
     let category = "job";
     let actionUrl = "/jobs";
+    const listingId = item._id ? String(item._id) : null;
     let actionText = "View Opportunity ›";
 
     if (type === "job") {
       category = "job";
-      actionUrl = `/jobs`;
+      actionUrl = listingId ? `/jobs/${listingId}` : "/jobs";
       actionText = "Apply For Job ›";
       title = `Hot Job Match: ${item.title} at ${sender}`;
       preview = `Exciting career opportunity for ${item.title}${item.salary ? ` (${item.salary})` : ""}. Apply now!`;
@@ -267,7 +290,7 @@ Don't wait—early applicants have a 3x higher interview rate. Click below to su
       `.trim();
     } else if (type === "internship") {
       category = "internship";
-      actionUrl = `/internships`;
+      actionUrl = listingId ? `/internships/${listingId}` : "/internships";
       actionText = "Apply For Internship ›";
       title = `New Internship Alert: ${item.title} at ${sender}`;
       preview = `New internship opportunity for ${item.title}${item.stipend ? ` (${item.stipend})` : ""}.`;
@@ -288,7 +311,7 @@ Submit your resume and statement of purpose before the deadline.
       `.trim();
     } else if (type === "course") {
       category = "course";
-      actionUrl = item._id ? `/courses/${item._id}` : `/courses`;
+      actionUrl = listingId ? `/courses/${listingId}` : "/courses";
       actionText = "Enroll In Course ›";
       title = `New Course Available: ${item.title}`;
       preview = `Master new skills with ${item.title} (${item.provider || "Geeta University Academy"}). Free enrollment!`;
@@ -319,7 +342,7 @@ Industry projects and completion certificate included. Start learning today!
       category,
       actionUrl,
       actionText,
-      relatedId: item._id ? String(item._id) : null,
+      relatedId: listingId,
       metadata: {
         company: sender,
         location: item.location,
@@ -338,100 +361,10 @@ Industry projects and completion certificate included. Start learning today!
   }
 };
 
-/**
- * Send an AI Recommendation Mail to a user
- */
-const sendAiRecommendationNotification = async ({
-  userId,
-  title,
-  preview,
-  content,
-  category = "ai_recommendation",
-  actionUrl = "/student/dashboard",
-  actionText = "View Recommendation ›",
-  metadata = {},
-}) => {
-  try {
-    const notification = await Notification.create({
-      recipient: userId,
-      recipientId: userId,
-      sender: "E2Job AI Assistant 🤖",
-      senderRole: "ai",
-      senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=E2JobAI",
-      title,
-      preview,
-      content,
-      category,
-      actionUrl,
-      actionText,
-      metadata,
-    });
-
-    broadcastRealtimeNotification(notification, userId);
-    return notification;
-  } catch (err) {
-    console.error("Failed to send AI recommendation notification:", err.message);
-    return null;
-  }
-};
-
-// Plain text only: the inbox shows content as-is, so markdown would appear as "**".
-// Keep every line true; nothing here may promise a feature the platform does not have.
-const WELCOME_CANDIDATE = `Welcome to E2Job.
-
-Here is how to get started:
-1. Complete your profile and upload your resume, so employers can see your skills.
-2. Browse Jobs and Internships and apply with one click.
-3. Track every application under My Applications. You will get a notification here when an employer updates it.
-4. Have a question about skills, your resume or interviews? Use the Ask AI button at the bottom-right of the page.
-
-E2Job Team`;
-
-const WELCOME_EMPLOYER = `Welcome to E2Job.
-
-Here is how to get started:
-1. Complete your company profile. Every company is verified by the E2Job team before its listings go live.
-2. Post a job or internship. It goes live once the E2Job team approves it.
-3. Review applicants in the ATS Pipeline and download the list from Export.
-
-Questions? Write to support@e2job.com.
-
-E2Job Team`;
-
-/**
- * Seed a welcome notification if the user's inbox is empty.
- * No actionUrl: opening it shows the full message instead of a link back to the same page.
- */
-const seedWelcomeNotificationsIfEmpty = async (userId, role = "user") => {
-  try {
-    const count = await Notification.countDocuments({
-      $or: [{ recipient: userId }, { recipientId: userId }, { recipient: null }],
-    });
-
-    if (count === 0) {
-      const isEmployer = role === "employer";
-      await Notification.create([
-        {
-          recipient: userId,
-          recipientId: userId,
-          sender: "E2Job Team",
-          senderRole: "system",
-          title: "Welcome to E2Job",
-          preview: isEmployer
-            ? "How to get started: company profile, posting jobs and reviewing applicants."
-            : "How to get started: your profile, jobs, applications and Ask AI.",
-          content: isEmployer ? WELCOME_EMPLOYER : WELCOME_CANDIDATE,
-          category: "system",
-          isRead: false,
-        },
-      ]);
-    }
-  } catch (err) {
-    console.warn("Could not seed welcome notifications:", err.message);
-  }
-};
-
 module.exports = {
+  DASHBOARDS,
+  dashboardPath,
+  defaultActionUrl,
   registerSseClient,
   broadcastRealtimeNotification,
   createNotification,
@@ -439,6 +372,4 @@ module.exports = {
   markAsRead,
   markAllAsRead,
   createOpportunityNotification,
-  sendAiRecommendationNotification,
-  seedWelcomeNotificationsIfEmpty,
 };

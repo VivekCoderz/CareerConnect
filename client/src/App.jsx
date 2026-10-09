@@ -23,6 +23,7 @@ const AdminOpportunities = lazyWithRetry(() => import("./pages/admin/AdminOpport
 const AdminApplications = lazyWithRetry(() => import("./pages/admin/AdminApplications"));
 const AdminReports = lazyWithRetry(() => import("./pages/admin/AdminReports"));
 const AdminSupportTickets = lazyWithRetry(() => import("./pages/admin/AdminSupportTickets"));
+const AdminNotifications = lazyWithRetry(() => import("./pages/admin/AdminNotifications"));
 const AdminSettings = lazyWithRetry(() => import("./pages/admin/AdminSettings"));
 const AdminSentryTest = lazyWithRetry(() => import("./pages/admin/AdminSentryTest"));
 
@@ -528,6 +529,7 @@ function AppRoutes() {
             <Route path="/admin/opportunities" element={<AdminOpportunities />} />
             <Route path="/admin/applications" element={<AdminApplications />} />
             <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/notifications" element={<AdminNotifications />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
           </Route>
 

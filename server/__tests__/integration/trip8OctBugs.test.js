@@ -1,7 +1,7 @@
 // Tripti's 8 Oct bugs.
 // BUG-001: the job page links to /companies/:id. Since CC-01 that page opens for unpublished
 // profiles too, showing only the basics until the showcase is published.
-// BUG-003/004: the welcome notification is plain text, has no same-page link and fits the role.
+// BUG-003/004: the old bell drawer is gone (CC-03/04); nothing is seeded into an empty inbox.
 jest.mock("../../utils/sendEmail", () => jest.fn().mockResolvedValue({ messageId: "test-message" }));
 const request = require("supertest");
 const app = require("../../app");
@@ -42,34 +42,11 @@ describe("BUG-001 company link on the job page", () => {
   });
 });
 
-describe("BUG-003/004 welcome notification", () => {
-  const welcomeFor = async (user) => {
-    const res = await as(user.token, "get", "/api/notifications");
+describe("BUG-003/004 notifications (CC-03/04: no seeded AI or welcome messages)", () => {
+  it("does not seed a welcome or AI message into an empty inbox", async () => {
+    const student = await createUserWithToken({ email: `${uniq("stu")}@candidate.test`, phone: phone(7) });
+    const res = await as(student.token, "get", "/api/notifications");
     expect(res.status).toBe(200);
-    return Notification.findOne({ recipient: user.user._id, title: "Welcome to E2Job" }).lean();
-  };
-
-  it("is plain text with no link back to the dashboard for a student", async () => {
-    const student = await createUserWithToken({ email: `${uniq("stu")}@candidate.test`, phone: phone(7) });
-    const welcome = await welcomeFor(student);
-    expect(welcome).toBeTruthy();
-    expect(welcome.content).not.toMatch(/\*\*/);
-    expect(welcome.content).not.toMatch(/RAG|Retrieval/);
-    expect(welcome.actionUrl || "").toBe("");
-    expect(welcome.content).toMatch(/My Applications/);
-  });
-
-  it("speaks to employers about posting and applicants", async () => {
-    const employer = await createEmployerWithToken({ email: `${uniq("hr")}@employer.test`, phone: phone(8) });
-    const welcome = await welcomeFor(employer);
-    expect(welcome.content).toMatch(/Post a job or internship/);
-    expect(welcome.content).not.toMatch(/Ask AI/);
-  });
-
-  it("is created once", async () => {
-    const student = await createUserWithToken({ email: `${uniq("stu")}@candidate.test`, phone: phone(7) });
-    await welcomeFor(student);
-    await welcomeFor(student);
-    expect(await Notification.countDocuments({ recipient: student.user._id, title: "Welcome to E2Job" })).toBe(1);
+    expect(await Notification.countDocuments({ recipient: student.user._id })).toBe(0);
   });
 });
