@@ -12,6 +12,7 @@ import useSeo from "../../hooks/useSeo";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import BrandLogo from "../../components/common/BrandLogo";
+import { getDashboardPath } from "../../utils/dashboardRedirect";
 
 const CATEGORIES_LIST = [
   "Software Development",
@@ -282,6 +283,17 @@ const JobDiscoveryPage = () => {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1 space-y-6">
+        {/* Signed-in users get a way back to their own dashboard; visitors have none. */}
+        {user && (
+          <Link
+            to={getDashboardPath(user.userType || user.role, user)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition shadow-2xs"
+          >
+            <span aria-hidden="true">←</span>
+            <span>Back to Dashboard</span>
+          </Link>
+        )}
+
         {/* Banner */}
         <div className="rounded-3xl bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#2563eb] text-white p-6 sm:p-10 relative overflow-hidden shadow-lg">
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-400/15 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
