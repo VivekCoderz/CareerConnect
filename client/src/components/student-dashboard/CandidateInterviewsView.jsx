@@ -103,7 +103,29 @@ const getCountdownInfo = (interview) => {
   };
 };
 
-const CandidateInterviewsView = () => {
+// Text an interview can be found by: company, role, round and mode.
+const interviewSearchText = (item) =>
+  [
+    item.employerId?.companyName,
+    item.internshipId?.companyName,
+    item.applicationId?.companyName,
+    item.jobId?.title,
+    item.internshipId?.title,
+    item.roundName,
+    item.roundNumber ? `Round ${item.roundNumber}` : "",
+    item.meetingMode || item.interviewType,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+/**
+ * @param {string} [searchQuery] - search text from the dashboard header; when not given,
+ *   the view shows its own search box.
+ */
+const CandidateInterviewsView = ({ searchQuery }) => {
+  const [ownQuery, setOwnQuery] = useState("");
+  const query = (searchQuery ?? ownQuery).trim().toLowerCase();
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -165,6 +187,16 @@ const CandidateInterviewsView = () => {
       .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
   }, [interviews, historyFilter]);
 
+  // The lists below the tabs follow the search; counts and the banner don't.
+  const shownUpcoming = useMemo(
+    () => (query ? upcomingInterviews.filter((i) => interviewSearchText(i).includes(query)) : upcomingInterviews),
+    [upcomingInterviews, query]
+  );
+  const shownHistory = useMemo(
+    () => (query ? historyInterviews.filter((i) => interviewSearchText(i).includes(query)) : historyInterviews),
+    [historyInterviews, query]
+  );
+
   // Nearest upcoming interview for the countdown banner
   const nearestUpcoming = useMemo(() => {
     if (upcomingInterviews.length === 0) return null;
@@ -179,6 +211,22 @@ const CandidateInterviewsView = () => {
   }, [upcomingInterviews]);
 
   const nearestCountdown = nearestUpcoming ? getCountdownInfo(nearestUpcoming) : null;
+
+  const noMatch = (
+    <div className="p-10 text-center bg-white rounded-3xl border border-slate-200 shadow-2xs space-y-2">
+      <h3 className="text-sm font-bold text-slate-900">No interviews match “{query}”</h3>
+      <p className="text-xs text-slate-500">Try a company name, job title or round.</p>
+      {searchQuery === undefined && (
+        <button
+          type="button"
+          onClick={() => setOwnQuery("")}
+          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+        >
+          Clear search
+        </button>
+      )}
+    </div>
+  );
 
   // Metrics
   const totalUpcoming = upcomingInterviews.length;
@@ -462,6 +510,17 @@ const CandidateInterviewsView = () => {
             </div>
           )}
 
+          {searchQuery === undefined && (
+            <input
+              type="search"
+              value={ownQuery}
+              onChange={(e) => setOwnQuery(e.target.value)}
+              placeholder="Search company, role or round"
+              aria-label="Search interviews"
+              className="h-8 w-48 sm:w-56 px-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1e3a8a]"
+            />
+          )}
+
           <button
             type="button"
             onClick={fetchCandidateInterviews}
@@ -501,9 +560,11 @@ const CandidateInterviewsView = () => {
               You do not have any pending interview rounds scheduled at the moment. When employers shortlist your applications and schedule an interview slot, it will automatically appear here.
             </p>
           </div>
+        ) : shownUpcoming.length === 0 ? (
+          noMatch
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {upcomingInterviews.map((item) => {
+            {shownUpcoming.map((item) => {
               const companyName = getCompanyName(item);
               const companyLogo = getCompanyLogo(item);
               const roleTitle = item.jobId?.title || item.internshipId?.title || "Role";
@@ -654,9 +715,11 @@ const CandidateInterviewsView = () => {
               Completed and cancelled interview sessions and their evaluation outcomes will be archived here.
             </p>
           </div>
+        ) : shownHistory.length === 0 ? (
+          noMatch
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {historyInterviews.map((item) => {
+            {shownHistory.map((item) => {
               const companyName = getCompanyName(item);
               const companyLogo = getCompanyLogo(item);
               const roleTitle = item.jobId?.title || item.internshipId?.title || "Role";
