@@ -646,11 +646,6 @@
       "count": 1
     }
   },
-  "src/components/student-dashboard/InternshalaDashboardRecommendations.jsx": {
-    "max-lines": {
-      "count": 1
-    }
-  },
   "src/components/student-dashboard/JobRecommendationsCard.jsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
