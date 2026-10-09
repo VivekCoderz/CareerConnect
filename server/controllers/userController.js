@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const CareerGoal = require("../models/CareerGoal");
 
@@ -79,6 +80,14 @@ exports.updateProfile = async (req, res, next) => {
  */
 exports.getUserById = async (req, res, next) => {
   try {
+    // Private profiles and admin accounts must not be listable by any signed-in user.
+    const isSelf = String(req.user._id) === String(req.params.id);
+    if (!isSelf && !["admin", "SUPER_ADMIN"].includes(req.user.role)) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
     const user = await User.findById(req.params.id)
       .select("fullName firstName lastName username userType role profileImage headline bio location skills portfolioUrl githubUrl linkedinUrl createdAt")
       .lean();

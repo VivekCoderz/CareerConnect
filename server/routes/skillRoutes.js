@@ -10,8 +10,9 @@ router.get("/trending", skillController.getTrendingSkills);
 router.get("/:id", skillController.getSkillById);
 
 // Protected routes (Admin / Authorized)
-router.post("/", protect, skillController.createSkill);
-router.put("/:id", protect, skillController.updateSkill);
-router.delete("/:id", protect, requireRole("admin"), skillController.deleteSkill);
+// The catalog is shared by every user, so only admins may change it.
+router.post("/", protect, requireRole("admin", "SUPER_ADMIN"), skillController.createSkill);
+router.put("/:id", protect, requireRole("admin", "SUPER_ADMIN"), skillController.updateSkill);
+router.delete("/:id", protect, requireRole("admin", "SUPER_ADMIN"), skillController.deleteSkill);
 
 module.exports = router;

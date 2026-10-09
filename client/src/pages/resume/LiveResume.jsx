@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { fetchLiveResumeAPI } from "../../services/resumeService";
+import { fetchLiveResumeAPI, setLiveResumeSharingAPI } from "../../services/resumeService";
 import ResumePreview from "../../components/resume-builder/ResumePreview";
 import BrandLogo from "../../components/common/BrandLogo";
 import JourneyLoader from "../../components/common/JourneyLoader";
@@ -34,6 +34,10 @@ const LiveResume = () => {
   const [error, setError] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState("classic");
   const [copied, setCopied] = useState(false);
+  // Only the owner's own page (/live-resume) can turn the public link on or off.
+  const isOwnerView = !id;
+  const [shared, setShared] = useState(false);
+  const [shareError, setShareError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -46,6 +50,7 @@ const LiveResume = () => {
         if (res?.success && res?.resume) {
           if (isMounted) {
             setResumeData(res.resume);
+            setShared(Boolean(res.shared));
             if (res.resume.selectedTemplate) {
               setSelectedTemplate(res.resume.selectedTemplate);
             }
@@ -75,15 +80,37 @@ const LiveResume = () => {
     };
   }, [id]);
 
-  const handleCopyLink = () => {
-    const resumeId = resumeData?._id || id || "";
+  const handleCopyLink = async () => {
+    const resumeId = String(resumeData?._id || id || "");
     const cleanId = resumeId.startsWith("profile_") ? resumeId.replace("profile_", "") : resumeId;
     const shareUrl = `${window.location.origin}/live-resume/${cleanId}`;
+
+    // The link only works for others once sharing is on, so the owner turns it on here.
+    if (isOwnerView && !shared) {
+      try {
+        await setLiveResumeSharingAPI(true);
+        setShared(true);
+        setShareError("");
+      } catch (err) {
+        setShareError(err.response?.data?.message || "Could not turn on sharing. Please try again.");
+        return;
+      }
+    }
 
     navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     });
+  };
+
+  const handleStopSharing = async () => {
+    try {
+      await setLiveResumeSharingAPI(false);
+      setShared(false);
+      setShareError("");
+    } catch (err) {
+      setShareError(err.response?.data?.message || "Could not turn off sharing. Please try again.");
+    }
   };
 
   const handlePrint = () => {
@@ -263,9 +290,6 @@ const LiveResume = () => {
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-sm font-bold text-slate-900">{candidateName}</h2>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span>✓</span> ATS Verified Profile
-                    </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
                     {resumeData.title || "Professional Live Resume"} · Real-time web rendering
@@ -303,15 +327,24 @@ const LiveResume = () => {
             {/* Footer Attribution (Hidden on Print) */}
             <div className="text-center py-4 text-xs text-slate-400 space-y-1 no-print">
               <p>
-                Powered by{" "}
+                Live resume on{" "}
                 <Link to="/" className="font-semibold text-slate-600 hover:text-indigo-600 transition">
-                  CareerConnect
-                </Link>{" "}
-                · Verified Candidate Live Resume
+                  E2Job
+                </Link>
               </p>
-              <p className="text-[11px] text-slate-400">
-                Share this live URL directly with recruiters, employers, or on social platforms.
-              </p>
+              {isOwnerView && (
+                <p className="text-[11px] text-slate-400">
+                  {shared
+                    ? "Sharing is on: anyone with your link can see this resume, including your email and phone."
+                    : "Sharing is off: only you can see this page. Share Link turns it on."}
+                  {shared && (
+                    <button type="button" onClick={handleStopSharing} className="ml-2 font-semibold text-rose-600 hover:underline">
+                      Stop sharing
+                    </button>
+                  )}
+                </p>
+              )}
+              {shareError && <p className="text-[11px] text-rose-600">{shareError}</p>}
             </div>
           </>
         )}

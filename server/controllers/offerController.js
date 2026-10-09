@@ -271,8 +271,20 @@ exports.exportOfferPdf = async (req, res, next) => {
 
     // Authorization check
     const isCandidate = offer.candidateId?._id?.toString() === req.user._id.toString();
-    let isEmployer = req.user.role === "employer" || req.user.userType === "employer";
-    if (req.user.role !== "admin" && !isCandidate && !isEmployer) {
+    // Same ownership rule as GET /api/offers: being an employer is not enough, the offer
+    // must be this employer's (created by them, under their profile, or for their job).
+    let isEmployer = false;
+    if (req.user.role === "employer" || req.user.userType === "employer") {
+      const scope = await getOwnerScope(req.user);
+      const ownsJob = offer.jobId
+        ? await Job.exists({ _id: offer.jobId._id || offer.jobId, $or: listingOwnerClauses(scope) })
+        : null;
+      isEmployer =
+        String(offer.createdBy || "") === String(req.user._id) ||
+        (scope.profileId && String(offer.employerId?._id || offer.employerId || "") === String(scope.profileId)) ||
+        Boolean(ownsJob);
+    }
+    if (!["admin", "SUPER_ADMIN"].includes(req.user.role) && !isCandidate && !isEmployer) {
       return res.status(403).json({ success: false, message: "Not authorized to download this offer letter" });
     }
 

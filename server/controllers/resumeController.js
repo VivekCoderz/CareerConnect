@@ -3092,6 +3092,7 @@ const getLiveResumeHandler = async (req, res) => {
   try {
     const { id } = req.params;
     let resume = null;
+    const notShared = () => res.status(404).json({ success: false, message: "This resume is not shared." });
 
     if (id && mongoose.Types.ObjectId.isValid(id)) {
       resume = await Resume.findById(id).populate("user", "fullName email role userType");
@@ -3101,6 +3102,13 @@ const getLiveResumeHandler = async (req, res) => {
           .populate("user", "fullName email role userType");
       }
     }
+
+    // Public link: only for an owner who turned sharing on (FL-15). Without it, a resume
+    // (with email and phone) would be readable by anyone who knows a user or resume id.
+    const ownerId = resume ? resume.user?._id || resume.user : id;
+    if (!ownerId || !mongoose.Types.ObjectId.isValid(ownerId)) return notShared();
+    const owner = await User.findById(ownerId).select("liveResumeShared").lean();
+    if (!owner?.liveResumeShared) return notShared();
 
     // Profile fallback if not found directly in Resume collection
     if (!resume && id && mongoose.Types.ObjectId.isValid(id)) {
@@ -3142,7 +3150,6 @@ const getLiveResumeHandler = async (req, res) => {
               selectedTemplate: "classic",
               rawData,
               generatedData: null,
-              resumeUrl: profile.resume?.resumeUrl || "",
               user: {
                 _id: user._id,
                 fullName: user.fullName,
@@ -3169,7 +3176,6 @@ const getLiveResumeHandler = async (req, res) => {
         selectedTemplate: resume.selectedTemplate || "classic",
         rawData: resume.rawData,
         generatedData: resume.generatedData,
-        resumeUrl: resume.resumeUrl,
         user: resume.user
           ? {
               _id: resume.user._id,
@@ -3191,6 +3197,21 @@ const getLiveResumeHandler = async (req, res) => {
 };
 
 /**
+ * POST /api/resume/live/share { enabled }
+ * Turns the public live resume link on or off for the signed-in user.
+ */
+const setLiveResumeSharing = async (req, res) => {
+  try {
+    const enabled = req.body?.enabled === true;
+    await User.updateOne({ _id: req.user._id }, { $set: { liveResumeShared: enabled } });
+    return res.status(200).json({ success: true, shared: enabled });
+  } catch (error) {
+    console.error("setLiveResumeSharing error:", error);
+    return res.status(500).json({ success: false, message: "Could not update sharing" });
+  }
+};
+
+/**
  * GET /api/resume/live
  * Authenticated endpoint for current user's primary/active live resume
  */
@@ -3206,6 +3227,7 @@ const getMyLiveResumeHandler = async (req, res) => {
     if (resume) {
       return res.status(200).json({
         success: true,
+      shared: Boolean(req.user.liveResumeShared),
         resume: {
           _id: resume._id,
           title: resume.title,
@@ -3253,6 +3275,7 @@ const getMyLiveResumeHandler = async (req, res) => {
 
       return res.status(200).json({
         success: true,
+      shared: Boolean(req.user.liveResumeShared),
         isProfileFallback: true,
         resume: {
           _id: `profile_${req.user._id}`,
@@ -3310,4 +3333,5 @@ module.exports = {
   atsPdfOptimizeHandler,
   getLiveResumeHandler,
   getMyLiveResumeHandler,
+  setLiveResumeSharing,
 };

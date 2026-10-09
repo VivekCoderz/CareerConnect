@@ -656,8 +656,7 @@ exports.updateApplicationStatus = async (req, res, next) => {
     const rawStatus = req.body.status || req.body.stage;
     const statusMap = {
       Applied: "Applied",
-      Approved: "Approved",
-      Screening: "Under Review",
+          Screening: "Under Review",
       "Under Review": "Under Review",
       Shortlisted: "Shortlisted",
       Assessment: "Assessment",
@@ -748,7 +747,8 @@ const BULK_STATUS_MAP = {
   Rejected: "Rejected",
   rejected: "Rejected",
 };
-const ALLOWED_BULK_STATUSES = ["Under Review", "Shortlisted", "Interview", "Rejected", "Selected", "Assessment", "Approved"];
+// "Approved" is a listing state, never a candidate ATS stage.
+const ALLOWED_BULK_STATUSES = ["Under Review", "Shortlisted", "Interview", "Rejected", "Selected", "Assessment"];
 const MAX_BULK_APPLICATIONS = 300;
 
 exports.bulkUpdateApplicationStatus = async (req, res, next) => {
@@ -789,14 +789,13 @@ exports.bulkUpdateApplicationStatus = async (req, res, next) => {
           $push: { stageHistory: historyEntry },
         }
       );
-      // Retrieve the applications that were updated to target status
-      const updatedDocs = await Application.find({
+      // Only the ones this request changed carry its history entry, so a concurrent request
+      // (or one already at this status) is not notified twice.
+      const changedIds = new Set((await Application.find({
         _id: { $in: toUpdate.map((a) => a._id) },
-        status,
-      })
-        .select("_id candidateId employerId status opportunityTitle companyName")
-        .lean();
-      updated = updatedDocs;
+        stageHistory: { $elemMatch: { changedAt: now, changedBy: req.user._id, notes: historyEntry.notes } },
+      }).distinct("_id")).map(String));
+      updated = toUpdate.filter((a) => changedIds.has(String(a._id))).map((a) => ({ ...a, status }));
 
       if (status === "Rejected") await JobOffer.withdrawPending(updated.map((a) => a._id));
       updated.forEach((a) => socketService.emitApplicationUpdated(a));

@@ -218,6 +218,9 @@ const userSchema = new mongoose.Schema(
     // ACCOUNT ROLE
     // ==========================================
 
+    // FL-15: the live resume link only opens for others after the owner chose "Share Link".
+    liveResumeShared: { type: Boolean, default: false },
+
     role: {
       type: String,
 
