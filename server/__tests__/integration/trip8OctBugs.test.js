@@ -1,5 +1,6 @@
 // Tripti's 8 Oct bugs.
-// BUG-001: the job page links to /companies/:id, which only opens for published profiles.
+// BUG-001: the job page links to /companies/:id. Since CC-01 that page opens for unpublished
+// profiles too, showing only the basics until the showcase is published.
 // BUG-003/004: the welcome notification is plain text, has no same-page link and fits the role.
 jest.mock("../../utils/sendEmail", () => jest.fn().mockResolvedValue({ messageId: "test-message" }));
 const request = require("supertest");
@@ -28,12 +29,16 @@ describe("BUG-001 company link on the job page", () => {
     const before = await request(app).get(`/api/jobs/${job._id}`);
     expect(before.status).toBe(200);
     expect(before.body.job.employerId.isPublished).toBe(false);
-    expect((await request(app).get(`/api/companies/${profile._id}`)).status).toBe(404);
+    const basics = await request(app).get(`/api/companies/${profile._id}`);
+    expect(basics.status).toBe(200);
+    expect(basics.body.company.isShowcasePublic).toBe(false);
 
     await EmployerProfile.updateOne({ _id: profile._id }, { $set: { isPublished: true } });
     const after = await request(app).get(`/api/jobs/${job._id}`);
     expect(after.body.job.employerId.isPublished).toBe(true);
-    expect((await request(app).get(`/api/companies/${profile._id}`)).status).toBe(200);
+    const showcase = await request(app).get(`/api/companies/${profile._id}`);
+    expect(showcase.status).toBe(200);
+    expect(showcase.body.company.isShowcasePublic).toBe(true);
   });
 });
 

@@ -243,8 +243,8 @@ export default function JobDetailPage() {
 
   const renderJob = () => {
     const company = job.employerId && typeof job.employerId === "object" ? job.employerId : null;
-    // The company page only opens for published profiles; otherwise it says "Company Not Found".
-    const hasCompanyPage = Boolean(company?._id && company.isPublished);
+    // CC-01: the company page opens for every employer (unpublished profiles show the basics).
+    const hasCompanyPage = Boolean(company?._id);
     const pay = formatPay(job);
     const experience = formatExperience(job.experience);
     const place = job.location || [job.city, job.state].filter(Boolean).join(", ");

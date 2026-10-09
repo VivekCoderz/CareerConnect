@@ -24,7 +24,7 @@ const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
 const Course = require("../models/Course");
 const { getEmployerDashboardData } = require("../services/employerDashboardService");
-const { getActiveCompany } = require("../utils/employerOwnership");
+const { findCompanyPage } = require("../utils/employerOwnership");
 const { ipKeyGenerator } = require("express-rate-limit");
 
 // Company size options offered by the connect-company form (EmployerDashboard).
@@ -495,29 +495,44 @@ exports.getEmployerDashboard = async (req, res, next) => {
  */
 exports.getPublicCompanyProfile = async (req, res, next) => {
   try {
-    const { companyId } = req.params;
-
-    let profile = null;
-
-    const isObjectId = /^[0-9a-fA-F]{24}$/.test(companyId);
-
-    if (isObjectId) {
-      profile = await EmployerProfile.findOne({
-        $or: [{ _id: companyId }, { userId: companyId }],
-      }).populate("userId", "fullName email profileImage companyId");
-    }
-
-    // Only published, admin-approved profiles are public, and not while the employer's
-    // company is inactive or deleted (ADM-11/12). Anything else looks like "not found".
-    const isPublic = Boolean(profile) &&
-      profile.isPublished === true &&
-      profile.verificationStatus === "approved" &&
-      (!profile.userId?.companyId || Boolean(await getActiveCompany(profile.userId)));
-
-    if (!isPublic) {
+    // "Not found" only when there is no such company, or it is inactive or deleted (ADM-11/12).
+    const page = await findCompanyPage(req.params.companyId);
+    if (!page) {
       return res.status(404).json({
         success: false,
         message: "Company profile not found",
+      });
+    }
+    const { profile, company } = page;
+    // Only companies the E2Job team approved get a page at all: a pending or rejected
+    // employer must not get an e2job.com URL showing its name, logo and website.
+    if (profile.verificationStatus !== "approved") {
+      return res.status(404).json({
+        success: false,
+        message: "Company profile not found",
+      });
+    }
+
+    // CC-01: the job page links here for every approved employer, so an unpublished
+    // profile still shows the basics its job pages already show (filled in from the linked
+    // Company when empty). The rest of the showcase stays private until it is published
+    // and approved. The Company's email, phone, contact person and address are never shown.
+    const isShowcasePublic = profile.isPublished === true;
+    if (!isShowcasePublic) {
+      const hq = profile.headquarters || {};
+      return res.status(200).json({
+        success: true,
+        company: {
+          _id: profile._id,
+          companyName: profile.companyName || company?.name || "",
+          logo: profile.logo || company?.logo || profile.userId?.profileImage || "",
+          industry: profile.industry || company?.industry || "",
+          website: profile.website || company?.website || "",
+          description: profile.description || company?.description || "",
+          headquarters: hq.city || !company?.location ? hq : { city: company.location },
+          verificationStatus: profile.verificationStatus,
+          isShowcasePublic: false,
+        },
       });
     }
 
@@ -559,6 +574,7 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
       },
       isPublished: profile.isPublished,
       verificationStatus: profile.verificationStatus,
+      isShowcasePublic: true,
       createdAt: profile.createdAt,
     };
 

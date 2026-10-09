@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const Job = require("../models/Job");
-const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
+const { getOwnerScope, listingOwnerClauses, companyListingFilter } = require("../utils/employerOwnership");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
@@ -113,6 +113,8 @@ exports.getJobs = async (req, res, next) => {
       "search", "q", "department", "category", "employmentType", "workMode", "location", "city", "status", "source",
     ].map((key) => queryString(req.query[key]));
     const sort = queryString(req.query.sort) || "latest";
+    // CC-01: ?company= lists one company's jobs; absent means "no company filter".
+    const company = req.query.company === undefined ? undefined : queryString(req.query.company);
 
     const isMyJobs = myJobs === "true" || myJobs === true || myJobs === "1";
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -130,6 +132,13 @@ exports.getJobs = async (req, res, next) => {
       }
     } else {
       query.status = "Published";
+    }
+
+    // One company's jobs, for its /companies/:id page (CC-01).
+    if (company !== undefined && !isMyJobs) {
+      const { invalid, clause } = await companyListingFilter(company);
+      if (invalid) return res.status(400).json({ success: false, message: "Invalid company id" });
+      query.$and = [...(query.$and || []), clause];
     }
 
     // Keyword search is applied after the other filters are built (see findPage below).

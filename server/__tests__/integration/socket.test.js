@@ -116,6 +116,15 @@ describe("socket.io lockdown (S05)", () => {
       await expect(connect({ token: stale })).rejects.toThrow("NOT_AUTHENTICATED");
     });
 
+    it("rejects a forged or expired token for a real user", async () => {
+      const id = String(candidateA.user._id);
+      const forged = jwt.sign({ id }, "attacker-chosen-secret");
+      const expired = jwt.sign({ id, exp: Math.floor(Date.now() / 1000) - 60 }, process.env.JWT_SECRET);
+
+      await expect(connect({ token: forged })).rejects.toThrow("NOT_AUTHENTICATED");
+      await expect(connect({ token: expired })).rejects.toThrow("NOT_AUTHENTICATED");
+    });
+
     it("rejects a suspended account", async () => {
       candidateA.user.isActive = false;
       await candidateA.user.save();

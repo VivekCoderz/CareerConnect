@@ -68,6 +68,20 @@ describe("payment verification", () => {
     expect(await CourseApplication.countDocuments({ student: student.user._id })).toBe(0);
   });
 
+  it("gives a stored order_test_ order owned by the user no signature bypass", async () => {
+    const { student, course } = await setup();
+    await createPendingOrder(student.user, course, "order_test_owned");
+
+    for (const razorpaySignature of [undefined, "", "deadbeef"]) {
+      const response = await verify(student.token, {
+        razorpayOrderId: "order_test_owned", razorpayPaymentId: "pay_sandbox", razorpaySignature, courseId: course._id,
+      });
+      expect(response.status).toBe(400);
+    }
+    expect((await CourseOrder.findOne({ razorpayOrderId: "order_test_owned" })).status).toBe("created");
+    expect(await CourseApplication.countDocuments({ student: student.user._id })).toBe(0);
+  });
+
   it("rejects a missing signature", async () => {
     const { student, course } = await setup();
     await createPendingOrder(student.user, course, "order_real_1");
@@ -155,6 +169,15 @@ describe("payment verification", () => {
       razorpayOrderId: "order_x", razorpayPaymentId: "pay_x", razorpaySignature: "sig", courseId: course._id,
     });
     expect(verified.status).toBe(503);
+    expect(axiosPost).not.toHaveBeenCalled();
+  });
+
+  it("has no built-in key ID fallback: 503 when only RAZORPAY_KEY_ID is missing", async () => {
+    const { student, course } = await setup();
+    delete process.env.RAZORPAY_KEY_ID;
+    const created = await as(student.token, "/api/payment/create-order").send({ courseId: course._id });
+    expect(created.status).toBe(503);
+    expect(created.body).not.toHaveProperty("keyId");
     expect(axiosPost).not.toHaveBeenCalled();
   });
 });
