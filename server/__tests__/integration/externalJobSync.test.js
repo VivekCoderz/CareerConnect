@@ -110,6 +110,17 @@ describe("I04 scheduled external job feed sync", () => {
       expect(normalizeFeedJob("Remotive", null).error).toMatch(/malformed/);
       expect(normalizeFeedJob("LinkedIn", remotiveJob()).error).toMatch(/unapproved/);
     });
+
+    it("FL-03: only whole-word intern/internship makes an internship; trainee roles stay jobs", () => {
+      const classify = (overrides) => normalizeFeedJob("Remotive", remotiveJob(overrides));
+      expect(classify({ title: "Internal Audit Manager" }).isInternship).toBe(false);
+      expect(classify({ title: "International Sales Executive" }).isInternship).toBe(false);
+      const trainee = classify({ title: "Graduate Trainee - Operations" });
+      expect(trainee.isInternship).toBe(false);
+      expect(trainee.fields.employmentType).toBe("Trainee");
+      expect(classify({ title: "Marketing Interns (Summer)" }).isInternship).toBe(true);
+      expect(classify({ title: "Marketing Assistant", job_type: "internship" }).isInternship).toBe(true);
+    });
   });
 
   describe("sync", () => {
@@ -361,6 +372,41 @@ describe("I04 scheduled external job feed sync", () => {
       expect(String(intern._id)).toBe(String(stored._id));
       expect(intern.attribution).toBe("Job listing from Remotive (remotive.com)");
       expect(get).not.toHaveBeenCalled();
+    });
+
+    it("FL-03: internship lists show only internships, not full-time or trainee jobs", async () => {
+      mockFeeds({
+        remotive: () => ({
+          jobs: [
+            remotiveJob({ id: 2001, title: "International Sales Executive", url: "https://remotive.com/remote-jobs/2001" }),
+            remotiveJob({ id: 2002, title: "Graduate Trainee - Operations", url: "https://remotive.com/remote-jobs/2002" }),
+            remotiveJob({ id: 2003, title: "Frontend Intern", job_type: "internship", url: "https://remotive.com/remote-jobs/2003" }),
+          ],
+        }),
+        arbeitnow: () => ({ data: [], links: { next: null } }),
+      });
+      await runExternalJobSync();
+      jest.restoreAllMocks();
+      // Stored as an internship by the older substring rule, before the next sync re-files it.
+      await Internship.create({
+        title: "Internal Audit Manager", location: "Remote", description: "Audit", source: "Remotive",
+        isExternal: true, externalId: "legacy-1", status: "Published", applyUrl: "https://remotive.com/remote-jobs/legacy-1",
+      });
+      clearSearchCache();
+      const student = await createUserWithToken({ email: "fl03-student@example.com" });
+
+      const list = await request(app).get("/api/internships?source=external");
+      const dash = await request(app).get("/api/student/dashboard").set(auth(student));
+      const jobs = await request(app).get("/api/jobs?source=external");
+
+      const listed = list.body.internships.map((i) => i.title);      expect(listed).toContain("Frontend Intern");
+      for (const title of ["International Sales Executive", "Graduate Trainee - Operations", "Internal Audit Manager"]) {
+        expect(listed).not.toContain(title);
+        expect(dash.body.data.recommendedInternships.map((i) => i.title)).not.toContain(title);
+      }
+      expect(jobs.body.jobs.map((j) => j.title)).toEqual(
+        expect.arrayContaining(["International Sales Executive", "Graduate Trainee - Operations"])
+      );
     });
 
     it("still serves the job list when every feed is down", async () => {

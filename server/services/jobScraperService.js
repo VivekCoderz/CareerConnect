@@ -264,6 +264,18 @@ function externalSourcesFor(source = "all") {
   return APPROVED_SOURCES.filter((name) => name.toLowerCase() === wanted);
 }
 
+// Whole words only: "Internal Audit" / "International Sales" are not internships (FL-03).
+const INTERNSHIP_WORD = /\b(intern|interns|internship|internships)\b/i;
+
+/**
+ * True for a title like "Internal Audit Manager": it contains "intern" only inside another
+ * word. Feed listings like that were stored as internships before the sync matched whole
+ * words, and stay out of internship lists until the next sync re-files them.
+ */
+function isMisfiledInternshipTitle(title = "") {
+  return /intern/i.test(title) && !INTERNSHIP_WORD.test(title);
+}
+
 async function findStoredExternalOpportunities({ keywords = "", source = "all" } = {}) {
   const sources = externalSourcesFor(source);
   if (sources.length === 0 || mongoose.connection.readyState !== 1) return [];
@@ -573,16 +585,13 @@ async function getAggregatedOpportunities({
       const oppType = (job.opportunityType || "").toLowerCase();
 
       if (normalizedOppType === "internship") {
-        return (
-          oppType.includes("intern") ||
-          t.includes("intern") ||
-          t.includes("trainee")
-        );
+        // Only listings stored as internships, minus older mis-filed ones (FL-03).
+        return oppType === "internship" && !isMisfiledInternshipTitle(t);
       }
       if (normalizedOppType === "fulltime") {
         return (
-          !t.includes("intern") &&
-          !oppType.includes("intern") &&
+          !INTERNSHIP_WORD.test(t) &&
+          oppType !== "internship" &&
           !t.includes("part-time") &&
           !oppType.includes("part-time")
         );
@@ -806,4 +815,5 @@ module.exports = {
   getAggregatedOpportunities,
   getFilterMetadata,
   clearSearchCache,
+  isMisfiledInternshipTitle,
 };

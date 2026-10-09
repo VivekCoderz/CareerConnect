@@ -94,10 +94,15 @@ const isHttpUrl = (value) => {
   }
 };
 
+// Whole words only: "Internal Audit" and "International Sales" are not internships (FL-03).
+const INTERNSHIP_WORD = /\b(intern|interns|internship|internships)\b/;
+
 /** Maps a feed's job-type hints to { isInternship, employmentType } in Job's enum. */
 const classifyType = (hints, title) => {
   const text = `${hints.filter((h) => typeof h === "string").join(" ")} ${title}`.toLowerCase();
-  if (/intern|trainee/.test(text)) return { isInternship: true, employmentType: "Internship" };
+  if (INTERNSHIP_WORD.test(text)) return { isInternship: true, employmentType: "Internship" };
+  // Trainee programmes are (usually full-time) jobs, not internships.
+  if (/\btrainee\b/.test(text)) return { isInternship: false, employmentType: "Trainee" };
   if (/part[ _-]?time|working student/.test(text)) return { isInternship: false, employmentType: "Part-time" };
   if (/contract/.test(text)) return { isInternship: false, employmentType: "Contract" };
   if (/freelance/.test(text)) return { isInternship: false, employmentType: "Freelance" };
