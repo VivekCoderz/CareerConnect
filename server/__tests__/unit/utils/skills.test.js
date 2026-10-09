@@ -1,4 +1,4 @@
-const { normalizeSkill, splitOtherSkills, normalizedSkillSet, mergeSkillStrings } = require("../../../utils/skills");
+const { normalizeSkill, isSoftSkill, splitOtherSkills, normalizedSkillSet, mergeSkillStrings } = require("../../../utils/skills");
 const { analyzeSkillGap } = require("../../../controllers/studentController");
 
 describe("skill helpers (T02, T03)", () => {
@@ -19,10 +19,20 @@ describe("skill helpers (T02, T03)", () => {
 
     const { technical, soft } = splitOtherSkills(other);
 
-    expect(soft).toEqual(["Problem Solving", "Teamwork"]);
+    expect(soft).toEqual(["Teamwork"]);
     expect(technical).toContain("HTML5");
     expect(technical).toContain("DBMS");
-    expect(technical).toHaveLength(11);
+    expect(technical).toContain("Problem Solving"); // CC-02
+    expect(technical).toHaveLength(12);
+  });
+
+  it("classifies every spelling of a skill the same way (CC-02)", () => {
+    for (const name of ["Problem Solving", "problem solving", "Problem-Solving", " PROBLEM_SOLVING ", "ProblemSolving"]) {
+      expect(isSoftSkill(name)).toBe(false);
+    }
+    for (const name of ["Teamwork", "Team-Work", "team work", "Time Management", "time-management", "Self Motivated"]) {
+      expect(isSoftSkill(name)).toBe(true);
+    }
   });
 
   it("does not recommend skills the student already has under another spelling", () => {
