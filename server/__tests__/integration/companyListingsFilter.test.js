@@ -41,20 +41,21 @@ const titles = (list) => list.map((item) => item.title).sort();
 
 describe("?company=<id> on the job and internship lists (CC-01)", () => {
   it("returns only this company's open jobs and internships", async () => {
-    const acme = await createEmployer();
-    const other = await createEmployer();
+    const [acme, other] = await Promise.all([createEmployer(), createEmployer()]);
 
-    const job = await postJob(acme);
-    await postJob(acme, { status: "Draft" });
-    await postJob(acme, { status: "Pending Approval" });
-    const expired = await postJob(acme);
+    // Independent writes run together so the test stays well under the timeout on a cold CI database.
+    const [job, , , expired, , internship, internshipAsJob] = await Promise.all([
+      postJob(acme),
+      postJob(acme, { status: "Draft" }),
+      postJob(acme, { status: "Pending Approval" }),
+      postJob(acme),
+      postJob(other),
+      postInternship(acme),
+      postJob(acme, { employmentType: "Internship", workMode: "Remote" }),
+      postInternship(acme, { status: "Draft" }),
+      postInternship(other),
+    ]);
     await Job.updateOne({ _id: expired._id }, { deadline: new Date(Date.now() - 86400000) });
-    await postJob(other);
-
-    const internship = await postInternship(acme);
-    const internshipAsJob = await postJob(acme, { employmentType: "Internship", workMode: "Remote" });
-    await postInternship(acme, { status: "Draft" });
-    await postInternship(other);
 
     const jobsRes = await request(app).get("/api/jobs").query({ company: String(acme.profile._id) });
     expect(jobsRes.statusCode).toBe(200);
