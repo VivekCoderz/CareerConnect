@@ -270,7 +270,8 @@ const GoogleOnboarding = () => {
     } else {
       const digits = formData.phone.replace(/\D/g, "");
       if (formData.countryCode === "+91") {
-        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+        // Exactly 10 digits starting 6-9 (an extra leading 0 used to pass: QA bug 1).
+        if (!/^[6-9]\d{9}$/.test(digits)) {
           errors.phone = "Please enter a valid 10-digit mobile number";
         }
       } else if (digits.length < 6 || digits.length > 15) {
@@ -1112,7 +1113,7 @@ const GoogleOnboarding = () => {
                   Upload Your Resume
                 </h2>
                 <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
-                  Our CareerConnect AI will automatically parse your skills, experience, projects, and education into your profile in seconds!
+                  Our E2Job AI will automatically parse your skills, experience, projects, and education into your profile in seconds!
                 </p>
               </div>
 
@@ -1254,7 +1255,7 @@ const GoogleOnboarding = () => {
       </div>
 
       <footer className="py-4 text-center text-xs text-slate-400">
-        CareerConnect · All rights reserved
+        E2Job · All rights reserved
       </footer>
     </div>
   );

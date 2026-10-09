@@ -17,7 +17,7 @@ const notificationSchema = new mongoose.Schema(
     },
     sender: {
       type: String,
-      default: "CareerConnect AI Assistant",
+      default: "E2Job AI Assistant",
     },
     senderId: {
       type: mongoose.Schema.Types.ObjectId,

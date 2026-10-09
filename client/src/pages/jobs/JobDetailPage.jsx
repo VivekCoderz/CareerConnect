@@ -6,6 +6,11 @@ import { getMyAppliedIds } from "../../services/applicationService";
 import { applyToOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
 import { isCandidateUser } from "../../utils/userRoles";
 import ShareButtons from "../../components/common/ShareButtons";
+import ReportListingButton from "../../components/common/ReportListingButton";
+import useSeo from "../../hooks/useSeo";
+import { buildJobPostingSchema, toJsonLd } from "../../utils/jobPostingSchema";
+import { isPastDeadline } from "../../utils/listingDeadline";
+import BrandLogo from "../../components/common/BrandLogo";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
@@ -36,19 +41,13 @@ const formatExperience = (exp) => {
 const formatHeadquarters = (hq) =>
   typeof hq === "string" ? hq : [hq?.city, hq?.state, hq?.country].filter(Boolean).join(", ");
 
-const isClosed = (job) =>
-  job.status !== "Published" || (job.deadline && new Date(job.deadline) < new Date());
+// Open until the end of the deadline day in IST, like the server.
+const isClosed = (job) => job.status !== "Published" || isPastDeadline(job.deadline);
 
 const Header = ({ user }) => (
   <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
     <Link to="/home" className="flex items-center gap-2.5">
-      <div className="w-9 h-9 rounded-xl bg-linear-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-        CC
-      </div>
-      <div className="hidden sm:block">
-        <p className="text-sm font-bold text-slate-900 tracking-tight leading-none">CAREERCONNECT</p>
-        <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">Jobs Hub</p>
-      </div>
+      <BrandLogo markOnly className="h-8 w-10 sm:hidden" /><BrandLogo className="hidden h-8 w-36 sm:block" />
     </Link>
     <nav className="flex items-center gap-2 sm:gap-3 text-xs font-bold">
       <Link to="/jobs" className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition">
@@ -195,9 +194,25 @@ export default function JobDetailPage() {
     }
   };
 
-  const companyName = job?.employerId?.companyName || job?.companyName || "Hiring company";
+  const companyName = job?.employerId?.companyName || job?.companyName || job?.company || "";
   const shareUrl = `${window.location.origin}/jobs/${id}`;
-  const shareText = job ? `${job.title} at ${companyName} – apply on CareerConnect: ${shareUrl}` : shareUrl;
+  const shareText = job ? `${job.title}${companyName ? ` at ${companyName}` : ""} – apply on E2Job: ${shareUrl}` : shareUrl;
+
+  // "<Job title> at <Company>, <City> | E2Job"; closed or missing jobs stay out of search.
+  const openJob = job && !isClosed(job) ? job : null;
+  const jobCity = openJob ? openJob.city || openJob.location : "";
+  useSeo({
+    title: openJob
+      ? `${openJob.title} at ${companyName}${jobCity ? `, ${jobCity}` : ""}`
+      : status === "loading" ? "Job details" : "Job not available",
+    description: openJob
+      ? `${openJob.title} job at ${companyName}${jobCity ? ` in ${jobCity}` : ""}${openJob.workMode ? ` (${openJob.workMode})` : ""}. ${openJob.description || ""}`
+      : undefined,
+    path: `/jobs/${id}`,
+    type: openJob ? "article" : "website",
+    noindex: status !== "loading" && !openJob,
+  });
+  const jobPostingSchema = buildJobPostingSchema(openJob);
 
   const renderApply = () => {
     if (job.isExternal) {
@@ -241,13 +256,13 @@ export default function JobDetailPage() {
             )}
             <div className="space-y-1 min-w-0">
               <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight wrap-break-word">{job.title}</h1>
-              {company?._id ? (
+              {companyName && (company?._id ? (
                 <Link to={`/companies/${company._id}`} className="text-sm font-bold text-blue-700 hover:underline">
                   {companyName}
                 </Link>
               ) : (
                 <p className="text-sm font-bold text-slate-700">{companyName}</p>
-              )}
+              ))}
             </div>
           </div>
 
@@ -303,7 +318,7 @@ export default function JobDetailPage() {
         )}
 
         {company && (company.description || company.industry || formatHeadquarters(company.headquarters)) && (
-          <Section title={`About ${companyName}`}>
+          <Section title={companyName ? `About ${companyName}` : "About the company"}>
             <p className="text-xs text-slate-500">{[company.industry, formatHeadquarters(company.headquarters)].filter(Boolean).join(" · ")}</p>
             {company.description && <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{company.description}</p>}
             <Link to={`/companies/${company._id}`} className="inline-block text-xs font-bold text-blue-700 hover:underline">
@@ -312,9 +327,15 @@ export default function JobDetailPage() {
           </Section>
         )}
 
-        <p className="text-[11px] text-slate-400 text-center px-4">
-          CareerConnect never asks candidates to pay for a job. If an employer asks you for money, don't pay.
-        </p>
+        <div className="text-center px-4 space-y-2">
+          <p className="text-[11px] text-slate-400">
+            E2Job never asks candidates to pay for a job. If an employer asks you for money, don't pay.
+          </p>
+          {/* Visitors (asked to log in) and candidates can report; employers and admins can't. */}
+          {!job.isExternal && (!user || isCandidate) && (
+            <ReportListingButton opportunityType="Job" opportunityId={String(job._id)} />
+          )}
+        </div>
       </div>
     );
   };
@@ -356,6 +377,9 @@ export default function JobDetailPage() {
         )}
 
         {status === "ready" && !isClosed(job) && renderJob()}
+        {jobPostingSchema && (
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: toJsonLd(jobPostingSchema) }} />
+        )}
       </main>
     </div>
   );

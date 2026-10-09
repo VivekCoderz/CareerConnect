@@ -13,15 +13,24 @@ const redact = (value) => {
   return text.replace(EMAIL_PATTERN, (match) => maskEmail(match)).slice(0, 500);
 };
 
-// Brevo answers 429 when rate limited and 402 / "not_enough_credits" when the
-// plan's daily quota is used up.
-const isQuotaError = (error) => {
+// Brevo answers 402 / "not_enough_credits" when the plan's credits or daily limit are used
+// up (switch to the fallback), and 429 for a short rate limit (wait and retry Brevo).
+// Returns "credits", "rate" or null.
+const brevoLimitKind = (error) => {
   const status = error?.status || error?.response?.status;
-  if (status === 429 || status === 402) return true;
   const body = error?.response?.body || {};
   const text = `${body.code || ""} ${body.message || ""}`;
-  return /not_enough_credits|credit|quota|rate.?limit|too many requests|daily limit/i.test(text);
+  if (status === 402 || /not_enough_credits|credits?\b|daily (sending )?limit|quota/i.test(text)) return "credits";
+  if (status === 429) return "rate";
+  return null;
 };
+
+// Wait before retrying Brevo after a 429 (BREVO_RATE_LIMIT_RETRY_MS, default 1.5 s).
+const rateLimitRetryDelay = () => {
+  const parsed = parseInt(process.env.BREVO_RATE_LIMIT_RETRY_MS, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 1500;
+};
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const normalizeRecipients = (to) => {
   if (typeof to === "string") return [{ email: to.trim() }];
@@ -57,7 +66,8 @@ const sendViaBrevo = async ({ recipients, subject, html, text }) => {
     const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
 
     // Sender configuration (matches verified email in Brevo)
-    sendSmtpEmail.sender = { name: "CareerConnect", email: senderEmail.trim() };
+    sendSmtpEmail.sender = { name: "E2Job", email: senderEmail.trim() };
+    sendSmtpEmail.replyTo = { name: "E2Job Support", email: replyToAddress() };
     sendSmtpEmail.to = recipients;
     sendSmtpEmail.subject = subject;
     if (html) sendSmtpEmail.htmlContent = html;
@@ -71,7 +81,7 @@ const sendViaBrevo = async ({ recipients, subject, html, text }) => {
     // Never log the raw error: it carries the request, including the api-key header.
     const errorDetails = redact(error?.response?.body || error?.message || "Unknown Brevo error");
     console.error(`--> [Brevo sendEmail] Failed (status ${error?.status || error?.response?.status || "n/a"}):`, errorDetails);
-    return { error: errorDetails, quotaExceeded: isQuotaError(error) };
+    return { error: errorDetails, limit: brevoLimitKind(error) };
   }
 };
 
@@ -81,11 +91,14 @@ const sendViaBrevo = async ({ recipients, subject, html, text }) => {
 // FALLBACK_EMAIL_FROM:     sender address verified with that provider (defaults to EMAIL_USER)
 // Only OTP emails use it, so the fallback's small free quota is kept for signups.
 
+// Replies go to the support inbox, not to the sending address (which may be no-reply).
+const replyToAddress = () => (process.env.EMAIL_REPLY_TO || "support@e2job.com").trim();
+
 const FALLBACK_SENDERS = {
   resend: async ({ apiKey, from, recipients, subject, html, text }) => {
     const { data } = await axios.post(
       "https://api.resend.com/emails",
-      { from: `CareerConnect <${from}>`, to: recipients.map((r) => r.email), subject, html, text },
+      { from: `E2Job <${from}>`, to: recipients.map((r) => r.email), reply_to: replyToAddress(), subject, html, text },
       { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 10000 }
     );
     return data?.id;
@@ -96,7 +109,8 @@ const FALLBACK_SENDERS = {
       "https://api.mailjet.com/v3.1/send",
       {
         Messages: [{
-          From: { Email: from, Name: "CareerConnect" },
+          From: { Email: from, Name: "E2Job" },
+          ReplyTo: { Email: replyToAddress(), Name: "E2Job Support" },
           To: recipients.map((r) => ({ Email: r.email })),
           Subject: subject,
           HTMLPart: html,
@@ -117,6 +131,33 @@ const fallbackConfig = () => {
   return { provider, apiKey, from };
 };
 
+const FALLBACK_ENV = ["FALLBACK_EMAIL_PROVIDER", "FALLBACK_EMAIL_API_KEY", "FALLBACK_EMAIL_FROM"];
+
+/**
+ * Called once at server startup. Logs one warning when the fallback email settings are
+ * half set (some but not all of the three) or name an unknown provider, so the fallback
+ * isn't silently off. Never logs values (the key is secret) and never throws.
+ * Returns the warning text, or null when the settings are fine or all unset.
+ */
+const warnOnFallbackEmailConfig = () => {
+  const set = FALLBACK_ENV.filter((name) => process.env[name]?.trim());
+  if (set.length === 0) return null;
+
+  const problems = [];
+  const missing = FALLBACK_ENV.filter((name) => !set.includes(name));
+  if (missing.length) problems.push(`missing ${missing.join(", ")}`);
+  const provider = process.env.FALLBACK_EMAIL_PROVIDER?.trim().toLowerCase();
+  if (provider && !FALLBACK_SENDERS[provider]) {
+    problems.push(`FALLBACK_EMAIL_PROVIDER must be one of: ${Object.keys(FALLBACK_SENDERS).join(", ")}`);
+  }
+  if (!problems.length) return null;
+
+  const warning = `[sendEmail] Fallback email provider is not configured correctly (${problems.join("; ")}). ` +
+    "OTP emails will use Brevo only.";
+  console.warn(warning);
+  return warning;
+};
+
 const sendViaFallback = async ({ provider, apiKey, from }, message) => {
   try {
     const messageId = await FALLBACK_SENDERS[provider]({ apiKey, from, ...message });
@@ -130,11 +171,21 @@ const sendViaFallback = async ({ provider, apiKey, from }, message) => {
   }
 };
 
+/** Brevo, retried once after a short wait if it answers 429 (rate limit). */
+const sendViaBrevoWithRetry = async (message) => {
+  const first = await sendViaBrevo(message);
+  if (first.limit !== "rate") return first;
+  console.warn("[sendEmail] Brevo rate limit (429), retrying once");
+  await wait(rateLimitRetryDelay());
+  return sendViaBrevo(message);
+};
+
 /**
  * Send email over HTTPS APIs (Render blocks SMTP ports 587/465).
- * Brevo first. For OTP emails (kind: "otp"), the fallback provider is tried once when
- * Brevo reports a quota / rate-limit error or today's Brevo quota is already used,
- * and the provider that sent it is counted in EmailUsage.
+ * Brevo first; a 429 rate limit is retried on Brevo once. For OTP emails (kind: "otp")
+ * the fallback provider is used when Brevo is out of credits / at its daily limit (402,
+ * or today's counted quota is used). If the fallback fails too, Brevo gets one last try.
+ * The provider that sent an OTP is counted in EmailUsage.
  *
  * @param {Object} options
  * @param {string|string[]|Array<{email: string, name?: string}>} options.to - Recipient email(s)
@@ -157,31 +208,37 @@ const sendEmail = async ({ to, subject, html, text, kind }) => {
 
   console.log(`[sendEmail] Sending "${subject}" to ${maskedRecipients(recipients)}`);
 
-  // Today's Brevo quota is already used: go straight to the fallback.
+  const sentBy = async (provider, result) => {
+    if (isOtp) await recordOtpEmail(provider);
+    return { ...result, provider };
+  };
+
+  // Fallback first when Brevo is known to be out of quota; if it fails, Brevo gets one try.
+  const viaFallbackThenBrevo = async () => {
+    const result = await sendViaFallback(fallback, message);
+    if (!result.error) return sentBy(fallback.provider, result);
+    console.warn(`[sendEmail] ${fallback.provider} failed, trying Brevo once more`);
+    const lastTry = await sendViaBrevo(message);
+    if (!lastTry.error) return sentBy("brevo", lastTry);
+    return { error: result.error, provider: null };
+  };
+
+  // Today's counted Brevo quota is already used: go straight to the fallback.
   if (fallback && await isBrevoQuotaUsed()) {
     console.warn(`[sendEmail] Brevo daily quota used, sending OTP via ${fallback.provider}`);
-    const result = await sendViaFallback(fallback, message);
-    if (!result.error) await recordOtpEmail(fallback.provider);
-    return { ...result, provider: result.error ? null : fallback.provider };
+    return viaFallbackThenBrevo();
   }
 
-  const brevo = await sendViaBrevo(message);
-  if (!brevo.error) {
-    if (isOtp) await recordOtpEmail("brevo");
-    return { ...brevo, provider: "brevo" };
-  }
+  const brevo = await sendViaBrevoWithRetry(message);
+  if (!brevo.error) return sentBy("brevo", brevo);
 
-  if (fallback && brevo.quotaExceeded) {
-    console.warn(`[sendEmail] Brevo quota / rate limit hit, retrying OTP via ${fallback.provider}`);
-    const result = await sendViaFallback(fallback, message);
-    if (!result.error) {
-      await recordOtpEmail(fallback.provider);
-      return { ...result, provider: fallback.provider };
-    }
-    return { error: result.error, provider: null };
+  if (fallback && brevo.limit === "credits") {
+    console.warn(`[sendEmail] Brevo out of credits / daily limit, sending OTP via ${fallback.provider}`);
+    return viaFallbackThenBrevo();
   }
 
   return { error: brevo.error, provider: null };
 };
 
 module.exports = sendEmail;
+module.exports.warnOnFallbackEmailConfig = warnOnFallbackEmailConfig;

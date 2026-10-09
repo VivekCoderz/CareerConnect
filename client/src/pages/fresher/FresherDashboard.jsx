@@ -1,6 +1,7 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import { getFresherDashboardData } from "../../services/fresherDashboardService";
@@ -39,6 +40,7 @@ const FresherDashboard = () => {
   // Start on the tab named in ?tab= (email links open e.g. ?tab=applications).
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "dashboard");
+  useTabInUrl(activeTab, "dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
@@ -112,12 +114,12 @@ const FresherDashboard = () => {
       title: item.title,
       company: item.company || item.companyName,
       companyName: item.company || item.companyName,
-      type: item.type || "Job",
+      type: item.type || null,
       opportunityType:
-        item.type?.toLowerCase().includes("intern") ? "Internship" : "Job",
+        `${item.opportunityType || ""} ${item.type || ""}`.toLowerCase().includes("intern") ? "Internship" : "Job",
       description: item.description || item.aboutRole || "",
       requirements: item.requirements || [],
-      skillsRequired: item.skillsRequired || item.skills || [],
+      skillsRequired: [item.skillsRequired, item.skills, item.requiredSkills].find((l) => Array.isArray(l) && l.length) || [],
     });
     setIsTailoredModalOpen(true);
   };

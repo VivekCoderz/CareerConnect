@@ -19,12 +19,20 @@ const { notifyListingDecision } = require("../services/accountNotifications");
 const Notification = require("../models/Notification");
 const Interview = require("../models/Interview");
 const OrganizationRequest = require("../models/OrganizationRequest");
-const { escapeRegex, pickListingUpdate } = require("../utils/listingSecurity");
+const {
+  escapeRegex,
+  pickListingUpdate,
+  checkListingInput,
+  checkListingKind,
+  hasLocation,
+  LOCATION_REQUIRED,
+} = require("../utils/listingSecurity");
 const { clearSearchCache } = require("../services/jobScraperService");
 const { runExternalJobSync } = require("../services/externalJobSync");
 const { createNotification } = require("../services/notificationService");
 const { notifyListingClosedInBackground } = require("../services/listingClosure");
 const { checkTransition, normalizeStatus } = require("../utils/applicationStatus");
+const { notifyApplicationUpdates } = require("../services/applicationNotifications");
 const { isCompanyActive } = require("../utils/employerOwnership");
 
 const ADMIN_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -681,7 +689,7 @@ exports.createAdminCompany = async (req, res, next) => {
       email: email || "",
       phone: phone || "",
       website: website || "",
-      industry: industry || "Information Technology",
+      industry: String(industry || "").trim(),
       location: location || "",
       status: status || "active",
     });
@@ -1571,7 +1579,7 @@ exports.approveOrganizationRequest = async (req, res, next) => {
         success: false,
         code: "EMAIL_ALREADY_REGISTERED",
         message:
-          "An account already uses this official email, so the request was not approved. Ask the organization to use an official email that is not registered on CareerConnect.",
+          "An account already uses this official email, so the request was not approved. Ask the organization to use an official email that is not registered on E2Job.",
       });
     }
 
@@ -1590,7 +1598,7 @@ exports.approveOrganizationRequest = async (req, res, next) => {
         phone: request.phone ? request.phone.trim() : "",
         website: request.website ? request.website.trim() : "",
         companyType: request.organizationType || "Private",
-        industry: request.industry || "Information Technology",
+        industry: request.industry || "",
         location: fullLocation,
         address: request.address ? request.address.trim() : "",
         contactPerson: request.requestingEmployeeName || request.contactPerson.trim(),
@@ -2380,11 +2388,17 @@ exports.createOpportunityForEmployer = async (req, res, next) => {
     }
 
     const fields = pickListingUpdate(req.body);
-    for (const required of ["title", "description", "location"]) {
+    if (!hasLocation(fields.location)) {
+      return res.status(400).json({ success: false, message: LOCATION_REQUIRED });
+    }
+    for (const required of ["title", "description"]) {
       if (typeof fields[required] !== "string" || !fields[required].trim()) {
         return res.status(400).json({ success: false, message: `${required} is required` });
       }
     }
+
+    const invalid = checkListingKind(fields, type) || checkListingInput(fields);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
 
     const Model = type === "internship" ? Internship : Job;
     const now = new Date();
@@ -2417,7 +2431,7 @@ exports.createOpportunityForEmployer = async (req, res, next) => {
       recipientId: profile.userId._id,
       senderId: req.user._id,
       title: `We posted "${listing.title}" for you`,
-      message: `CareerConnect posted "${listing.title}" on your behalf. It's live now, and you can manage applicants from your dashboard.`,
+      message: `E2Job posted "${listing.title}" on your behalf. It's live now, and you can manage applicants from your dashboard.`,
       actionUrl: "/employer/dashboard",
     });
 
@@ -2613,6 +2627,9 @@ exports.editOpportunity = async (req, res, next) => {
       duration,
     } = req.body;
 
+    const invalid = checkListingInput({ deadline, salaryRange }, opp);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
+
     if (title) opp.title = title.trim();
     if (department !== undefined) opp.department = department;
     if (category !== undefined) opp.category = category;
@@ -2803,7 +2820,7 @@ exports.updateOpportunityStatus = async (req, res, next) => {
     if (req.user.role === "COMPANY_ADMIN" && ["Published", "Rejected"].includes(status)) {
       return res.status(403).json({
         success: false,
-        message: "Only CareerConnect administrators can publish or reject listings.",
+        message: "Only E2Job administrators can publish or reject listings.",
       });
     }
 
@@ -2837,7 +2854,7 @@ exports.updateOpportunityStatus = async (req, res, next) => {
  */
 exports.getAdminApplications = async (req, res, next) => {
   try {
-    const { status = "all", search = "", page = 1, limit = 15 } = req.query;
+    const { status = "all", type = "all", page = 1, limit = 15 } = req.query;
     const filter = {};
 
     // Strict Scope: Company Admins only see applications for their company
@@ -2847,12 +2864,22 @@ exports.getAdminApplications = async (req, res, next) => {
       filter.companyId = req.query.companyId;
     }
 
+    if (type === "Job" || type === "Internship") {
+      filter.opportunityType = type;
+    }
+    // Stage cards count the whole scope, not just the selected stage. aggregate() does not
+    // cast ids the way find() does.
+    const scope = { ...filter };
+    if (scope.companyId && mongoose.isValidObjectId(scope.companyId)) {
+      scope.companyId = new mongoose.Types.ObjectId(String(scope.companyId));
+    }
+
     if (status !== "all") {
-      filter.status = status;
+      filter.status = String(status);
     }
 
     const skip = (Number(page) - 1) * Number(limit);
-    const [applications, total] = await Promise.all([
+    const [applications, total, byStatus] = await Promise.all([
       Application.find(filter)
         .populate("candidateId", "fullName email profileImage phone city")
         .populate("companyId", "name logo")
@@ -2861,7 +2888,21 @@ exports.getAdminApplications = async (req, res, next) => {
         .limit(Number(limit))
         .lean(),
       Application.countDocuments(filter),
+      Application.aggregate([{ $match: scope }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
     ]);
+
+    const counts = Object.fromEntries(byStatus.map((row) => [row._id, row.count]));
+    const sum = (...names) => names.reduce((acc, name) => acc + (counts[name] || 0), 0);
+    const stats = {
+      total: byStatus.reduce((acc, row) => acc + row.count, 0),
+      applied: sum("Applied"),
+      reviewing: sum("Under Review", "In Progress", "Assessment", "Approved"),
+      shortlisted: sum("Shortlisted"),
+      interview: sum("Interview", "Interview Scheduled", "Interview Completed"),
+      hired: sum("Hired", "Selected", "Offer", "Offered"),
+      rejected: sum("Rejected"),
+    };
+    const pagination = { page: Number(page), limit: Number(limit), total, pages: Math.max(1, Math.ceil(total / Number(limit))) };
 
     return res.status(200).json({
       success: true,
@@ -2869,6 +2910,8 @@ exports.getAdminApplications = async (req, res, next) => {
       total,
       page: Number(page),
       totalPages: Math.ceil(total / Number(limit)),
+      // Shape the admin Applications page reads.
+      data: { applications, stats, pagination },
     });
   } catch (error) {
     next(error);
@@ -2905,8 +2948,13 @@ exports.updateApplicationStatus = async (req, res, next) => {
       return res.status(409).json({ success: false, code: "INVALID_STATUS_TRANSITION", message: problem });
     }
 
+    const previousStatus = application.status;
     application.status = normalizeStatus(status);
     await application.save();
+    if (previousStatus !== application.status) {
+      await notifyApplicationUpdates([application.toObject()], application.status, { senderId: req.user._id })
+        .catch((err) => console.warn("Application notification failed:", err.message));
+    }
 
     return res.status(200).json({
       success: true,
@@ -3483,10 +3531,10 @@ exports.resolveAdminReport = async (req, res, next) => {
           recipient: report.reportedBy,
           recipientId: report.reportedBy,
           senderRole: "admin",
-          sender: "CareerConnect Trust & Safety",
+          sender: "E2Job Trust & Safety",
           title: "Your Report Has Been Resolved",
           preview: `Report #${report._id.toString().slice(-6)} has been reviewed and resolved.`,
-          message: `Your report regarding "${report.title || report.category || "an issue"}" has been thoroughly investigated and resolved. Action note: ${resolutionNote.trim()}. Thank you for helping keep CareerConnect safe.`,
+          message: `Your report regarding "${report.title || report.category || "an issue"}" has been thoroughly investigated and resolved. Action note: ${resolutionNote.trim()}. Thank you for helping keep E2Job safe.`,
           category: "system_alert",
           notificationType: "GENERAL",
         });
@@ -3562,7 +3610,7 @@ exports.dismissAdminReport = async (req, res, next) => {
           recipient: report.reportedBy,
           recipientId: report.reportedBy,
           senderRole: "admin",
-          sender: "CareerConnect Trust & Safety",
+          sender: "E2Job Trust & Safety",
           title: "Update on Your Submitted Report",
           preview: `Report #${report._id.toString().slice(-6)} has been reviewed.`,
           message: `Your report regarding "${report.title || report.category || "an issue"}" has been reviewed by moderation. It was closed with the following outcome: ${dismissalReason.trim()}.`,

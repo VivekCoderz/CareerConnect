@@ -10,6 +10,7 @@ const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 const mongoose = require("mongoose")
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 const { openListingQuery } = require("../utils/listingExpiry");
+const { formatSalary, formatStipend, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 
 // Skill benchmarks for target roles for Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -218,60 +219,48 @@ module.exports.getStudentDashboard = async (req, res, next) => {
       }
     }
 
+    // Missing values are null (the client hides them), never invented text.
     const recommendedInternships = (dbInternships || []).map((job) => {
-      const stipendStr =
-        job.stipend ||
-        (job.salaryRange?.min > 0
-          ? `₹${job.salaryRange.min.toLocaleString()} / month`
-          : job.stipendAmount?.min > 0
-          ? `₹${job.stipendAmount.min.toLocaleString()} / month`
-          : "Competitive Stipend");
+      const stipendStr = formatStipend(job);
 
       return {
         _id: job._id,
         id: job._id.toString(),
         jobId: job._id.toString(),
         title: job.title,
-        company: job.employerId?.companyName || job.companyName || "Partner Employer",
+        company: companyOf(job),
         companyId: job.employerId?._id || "",
         location: job.location,
         stipend: stipendStr,
         salary: stipendStr,
-        duration: job.duration || "3-6 Months",
+        duration: textOrNull(job.duration),
         type: "Internship",
         opportunityType: "Internship",
-        workMode: job.workMode || "Remote",
+        workMode: textOrNull(job.workMode),
         skillsRequired: job.requiredSkills || job.skillsRequired || [],
-        postedAt: "Active",
-        deadline: job.deadline || job.applicationDeadline
-          ? new Date(job.deadline || job.applicationDeadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-          : "Open until filled",
+        postedAt: formatDate(job.createdAt),
+        deadline: formatDate(job.deadline || job.applicationDeadline),
         description: job.description,
         responsibilities: job.responsibilities,
       };
     });
 
     const recommendedJobs = (dbJobs || []).map((job) => {
-      const salaryStr =
-        job.salaryRange?.max > 0
-          ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive Package";
-
       return {
         _id: job._id,
         id: job._id.toString(),
         jobId: job._id.toString(),
         title: job.title,
-        company: job.employerId?.companyName || "Partner Employer",
+        company: companyOf(job),
         companyId: job.employerId?._id || "",
         location: job.location,
-        salary: salaryStr,
-        type: job.employmentType || "Full-Time",
-        opportunityType: job.employmentType || "Full-Time",
-        workMode: job.workMode || "On-Site",
+        salary: formatSalary(job.salaryRange),
+        type: textOrNull(job.employmentType),
+        opportunityType: textOrNull(job.employmentType),
+        workMode: textOrNull(job.workMode),
         skillsRequired: job.requiredSkills || job.skillsRequired || [],
-        postedAt: "Active",
-        deadline: job.deadline ? new Date(job.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
+        postedAt: formatDate(job.createdAt),
+        deadline: formatDate(job.deadline),
         description: job.description,
         responsibilities: job.responsibilities,
       };
@@ -318,17 +307,17 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             id: String(job._id),
             jobId: String(job._id),
             title: job.title,
-            company: job.company,
+            company: textOrNull(job.company),
             companyId: "",
             location: job.location,
-            stipend: job.stipend || "Competitive Stipend",
-            salary: job.stipend || "Competitive Stipend",
-            duration: job.duration || "3-6 Months",
+            stipend: textOrNull(job.stipend),
+            salary: textOrNull(job.stipend),
+            duration: textOrNull(job.duration),
             type: "Internship",
-            workMode: job.workMode || "Remote",
-            skillsRequired: [job.title.split(" ")[0] || "Development", "Teamwork"],
-            postedAt: job.postedDate || "Recently",
-            deadline: "Open until filled",
+            workMode: textOrNull(job.workMode),
+            skillsRequired: job.skills || [],
+            postedAt: textOrNull(job.postedDate),
+            deadline: formatDate(job.deadline),
             description: `${job.title} at ${job.company}. Apply directly at ${job.applyLink}`,
             applyLink: job.applyLink,
             applyUrl: job.applyLink,
@@ -357,15 +346,15 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             id: String(job._id),
             jobId: String(job._id),
             title: job.title,
-            company: job.company,
+            company: textOrNull(job.company),
             companyId: "",
             location: job.location,
-            salary: "₹4.5 - 12.0 LPA",
-            type: job.opportunityType || "Full-Time",
-            workMode: job.workMode || "On-Site",
-            skillsRequired: [job.title.split(" ")[0] || "Engineering", "Problem Solving"],
-            postedAt: job.postedDate || "Recently",
-            deadline: "Open until filled",
+            salary: textOrNull(job.salary),
+            type: textOrNull(job.opportunityType),
+            workMode: textOrNull(job.workMode),
+            skillsRequired: job.skills || [],
+            postedAt: textOrNull(job.postedDate),
+            deadline: formatDate(job.deadline),
             description: `${job.title} at ${job.company}. Apply directly at ${job.applyLink}`,
             applyLink: job.applyLink,
             applyUrl: job.applyLink,
@@ -388,7 +377,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         _id: c._id,
         id: c._id.toString(),
         title: c.title,
-        provider: "CareerConnect Academy",
+        provider: "E2Job Academy",
         level: c.level || "Intermediate",
         duration: `${c.duration || 6} ${c.durationUnit || "Weeks"}`,
         rating: 4.9,
@@ -413,7 +402,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         app.opportunityTitle ||
         app.internshipId?.title ||
         app.jobId?.title ||
-        "Position";
+        null;
       const compName =
         app.companyName ||
         app.internshipId?.companyName ||
@@ -421,7 +410,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         app.jobId?.companyName ||
         app.jobId?.employerId?.companyName ||
         app.employerId?.companyName ||
-        "Employer";
+        null;
       const appliedDateStr = new Date(app.createdAt || app.appliedAt || Date.now()).toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
@@ -438,7 +427,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
         company: compName,
         appliedDate: appliedDateStr,
         status: app.status,
-        lastUpdated: "Recently",
+        lastUpdated: formatDate(app.updatedAt),
       };
     });
 
@@ -451,7 +440,7 @@ module.exports.getStudentDashboard = async (req, res, next) => {
     const notifications = [
       {
         id: "notif-1",
-        title: "Welcome to Geeta University CareerConnect 🎉",
+        title: "Welcome to Geeta University E2Job 🎉",
         message: "Explore live internship opportunities directly posted by verified employers.",
         date: "Today",
         isRead: false,

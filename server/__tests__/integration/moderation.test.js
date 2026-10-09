@@ -10,6 +10,8 @@ const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
 
 const jobPayload = (overrides = {}) => ({
   title: "Moderated Backend Developer",
+  employmentType: "Full-time",
+  workMode: "On-site",
   location: "Bangalore",
   description: "Build APIs for a moderated job board.",
   status: "Published",
@@ -18,6 +20,7 @@ const jobPayload = (overrides = {}) => ({
 
 const internshipPayload = (overrides = {}) => ({
   title: "Moderated Design Intern",
+  workMode: "Remote",
   location: "Remote",
   description: "Help design a moderated job board.",
   status: "Published",

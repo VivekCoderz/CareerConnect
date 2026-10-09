@@ -484,7 +484,8 @@ const Signup = () => {
     } else {
       const digits = formData.phone.replace(/\D/g, "");
       if (formData.countryCode === "+91") {
-        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+        // Exactly 10 digits starting 6-9 (an extra leading 0 used to pass: QA bug 1).
+        if (!/^[6-9]\d{9}$/.test(digits)) {
           errors.phone = "Please enter a valid 10-digit mobile number";
         }
       } else if (digits.length < 6 || digits.length > 15) {
@@ -794,7 +795,7 @@ const Signup = () => {
           <div className="mb-6 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
             <div className="flex items-center justify-between">
               {[
-                { num: 1, label: "Verify Email" },
+                { num: 1, label: "Create Account" },
                 { num: 2, label: "Profile Info" },
                 { num: 3, label: "Interests" },
                 { num: 4, label: "AI Resume" },
@@ -850,7 +851,7 @@ const Signup = () => {
                   Step 1 of 4 · Create your account
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                  Welcome to CareerConnect
+                  Welcome to E2Job
                 </h1>
                 <p className="text-sm text-slate-500 mt-1.5">
                   Sign up in one click with your Google account
@@ -1866,7 +1867,7 @@ const Signup = () => {
                   Upload Your Resume
                 </h2>
                 <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
-                  Our CareerConnect AI will automatically parse your PDF resume and save your education, experience, projects, and skills into your profile!
+                  Our E2Job AI will automatically parse your PDF resume and save your education, experience, projects, and skills into your profile!
                 </p>
               </div>
 
@@ -2035,7 +2036,7 @@ const Signup = () => {
 
       {/* Footer */}
       <footer className="py-4 text-center text-xs text-slate-400">
-        CareerConnect · All rights reserved
+        E2Job · All rights reserved
       </footer>
     </div>
   );

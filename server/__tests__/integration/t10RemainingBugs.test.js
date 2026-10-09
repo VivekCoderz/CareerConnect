@@ -132,7 +132,10 @@ describe("ADM-11/12 inactive or deleted company", () => {
     expect(await Application.exists({ _id: application._id })).toBeTruthy();
 
     const post = await as(employer.token, "post", "/api/jobs")
-      .send({ title: "Should not post", location: "Remote", description: "A listing from an inactive company." });
+      .send({
+        title: "Should not post", employmentType: "Full-time", workMode: "Remote", location: "Remote",
+        description: "A listing from an inactive company.",
+      });
     expect(post.statusCode).toBe(403);
     expect(post.body.code).toBe("COMPANY_INACTIVE");
 
@@ -158,7 +161,10 @@ describe("ADM-11/12 inactive or deleted company", () => {
     // Reactivating restores posting (listings stay closed, like a rejected employer's).
     await as(data.superAdmin.token, "patch", `/api/admin/companies/${data.company._id}/status`).send({ status: "active" });
     const post = await as(data.employer.token, "post", "/api/jobs")
-      .send({ title: "Back in business", location: "Remote", description: "A listing after reactivation." });
+      .send({
+        title: "Back in business", employmentType: "Full-time", workMode: "Remote", location: "Remote",
+        description: "A listing after reactivation.",
+      });
     expect(post.statusCode).toBe(201);
   });
 
@@ -206,6 +212,8 @@ describe("public company profile", () => {
     const res = await request(app).get(path);
     expect(res.statusCode).toBe(200);
     expect(res.body.company.companyName).toBe("Fake Employer Co");
+    // The page shows "Verified employer" from this field.
+    expect(res.body.company.verificationStatus).toBe("approved");
   });
 
   it("an employer can't approve their own profile through a profile update", async () => {
@@ -390,6 +398,8 @@ describe("BUG-05..13 offers", () => {
 
     expect((await offer(employer, selected, { joiningDate: daysFromNow(-1) })).statusCode).toBe(400);
     expect((await offer(employer, selected, { expiryDate: daysFromNow(-1) })).statusCode).toBe(400);
+    // QA bug 13: the answer deadline can't be after the joining date.
+    expect((await offer(employer, selected, { joiningDate: daysFromNow(5), expiryDate: daysFromNow(10) })).statusCode).toBe(400);
     expect((await offer(employer, applied)).body.code).toBe("INVALID_STATUS_TRANSITION");
 
     const first = await offer(employer, selected);

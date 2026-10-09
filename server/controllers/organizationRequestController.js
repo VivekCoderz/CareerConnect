@@ -83,7 +83,7 @@ exports.requestOrganizationAccess = async (req, res, next) => {
       return res.status(409).json({
         success: false,
         code: "ORGANIZATION_ALREADY_REGISTERED",
-        message: "An organization with this official name or email is already registered on CareerConnect.",
+        message: "An organization with this official name or email is already registered on E2Job.",
       });
     }
 

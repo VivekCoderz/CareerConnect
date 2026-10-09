@@ -9,6 +9,7 @@ const { withoutListed } = require("../utils/listingSecurity");
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 const { openListingQuery } = require("../utils/listingExpiry");
+const { formatSalary, formatStipend, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 
 // Skill benchmarks for target roles for Job Matching & Skill Gap Analysis
 const ROLE_SKILL_BENCHMARKS = {
@@ -328,7 +329,8 @@ const calculateJobMatch = (
 
   // No skills on the profile yet: no basis for a match score.
   if (allProfileSkills.length === 0) return 0;
-  if (jobRequiredSkills.length === 0) return 85;
+  // The job lists no skills: nothing to match against, so no score (not a default 85%).
+  if (jobRequiredSkills.length === 0) return null;
 
   let matched = 0;
   jobRequiredSkills.forEach((reqSkill) => {
@@ -353,7 +355,8 @@ const calculateJobMatch = (
     matchPct = Math.min(100, matchPct + 10);
   }
 
-  return Math.min(98, Math.max(45, matchPct));
+  // The real percentage: no 45% floor, no 98% cap.
+  return Math.min(100, Math.max(0, matchPct));
 };
 
 // ==========================================
@@ -519,32 +522,22 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       }
     }
 
+    // Missing values are null (the client hides them), never invented text.
     const recommendedJobs = (dbJobs || []).map((job) => {
-      const salaryStr =
-        job.salaryRange?.min > 0
-          ? `₹${(job.salaryRange.min / 100000).toFixed(1)} - ${(job.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive LPA";
-
       return {
         _id: job._id,
         id: job._id.toString(),
         jobId: job._id.toString(),
         title: job.title,
-        company: job.employerId?.companyName || "Partner Employer",
+        company: companyOf(job),
         location: job.location,
-        salary: salaryStr,
-        type: job.employmentType || "Full-Time",
-        workMode: job.workMode || "Hybrid",
-        experienceRequired: job.experience?.level || "Fresher / 0-1 Yr",
+        salary: formatSalary(job.salaryRange),
+        type: textOrNull(job.employmentType),
+        workMode: textOrNull(job.workMode),
+        experienceRequired: textOrNull(job.experience?.level),
         skillsRequired: job.requiredSkills || [],
-        postedAt: "Active",
-        deadline: job.deadline
-          ? new Date(job.deadline).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "Open",
+        postedAt: formatDate(job.createdAt),
+        deadline: formatDate(job.deadline),
         matchPercentage: calculateJobMatch(
           profile,
           job.requiredSkills || [],
@@ -558,30 +551,19 @@ module.exports.getFresherDashboard = async (req, res, next) => {
     );
 
     const recommendedInternships = eligibleDbInternships.map((job) => {
-      const stipendStr =
-        job.salaryRange?.min > 0
-          ? `₹${job.salaryRange.min.toLocaleString()} / month`
-          : "Competitive Stipend";
-
       return {
         _id: job._id,
         id: job._id.toString(),
         jobId: job._id.toString(),
         title: job.title,
-        company: job.employerId?.companyName || "Partner Employer",
+        company: companyOf(job),
         location: job.location,
-        stipend: stipendStr,
-        duration: "3-6 Months",
+        stipend: formatStipend(job),
+        duration: textOrNull(job.duration),
         type: "Internship",
-        workMode: job.workMode || "Remote",
+        workMode: textOrNull(job.workMode),
         skillsRequired: job.requiredSkills || [],
-        deadline: job.deadline
-          ? new Date(job.deadline).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "Open",
+        deadline: formatDate(job.deadline),
       };
     });
 
@@ -600,23 +582,16 @@ module.exports.getFresherDashboard = async (req, res, next) => {
             id: String(job._id),
             jobId: String(job._id),
             title: job.title,
-            company: job.company,
+            company: textOrNull(job.company),
             location: job.location,
-            salary: "₹4.5 - 12.0 LPA",
-            type: job.opportunityType || "Full-Time",
-            workMode: job.workMode || "Hybrid",
-            experienceRequired: "Fresher / 0-1 Yr",
-            skillsRequired: [
-              job.title.split(" ")[0] || "Engineering",
-              "Problem Solving",
-            ],
-            postedAt: job.postedDate || "Recently",
-            deadline: "Open until filled",
-            matchPercentage: calculateJobMatch(
-              profile,
-              [job.title.split(" ")[0] || "Development"],
-              job.title,
-            ),
+            salary: textOrNull(job.salary),
+            type: textOrNull(job.opportunityType),
+            workMode: textOrNull(job.workMode),
+            experienceRequired: null,
+            skillsRequired: job.skills || [],
+            postedAt: textOrNull(job.postedDate),
+            deadline: formatDate(job.deadline),
+            matchPercentage: calculateJobMatch(profile, job.skills || [], job.title),
             applyLink: job.applyLink,
             applyUrl: job.applyLink,
             isExternal: true,
@@ -642,14 +617,14 @@ module.exports.getFresherDashboard = async (req, res, next) => {
           id: String(job._id),
           jobId: String(job._id),
           title: job.title,
-          company: job.company,
+          company: textOrNull(job.company),
           location: job.location,
-          stipend: "Competitive Stipend",
-          duration: "3-6 Months",
+          stipend: textOrNull(job.stipend),
+          duration: textOrNull(job.duration),
           type: "Internship",
-          workMode: job.workMode || "Remote",
-          skillsRequired: [job.title.split(" ")[0] || "Engineering"],
-          deadline: "Open until filled",
+          workMode: textOrNull(job.workMode),
+          skillsRequired: job.skills || [],
+          deadline: formatDate(job.deadline),
           applyLink: job.applyLink,
           applyUrl: job.applyLink,
           isExternal: true,
@@ -696,11 +671,12 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       jobId: app.jobId?._id || "",
       internshipId: app.internshipId?._id || app.internshipId || "",
       opportunityType: app.opportunityType,
-      title: app.jobId?.title || "Position",
+      title: app.jobId?.title || app.opportunityTitle || null,
       company:
         app.jobId?.employerId?.companyName ||
         app.employerId?.companyName ||
-        "Employer",
+        app.companyName ||
+        null,
       appliedDate: new Date(app.createdAt).toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
@@ -804,7 +780,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       {
         id: "crs-f1",
         name: `Complete ${targetRole} Bootcamp 2026`,
-        platform: "CareerConnect Academy",
+        platform: "E2Job Academy",
         skill: missingSkills[0] || "Full Stack Architecture",
         difficulty: "Beginner to Intermediate",
         duration: "6 Weeks (Self-paced)",
@@ -828,7 +804,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
       {
         id: "crs-f3",
         name: `Modern RESTful APIs & Backend Architecture with ${missingSkills[0] || "Node.js"}`,
-        platform: "Coursera / CareerConnect",
+        platform: "Coursera / E2Job",
         skill: missingSkills[0] || "Backend Development",
         difficulty: "Intermediate",
         duration: "4 Weeks",
@@ -925,7 +901,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
         type: "profile",
         title: "Fresher Profile Created",
         subtitle: chosenRole ? `Configured target role as ${chosenRole}` : "Target role not set yet",
-        timestamp: "Recently",
+        timestamp: formatDate(profile.createdAt),
       },
       ...(profile.projects && profile.projects.length > 0
         ? [
@@ -1061,7 +1037,7 @@ module.exports.getFresherRecommendations = async (req, res, next) => {
       {
         id: "crs-f1",
         title: `Industry-Ready ${targetRole || benchmarkRole} FastTrack`,
-        provider: "CareerConnect Pro",
+        provider: "E2Job Pro",
         duration: "4 Weeks",
         rating: 4.9,
         skillsCovered: missing.slice(0, 3),

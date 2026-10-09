@@ -542,7 +542,7 @@ const AdminReports = () => {
                       onClick={() => openReportModal(item._id)}
                       className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 rounded-lg transition"
                     >
-                      Review Now ΓåÆ
+                      Review Now →
                     </button>
                   </div>
                 </div>
@@ -795,7 +795,7 @@ const AdminReports = () => {
 
                         {/* Company / Tenant */}
                         <td className="px-4 py-3.5 text-slate-600">
-                          {r.companyId?.name || "Global / CareerConnect"}
+                          {r.companyId?.name || "Global / E2Job"}
                         </td>
 
                         {/* Status */}
@@ -1038,7 +1038,7 @@ const AdminReports = () => {
                             </div>
                             <div className="text-xs text-slate-600">{detailReport.reportedUserId.email}</div>
                             <div className="text-[11px] text-slate-500">
-                              Role: {detailReport.reportedUserId.role} ΓÇó Status: {detailReport.reportedUserId.status || "Active"}
+                              Role: {detailReport.reportedUserId.role} • Status: {detailReport.reportedUserId.status || "Active"}
                             </div>
                           </div>
                         ) : detailReport.companyId ? (
@@ -1258,7 +1258,7 @@ const AdminReports = () => {
                               required
                               value={dismissalReasonInput}
                               onChange={(e) => setDismissalReasonInput(e.target.value)}
-                              placeholder="Explain rationale: e.g., Verified opportunity meets CareerConnect terms, no spam detected..."
+                              placeholder="Explain rationale: e.g., Verified opportunity meets E2Job terms, no spam detected..."
                               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-slate-500/20 resize-none text-slate-800 bg-white"
                             />
                           </div>
@@ -1300,7 +1300,7 @@ const AdminReports = () => {
               {/* Modal Footer */}
               <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-[11px] text-slate-400">
-                  CareerConnect Trust & Safety Moderation Protocol
+                  E2Job Trust & Safety Moderation Protocol
                 </span>
                 <button
                   onClick={closeModal}

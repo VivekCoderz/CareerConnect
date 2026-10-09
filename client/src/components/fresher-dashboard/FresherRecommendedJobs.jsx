@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FEATURES } from "../../config/features";
 import { Link } from "react-router-dom";
 import OpportunityTitleLink from "../common/OpportunityTitleLink";
+import ViewDetailsButton from "../common/ViewDetailsButton";
 
 const FresherRecommendedJobs = ({
   jobs = [],
@@ -75,6 +76,7 @@ const FresherRecommendedJobs = ({
           const jobId = job.id || job._id;
           const isSaved = savedIds.has(jobId);
           const isApplied = appliedJobIds.has(String(jobId));
+          const jobSkills = [job.skillsRequired, job.skills, job.requiredSkills].find((l) => Array.isArray(l) && l.length) || [];
           const isTargetMatch = Boolean(targetRole) && (job.title || "")
             .toLowerCase()
             .includes(targetRole.toLowerCase().split(" ")[0]);
@@ -90,12 +92,12 @@ const FresherRecommendedJobs = ({
                   {job.logo ? (
                     <img
                       src={job.logo}
-                      alt={job.company}
+                      alt={job.company || ""}
                       className="w-10 h-10 rounded-xl object-contain border border-slate-200 p-1 bg-white shrink-0"
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-[#1e3a8a] font-bold text-sm flex items-center justify-center shrink-0">
-                      {(job.company || "C")[0]}
+                      {(job.company || job.title || "?")[0]}
                     </div>
                   )}
 
@@ -103,7 +105,7 @@ const FresherRecommendedJobs = ({
                     <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#1e3a8a] transition leading-snug line-clamp-1">
                       <OpportunityTitleLink item={job} type="Job">{job.title}</OpportunityTitleLink>
                     </h3>
-                    <p className="text-xs text-slate-600 font-medium">{job.company}</p>
+                    {job.company && <p className="text-xs text-slate-600 font-medium">{job.company}</p>}
                   </div>
                 </div>
 
@@ -153,9 +155,9 @@ const FresherRecommendedJobs = ({
               </div>
 
               {/* Skills */}
-              {job.skillsRequired && job.skillsRequired.length > 0 && (
+              {jobSkills.length > 0 && (
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {job.skillsRequired.slice(0, 4).map((skill, idx) => (
+                  {jobSkills.slice(0, 4).map((skill, idx) => (
                     <span
                       key={idx}
                       className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-medium"
@@ -173,12 +175,7 @@ const FresherRecommendedJobs = ({
                 </span>
 
                 <div className="flex items-center gap-2">
-                  <Link
-                    to={`/opportunities?search=${encodeURIComponent(job.title)}`}
-                    className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition"
-                  >
-                    View Job
-                  </Link>
+                  <ViewDetailsButton item={job} type="Job" size="sm" />
 
                   {isApplied ? (
                     <button type="button" disabled className="px-3.5 py-1.5 rounded-xl bg-slate-200 text-slate-600 text-xs font-semibold cursor-not-allowed">
@@ -223,7 +220,7 @@ const FresherRecommendedJobs = ({
             to="/jobs"
             className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1e3a8a] hover:text-[#1e40af] hover:underline transition"
           >
-            Browse all entry-level openings on CareerConnect →
+            Browse all entry-level openings on E2Job →
           </Link>
         </div>
       )}

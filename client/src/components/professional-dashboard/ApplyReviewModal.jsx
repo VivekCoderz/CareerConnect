@@ -18,7 +18,7 @@ const ApplyReviewModal = ({
 
   if (!isOpen || !opportunity) return null;
 
-  const candidateName = user?.fullName || profile?.userId?.fullName || profile?.fullName || "Imran";
+  const candidateName = user?.fullName || profile?.userId?.fullName || profile?.fullName || "";
   const professionalHeadline =
     profile?.currentEmployment?.jobTitle ||
     profile?.professionalHeadline ||
@@ -26,7 +26,7 @@ const ApplyReviewModal = ({
   const experienceYears = profile?.totalExperienceYears ? `${profile.totalExperienceYears}+ Years` : "Not provided";
 
   const isExternal = opportunity.isExternal || opportunity.applyType === "external" || opportunity.url?.startsWith("http");
-  const companyName = opportunity.company || opportunity.companyName || "Technology Enterprise";
+  const companyName = opportunity.company || opportunity.companyName || "";
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -65,17 +65,21 @@ const ApplyReviewModal = ({
                     : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                 }`}
               >
-                {isExternal ? "🔵 Apply on Company Website" : "🟢 Direct Apply via CareerConnect"}
+                {isExternal ? "🔵 Apply on Company Website" : "🟢 Direct Apply via E2Job"}
               </span>
-              <span className="text-xs text-slate-400">· {opportunity.location || "Remote"}</span>
+              {opportunity.location && (
+                <span className="text-xs text-slate-400">· {opportunity.location}</span>
+              )}
             </div>
 
             <h2 className="text-xl font-bold text-slate-900 leading-tight">
               {opportunity.title}
             </h2>
-            <p className="text-sm font-bold text-purple-700 mt-0.5">
-              {companyName}
-            </p>
+            {companyName && (
+              <p className="text-sm font-bold text-purple-700 mt-0.5">
+                {companyName}
+              </p>
+            )}
           </div>
 
           <button
@@ -97,13 +101,13 @@ const ApplyReviewModal = ({
             </span>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-bold text-slate-900">{candidateName}</p>
+                {candidateName && <p className="text-sm font-bold text-slate-900">{candidateName}</p>}
                 <p className="text-xs text-slate-600 font-medium">
                   {professionalHeadline} · {experienceYears} Experience
                 </p>
               </div>
               <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">
-                {opportunity.matchPercentage || 92}% Match
+                {typeof opportunity.matchPercentage === "number" ? `${opportunity.matchPercentage}% Match` : "Not enough data"}
               </span>
             </div>
           </div>
@@ -143,7 +147,7 @@ const ApplyReviewModal = ({
                   </div>
                   <div>
                     <span className="text-xs font-bold text-slate-900 block truncate max-w-[220px]">
-                      {customResumeName || `${candidateName.replace(/\s+/g, "_")}_Executive_Resume.pdf`}
+                      {customResumeName || (candidateName ? `${candidateName.replace(/\s+/g, "_")}_Executive_Resume.pdf` : "Profile resume")}
                     </span>
                     <span className="text-[11px] text-purple-800 font-semibold flex items-center gap-1">
                       <span>✓</span> ATS Optimized & Verified

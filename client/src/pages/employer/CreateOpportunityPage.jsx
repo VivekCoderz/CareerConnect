@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams, useLocation, Link } from "react-router-dom";
 import { createJob, getJobById, updateJob, updateJobStatus } from "../../services/jobService";
 import {
   create as createInternship,
@@ -9,6 +9,7 @@ import {
 } from "../../services/internshipService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import ModerationBadge from "../../components/employer/ModerationBadge";
+import { EMPTY_LISTING_FORM, CATEGORY_OPTIONS, listingFormError, experiencePayload } from "../../utils/listingForm";
 
 const STAGE_TYPES = [
   "Resume Screening",
@@ -111,8 +112,12 @@ const PRESETS = {
   ],
 };
 
-const getSuccessMessage = (label, targetStatus) => {
+const getSuccessMessage = (label, targetStatus, res) => {
   if (targetStatus === "Draft") return `${label} saved as draft. Redirecting...`;
+  // Editing a published listing sends it back for approval (server decides).
+  if (/approval again/i.test(res?.message || "")) {
+    return `${label} updated and sent for approval again. It will be visible once an admin approves it. Redirecting...`;
+  }
   if (targetStatus === "Pending Approval") {
     return `${label} submitted for approval. It will go live once an admin approves it. Redirecting...`;
   }
@@ -123,9 +128,14 @@ export default function CreateOpportunityPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const { id: routeId } = useParams();
+  const { pathname } = useLocation();
+  const onInternshipRoute = pathname.startsWith("/employer/internships/");
+
   const editJobId = searchParams.get("edit");
-  const editInternshipId = searchParams.get("editInternship");
-  const initialType = searchParams.get("type") === "internship" ? "Internship" : "Job";
+  // My Internships links to /employer/internships/:id/edit
+  const editInternshipId = searchParams.get("editInternship") || (onInternshipRoute ? routeId : null) || null;
+  const initialType = searchParams.get("type") === "internship" || onInternshipRoute ? "Internship" : "Job";
 
   const [oppType, setOppType] = useState(initialType);
   const [loading, setLoading] = useState(false);
@@ -136,39 +146,7 @@ export default function CreateOpportunityPage() {
   const [stages, setStages] = useState(PRESETS.standard);
   const [expandedStageIdx, setExpandedStageIdx] = useState(null);
 
-  const [formData, setFormData] = useState({
-    title: "",
-    category: "Web Development",
-    subCategory: "Full Stack Development",
-    department: "Engineering",
-    employmentType: "Full-time",
-    workMode: "Hybrid",
-    location: "Bangalore",
-    city: "Bangalore",
-    country: "India",
-    isPaid: true,
-    hasJobOffer: true,
-    isInternational: false,
-    salaryMin: "600000",
-    salaryMax: "1200000",
-    currency: "INR",
-    isNegotiable: false,
-    stipend: "₹20,000/month",
-    duration: "3 months",
-    experienceLevel: "Fresher / Entry-Level",
-    minYears: 0,
-    maxYears: 1,
-    education: "B.Tech / BCA / MCA / Any Graduate",
-    eligibility: "Open to recent graduates and final year students",
-    description: "",
-    responsibilities: "",
-    requiredSkills: "React, Node.js, JavaScript, Tailwind CSS",
-    preferredSkills: "TypeScript, MongoDB, Redux",
-    bonusSkills: "Docker, AWS, Git",
-    openings: 2,
-    deadline: "",
-    status: "",
-  });
+  const [formData, setFormData] = useState({ ...EMPTY_LISTING_FORM });
 
   // Pre-load if editing
   useEffect(() => {
@@ -180,13 +158,13 @@ export default function CreateOpportunityPage() {
             const j = res.job;
             setFormData({
               title: j.title || "",
-              category: j.category || "Web Development",
-              subCategory: j.subCategory || "Full Stack Development",
-              department: j.department || "Engineering",
-              employmentType: j.employmentType || "Full-time",
-              workMode: j.workMode || "Hybrid",
-              location: j.location || "Bangalore",
-              city: j.city || "Bangalore",
+              category: j.category || "",
+              subCategory: j.subCategory || "",
+              department: j.department || "",
+              employmentType: j.employmentType || "",
+              workMode: j.workMode || "",
+              location: j.location || "",
+              city: j.city || "",
               country: j.country || "India",
               isPaid: j.isPaid !== false,
               hasJobOffer: Boolean(j.hasJobOffer),
@@ -197,9 +175,9 @@ export default function CreateOpportunityPage() {
               isNegotiable: Boolean(j.salaryRange?.isNegotiable),
               stipend: j.stipend || "",
               duration: j.duration || "",
-              experienceLevel: j.experience?.level || "Fresher / Entry-Level",
-              minYears: j.experience?.minYears ?? 0,
-              maxYears: j.experience?.maxYears ?? 1,
+              experienceLevel: j.experience?.level || "",
+              minYears: j.experience?.minYears ?? "",
+              maxYears: j.experience?.maxYears ?? "",
               education: j.education || "",
               eligibility: j.eligibility || "",
               description: j.description || "",
@@ -207,7 +185,7 @@ export default function CreateOpportunityPage() {
               requiredSkills: (j.requiredSkills || []).join(", "),
               preferredSkills: (j.preferredSkills || []).join(", "),
               bonusSkills: (j.bonusSkills || []).join(", "),
-              openings: j.openings || 1,
+              openings: j.openings || "",
               deadline: j.deadline ? j.deadline.split("T")[0] : "",
               status: j.status || "",
             });
@@ -238,13 +216,13 @@ export default function CreateOpportunityPage() {
             const i = res.internship || res.data;
             setFormData({
               title: i.title || "",
-              category: i.category || "Web Development",
-              subCategory: i.subCategory || "Full Stack Development",
-              department: i.department || "General",
+              category: i.category || "",
+              subCategory: i.subCategory || "",
+              department: i.department || "",
               employmentType: "Internship",
-              workMode: i.workMode || "Hybrid",
-              location: i.location || "Bangalore",
-              city: i.city || "Bangalore",
+              workMode: i.workMode || "",
+              location: i.location || "",
+              city: i.city || "",
               country: i.country || "India",
               isPaid: i.isPaid !== false,
               hasJobOffer: Boolean(i.hasJobOffer),
@@ -253,19 +231,19 @@ export default function CreateOpportunityPage() {
               salaryMax: "",
               currency: "INR",
               isNegotiable: false,
-              stipend: i.stipend || "₹15,000/month",
-              duration: i.duration || "3 months",
-              experienceLevel: "Fresher / Entry-Level",
-              minYears: 0,
-              maxYears: 0,
-              education: i.education || "Any Graduate",
+              stipend: i.stipend || "",
+              duration: i.duration || "",
+              experienceLevel: "",
+              minYears: "",
+              maxYears: "",
+              education: i.education || "",
               eligibility: i.eligibility || "",
               description: i.description || "",
               responsibilities: (i.responsibilities || []).join("\n"),
               requiredSkills: (i.requiredSkills || []).join(", "),
               preferredSkills: (i.preferredSkills || []).join(", "),
               bonusSkills: (i.bonusSkills || []).join(", "),
-              openings: i.openings || 1,
+              openings: i.openings || "",
               deadline: i.deadline ? i.deadline.split("T")[0] : "",
               status: i.status || "",
             });
@@ -373,18 +351,12 @@ export default function CreateOpportunityPage() {
     setError("");
     setSuccessMsg("");
 
-    if (!formData.title.trim()) {
-      setError("Please provide a title for this opportunity.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    if (!formData.location.trim()) {
-      setError("Please specify the location.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    if (!formData.description.trim()) {
-      setError("Please provide a role description.");
+    const formError = listingFormError(formData, oppType === "Internship"
+      // Stipend is required only for paid internships.
+      ? ["title", "category", "workMode", "location", ...(formData.isPaid ? ["stipend"] : []), "duration", "description", "requiredSkills", "openings"]
+      : ["title", "category", "employmentType", "workMode", "location", "description", "requiredSkills", "openings"]);
+    if (formError) {
+      setError(formError);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -440,9 +412,9 @@ export default function CreateOpportunityPage() {
           isPaid: formData.isPaid,
           hasJobOffer: formData.hasJobOffer,
           isInternational: formData.isInternational,
-          stipend: formData.isPaid ? (formData.stipend || "₹15,000/month") : "Unpaid",
-          duration: formData.duration || "3 months",
-          openings: Number(formData.openings) || 1,
+          stipend: formData.isPaid ? formData.stipend.trim() : "Unpaid",
+          duration: formData.duration.trim(),
+          openings: Number(formData.openings),
           education: formData.education,
           eligibility: formData.eligibility,
           description: formData.description.trim(),
@@ -464,8 +436,9 @@ export default function CreateOpportunityPage() {
         }
 
         if (res.success) {
-          setSuccessMsg(getSuccessMessage("Internship", targetStatus));
-          setTimeout(() => navigate("/employer/internships"), 1200);
+          setSuccessMsg(getSuccessMessage("Internship", targetStatus, res));
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          setTimeout(() => navigate("/employer/internships"), 2500);
         } else {
           setError(res.message || "Failed to save internship");
         }
@@ -475,7 +448,7 @@ export default function CreateOpportunityPage() {
           category: formData.category,
           subCategory: formData.subCategory,
           department: formData.department,
-          employmentType: formData.employmentType || "Full-time",
+          employmentType: formData.employmentType,
           workMode: formData.workMode,
           location: formData.location.trim(),
           city: formData.city.trim() || formData.location.trim(),
@@ -489,11 +462,7 @@ export default function CreateOpportunityPage() {
             currency: formData.currency || "INR",
             isNegotiable: Boolean(formData.isNegotiable),
           },
-          experience: {
-            level: formData.experienceLevel,
-            minYears: Number(formData.minYears) || 0,
-            maxYears: Number(formData.maxYears) || 1,
-          },
+          experience: experiencePayload(formData),
           education: formData.education,
           eligibility: formData.eligibility,
           description: formData.description.trim(),
@@ -501,7 +470,7 @@ export default function CreateOpportunityPage() {
           requiredSkills: parsedSkills(formData.requiredSkills),
           preferredSkills: parsedSkills(formData.preferredSkills),
           bonusSkills: parsedSkills(formData.bonusSkills),
-          openings: Number(formData.openings) || 1,
+          openings: Number(formData.openings),
           deadline: formData.deadline || null,
           recruitmentStages: sanitizedStages,
         };
@@ -517,8 +486,10 @@ export default function CreateOpportunityPage() {
         }
 
         if (res.success) {
-          setSuccessMsg(getSuccessMessage("Job", targetStatus));
-          setTimeout(() => navigate("/employer/dashboard"), 1200);
+          setSuccessMsg(getSuccessMessage("Job", targetStatus, res));
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          // Job Management lists pending and draft jobs; the overview only shows live ones.
+          setTimeout(() => navigate("/employer/dashboard?tab=jobs"), 2500);
         } else {
           setError(res.message || "Failed to post job");
         }
@@ -565,7 +536,7 @@ export default function CreateOpportunityPage() {
               {isEditing && <ModerationBadge status={formData.status} />}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              New listings are reviewed by the CareerConnect team and go live once approved.
+              New listings are reviewed by the E2Job team and go live once approved.
             </p>
           </div>
 
@@ -576,7 +547,7 @@ export default function CreateOpportunityPage() {
                 type="button"
                 onClick={() => {
                   setOppType("Job");
-                  setFormData((p) => ({ ...p, employmentType: "Full-time" }));
+                  setFormData((p) => ({ ...p, employmentType: "" }));
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                   oppType === "Job"
@@ -661,16 +632,13 @@ export default function CreateOpportunityPage() {
                 <div>
                   <label className={labelClass}>Domain / Category</label>
                   <select name="category" value={formData.category} onChange={handleChange} className={inputClass}>
-                    <option>Web Development</option>
-                    <option>Mobile App Development</option>
-                    <option>Artificial Intelligence / ML</option>
-                    <option>Data Science & Analytics</option>
-                    <option>DevOps & Cloud Computing</option>
-                    <option>Cybersecurity</option>
-                    <option>UI/UX Design</option>
-                    <option>Product Management</option>
-                    <option>Business Development</option>
-                    <option>General Engineering</option>
+                    <option value="">Select category</option>
+                    {formData.category && !CATEGORY_OPTIONS.includes(formData.category) && (
+                      <option>{formData.category}</option>
+                    )}
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -721,6 +689,7 @@ export default function CreateOpportunityPage() {
                   onChange={handleChange}
                   className={inputClass}
                 >
+                  <option value="">Select employment type</option>
                   {oppType === "Internship" ? (
                     <>
                       <option>Internship</option>
@@ -740,6 +709,7 @@ export default function CreateOpportunityPage() {
               <div>
                 <label className={labelClass}>Work Mode</label>
                 <select name="workMode" value={formData.workMode} onChange={handleChange} className={inputClass}>
+                  <option value="">Select work mode</option>
                   <option>Hybrid</option>
                   <option>Remote</option>
                   <option>On-site</option>
@@ -753,7 +723,7 @@ export default function CreateOpportunityPage() {
                   name="location"
                   value={formData.location}
                   onChange={handleChange}
-                  placeholder="e.g. Bangalore, Karnataka"
+                  placeholder="e.g. Pune, or Remote"
                   className={inputClass}
                   required
                 />
@@ -931,6 +901,78 @@ export default function CreateOpportunityPage() {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Education (optional)</label>
+                  <input
+                    type="text"
+                    name="education"
+                    value={formData.education}
+                    onChange={handleChange}
+                    placeholder="e.g. B.Tech / BCA / Any Graduate"
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Eligibility (optional)</label>
+                  <input
+                    type="text"
+                    name="eligibility"
+                    value={formData.eligibility}
+                    onChange={handleChange}
+                    placeholder="e.g. Final year students and 2025 graduates"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              {oppType === "Job" && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className={labelClass}>Experience Level (optional)</label>
+                    <select
+                      name="experienceLevel"
+                      value={formData.experienceLevel}
+                      onChange={handleChange}
+                      className={inputClass}
+                    >
+                      <option value="">Not specified</option>
+                      <option>Fresher / Entry-Level</option>
+                      <option>Junior (1-3 yrs)</option>
+                      <option>Mid-Level (3-5 yrs)</option>
+                      <option>Senior (5+ yrs)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Min Experience (Years)</label>
+                    <input
+                      type="number"
+                      name="minYears"
+                      min="0"
+                      value={formData.minYears}
+                      onChange={handleChange}
+                      placeholder="e.g. 0"
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Max Experience (Years)</label>
+                    <input
+                      type="number"
+                      name="maxYears"
+                      min="0"
+                      value={formData.maxYears}
+                      onChange={handleChange}
+                      placeholder="e.g. 2"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1224,30 +1266,31 @@ export default function CreateOpportunityPage() {
           </div>
 
           {/* Sticky Bottom Action Bar */}
-          <div className="sticky bottom-4 z-20 bg-white/95 backdrop-blur-md p-4 rounded-3xl border border-slate-200 shadow-xl flex items-center justify-between gap-4">
+          <div className="sticky bottom-4 z-20 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-3xl border border-slate-200 shadow-xl flex items-center justify-between gap-2 sm:gap-4">
             <Link
               to="/employer/dashboard"
-              className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition"
+              className="px-3 sm:px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition whitespace-nowrap"
             >
               Cancel
             </Link>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {(!isEditing || formData.status === "Draft") && (
                 <button
                   type="button"
                   disabled={loading}
                   onClick={() => handleSubmit("Draft")}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition"
+                  className="px-3 sm:px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition whitespace-nowrap"
                 >
-                  Save as Draft
+                  <span className="sm:hidden">Save draft</span>
+                  <span className="hidden sm:inline">Save as Draft</span>
                 </button>
               )}
 
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-black shadow-md hover:shadow-lg transition flex items-center gap-2 disabled:opacity-50"
+                className="px-4 sm:px-6 py-2.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-black shadow-md hover:shadow-lg transition flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
               >
                 {loading ? (
                   <>
@@ -1256,8 +1299,8 @@ export default function CreateOpportunityPage() {
                   </>
                 ) : (
                   <>
-                    <span>🚀</span>
-                    <span>{canSubmitForApproval ? "Submit for approval" : "Update Opportunity"}</span>
+                    <span className="sm:hidden">{canSubmitForApproval ? "Submit" : "Update"}</span>
+                    <span className="hidden sm:inline">{canSubmitForApproval ? "Submit for approval" : "Update Opportunity"}</span>
                   </>
                 )}
               </button>

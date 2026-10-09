@@ -59,7 +59,7 @@ const MailNotificationModal = ({
                 {notification.title}
               </h2>
               <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                From: <span className="text-slate-800">{notification.sender}</span> &lt;notifications@careerconnect.edu&gt;
+                From: <span className="text-slate-800">{notification.sender}</span> &lt;notifications@e2job.com&gt;
               </p>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { FEATURES } from "../../config/features";
 import { Link } from "react-router-dom";
+import ViewDetailsButton from "../common/ViewDetailsButton";
 
 const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], appliedJobIds = new Set(), limit = 1 }) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -30,9 +31,8 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xl">🔥</span>
             <h2 className="text-lg font-bold text-slate-900">
-              {isFullView ? "Recommended & Campus Jobs" : "Trending & Recommended Job"}
+              {isFullView ? "Jobs" : "Latest Jobs"}
             </h2>
             {isFullView ? (
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#1e3a8a] border border-blue-200">
@@ -40,14 +40,14 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
               </span>
             ) : (
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                Top #1 Pick
+                Latest
               </span>
             )}
           </div>
           <p className="text-xs text-slate-500 mt-1">
             {isFullView
-              ? "Showing verified campus placement drives & curated external opportunities (10 per page)"
-              : "Top trending full-time opportunity curated for entry-level and campus graduates"}
+              ? "Jobs from employers on E2Job and remote roles from job boards (10 per page)"
+              : "The newest opening on E2Job"}
           </p>
         </div>
         {!isFullView && (
@@ -75,6 +75,9 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
           {displayedJobs.map((job) => {
             const isSaved = savedIds.includes(job.id || job._id);
             const isApplied = appliedJobIds.has(String(job.id || job._id));
+            const jobSkills = [job.skillsRequired, job.skills, job.requiredSkills].find((l) => Array.isArray(l) && l.length) || [];
+            const jobCompany = job.company || job.companyName;
+            const typeMode = [job.type, job.workMode].filter(Boolean).join(" • ");
             return (
               <div
                 key={job.id || job._id}
@@ -82,29 +85,36 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
               >
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                      🔥 Trending Now
-                    </span>
                     <h3 className="text-base font-bold text-slate-900">{job.title}</h3>
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
-                      {job.type || "Full Time"} • {job.workMode || "On-site"}
-                    </span>
+                    {typeMode && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        {typeMode}
+                      </span>
+                    )}
                   </div>
 
-                  <p className="text-xs font-medium text-slate-600">
-                    <span className="font-semibold text-slate-800">{job.company || job.companyName}</span> {job.location ? ` • ${job.location}` : ""}
-                  </p>
+                  {(jobCompany || job.location) && (
+                    <p className="text-xs font-medium text-slate-600">
+                      {jobCompany && <span className="font-semibold text-slate-800">{jobCompany}</span>}
+                      {jobCompany && job.location ? " • " : ""}
+                      {job.location || ""}
+                    </p>
+                  )}
 
-                  <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                    <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                      {job.salary || "Salary not disclosed"}
-                    </span>
-                    <span>• {job.postedAt || "Actively hiring"}</span>
-                  </div>
+                  {(job.salary || job.postedAt) && (
+                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                      {job.salary && (
+                        <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                          {job.salary}
+                        </span>
+                      )}
+                      {job.postedAt && <span>{job.salary ? "• " : ""}{job.postedAt}</span>}
+                    </div>
+                  )}
 
-                  {(job.skillsRequired || job.skills) && (
+                  {jobSkills.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
-                      {(job.skillsRequired || job.skills).map((skill, sIdx) => (
+                      {jobSkills.map((skill, sIdx) => (
                         <span
                           key={sIdx}
                           className="px-2 py-0.5 bg-white text-slate-700 text-[10px] font-medium rounded-md border border-slate-200"
@@ -131,6 +141,8 @@ const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], app
                       {isSaved ? "★ Saved" : "☆ Save"}
                     </button>
                   )}
+
+                  <ViewDetailsButton item={job} type="Job" />
 
                   {isApplied ? (
                     <button type="button" disabled className="px-4 py-2.5 bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl cursor-not-allowed">

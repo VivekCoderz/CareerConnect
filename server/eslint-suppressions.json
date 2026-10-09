@@ -35,14 +35,11 @@
       "count": 8
     },
     "no-unused-vars": {
-      "count": 13
+      "count": 12
     }
   },
   "controllers/applicationController.js": {
     "max-lines": {
-      "count": 1
-    },
-    "no-unused-vars": {
       "count": 1
     }
   },

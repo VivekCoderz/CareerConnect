@@ -32,7 +32,7 @@ const jobOfferSchema = new mongoose.Schema(
     },
     department: {
       type: String,
-      default: "Engineering",
+      default: "",
     },
     employmentType: {
       type: String,
@@ -58,11 +58,11 @@ const jobOfferSchema = new mongoose.Schema(
     },
     location: {
       type: String,
-      default: "Gurugram / Hybrid",
+      default: "",
     },
     benefits: {
       type: [String],
-      default: ["Health Insurance", "Paid Leaves", "Learning Allowance", "Performance Bonus"],
+      default: [],
     },
     expiryDate: {
       type: Date,
@@ -91,6 +91,8 @@ const jobOfferSchema = new mongoose.Schema(
         "accepted",
         "rejected",
         "expired",
+        // The application was rejected or withdrawn while the offer was waiting for an answer.
+        "Withdrawn",
       ],
       default: "Sent",
       index: true,
@@ -108,5 +110,18 @@ const jobOfferSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Offers still waiting for an answer (drafts included). Accepted / answered offers are final.
+const PENDING_OFFER_STATUSES = ["Draft", "draft", "Sent", "sent", "Pending", "pending"];
+
+/** Withdraws every pending offer for these applications. Returns the number withdrawn. */
+jobOfferSchema.statics.withdrawPending = async function (applicationIds) {
+  if (applicationIds.length === 0) return 0;
+  const result = await this.updateMany(
+    { applicationId: { $in: applicationIds }, status: { $in: PENDING_OFFER_STATUSES } },
+    { $set: { status: "Withdrawn" } }
+  );
+  return result.modifiedCount;
+};
 
 module.exports = mongoose.model("JobOffer", jobOfferSchema);

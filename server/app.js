@@ -38,6 +38,7 @@ const opportunityRoutes = require("./routes/opportunityRoutes.js");
 const notificationRoutes = require("./routes/notificationRoutes.js");
 const aiAssistantRoutes = require("./routes/aiAssistantRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
+const reportRoutes = require("./routes/reportRoutes.js");
 const { configureTrustProxy } = require("./config/trustProxy");
 const { globalLimiter } = require("./middleware/rateLimitMiddleware");
 const dbStatus = require("./utils/dbStatus");
@@ -175,14 +176,18 @@ app.use("/api/fresher/recommendations", recommendationRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiAssistantRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/reports", reportRoutes);
 
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
+
+// G02: public sitemap (www.e2job.com/sitemap.xml is rewritten here by client/vercel.json).
+app.get("/sitemap.xml", require("./controllers/sitemapController").getSitemap);
 
 // Gateway Health Check Endpoint
 app.get("/", (req, res) => {
   return res.status(200).json({
     status: "active",
-    message: "CareerConnect API Gateway is running smoothly 🚀",
+    message: "E2Job API Gateway is running smoothly 🚀",
     timestamp: new Date().toISOString(),
   });
 });
@@ -194,7 +199,7 @@ app.get("/health", (req, res) => {
   return res.status(databaseConnected ? 200 : 503).json({
     status: databaseConnected ? "OK" : "degraded",
     database: databaseConnected ? "connected" : "unavailable",
-    message: databaseConnected ? "CareerConnect backend is running" : "Database unavailable",
+    message: databaseConnected ? "E2Job backend is running" : "Database unavailable",
     timestamp: new Date().toISOString(),
   });
 });

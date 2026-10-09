@@ -28,12 +28,13 @@ const internshipSchema = new mongoose.Schema(
       maxlength: 150,
     },
     department: { type: String, default: "General", trim: true },
-    category: { type: String, default: "Web Development", trim: true, index: true },
-    subCategory: { type: String, default: "Full Stack Development", trim: true },
+    // No defaults for category, city or education (see Job).
+    category: { type: String, default: "", trim: true, index: true },
+    subCategory: { type: String, default: "", trim: true },
     workMode: {
       type: String,
+      // No default: the employer chooses it (required when an employer creates a listing).
       enum: ["On-site", "Hybrid", "Remote"],
-      default: "Hybrid",
       index: true,
     },
     location: {
@@ -41,14 +42,15 @@ const internshipSchema = new mongoose.Schema(
       required: [true, "Location is required"],
       trim: true,
     },
-    city: { type: String, default: "Bangalore", trim: true, index: true },
-    state: { type: String, default: "Karnataka", trim: true },
+    city: { type: String, default: "", trim: true, index: true },
+    state: { type: String, default: "", trim: true },
     country: { type: String, default: "India", trim: true, index: true },
     isPaid: { type: Boolean, default: true, index: true },
     hasJobOffer: { type: Boolean, default: false, index: true },
     isInternational: { type: Boolean, default: false, index: true },
     isFeatured: { type: Boolean, default: false, index: true },
-    stipend: { type: String, default: "Not disclosed", trim: true },
+    // Empty when the employer didn't give one (older internships stored "Not disclosed").
+    stipend: { type: String, default: "", trim: true },
     stipendAmount: {
       min: { type: Number, default: 0 },
       max: { type: Number, default: 0 },
@@ -66,7 +68,7 @@ const internshipSchema = new mongoose.Schema(
     preferredSkills: { type: [String], default: [] },
     education: {
       type: String,
-      default: "Any Graduate / B.Tech / BCA / MCA",
+      default: "",
     },
     eligibility: { type: String, default: "", trim: true },
     deadline: { type: Date, default: null },
@@ -125,7 +127,7 @@ const internshipSchema = new mongoose.Schema(
     source: {
       type: String,
       enum: ["CareerConnect", "LinkedIn", "Internshala", "Remotive", "Arbeitnow", "GU Drives", "Jooble", "Other"],
-      default: "CareerConnect",
+      default: "CareerConnect", // stored value for own listings (old brand); shown as E2Job
       index: true,
     },
     isExternal: { type: Boolean, default: false, index: true },

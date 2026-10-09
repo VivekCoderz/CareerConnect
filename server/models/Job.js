@@ -67,16 +67,18 @@ const jobSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    // No defaults for category, city, experience level or education: an empty value stays
+    // empty rather than being saved as something the employer never chose.
     category: {
       type: String,
       trim: true,
-      default: "Web Development",
+      default: "",
       index: true,
     },
     subCategory: {
       type: String,
       trim: true,
-      default: "Full Stack Development",
+      default: "",
     },
     department: {
       type: String,
@@ -85,14 +87,13 @@ const jobSchema = new mongoose.Schema(
     },
     employmentType: {
       type: String,
+      // No default: the employer chooses it (required when an employer creates a listing).
       enum: ["Full-time", "Part-time", "Contract", "Internship", "Freelance", "Trainee"],
-      default: "Full-time",
       index: true,
     },
     workMode: {
       type: String,
       enum: ["On-site", "Hybrid", "Remote"],
-      default: "Hybrid",
       index: true,
     },
     location: {
@@ -103,13 +104,13 @@ const jobSchema = new mongoose.Schema(
     city: {
       type: String,
       trim: true,
-      default: "Bangalore",
+      default: "",
       index: true,
     },
     state: {
       type: String,
       trim: true,
-      default: "Karnataka",
+      default: "",
     },
     country: {
       type: String,
@@ -160,7 +161,7 @@ const jobSchema = new mongoose.Schema(
     // ---------- Experience & Education ----------
     experience: {
       minYears: { type: Number, default: 0 },
-      maxYears: { type: Number, default: 2 },
+      maxYears: { type: Number, default: 0 }, // 0 = not specified; nothing shown
       level: {
         type: String,
         enum: [
@@ -169,12 +170,11 @@ const jobSchema = new mongoose.Schema(
           "Mid-Level (3-5 yrs)",
           "Senior (5+ yrs)",
         ],
-        default: "Fresher / Entry-Level",
       },
     },
     education: {
       type: String,
-      default: "Any Graduate / B.Tech / BCA / MCA",
+      default: "",
     },
     eligibility: {
       type: String,
@@ -278,7 +278,7 @@ const jobSchema = new mongoose.Schema(
     source: {
       type: String,
       enum: ["CareerConnect", "LinkedIn", "Internshala", "Remotive", "Arbeitnow", "GU Drives", "Jooble", "Other"],
-      default: "CareerConnect",
+      default: "CareerConnect", // stored value for own listings (old brand); shown as E2Job
       index: true,
     },
     isExternal: {
@@ -412,14 +412,14 @@ jobSchema.index(
   { unique: true, partialFilterExpression: { isExternal: true } }
 );
 
-// Optional: readable salary / stipend for UI
+// Optional: readable salary / stipend for UI; null when the listing gives none.
 jobSchema.virtual("compensationLabel").get(function () {
   if (this.employmentType === "Internship" || this.employmentType === "Trainee") {
     if (this.stipend) return this.stipend;
     if (this.salaryRange?.min) {
       return `₹${this.salaryRange.min.toLocaleString("en-IN")}/month`;
     }
-    return "Stipend not disclosed";
+    return null;
   }
 
   const { min, max, isNegotiable } = this.salaryRange || {};
@@ -428,7 +428,7 @@ jobSchema.virtual("compensationLabel").get(function () {
     return isNegotiable ? `${base} (Negotiable)` : base;
   }
   if (min) return `₹${(min / 100000).toFixed(1)}+ LPA`;
-  return "Not disclosed";
+  return null;
 });
 
 jobSchema.set("toJSON", { virtuals: true });

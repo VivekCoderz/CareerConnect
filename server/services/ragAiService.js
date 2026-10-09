@@ -73,11 +73,12 @@ const retrievePlatformContext = async (queryText, userId = null) => {
       type: "job",
       id: j._id,
       title: j.title,
-      company: j.company || "Top Tech Partner",
-      location: j.location || "Multiple Locations",
-      workMode: j.workMode || (j.remote ? "Remote" : "In-office"),
-      salary: j.salary || "Competitive CTC",
-      skills: j.skillsRequired || ["Problem Solving"],
+      // Only real listing data goes to the AI; missing values are "Not specified".
+      company: j.company || j.companyName || "Not specified",
+      location: j.location || "Not specified",
+      workMode: j.workMode || "Not specified",
+      salary: j.salary || "Not specified",
+      skills: j.skillsRequired || j.requiredSkills || [],
       applyUrl: `/jobs`,
     }));
   } catch (err) {
@@ -236,7 +237,7 @@ ${context.courses
   if (geminiModel) {
     try {
       const systemPrompt = `
-You are the CareerConnect AI Assistant, an expert career advisor and live platform guide for students at Geeta University and job candidates.
+You are the E2Job AI Assistant, an expert career advisor and live platform guide for students at Geeta University and job candidates.
 You answer user questions using Retrieval-Augmented Generation (RAG) based on real database opportunities and candidate profiles.
 
 Answer naturally, warmly, and concisely in English or Hinglish (depending on the user's query language).
@@ -315,7 +316,7 @@ You can apply in 1-click from the dashboard or directly from the cards!`;
   } else if (/course|learn|skill/i.test(qLower)) {
     fallbackAnswer = `### 📚 Recommended Courses & Certifications
 
-Verified certified courses on CareerConnect and Geeta University:
+Verified certified courses on E2Job and Geeta University:
 
 ${context.courses
   .map(
@@ -326,7 +327,7 @@ ${context.courses
 
 Complete these to earn verified badges!`;
   } else {
-    fallbackAnswer = `### 🤖 CareerConnect Personal AI Assistant
+    fallbackAnswer = `### 🤖 E2Job Personal AI Assistant
 
 I can help you using live platform data:
 - **Internships:** "What are the best internships for me?"

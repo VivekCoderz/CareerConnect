@@ -1,5 +1,5 @@
 /**
- * Unit Test for Connect Company with CareerConnect logic
+ * Unit Test for Connect Company with E2Job logic
  * Validates model schemas, validations, and controller functions with mocks.
  */
 const assert = require("assert");

@@ -97,7 +97,7 @@ const AdminCompaniesContent = () => {
 
   const initialForm = {
     name: "",
-    industry: "Information Technology",
+    industry: "",
     email: "",
     phone: "",
     website: "",

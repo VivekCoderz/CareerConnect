@@ -4,6 +4,7 @@ const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const { escapeRegex } = require("../utils/listingSecurity");
 const { openListingQuery } = require("../utils/listingExpiry");
+const { formatSalary, formatStipend, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 
 // =========================================================================
 // 1. CLEAN DEGREE KEYWORD MAP (SIMPLIFIED NAMES)
@@ -296,8 +297,8 @@ async function findStoredExternalOpportunities({ keywords = "", source = "all" }
         type: EXTERNAL_TYPE_LABELS[doc.source] || doc.source,
         platformSource: doc.source,
         opportunityType,
-        workMode: doc.workMode === "Remote" ? "Remote" : "On-Site / Hybrid",
-        postedDate: doc.createdAt ? new Date(doc.createdAt).toISOString().split("T")[0] : "Recently",
+        workMode: textOrNull(doc.workMode),
+        postedDate: doc.createdAt ? new Date(doc.createdAt).toISOString().split("T")[0] : null,
         applyLink: doc.applyUrl,
         isExclusive: false,
         isExternal: true,
@@ -440,6 +441,10 @@ async function getAggregatedOpportunities({
         (job.workMode || "").toLowerCase().includes("remote") ||
         fullLocation.includes("remote") ||
         fullLocation.includes("work from home");
+      // A city filter shows remote roles only when they say they're open to India. Worldwide or
+      // APAC remote roles stay under "All regions" and "Remote Jobs" (QA, 6 Oct: Delhi NCR
+      // listed "Europe, USA, Canada, APAC" roles).
+      const remoteForIndia = isRemote && /\bindia\b/.test(fullLocation);
 
       if (regLower === "international") {
         const hasIndianKeyword = INDIAN_GEO_KEYWORDS.some((keyword) =>
@@ -450,7 +455,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "delhi ncr" || regLower === "delhi") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("delhi") ||
           fullLocation.includes("noida") ||
           fullLocation.includes("gurgaon") ||
@@ -463,7 +468,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "bangalore" || regLower === "bengaluru") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("bengaluru") ||
           fullLocation.includes("bangalore") ||
           fullLocation.includes("karnataka")
@@ -472,7 +477,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "hyderabad") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("hyderabad") ||
           fullLocation.includes("secunderabad") ||
           fullLocation.includes("telangana")
@@ -481,7 +486,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "pune") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("pune") ||
           fullLocation.includes("maharashtra")
         );
@@ -489,7 +494,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "mumbai") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("mumbai") ||
           fullLocation.includes("navi mumbai") ||
           fullLocation.includes("thane") ||
@@ -499,7 +504,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "chennai") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("chennai") ||
           fullLocation.includes("tamil nadu")
         );
@@ -507,7 +512,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "kolkata") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("kolkata") ||
           fullLocation.includes("west bengal")
         );
@@ -515,7 +520,7 @@ async function getAggregatedOpportunities({
 
       if (regLower === "chandigarh") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("chandigarh") ||
           fullLocation.includes("mohali") ||
           fullLocation.includes("panchkula") ||
@@ -525,13 +530,13 @@ async function getAggregatedOpportunities({
 
       if (regLower === "jaipur") {
         return (
-          isRemote ||
+          remoteForIndia ||
           fullLocation.includes("jaipur") ||
           fullLocation.includes("rajasthan")
         );
       }
 
-      return isRemote || fullLocation.includes(regLower);
+      return remoteForIndia || fullLocation.includes(regLower);
     });
   }
 
@@ -673,27 +678,22 @@ async function getAggregatedOpportunities({
         dbInterns = [...(internDocs || []), ...(jobInternDocs || [])];
       }
 
+      // Missing values are null (the client hides them), never invented text.
       const formattedJobs = dbJobs.map((j) => ({
         _id: j._id.toString(),
         id: j._id.toString(),
         title: j.title,
-        company: j.employerId?.companyName || "CareerConnect Partner",
-        location: j.location || "On-Campus / Hybrid",
-        opportunityType: j.employmentType || "Full-Time",
-        workMode: j.workMode || "On-Site",
-        salary: j.salaryRange?.max
-          ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive Package",
-        stipend: j.salaryRange?.max
-          ? `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`
-          : "Competitive Package",
+        company: companyOf(j),
+        location: textOrNull(j.location),
+        opportunityType: textOrNull(j.employmentType),
+        workMode: textOrNull(j.workMode),
+        salary: formatSalary(j.salaryRange),
+        stipend: null,
         description: j.description,
         skills: j.requiredSkills || [],
         skillsRequired: j.requiredSkills || [],
-        deadline: j.deadline ? new Date(j.deadline).toLocaleDateString() : "Open",
-        postedDate: j.createdAt
-          ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-          : "Recently",
+        deadline: formatDate(j.deadline),
+        postedDate: formatDate(j.createdAt),
         applyLink: `/jobs/${j._id}`,
         isExclusive: true,
         isExternal: false,
@@ -706,21 +706,18 @@ async function getAggregatedOpportunities({
         _id: i._id.toString(),
         id: i._id.toString(),
         title: i.title,
-        company: i.companyName || i.employerId?.companyName || "CareerConnect Partner",
-        location: i.location || "Panipat / Remote",
+        company: companyOf(i),
+        location: textOrNull(i.location),
         opportunityType: "Internship",
-        workMode: i.workMode || "On-Site",
-        salary: i.stipend ? `₹${i.stipend}/month` : "Paid Internship",
-        stipend: i.stipend ? `₹${i.stipend}/month` : "Paid Internship",
+        workMode: textOrNull(i.workMode),
+        salary: formatStipend(i),
+        stipend: formatStipend(i),
+        duration: textOrNull(i.duration),
         description: i.description,
         skills: i.skillsRequired || i.requiredSkills || [],
         skillsRequired: i.skillsRequired || i.requiredSkills || [],
-        deadline: i.applicationDeadline || i.deadline
-          ? new Date(i.applicationDeadline || i.deadline).toLocaleDateString()
-          : "Open",
-        postedDate: i.createdAt
-          ? new Date(i.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-          : "Recently",
+        deadline: formatDate(i.applicationDeadline || i.deadline),
+        postedDate: formatDate(i.createdAt),
         applyLink: `/internships/${i._id}`,
         isExclusive: true,
         isExternal: false,

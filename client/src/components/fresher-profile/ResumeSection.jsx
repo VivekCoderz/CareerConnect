@@ -1,10 +1,11 @@
 import { useState } from "react";
 import ResumeUploadInput from "../common/ResumeUploadInput";
+import { externalHref } from "../../utils/safeUrl";
 
 const ResumeSection = ({ profile, user, onChange }) => {
   const [resumeData, setResumeData] = useState({
     resumeUrl: profile?.resume?.resumeUrl || "",
-    resumeName: profile?.resume?.resumeName || "CareerConnect_Fresher_Resume.pdf",
+    resumeName: profile?.resume?.resumeName || "E2Job_Fresher_Resume.pdf",
     isGenerated: profile?.resume?.isGenerated ?? true,
     uploadedAt: profile?.resume?.uploadedAt || new Date().toISOString(),
   });
@@ -45,7 +46,7 @@ const ResumeSection = ({ profile, user, onChange }) => {
   // Compile full user and profile data for the live ATS Resume
   const fullName = user?.fullName || profile?.userId?.fullName || "Candidate Name";
   const email = user?.email || profile?.userId?.email || "candidate@example.com";
-  const phone = user?.phone || profile?.userId?.phone || "+91 98765 43210";
+  const phone = user?.phone || profile?.userId?.phone || "Enter your phone number";
   const city = profile?.location?.city || "Bangalore";
   const state = profile?.location?.state || "India";
   const headline = profile?.professionalHeadline || "Computer Science Graduate | Software Engineer";
@@ -161,12 +162,12 @@ const ResumeSection = ({ profile, user, onChange }) => {
 
               <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-blue-700 font-semibold pt-1">
                 {socialLinks.linkedin && (
-                  <a href={socialLinks.linkedin} target="_blank" rel="noreferrer">
+                  <a href={externalHref(socialLinks.linkedin)} target="_blank" rel="noreferrer">
                     LinkedIn ↗
                   </a>
                 )}
                 {socialLinks.github && (
-                  <a href={socialLinks.github} target="_blank" rel="noreferrer">
+                  <a href={externalHref(socialLinks.github)} target="_blank" rel="noreferrer">
                     GitHub ↗
                   </a>
                 )}
@@ -260,12 +261,12 @@ const ResumeSection = ({ profile, user, onChange }) => {
                         </span>
                         <div className="flex gap-2 text-[11px] text-blue-700 font-semibold">
                           {proj.githubUrl && (
-                            <a href={proj.githubUrl} target="_blank" rel="noreferrer">
+                            <a href={externalHref(proj.githubUrl)} target="_blank" rel="noreferrer">
                               Source ↗
                             </a>
                           )}
                           {proj.liveUrl && (
-                            <a href={proj.liveUrl} target="_blank" rel="noreferrer">
+                            <a href={externalHref(proj.liveUrl)} target="_blank" rel="noreferrer">
                               Live Demo ↗
                             </a>
                           )}

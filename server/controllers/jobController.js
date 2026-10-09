@@ -6,8 +6,14 @@ const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
 const { isListingExpired, withOpenDeadline } = require("../utils/listingExpiry");
+const { formatSalary, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
 const {
   pickListingUpdate,
+  checkListingInput,
+  checkListingKind,
+  hasLocation,
+  LOCATION_REQUIRED,
+  mergePayRanges,
   requiresReapproval,
   escapeRegex,
   resolveNewListingModeration,
@@ -18,6 +24,7 @@ const {
 // S07: job listings are served from the database only. clearSearchCache stays
 // so the student dashboard and opportunities feeds refresh when a job changes.
 const { clearSearchCache } = require("../services/jobScraperService");
+const { categoryClauses } = require("../utils/categoryKeywords");
 const { getPlatformSettings } = require("../services/platformSettings");
 const { isEmployerApproved } = require("../middleware/employerVerification");
 const { notifyListingClosedInBackground } = require("../services/listingClosure");
@@ -156,13 +163,12 @@ exports.getJobs = async (req, res, next) => {
 
     if (department && department !== "All") query.department = department;
     if (category && category !== "All") {
-      const catRegex = new RegExp(escapeRegex(category), "i");
+      // Pushed under $and so an existing $or (search) and $and (open-deadline) are both kept.
       if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: [{ category: catRegex }, { department: catRegex }, { title: catRegex }] }];
+        query.$and = [...(query.$and || []), { $or: query.$or }];
         delete query.$or;
-      } else {
-        query.$or = [{ category: catRegex }, { department: catRegex }, { title: catRegex }];
       }
+      query.$and = [...(query.$and || []), { $or: categoryClauses(category) }];
     }
     if (employmentType && employmentType !== "All") query.employmentType = employmentType;
     if (workMode && workMode !== "All") query.workMode = workMode;
@@ -247,16 +253,9 @@ exports.getJobs = async (req, res, next) => {
     }
 
     const formattedJobs = rawJobs.map((j) => {
-      let salaryStr = null;
-      if (j.salaryRange?.max > 0) {
-        salaryStr = `₹${(j.salaryRange.min / 100000).toFixed(1)} - ${(j.salaryRange.max / 100000).toFixed(1)} LPA`;
-      } else if (j.salaryRange?.min > 0) {
-        salaryStr = `₹${(j.salaryRange.min / 100000).toFixed(1)}+ LPA`;
-      } else if (j.stipend) {
-        salaryStr = j.stipend;
-      }
-
-      const compName = j.employerId?.companyName || j.companyName || "CareerConnect Partner";
+      // Missing values are null (the client hides them), never invented text.
+      const salaryStr = formatSalary(j.salaryRange) || textOrNull(j.stipend);
+      const compName = companyOf(j);
 
       return {
         ...j,
@@ -272,19 +271,20 @@ exports.getJobs = async (req, res, next) => {
         location: j.location,
         city: j.city,
         salary: salaryStr,
-        type: j.employmentType || "Full-Time",
-        opportunityType: j.employmentType || "Full-Time",
-        workMode: j.workMode || "On-Site",
+        type: textOrNull(j.employmentType),
+        opportunityType: textOrNull(j.employmentType),
+        workMode: textOrNull(j.workMode),
         requiredSkills: j.requiredSkills || [],
         skillsRequired: j.requiredSkills || [],
         skills: j.requiredSkills || [],
         responsibilities: j.responsibilities || [],
-        postedAt: j.createdAt ? new Date(j.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Recently",
-        deadline: j.deadline ? new Date(j.deadline).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Open",
+        postedAt: formatDate(j.createdAt),
+        deadline: formatDate(j.deadline),
         isExclusive: !j.isExternal,
         isExternal: Boolean(j.isExternal),
         source: j.source || (j.isExternal ? "External" : "CareerConnect"),
-        platformSource: j.source || (j.isExternal ? "External" : "CareerConnect"),
+        // Own listings are stored with source "CareerConnect" (the old brand); show E2Job.
+        platformSource: j.isExternal ? j.source || "External" : "E2Job",
         applyLink: j.applyUrl || `/jobs/${j._id}`,
       };
     });
@@ -377,12 +377,18 @@ exports.createJob = async (req, res, next) => {
       recruitmentStages,
     } = req.body;
 
-    if (!title || !location || !description) {
+    if (!hasLocation(location)) {
+      return res.status(400).json({ success: false, message: LOCATION_REQUIRED });
+    }
+    if (!title || !description) {
       return res.status(400).json({
         success: false,
-        message: "Job title, location and description are required",
+        message: "Job title and description are required",
       });
     }
+
+    const invalid = checkListingKind({ employmentType, workMode }, "job") || checkListingInput({ deadline, salaryRange });
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
 
     const stages = sanitizeRecruitmentStages(recruitmentStages);
     const companyId = req.user.companyId || null;
@@ -420,14 +426,14 @@ exports.createJob = async (req, res, next) => {
       companyId,
       companyName: companyName || "",
       title: title.trim(),
-      category: category?.trim() || "Web Development",
-      subCategory: subCategory?.trim() || "Frontend Development",
+      category: category?.trim() || "",
+      subCategory: subCategory?.trim() || "",
       department: department?.trim() || "General",
-      employmentType: employmentType || "Full-time",
-      workMode: workMode || "Hybrid",
+      employmentType,
+      workMode,
       location: location.trim(),
-      city: city?.trim() || "Bangalore",
-      state: state?.trim() || "Karnataka",
+      city: city?.trim() || "",
+      state: state?.trim() || "",
       country: country?.trim() || "India",
       isPaid: isPaid !== false,
       hasJobOffer: !!hasJobOffer,
@@ -435,8 +441,8 @@ exports.createJob = async (req, res, next) => {
       salaryRange: salaryRange || { min: 0, max: 0, currency: "INR", isNegotiable: false },
       stipend: stipend?.trim() || "",
       duration: duration?.trim() || "",
-      experience: experience || { minYears: 0, maxYears: 2, level: "Fresher / Entry-Level" },
-      education: education || "Any Graduate",
+      ...(experience ? { experience } : {}),
+      education: education || "",
       eligibility: eligibility?.trim() || "",
       description: description.trim(),
       responsibilities: Array.isArray(responsibilities) ? responsibilities : [],
@@ -480,6 +486,9 @@ exports.updateJob = async (req, res, next) => {
 
     // Only listing fields are editable; ownership and counters are not.
     const updates = pickListingUpdate(req.body);
+    const invalid = checkListingKind(updates, "job", { partial: true }) || checkListingInput(updates, job);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
+    mergePayRanges(updates, job);
     if (req.body.recruitmentStages) {
       updates.recruitmentStages = sanitizeRecruitmentStages(req.body.recruitmentStages);
     }

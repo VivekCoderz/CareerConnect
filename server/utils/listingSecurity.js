@@ -31,6 +31,83 @@ const requiresReapproval = (listing, updates) => {
   );
 };
 
+// A listing must say where it is. Any non-empty text works, including "Remote"; there is
+// no default city.
+const LOCATION_REQUIRED = "Location is required";
+const hasLocation = (value) => typeof value === "string" && value.trim().length > 0;
+
+// Employment type (jobs) and work mode (jobs and internships) have no default: the
+// employer chooses them. Allowed values come from the models. Internships have no
+// employment type field.
+const enumOf = (modelName, path) => require(`../models/${modelName}`).schema.path(path).enumValues;
+const KIND_FIELDS = {
+  job: [["employmentType", "Employment type", "Job"], ["workMode", "Work mode", "Job"]],
+  internship: [["workMode", "Work mode", "Internship"]],
+};
+
+/**
+ * Returns a message when employment type / work mode are missing or not allowed, else null.
+ * On create both are required; on update (`partial`) only the fields sent are checked, and
+ * sending an empty value is refused (it can't be cleared).
+ */
+const checkListingKind = (fields, kind, { partial = false } = {}) => {
+  for (const [path, label, modelName] of KIND_FIELDS[kind]) {
+    const sent = Object.prototype.hasOwnProperty.call(fields, path);
+    if (partial && !sent) continue;
+    const value = fields[path];
+    if (typeof value !== "string" || !value.trim()) return `${label} is required`;
+    const allowed = enumOf(modelName, path);
+    if (!allowed.includes(value)) return `${label} must be one of: ${allowed.join(", ")}`;
+  }
+  return null;
+};
+
+// Pay ranges by listing field. A max of 0 means "no maximum" (shown as "₹X+").
+const PAY_RANGE_FIELDS = { salaryRange: "Salary", stipendAmount: "Stipend" };
+
+/**
+ * BUG-20 / BUG-21: returns a message when the listing input is invalid, otherwise null.
+ * - A deadline can't be in the past. Today is fine: listings stay open until the end of
+ *   their deadline day in IST (utils/listingExpiry.js). Re-sending the stored deadline
+ *   unchanged is allowed, so an expired listing can still be edited.
+ * - A pay range's minimum can't be above its maximum. On update `existing` is the stored
+ *   listing, so when only one side is sent it is compared with the stored other side.
+ */
+const checkListingInput = (input, existing = null) => {
+  const { deadline } = input;
+  if (deadline !== undefined && deadline !== null && deadline !== "") {
+    const date = new Date(deadline);
+    if (Number.isNaN(date.getTime())) return "Invalid deadline";
+    const unchanged = existing?.deadline && new Date(existing.deadline).getTime() === date.getTime();
+    if (!unchanged && isListingExpired({ deadline: date })) return "Deadline cannot be in the past";
+  }
+
+  for (const [field, label] of Object.entries(PAY_RANGE_FIELDS)) {
+    const sent = input[field];
+    if (sent === undefined || sent === null) continue;
+    if (typeof sent !== "object" || Array.isArray(sent)) return `${label} range is invalid`;
+    const stored = existing?.[field] || {};
+    const min = Number(sent.min !== undefined ? sent.min : stored.min ?? 0);
+    const max = Number(sent.max !== undefined ? sent.max : stored.max ?? 0);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < 0) {
+      return `${label} must be zero or more`;
+    }
+    if (max > 0 && min > max) return `${label} minimum cannot be more than the maximum`;
+  }
+  return null;
+};
+
+/** On update, a pay range with only one side sent keeps the stored other side. Mutates `updates`. */
+const mergePayRanges = (updates, existing) => {
+  for (const field of Object.keys(PAY_RANGE_FIELDS)) {
+    const sent = updates[field];
+    if (!sent || typeof sent !== "object") continue;
+    const stored = existing?.[field]?.toObject?.() || existing?.[field] || {};
+    updates[field] = { ...stored, ...sent };
+  }
+  return updates;
+};
+
 const escapeRegex = (value) => String(value || "").slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const isPlatformAdmin = (user) =>
@@ -97,6 +174,11 @@ const withoutListed = (extra, listed) => {
 };
 
 module.exports = {
+  LOCATION_REQUIRED,
+  hasLocation,
+  checkListingKind,
+  checkListingInput,
+  mergePayRanges,
   pickListingUpdate,
   toPublicListing,
   requiresReapproval,

@@ -4,6 +4,7 @@ const Course = require("../models/Course");
 const Application = require("../models/Application");
 const FresherProfile = require("../models/FresherProfile");
 const User = require("../models/User");
+const { formatSalary, formatStipend, companyOf, textOrNull } = require("../utils/listingDisplay");
 const { openListingQuery } = require("../utils/listingExpiry");
 
 // Industry standard baseline skill matrix by role
@@ -339,7 +340,8 @@ const calculateJobScore = (profile, userSkills, job) => {
     score += 5;
   }
 
-  const finalMatchScore = Math.min(98, Math.max(45, score));
+  // The real score: no 45% floor, no 98% cap.
+  const finalMatchScore = Math.min(100, Math.max(0, score));
 
   return {
     matchScore: finalMatchScore,
@@ -445,14 +447,13 @@ const generateFresherRecommendations = async (userId) => {
         _id: job._id,
         id: job._id,
         title: job.title,
-        company: job.companyName || "Technology Partner",
-        location: job.location || `${job.city || "Bangalore"}, ${job.country || "India"}`,
-        city: job.city || "Bangalore",
-        workMode: job.workMode || "Hybrid",
-        salary: job.salaryRange?.min
-          ? `₹${job.salaryRange.min / 100000}–${job.salaryRange.max / 100000} LPA`
-          : "Competitive (Fresher Scale)",
-        experience: `${job.experience?.minYears || 0}–${job.experience?.maxYears || 2} Years (Entry Level)`,
+        // Missing values are null (the client hides them), never invented text.
+        company: companyOf(job),
+        location: job.location || [job.city, job.country].filter(Boolean).join(", ") || null,
+        city: job.city || "",
+        workMode: textOrNull(job.workMode),
+        salary: formatSalary(job.salaryRange),
+        experience: textOrNull(job.experience?.level),
         requiredSkills: job.requiredSkills || [],
         matchingSkills: matchAnalysis.matchingSkills,
         missingSkills: matchAnalysis.missingSkills,
@@ -460,9 +461,9 @@ const generateFresherRecommendations = async (userId) => {
         reasons: matchAnalysis.reasons,
         postedDate: job.createdAt,
         deadline: job.deadline || null,
-        openings: job.openings || 1,
-        source: job.source || "CareerConnect Verified",
-        employmentType: job.employmentType || "Full-time",
+        openings: job.openings || null,
+        source: job.source || "CareerConnect",
+        employmentType: textOrNull(job.employmentType),
       };
     })
     .sort((a, b) => b.matchScore - a.matchScore)
@@ -479,20 +480,18 @@ const generateFresherRecommendations = async (userId) => {
     .map((internship) => {
       const reqSkills = internship.requiredSkills || [];
       const matching = reqSkills.filter((s) => userSkillSet.has(s.toLowerCase()));
-      const matchScore = Math.min(
-        95,
-        Math.max(50, Math.round((matching.length / Math.max(1, reqSkills.length)) * 50 + 45))
-      );
+      // Share of the listed skills the student has; null when the internship lists none.
+      const matchScore = reqSkills.length ? Math.round((matching.length / reqSkills.length) * 100) : null;
 
       return {
         _id: internship._id,
         id: internship._id,
         title: internship.title,
-        company: internship.companyName || "Enterprise Partner",
-        location: internship.location || "Remote",
-        workMode: internship.workMode || "Remote",
-        stipend: internship.stipend || "Paid Stipend",
-        duration: internship.duration || "3 Months",
+        company: companyOf(internship),
+        location: textOrNull(internship.location),
+        workMode: textOrNull(internship.workMode),
+        stipend: formatStipend(internship),
+        duration: textOrNull(internship.duration),
         requiredSkills: reqSkills,
         matchingSkills: matching,
         matchScore,
@@ -500,7 +499,7 @@ const generateFresherRecommendations = async (userId) => {
         type: "Internship",
       };
     })
-    .sort((a, b) => b.matchScore - a.matchScore)
+    .sort((a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1))
     .slice(0, 6);
 
   // 7. Course Recommendations from DB
@@ -519,7 +518,7 @@ const generateFresherRecommendations = async (userId) => {
           _id: c._id,
           id: c._id,
           title: c.title,
-          provider: "CareerConnect Academy",
+          provider: "E2Job Academy",
           duration: `${c.duration || 4} ${c.durationUnit || "weeks"}`,
           difficulty: c.level ? c.level.charAt(0).toUpperCase() + c.level.slice(1) : "Beginner",
           skillsCovered: c.skills || [],
@@ -545,7 +544,7 @@ const generateFresherRecommendations = async (userId) => {
       {
         id: "crs-rec-1",
         title: `Industry-Ready ${targetRole} FastTrack & ${topMissingSkill}`,
-        provider: "CareerConnect Pro Learning",
+        provider: "E2Job Pro Learning",
         duration: "4 Weeks (Self-paced)",
         difficulty: "Intermediate",
         skillsCovered: [topMissingSkill, secondMissingSkill, "REST APIs"],
@@ -763,7 +762,7 @@ const generateFresherRecommendations = async (userId) => {
         week: "Week 4",
         focus: "Resume Upgrade & Targeted Applications",
         tasks: [
-          "Add newly deployed project and metrics to CareerConnect profile & resume",
+          "Add newly deployed project and metrics to E2Job profile & resume",
           "Apply to top 5 high-match (85%+) Fresher positions",
           "Follow up on pending applications and practice mock technical interviews",
         ],

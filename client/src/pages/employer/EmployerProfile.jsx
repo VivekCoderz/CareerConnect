@@ -39,7 +39,7 @@ const EmployerProfile = () => {
     officialEmail: "",
     mobile: "",
     logo: "",
-    industry: "Information Technology",
+    industry: "",
     companyType: "Private",
     foundedYear: "",
     website: "",

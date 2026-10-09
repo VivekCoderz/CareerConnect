@@ -10,7 +10,8 @@ const formatRoleTitle = (str) => {
   if (!str) return "Candidate Role";
   return str
     .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    // Only raise the first letter, so acronyms like LAP, HR or SBFC stay as typed.
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 };
 
@@ -133,8 +134,11 @@ const ATSPipelineView = ({
   // Helper to determine candidate stage index & current stage object
   const getCandidateStageData = (app) => {
     let stages = DEFAULT_STAGES;
-    if (app.jobId?.recruitmentStages && app.jobId.recruitmentStages.length > 0) {
-      stages = [...app.jobId.recruitmentStages].sort((a, b) => a.order - b.order);
+    const listingStages = app.jobId?.recruitmentStages?.length
+      ? app.jobId.recruitmentStages
+      : app.internshipId?.recruitmentStages;
+    if (listingStages && listingStages.length > 0) {
+      stages = [...listingStages].sort((a, b) => a.order - b.order);
     }
 
     let currentIndex = -1;
@@ -203,6 +207,32 @@ const ATSPipelineView = ({
       );
     });
   }, [jobFilteredApps, activeStageFilter, searchQuery]);
+
+  // Kanban: each in-progress candidate goes in exactly one column (QA bug 11).
+  // Default stages have no _id, so ids are only compared when both exist; repeated stage
+  // names are told apart by the candidate's round number.
+  const kanbanColumns = useMemo(() => {
+    const columns = activeStages.map(() => []);
+    jobFilteredApps.forEach((app) => {
+      const stageData = getCandidateStageData(app);
+      if (stageData.isSelected || stageData.isRejected) return;
+      const current = stageData.currentStage;
+      const currentId = current?._id?.toString();
+      let col = currentId ? activeStages.findIndex((s) => s._id && s._id.toString() === currentId) : -1;
+      if (col === -1) {
+        const name = (current?.name || app.stage || "").toLowerCase();
+        const samePosition = activeStages[stageData.currentIndex];
+        col = samePosition && samePosition.name.toLowerCase() === name
+          ? stageData.currentIndex
+          : activeStages.findIndex((s) => s.name.toLowerCase() === name);
+      }
+      // A stage this view has no column for (e.g. "All jobs"): keep the candidate visible by round number.
+      if (col === -1) col = Math.max(0, Math.min(stageData.currentIndex, activeStages.length - 1));
+      // Guard: a bad stored index or a view without columns must not crash the board.
+      if (columns[col]) columns[col].push(app);
+    });
+    return columns;
+  }, [jobFilteredApps, activeStages]);
 
   // Stage counts for tab badges
   const stageCounts = useMemo(() => {
@@ -483,16 +513,7 @@ const ATSPipelineView = ({
       {viewMode === "kanban" && filteredApps.length > 0 && (
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin items-start">
           {activeStages.map((stage, sIdx) => {
-            const stageApps = jobFilteredApps.filter((app) => {
-              const stageData = getCandidateStageData(app);
-              return (
-                !stageData.isSelected &&
-                !stageData.isRejected &&
-                (stageData.currentStage?.name === stage.name ||
-                  stageData.currentStage?._id?.toString() === stage._id?.toString() ||
-                  app.stage === stage.name)
-              );
-            });
+            const stageApps = kanbanColumns[sIdx];
 
             return (
               <div

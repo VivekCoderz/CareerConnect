@@ -134,10 +134,10 @@ export default function EditInternship({ id, onCancel, onSuccess }) {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-200 pb-4">
           <div>
             <h1 className="text-sm font-semibold tracking-wider text-slate-500 uppercase">
-              CAREERCONNECT
+              E2JOB
             </h1>
             <h2 className="text-2xl font-extrabold text-[#f59e0b] tracking-tight">
-              Employer Hub &bull; CareerConnect
+              Employer Hub &bull; E2Job
             </h2>
           </div>
           <Link

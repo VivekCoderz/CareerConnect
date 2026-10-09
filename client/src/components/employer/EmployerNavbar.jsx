@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
@@ -18,6 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import useLogout from "../../hooks/useLogout";
+import { getEmployerDashboard } from "../../services/employerService";
 import BrandLogo from "../common/BrandLogo";
 
 const formatRelativeTime = (timestamp) => {
@@ -44,11 +45,11 @@ const formatRelativeTime = (timestamp) => {
 
 const EmployerNavbar = ({
   onOpenMobileSidebar,
-  profile = {},
-  company = {},
-  profileCompletion = null,
-  unreadNotifications = 0,
-  activity = [],
+  profile: profileProp,
+  company: companyProp,
+  profileCompletion: profileCompletionProp = null,
+  unreadNotifications: unreadProp = 0,
+  activity: activityProp,
   onSelectTab,
 }) => {
   const navigate = useNavigate();
@@ -56,6 +57,25 @@ const EmployerNavbar = ({
   const { user } = useSelector((state) => state.auth);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [activityMenuOpen, setActivityMenuOpen] = useState(false);
+
+  // Pages other than the dashboard render the navbar without data; load it here so the
+  // company name, logo and completion are right everywhere.
+  const standalone = profileProp === undefined;
+  const [loaded, setLoaded] = useState(null);
+  useEffect(() => {
+    if (!standalone) return undefined;
+    let live = true;
+    getEmployerDashboard()
+      .then((res) => { if (live && res?.success) setLoaded(res); })
+      // Without the data the navbar shows the logged-in user's details instead.
+      .catch(() => { if (live) setLoaded(null); });
+    return () => { live = false; };
+  }, [standalone]);
+  const profile = (standalone ? loaded?.profile : profileProp) || {};
+  const company = (standalone ? loaded?.company : companyProp) || {};
+  const profileCompletion = standalone ? loaded?.profileCompletion ?? null : profileCompletionProp;
+  const unreadNotifications = standalone ? loaded?.unreadNotificationsCount || 0 : unreadProp;
+  const activity = standalone ? loaded?.activity : activityProp;
 
   // Take top recent activities (up to 5 real notifications)
   const recentActivities = useMemo(() => {

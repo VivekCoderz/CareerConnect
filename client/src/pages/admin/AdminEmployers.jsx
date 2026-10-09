@@ -112,9 +112,6 @@ const AdminEmployers = () => {
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 Employer & Organization Management
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Page 26
-              </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Verify corporate recruiters, moderate organization profiles, and oversee job posting privileges.
@@ -229,7 +226,7 @@ const AdminEmployers = () => {
                           <div>
                             <p className="font-bold text-slate-900 leading-tight">{emp.companyName}</p>
                             <p className="text-[11px] text-slate-400 truncate max-w-[180px]">
-                              {emp.officialEmail || "no-email@company.com"}
+                              {emp.officialEmail || emp.userId?.email || "No email on file"}
                             </p>
                           </div>
                         </div>

@@ -2,7 +2,9 @@ const JobOffer = require("../models/JobOffer");
 const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const Application = require("../models/Application");
-const { notifyOfferSent } = require("../services/accountNotifications");
+const { notifyOfferSent, notifyOfferResponse } = require("../services/accountNotifications");
+
+const OFFER_TYPES = ["Full-time", "Part-time", "Contract", "Internship"];
 const { checkTransition, guardedStatusUpdate } = require("../utils/applicationStatus");
 const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
 const { startOfTodayIST } = require("../utils/listingExpiry");
@@ -91,7 +93,8 @@ exports.createOffer = async (req, res, next) => {
     }
 
     const scope = await getOwnerScope(req.user);
-    const job = await Job.findOne({ _id: jobId, $or: listingOwnerClauses(scope) }).select("_id").lean();
+    const job = await Job.findOne({ _id: jobId, $or: listingOwnerClauses(scope) })
+      .select("_id title department employmentType location").lean();
     const application = job && await Application.findOne({ _id: applicationId, candidateId, jobId: job._id })
       .select("_id status").lean();
     if (!application) {
@@ -112,6 +115,14 @@ exports.createOffer = async (req, res, next) => {
     }
     if (parsedExpiryDate <= now) {
       return res.status(400).json({ success: false, message: "Offer expiry cannot be in the past" });
+    }
+    // The candidate must be able to answer before they are due to join (QA bug 13).
+    // Same day is fine: compare against the end of the joining day.
+    if (parsedExpiryDate.getTime() > startOfTodayIST(parsedJoiningDate).getTime() + 24 * 60 * 60 * 1000) {
+      return res.status(400).json({
+        success: false,
+        message: "The offer acceptance deadline must be on or before the joining date",
+      });
     }
 
     const problem = checkTransition(application.status, "Offered");
@@ -155,15 +166,17 @@ exports.createOffer = async (req, res, next) => {
         candidateId,
         jobId,
         applicationId: application._id,
-        designation: designation || "Associate Engineer",
-        department: department || "Engineering",
-        employmentType: employmentType || "Full-time",
+        // Missing details come from the job, never invented values (QA bug 12).
+        designation: designation || job.title || "",
+        department: department || job.department || "",
+        // Only values the schema accepts; otherwise the schema default applies.
+        employmentType: [employmentType, job.employmentType].find((t) => OFFER_TYPES.includes(t)),
         salary: parsedSalary,
         salaryPeriod: salaryPeriod || "Per Annum (LPA)",
         currency: currency || "INR (₹)",
         joiningDate: parsedJoiningDate,
-        location: location || "Gurugram / Hybrid",
-        benefits: Array.isArray(benefits) ? benefits : ["Health Insurance", "Performance Bonus"],
+        location: location || job.location || "",
+        benefits: Array.isArray(benefits) ? benefits : [],
         expiryDate: parsedExpiryDate,
         additionalTerms: additionalTerms || "",
         status: "Sent",
@@ -205,7 +218,7 @@ exports.respondToOffer = async (req, res, next) => {
     if (!offer) return res.status(409).json({ success: false, message: "Offer is unavailable or already answered" });
 
     if (offer.applicationId) {
-      await guardedStatusUpdate(offer.applicationId, status === "Accepted" ? "Hired" : "Rejected", {
+      const { applied } = await guardedStatusUpdate(offer.applicationId, status === "Accepted" ? "Hired" : "Rejected", {
         $push: {
           stageHistory: {
             stage: status === "Accepted" ? "Hired" : "Offer Rejected",
@@ -214,8 +227,21 @@ exports.respondToOffer = async (req, res, next) => {
             changedAt: new Date(),
           },
         },
-      }, { actor: "candidate" });
+      }, { actor: "candidate", keepUpdate: false });
+
+      // The application has moved on (e.g. the employer rejected it a moment ago), so the
+      // offer is no longer active: withdraw it instead of recording the answer.
+      if (!applied) {
+        await JobOffer.updateOne({ _id: offer._id }, { $set: { status: "Withdrawn" }, $unset: { respondedAt: "" } });
+        return res.status(409).json({
+          success: false,
+          code: "OFFER_NOT_ACTIVE",
+          message: "This offer is no longer active",
+        });
+      }
     }
+
+    notifyOfferResponse({ offer, status });
 
     return res.status(200).json({
       success: true,

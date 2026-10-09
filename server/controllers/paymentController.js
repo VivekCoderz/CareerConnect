@@ -172,7 +172,7 @@ exports.createOrder = async (req, res) => {
         await Notification.create({
           recipient: user._id,
           recipientId: user._id,
-          sender: "CareerConnect LMS",
+          sender: "E2Job LMS",
           senderRole: "system",
           title: "Free Course Enrolled! 🎓",
           preview: `You have unlocked full access to ${course.title}.`,
@@ -385,7 +385,7 @@ exports.verifyPayment = async (req, res) => {
       await Notification.create({
         recipient: user._id,
         recipientId: user._id,
-        sender: "CareerConnect Payments",
+        sender: "E2Job Payments",
         senderRole: "system",
         title: "Payment Confirmed! 💳",
         preview: `Your enrollment in ${course.title} is now active.`,

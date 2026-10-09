@@ -6,10 +6,13 @@ import useLogout from "../../hooks/useLogout";
 import recommendationService from "../../services/recommendationService";
 import api from "../../api/api";
 import { FEATURES } from "../../config/features";
+import ViewDetailsButton from "../../components/common/ViewDetailsButton";
 
 // Layout
 import FresherSidebar from "../../components/fresher-dashboard/FresherSidebar";
 import FresherNavbar from "../../components/fresher-dashboard/FresherNavbar";
+
+const matchLabel = (score) => (typeof score === "number" ? `${score}% Match` : "Not enough data");
 
 const CareerRecommendationsPage = () => {
   const navigate = useNavigate();
@@ -131,12 +134,14 @@ const CareerRecommendationsPage = () => {
         jobId: job._id || job.id,
         opportunityType: "Job",
         opportunityTitle: job.title,
-        companyName: job.company,
-        coverNote: `Applying for ${job.title} based on personalized Fresher Recommendation match (${job.matchScore}%).`,
+        companyName: job.company || undefined,
+        coverNote: typeof job.matchScore === "number"
+          ? `Applying for ${job.title} based on personalized Fresher Recommendation match (${job.matchScore}%).`
+          : `Applying for ${job.title} based on personalized Fresher Recommendation.`,
       });
 
       if (res.data?.success) {
-        showToast(`✓ Applied to ${job.company}!`, "success");
+        showToast(`✓ Applied to ${job.company || job.title}!`, "success");
         fetchRecommendations();
       } else {
         showToast(res.data?.message || "Application submitted.", "info");
@@ -161,9 +166,9 @@ const CareerRecommendationsPage = () => {
   const filteredJobs = recommendedJobs.filter((job) => {
     const matchesSearch =
       !jobSearch ||
-      job.title.toLowerCase().includes(jobSearch.toLowerCase()) ||
-      job.company.toLowerCase().includes(jobSearch.toLowerCase()) ||
-      job.requiredSkills.some((s) => s.toLowerCase().includes(jobSearch.toLowerCase()));
+      (job.title || "").toLowerCase().includes(jobSearch.toLowerCase()) ||
+      (job.company || "").toLowerCase().includes(jobSearch.toLowerCase()) ||
+      (job.requiredSkills || []).some((s) => (s || "").toLowerCase().includes(jobSearch.toLowerCase()));
 
     const matchesWorkMode =
       workModeFilter === "All" ||
@@ -306,14 +311,13 @@ const CareerRecommendationsPage = () => {
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider border border-emerald-500/30">
                         Top Recommendation
                       </span>
-                      <h2 className="text-xl font-extrabold tracking-tight">
-                        {topOverallMatch.roleTitle || "Full Stack Developer"}
-                      </h2>
+                      {topOverallMatch.roleTitle && (
+                        <h2 className="text-xl font-extrabold tracking-tight">
+                          {topOverallMatch.roleTitle}
+                        </h2>
+                      )}
                       <ul className="space-y-1 text-xs text-slate-300">
-                        {(topOverallMatch.reasons || [
-                          "Core skills match entry requirements",
-                          "Degree aligns with role expectations",
-                        ])
+                        {(topOverallMatch.reasons || [])
                           .slice(0, 3)
                           .map((r, i) => (
                             <li key={i} className="flex items-center gap-1.5">
@@ -325,13 +329,19 @@ const CareerRecommendationsPage = () => {
 
                     <div className="text-left md:text-right space-y-2 shrink-0">
                       <div className="flex items-baseline md:justify-end gap-2">
-                        <span className="text-3xl font-black text-emerald-400">
-                          {topOverallMatch.matchScore ?? 0}%
-                        </span>
-                        <span className="text-xs text-slate-300">Match Score</span>
+                        {typeof topOverallMatch.matchScore === "number" ? (
+                          <>
+                            <span className="text-3xl font-black text-emerald-400">
+                              {topOverallMatch.matchScore}%
+                            </span>
+                            <span className="text-xs text-slate-300">Match Score</span>
+                          </>
+                        ) : (
+                          <span className="text-sm font-bold text-slate-300">Not enough data</span>
+                        )}
                       </div>
                       <div className="flex flex-wrap md:justify-end gap-1.5">
-                        {(topOverallMatch.missingSkills || ["Node.js", "Express"]).map((s, i) => (
+                        {(topOverallMatch.missingSkills || []).map((s, i) => (
                           <span
                             key={i}
                             className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-semibold border border-amber-500/30"
@@ -442,12 +452,14 @@ const CareerRecommendationsPage = () => {
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <h4 className="text-xs font-bold text-slate-900">{job.title}</h4>
-                                <p className="text-[11px] font-semibold text-slate-500">
-                                  {job.company} · {job.location}
-                                </p>
+                                {(job.company || job.location) && (
+                                  <p className="text-[11px] font-semibold text-slate-500">
+                                    {[job.company, job.location].filter(Boolean).join(" · ")}
+                                  </p>
+                                )}
                               </div>
                               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-extrabold text-[11px] shrink-0 border border-emerald-200">
-                                {job.matchScore}% Match
+                                {matchLabel(job.matchScore)}
                               </span>
                             </div>
 
@@ -473,7 +485,7 @@ const CareerRecommendationsPage = () => {
 
                           <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                             <span className="text-[11px] font-bold text-slate-700">
-                              {job.salary}
+                              {job.salary || ""}
                             </span>
                             <button
                               onClick={() => handleApplyJob(job)}
@@ -530,26 +542,36 @@ const CareerRecommendationsPage = () => {
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <h4 className="text-sm font-bold text-slate-900">{job.title}</h4>
-                                <p className="text-xs font-semibold text-slate-500">
-                                  {job.company} · {job.location}
-                                </p>
+                                {(job.company || job.location) && (
+                                  <p className="text-xs font-semibold text-slate-500">
+                                    {[job.company, job.location].filter(Boolean).join(" · ")}
+                                  </p>
+                                )}
                               </div>
                               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-extrabold text-[11px] shrink-0 border border-emerald-200">
-                                {job.matchScore}% Match
+                                {matchLabel(job.matchScore)}
                               </span>
                             </div>
 
-                            <div className="flex flex-wrap gap-1 text-[10px] text-slate-600">
-                              <span className="px-2 py-0.5 bg-slate-100 rounded">
-                                💼 {job.workMode}
-                              </span>
-                              <span className="px-2 py-0.5 bg-slate-100 rounded">
-                                💰 {job.salary}
-                              </span>
-                              <span className="px-2 py-0.5 bg-slate-100 rounded">
-                                🎓 {job.experience}
-                              </span>
-                            </div>
+                            {(job.workMode || job.salary || job.experience) && (
+                              <div className="flex flex-wrap gap-1 text-[10px] text-slate-600">
+                                {job.workMode && (
+                                  <span className="px-2 py-0.5 bg-slate-100 rounded">
+                                    💼 {job.workMode}
+                                  </span>
+                                )}
+                                {job.salary && (
+                                  <span className="px-2 py-0.5 bg-slate-100 rounded">
+                                    💰 {job.salary}
+                                  </span>
+                                )}
+                                {job.experience && (
+                                  <span className="px-2 py-0.5 bg-slate-100 rounded">
+                                    🎓 {job.experience}
+                                  </span>
+                                )}
+                              </div>
+                            )}
 
                             <div className="flex flex-wrap gap-1 pt-1 text-[10px]">
                               {job.matchingSkills?.slice(0, 4).map((s, i) => (
@@ -578,12 +600,15 @@ const CareerRecommendationsPage = () => {
                             >
                               ℹ️ Why this match?
                             </button>
-                            <button
-                              onClick={() => handleApplyJob(job)}
-                              className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-2xs"
-                            >
-                              Apply Now
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <ViewDetailsButton item={job} type="Job" size="sm" />
+                              <button
+                                onClick={() => handleApplyJob(job)}
+                                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-2xs"
+                              >
+                                Apply Now
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -888,10 +913,10 @@ const CareerRecommendationsPage = () => {
               <button onClick={() => setSelectedJobExplanation(null)}>✕</button>
             </div>
             <p className="font-bold text-blue-700">
-              {selectedJobExplanation.title} ({selectedJobExplanation.matchScore}% Match)
+              {selectedJobExplanation.title} ({matchLabel(selectedJobExplanation.matchScore)})
             </p>
             <ul className="space-y-1.5 text-slate-600">
-              {(selectedJobExplanation.reasons || ["Matching skill portfolio"]).map((r, i) => (
+              {(selectedJobExplanation.reasons || []).map((r, i) => (
                 <li key={i} className="flex items-center gap-1.5">
                   <span className="text-emerald-600">✓</span> {r}
                 </li>

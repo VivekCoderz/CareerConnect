@@ -27,6 +27,12 @@ const { getEmployerDashboardData } = require("../services/employerDashboardServi
 const { getActiveCompany } = require("../utils/employerOwnership");
 const { ipKeyGenerator } = require("express-rate-limit");
 
+// Company size options offered by the connect-company form (EmployerDashboard).
+const ORG_COMPANY_SIZES = ["1-10", "11-50", "51-200", "201-500", "500+"];
+
+// The employer profile stores sizes with an en dash ("11–50"); the request form uses a hyphen.
+const normalizeCompanySize = (size) => String(size || "").trim().replace(/[–—]/g, "-");
+
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
  * Section Weightings:
@@ -552,6 +558,7 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
         locations: profile.hiringPreferences?.locations || [],
       },
       isPublished: profile.isPublished,
+      verificationStatus: profile.verificationStatus,
       createdAt: profile.createdAt,
     };
 
@@ -630,8 +637,8 @@ exports.getOrganizationStatus = async (req, res, next) => {
       companyName: profile?.companyName || user?.companyName || "",
       officialCompanyEmail: profile?.officialEmail || "",
       companyWebsite: profile?.website || "",
-      industry: profile?.industry || "Information Technology",
-      companySize: profile?.companySize || profile?.employeesCount || "11-50",
+      industry: profile?.industry || "",
+      companySize: normalizeCompanySize(profile?.companySize || profile?.employeesCount),
       requestingEmployeeName: req.user.fullName || profile?.contactPerson || "",
       employeeDesignation: req.user.designation || profile?.designation || "Talent Acquisition / HR",
       officialEmployeeEmail: req.user.email || "",
@@ -653,8 +660,8 @@ exports.getOrganizationStatus = async (req, res, next) => {
           officialEmail: orgRequest.officialEmail,
           companyWebsite: orgRequest.website,
           website: orgRequest.website,
-          industry: orgRequest.industry || "Information Technology",
-          companySize: orgRequest.companySize || "11-50",
+          industry: orgRequest.industry || "",
+          companySize: orgRequest.companySize || "",
           verificationDocument: orgRequest.verificationDocument || "",
           requestingEmployeeName: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
           contactPerson: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
@@ -708,8 +715,8 @@ exports.requestCompanyApproval = async (req, res, next) => {
     const trimmedCompanyName = (companyName || organizationName || "").trim();
     const cleanCompanyEmail = (officialCompanyEmail || officialEmail || "").trim().toLowerCase();
     const cleanWebsite = (companyWebsite || website || "").trim();
-    const cleanIndustry = (industry || "Information Technology").trim();
-    const cleanCompanySize = (companySize || "11-50").trim();
+    const cleanIndustry = String(industry || "").trim();
+    const cleanCompanySize = normalizeCompanySize(companySize);
     const cleanVerificationDoc = (verificationDocument || "").trim();
     const cleanEmployeeName = (requestingEmployeeName || contactPerson || req.user.fullName || "").trim();
     const cleanDesignation = (employeeDesignation || designation || req.user.designation || "").trim();
@@ -730,6 +737,12 @@ exports.requestCompanyApproval = async (req, res, next) => {
     }
     if (!cleanCompanySize) {
       return res.status(400).json({ success: false, message: "Company size is required." });
+    }
+    if (!ORG_COMPANY_SIZES.includes(cleanCompanySize)) {
+      return res.status(400).json({
+        success: false,
+        message: `Company size must be one of: ${ORG_COMPANY_SIZES.join(", ")}.`,
+      });
     }
     if (!cleanVerificationDoc) {
       return res.status(400).json({
@@ -770,7 +783,7 @@ exports.requestCompanyApproval = async (req, res, next) => {
       return res.status(409).json({
         success: false,
         status: "COMPANY_EXISTS",
-        message: "This company is already on CareerConnect. Ask your company admin to invite you, or contact support.",
+        message: "This company is already on E2Job. Ask your company admin to invite you, or contact support.",
       });
     }
 

@@ -111,7 +111,7 @@ const FresherSidebar = ({
               {!collapsed && (
                 <div className="transition-opacity duration-200 whitespace-nowrap">
                   <span className="font-bold text-slate-900 tracking-tight text-base block leading-none">
-                    CareerConnect
+                    E2Job
                   </span>
                   <span className="block text-[10px] font-semibold text-[#f59e0b] tracking-wider uppercase mt-0.5">
                     Fresher Hub
