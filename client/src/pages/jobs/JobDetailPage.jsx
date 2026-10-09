@@ -243,6 +243,8 @@ export default function JobDetailPage() {
 
   const renderJob = () => {
     const company = job.employerId && typeof job.employerId === "object" ? job.employerId : null;
+    // Unpublished or unapproved company pages 404, so only link to ones the API says are public.
+    const profilePath = company?._id && company.hasPublicProfile ? `/companies/${company._id}` : null;
     const pay = formatPay(job);
     const experience = formatExperience(job.experience);
     const place = job.location || [job.city, job.state].filter(Boolean).join(", ");
@@ -256,8 +258,8 @@ export default function JobDetailPage() {
             )}
             <div className="space-y-1 min-w-0">
               <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight wrap-break-word">{job.title}</h1>
-              {companyName && (company?._id ? (
-                <Link to={`/companies/${company._id}`} className="text-sm font-bold text-blue-700 hover:underline">
+              {companyName && (profilePath ? (
+                <Link to={profilePath} className="text-sm font-bold text-blue-700 hover:underline">
                   {companyName}
                 </Link>
               ) : (
@@ -321,9 +323,11 @@ export default function JobDetailPage() {
           <Section title={companyName ? `About ${companyName}` : "About the company"}>
             <p className="text-xs text-slate-500">{[company.industry, formatHeadquarters(company.headquarters)].filter(Boolean).join(" · ")}</p>
             {company.description && <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{company.description}</p>}
-            <Link to={`/companies/${company._id}`} className="inline-block text-xs font-bold text-blue-700 hover:underline">
-              View company profile →
-            </Link>
+            {profilePath && (
+              <Link to={profilePath} className="inline-block text-xs font-bold text-blue-700 hover:underline">
+                View company profile →
+              </Link>
+            )}
           </Section>
         )}
 

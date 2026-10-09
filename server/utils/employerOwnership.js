@@ -18,6 +18,16 @@ const getActiveCompany = async (user) => {
   return isCompanyActive(company) ? company : null;
 };
 
+/**
+ * Whether GET /api/companies/:id shows this EmployerProfile: published, admin-approved, and
+ * the employer's company (if any) active. `profile.userId` must be populated with companyId.
+ */
+const isPublicEmployerProfile = async (profile) =>
+  Boolean(profile) &&
+  profile.isPublished === true &&
+  profile.verificationStatus === "approved" &&
+  (!profile.userId?.companyId || Boolean(await getActiveCompany(profile.userId)));
+
 /** { userId, profileId, companyId } for ownership queries. */
 const getOwnerScope = async (user) => {
   const [profile, company] = await Promise.all([
@@ -68,6 +78,7 @@ const findOwnedApplication = async (user, applicationId, populate = []) => {
 module.exports = {
   isCompanyActive,
   getActiveCompany,
+  isPublicEmployerProfile,
   getOwnerScope,
   listingOwnerClauses,
   applicationOwnerClauses,
