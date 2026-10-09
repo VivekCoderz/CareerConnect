@@ -1,74 +1,16 @@
-const crypto = require("crypto");
-const axios = require("axios");
 const Course = require("../models/Course");
 const CourseOrder = require("../models/CourseOrder");
 const CourseApplication = require("../models/CourseApplication");
 const Enrollment = require("../models/Enrollment");
 const Notification = require("../models/Notification");
-
-// ==========================================
-// CONFIGURATION & CREDENTIALS
-// ==========================================
-// Read at request time so credentials only ever come from the environment.
-function getRazorpayConfig() {
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  return keyId && keySecret ? { keyId, keySecret } : null;
-}
-
-function paymentsNotConfigured(res) {
-  return res.status(503).json({
-    success: false,
-    message: "Payments are not configured",
-  });
-}
-
-/**
- * Constant-time check of Razorpay's HMAC SHA256 signature
- */
-function isValidRazorpaySignature(orderId, paymentId, signature, secret) {
-  const expected = Buffer.from(
-    crypto.createHmac("sha256", secret).update(`${orderId}|${paymentId}`).digest("hex")
-  );
-  const received = Buffer.from(String(signature));
-  if (received.length !== expected.length) return false;
-  return crypto.timingSafeEqual(expected, received);
-}
-
-/**
- * Helper to call Razorpay Orders API via Axios
- */
-async function callRazorpayCreateOrder(config, amountInPaise, currency = "INR", receipt, notes = {}) {
-  try {
-    const authHeader =
-      "Basic " + Buffer.from(`${config.keyId}:${config.keySecret}`).toString("base64");
-
-    const response = await axios.post(
-      "https://api.razorpay.com/v1/orders",
-      {
-        amount: amountInPaise,
-        currency,
-        receipt,
-        notes,
-      },
-      {
-        headers: {
-          Authorization: authHeader,
-          "Content-Type": "application/json",
-        },
-        timeout: 9000,
-      }
-    );
-
-    return { success: true, data: response.data };
-  } catch (error) {
-    console.warn("Razorpay API Call Warning:", error.response?.data || error.message);
-    return {
-      success: false,
-      error: error.response?.data || error.message,
-    };
-  }
-}
+const AuditLog = require("../models/AuditLog");
+const {
+  getRazorpayConfig,
+  paymentsNotConfigured,
+  isValidRazorpaySignature,
+  verifyWebhookSignature,
+  callRazorpayCreateOrder,
+} = require("../utils/razorpayUtils");
 
 // ==========================================
 // 1. CREATE ORDER / FREE ENROLLMENT
@@ -80,25 +22,15 @@ exports.createOrder = async (req, res) => {
     const { courseId } = req.body;
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required",
-      });
+      return res.status(401).json({ success: false, message: "Authentication required" });
     }
-
     if (!courseId) {
-      return res.status(400).json({
-        success: false,
-        message: "Course ID is required",
-      });
+      return res.status(400).json({ success: false, message: "Course ID is required" });
     }
 
     const course = await Course.findById(courseId);
     if (!course || course.status !== "Published") {
-      return res.status(404).json({
-        success: false,
-        message: "Course not found or is not published",
-      });
+      return res.status(404).json({ success: false, message: "Course not found or is not published" });
     }
 
     // Check if user is already enrolled
@@ -109,23 +41,13 @@ exports.createOrder = async (req, res) => {
     });
 
     if (existingEnrollment) {
-      return res.status(400).json({
-        success: false,
-        message: "You are already enrolled in this course",
-      });
+      return res.status(400).json({ success: false, message: "You are already enrolled in this course" });
     }
 
-    // ------------------------------------------
-    // CASE A: FREE COURSE (Price is 0 or undefined)
-    // ------------------------------------------
+    // FREE COURSE CASE
     const coursePrice = Number(course.price) || 0;
     if (coursePrice <= 0) {
-      // 1. Create or update CourseApplication to Enrolled
-      let application = await CourseApplication.findOne({
-        student: user._id,
-        course: course._id,
-      });
-
+      let application = await CourseApplication.findOne({ student: user._id, course: course._id });
       if (application) {
         application.status = "Enrolled";
         await application.save();
@@ -138,7 +60,6 @@ exports.createOrder = async (req, res) => {
         });
       }
 
-      // 2. Sync to Enrollment model
       await Enrollment.findOneAndUpdate(
         { userId: user._id, courseId: course._id },
         {
@@ -152,7 +73,6 @@ exports.createOrder = async (req, res) => {
         { upsert: true, new: true }
       ).catch(() => {});
 
-      // 3. Create zero-amount order record for student's receipts history
       const freeOrderReceipt = `free_${Date.now().toString().slice(-8)}`;
       await CourseOrder.create({
         user: user._id,
@@ -167,7 +87,6 @@ exports.createOrder = async (req, res) => {
         paidAt: new Date(),
       }).catch(() => {});
 
-      // 4. Send confirmation notification
       try {
         await Notification.create({
           recipient: user._id,
@@ -181,7 +100,7 @@ exports.createOrder = async (req, res) => {
           link: "/student/courses",
         });
       } catch (notifErr) {
-        // Non-blocking notification
+        console.warn("Non-blocking notification warning:", notifErr.message);
       }
 
       return res.status(200).json({
@@ -192,9 +111,7 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // ------------------------------------------
-    // CASE B: PAID COURSE (Create Razorpay Order)
-    // ------------------------------------------
+    // PAID COURSE CASE
     const razorpayConfig = getRazorpayConfig();
     if (!razorpayConfig) {
       return paymentsNotConfigured(res);
@@ -223,7 +140,6 @@ exports.createOrder = async (req, res) => {
     }
     const razorpayOrderId = rzpResult.data.id;
 
-    // Save pending CourseOrder
     await CourseOrder.create({
       user: user._id,
       course: course._id,
@@ -233,9 +149,7 @@ exports.createOrder = async (req, res) => {
       isFree: false,
       receipt: receiptId,
       razorpayOrderId,
-      metadata: {
-        amountInPaise,
-      },
+      metadata: { amountInPaise },
     });
 
     return res.status(200).json({
@@ -271,10 +185,7 @@ exports.verifyPayment = async (req, res) => {
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature, courseId } = req.body;
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required",
-      });
+      return res.status(401).json({ success: false, message: "Authentication required" });
     }
 
     const razorpayConfig = getRazorpayConfig();
@@ -297,15 +208,9 @@ exports.verifyPayment = async (req, res) => {
 
     const course = await Course.findById(courseId);
     if (!course) {
-      return res.status(404).json({
-        success: false,
-        message: "Course not found",
-      });
+      return res.status(404).json({ success: false, message: "Course not found" });
     }
 
-    // ------------------------------------------
-    // Verify Cryptographic Signature
-    // ------------------------------------------
     const { keySecret } = razorpayConfig;
     if (!isValidRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature, keySecret)) {
       console.warn("Payment signature verification failed for order:", razorpayOrderId);
@@ -315,9 +220,6 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // ------------------------------------------
-    // Complete the user's own pending order (never create one here)
-    // ------------------------------------------
     const orderFilter = { razorpayOrderId, user: user._id, course: course._id };
     const order = await CourseOrder.findOneAndUpdate(
       { ...orderFilter, status: "created" },
@@ -340,20 +242,10 @@ exports.verifyPayment = async (req, res) => {
       }
 
       console.warn("No pending order found for verified payment:", razorpayOrderId);
-      return res.status(400).json({
-        success: false,
-        message: "No matching payment order found.",
-      });
+      return res.status(400).json({ success: false, message: "No matching payment order found." });
     }
 
-    // ------------------------------------------
-    // Enroll the Candidate
-    // ------------------------------------------
-    let application = await CourseApplication.findOne({
-      student: user._id,
-      course: course._id,
-    });
-
+    let application = await CourseApplication.findOne({ student: user._id, course: course._id });
     if (application) {
       application.status = "Enrolled";
       await application.save();
@@ -366,7 +258,6 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Sync to Enrollment model
     await Enrollment.findOneAndUpdate(
       { userId: user._id, courseId: course._id },
       {
@@ -380,7 +271,6 @@ exports.verifyPayment = async (req, res) => {
       { upsert: true, new: true }
     ).catch(() => {});
 
-    // Send confirmation notification
     try {
       await Notification.create({
         recipient: user._id,
@@ -394,7 +284,7 @@ exports.verifyPayment = async (req, res) => {
         link: "/student/courses",
       });
     } catch (notifErr) {
-      // Non-blocking notification
+      console.warn("Non-blocking notification warning:", notifErr.message);
     }
 
     return res.status(200).json({
@@ -425,20 +315,14 @@ exports.getMyOrders = async (req, res) => {
   try {
     const user = req.user;
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required",
-      });
+      return res.status(401).json({ success: false, message: "Authentication required" });
     }
 
     const orders = await CourseOrder.find({ user: user._id })
       .populate("course", "title description thumbnail price category duration durationUnit")
       .sort({ createdAt: -1 });
 
-    return res.status(200).json({
-      success: true,
-      orders,
-    });
+    return res.status(200).json({ success: true, orders });
   } catch (error) {
     console.error("Get My Orders Error:", error);
     return res.status(500).json({
@@ -459,10 +343,7 @@ exports.getPaymentReceipt = async (req, res) => {
     const { paymentId } = req.params;
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required",
-      });
+      return res.status(401).json({ success: false, message: "Authentication required" });
     }
 
     const order = await CourseOrder.findOne({
@@ -471,16 +352,10 @@ exports.getPaymentReceipt = async (req, res) => {
     }).populate("course", "title description thumbnail price category duration");
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Receipt not found",
-      });
+      return res.status(404).json({ success: false, message: "Receipt not found" });
     }
 
-    return res.status(200).json({
-      success: true,
-      order,
-    });
+    return res.status(200).json({ success: true, order });
   } catch (error) {
     console.error("Get Receipt Error:", error);
     return res.status(500).json({
@@ -488,5 +363,136 @@ exports.getPaymentReceipt = async (req, res) => {
       message: "Failed to fetch receipt",
       error: error.message,
     });
+  }
+};
+
+// ==========================================
+// 5. RAZORPAY WEBHOOK HANDLER
+// POST /api/payment/webhook
+// ==========================================
+exports.handleWebhook = async (req, res) => {
+  try {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
+    const signature = req.headers["x-razorpay-signature"];
+    const eventId = req.headers["x-razorpay-event-id"] || "";
+
+    if (!webhookSecret) {
+      console.warn("Payment Webhook: RAZORPAY_WEBHOOK_SECRET is not configured");
+      return res.status(503).json({ success: false, message: "Webhook secret is not configured" });
+    }
+
+    if (!signature) {
+      return res.status(400).json({ success: false, message: "Missing x-razorpay-signature header" });
+    }
+
+    const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    if (!verifyWebhookSignature(rawBody, signature, webhookSecret)) {
+      console.warn("Payment Webhook: Invalid webhook signature");
+      return res.status(400).json({ success: false, message: "Invalid webhook signature" });
+    }
+
+    const event = req.body?.event;
+    const payload = req.body?.payload || {};
+
+    await AuditLog.create({
+      action: "PAYMENT_WEBHOOK_RECEIVED",
+      module: "Settings",
+      target: event || "Razorpay Webhook",
+      details: `Event: ${event}, Event ID: ${eventId}`,
+      ipAddress: req.ip || "127.0.0.1",
+    }).catch(() => {});
+
+    // EVENT 1: PAYMENT CAPTURED / ORDER PAID
+    if (event === "payment.captured" || event === "order.paid") {
+      const paymentEntity = payload.payment?.entity || {};
+      const orderEntity = payload.order?.entity || {};
+      const razorpayOrderId = paymentEntity.order_id || orderEntity.id;
+      const razorpayPaymentId = paymentEntity.id;
+
+      if (!razorpayOrderId) {
+        return res.status(200).json({ success: true, message: "No order ID in event payload" });
+      }
+
+      const order = await CourseOrder.findOne({ razorpayOrderId });
+      if (!order) {
+        console.warn(`Payment Webhook: Order ${razorpayOrderId} not found in database`);
+        return res.status(200).json({ success: true, message: "Order not found; recorded for review" });
+      }
+
+      if (order.status === "completed") {
+        return res.status(200).json({ success: true, message: "Order already completed" });
+      }
+
+      order.status = "completed";
+      if (razorpayPaymentId) order.razorpayPaymentId = razorpayPaymentId;
+      order.paidAt = new Date();
+      if (eventId) {
+        order.metadata = { ...(order.metadata || {}), webhookEventId: eventId };
+      }
+      await order.save();
+
+      await CourseApplication.findOneAndUpdate(
+        { student: order.user, course: order.course },
+        { status: "Enrolled" },
+        { upsert: true, new: true }
+      ).catch(() => {});
+
+      await Enrollment.findOneAndUpdate(
+        { userId: order.user, courseId: order.course },
+        {
+          userId: order.user,
+          courseId: order.course,
+          status: "Enrolled",
+          progressPercentage: 0,
+          lastAccessedAt: new Date(),
+        },
+        { upsert: true, new: true }
+      ).catch(() => {});
+
+      try {
+        const course = await Course.findById(order.course).select("title");
+        await Notification.create({
+          recipient: order.user,
+          recipientId: order.user,
+          sender: "E2Job Payments",
+          senderRole: "system",
+          title: "Payment Confirmed! 💳",
+          preview: `Your enrollment in ${course?.title || "course"} is active.`,
+          message: `Your payment was verified via webhook. Order ID: ${razorpayOrderId}`,
+          category: "payment",
+          link: "/student/courses",
+        });
+      } catch (notifErr) {
+        console.warn("Non-blocking notification warning:", notifErr.message);
+      }
+
+      await AuditLog.create({
+        action: "PAYMENT_COMPLETED",
+        module: "Settings",
+        target: String(order.course),
+        details: `Payment fulfilled via webhook for Order: ${razorpayOrderId}, Payment: ${razorpayPaymentId}`,
+        ipAddress: req.ip || "127.0.0.1",
+      }).catch(() => {});
+
+      return res.status(200).json({ success: true, message: "Webhook processed and enrollment unlocked" });
+    }
+
+    // EVENT 2: PAYMENT FAILED
+    if (event === "payment.failed") {
+      const paymentEntity = payload.payment?.entity || {};
+      const razorpayOrderId = paymentEntity.order_id;
+      if (razorpayOrderId) {
+        await CourseOrder.findOneAndUpdate(
+          { razorpayOrderId, status: "created" },
+          { status: "failed", metadata: { failureReason: paymentEntity.error_description } }
+        ).catch(() => {});
+      }
+      return res.status(200).json({ success: true, message: "Payment failure recorded" });
+    }
+
+    return res.status(200).json({ success: true, message: `Event ${event} acknowledged` });
+  } catch (error) {
+    console.error("Payment Webhook Handler Error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error processing webhook" });
   }
 };

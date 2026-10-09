@@ -61,13 +61,21 @@ const FresherResumeCard = ({ resumeData = {} }) => {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <Link
+                to="/live-resume"
+                className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold transition inline-flex items-center gap-1"
+                title="View verified Live Web Resume"
+              >
+                <span>⚡</span> Live Resume
+              </Link>
+
               {resumeData.resumeUrl ? (
                 <button
                   type="button"
                   onClick={() => openResume(resumeData.resumeUrl)}
                   className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition"
                 >
-                  View Resume
+                  View PDF
                 </button>
               ) : (
                 <Link

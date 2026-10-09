@@ -168,14 +168,23 @@ const ResumeSection = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => openResume(resume.resumeUrl)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition self-start sm:self-center"
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              to="/live-resume"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition self-start sm:self-center inline-flex items-center gap-1 cursor-pointer"
             >
-              View Live Resume ↗
-            </button>
+              <span>⚡</span> View Live Resume
+            </Link>
+            {resume.resumeUrl && (
+              <button
+                type="button"
+                onClick={() => openResume(resume.resumeUrl)}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition self-start sm:self-center cursor-pointer"
+                title="Download original uploaded PDF"
+              >
+                Download PDF
+              </button>
+            )}
             <Link
               to="/resume-builder?mode=ats"
               className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-xl transition self-start sm:self-center inline-flex items-center gap-1"
@@ -185,8 +194,14 @@ const ResumeSection = ({
           </div>
         </div>
       ) : (
-        <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center">
-          <p className="text-xs text-slate-500">You haven't attached a live resume link yet. Upload a PDF above to auto-fill your profile details!</p>
+        <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-2">
+          <p className="text-xs text-slate-500">You haven't attached a live resume link yet. Upload a PDF above or check out your live digital resume!</p>
+          <Link
+            to="/live-resume"
+            className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800"
+          >
+            <span>⚡</span> Preview Your Live Web Resume →
+          </Link>
         </div>
       )}
 

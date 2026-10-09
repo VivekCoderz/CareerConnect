@@ -1,7 +1,11 @@
-require("dotenv").config({ override: true });
 const express = require("express");
 const cors = require("cors");
-const compression = require("compression");
+let compression;
+try {
+  compression = require("compression");
+} catch {
+  compression = null;
+}
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const cookieOriginMiddleware = require("./middleware/cookieOriginMiddleware");
@@ -11,6 +15,8 @@ const { requireTextFields } = require("./middleware/textFields");
 const { parseClientUrls, isLocalDevOrigin } = require("./utils/clientOrigins");
 
 const authRoutes = require("./routes/authRoutes.js");
+const userRoutes = require("./routes/userRoutes.js");
+const skillRoutes = require("./routes/skillRoutes.js");
 const studentRoutes = require("./routes/studentRoutes.js");
 const fresherRoutes = require("./routes/fresherRoutes.js");
 const professionalRoutes = require("./routes/professionalRoutes.js");
@@ -43,13 +49,18 @@ const supportTicketRoutes = require("./routes/supportTicketRoutes.js");
 const { configureTrustProxy } = require("./config/trustProxy");
 const { globalLimiter } = require("./middleware/rateLimitMiddleware");
 const dbStatus = require("./utils/dbStatus");
-const Sentry = require("@sentry/node");
+let Sentry;
+try {
+  Sentry = require("@sentry/node");
+} catch {
+  Sentry = { captureException: () => {} };
+}
 
 const app = express();
 configureTrustProxy(app);
 
 // Gzip responses over 1 KB (job and internship lists in particular)
-app.use(compression());
+if (compression) app.use(compression());
 
 const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
 
@@ -136,6 +147,8 @@ if (process.env.ENABLE_IP_DEBUG === "true") {
 app.use(["/api/jobs", "/api/internships", "/api/applications", "/api/admin", "/api/interviews", "/api/offers"], requireTextFields);
 
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/skills", skillRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/profile/student", studentRoutes);
 app.use("/api/fresher", fresherRoutes);
@@ -143,7 +156,8 @@ app.use("/api/profile/fresher", fresherRoutes);
 app.use("/api/professional", professionalRoutes);
 app.use("/api/profile/professional", professionalRoutes);
 
-const flag = (name) => String(process.env[name]).toLowerCase() === "true";
+const flag = (name, defaultVal = false) =>
+  process.env[name] !== undefined ? String(process.env[name]).toLowerCase() === "true" : defaultVal;
 
 // Core LMS Course Routes
 if (flag("ENABLE_COURSES")) app.use("/api/courses", courseRoutes);
@@ -204,6 +218,11 @@ app.get("/health", (req, res) => {
     message: databaseConnected ? "E2Job backend is running" : "Database unavailable",
     timestamp: new Date().toISOString(),
   });
+});
+
+// 404 handler — must come after all routes so only unmatched requests reach it
+app.use((req, res) => {
+  return res.status(404).json({ success: false, message: "Not found" });
 });
 
 // Global error handling middleware

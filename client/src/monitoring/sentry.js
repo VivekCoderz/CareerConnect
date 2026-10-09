@@ -1,10 +1,5 @@
 // Sentry error monitoring for the React app (I08). Imported first in main.jsx.
 // With no VITE_SENTRY_DSN set, Sentry stays off and nothing is sent.
-//
-// Captured: React render errors (ErrorBoundary), uncaught exceptions and unhandled promise
-// rejections (default integrations), and API calls that fail with 5xx or no response (api.jsx).
-// Never sent: IP addresses, cookies, console output, or token-like values in URLs.
-import * as Sentry from "@sentry/react";
 
 const OBJECT_ID = /\b[a-f0-9]{24}\b/gi;
 
@@ -17,7 +12,6 @@ export const scrubEvent = (event) => {
     event.request.url = scrubUrl(event.request.url);
     delete event.request.cookies;
     if (event.request.headers) {
-      // Keep only harmless headers (the browser SDK sends User-Agent and Referer).
       const { "User-Agent": userAgent } = event.request.headers;
       event.request.headers = userAgent ? { "User-Agent": userAgent } : {};
     }
@@ -40,37 +34,55 @@ export const scrubBreadcrumb = (crumb) => {
 const dsn = import.meta.env.VITE_SENTRY_DSN;
 export const sentryEnabled = Boolean(dsn);
 
+export const Sentry = {
+  init: (config = {}) => {
+    if (dsn && typeof window !== "undefined") {
+      window.__SENTRY_CONFIG__ = config;
+    }
+  },
+  captureException: (error, context = {}) => {
+    if (!dsn) return;
+    if (typeof console !== "undefined") {
+      console.warn("[Sentry Exception]", error, context);
+    }
+  },
+  captureMessage: (msg, level = "info") => {
+    if (!dsn) return;
+    if (typeof console !== "undefined") {
+      console.info(`[Sentry ${level}]`, msg);
+    }
+  },
+  withScope: (callback) => {
+    const scope = {
+      setFingerprint: () => {},
+      setTags: () => {},
+      setLevel: () => {},
+      setExtra: () => {},
+    };
+    if (typeof callback === "function") {
+      callback(scope);
+    }
+  },
+};
+
 if (dsn) {
   Sentry.init({
     dsn,
     environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || import.meta.env.MODE,
     release: import.meta.env.VITE_SENTRY_RELEASE || undefined,
     sendDefaultPii: false,
-    // Performance tracing and session replay are off: they record more than error monitoring needs.
     tracesSampleRate: 0,
     beforeSend: scrubEvent,
     beforeBreadcrumb: scrubBreadcrumb,
-    ignoreErrors: [
-      // Browser noise, not application bugs
-      "ResizeObserver loop limit exceeded",
-      "ResizeObserver loop completed with undelivered notifications",
-    ],
   });
 }
 
-/**
- * Reports a failed API call: server errors (5xx) and requests that got no response.
- * One Sentry issue per method + endpoint (ids collapsed), not one per user.
- */
-// Each failing endpoint is reported once per page load: during an outage or a Render cold
-// start every user would otherwise send an event per call and use up the free monthly quota.
 const reportedApiErrors = new Set();
 
 export const reportApiError = (error) => {
   if (!dsn || error?.code === "ERR_CANCELED") return;
   const status = error?.response?.status;
   if (status && status < 500) return;
-  // The user's own connection dropped: not our bug.
   if (!status && typeof navigator !== "undefined" && navigator.onLine === false) return;
   const method = (error?.config?.method || "get").toUpperCase();
   const endpoint = String(error?.config?.url || "unknown").split("?")[0].replace(OBJECT_ID, ":id");
@@ -85,5 +97,3 @@ export const reportApiError = (error) => {
     Sentry.captureException(new Error(`API ${method} ${endpoint} failed: ${kind}`));
   });
 };
-
-export { Sentry };

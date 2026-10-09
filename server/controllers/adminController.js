@@ -234,15 +234,33 @@ exports.getAdminMe = async (req, res) => {
 // 2. ADMIN DASHBOARD (ROLE-AWARE REAL MONGODB AGGREGATION)
 // =========================================================================
 
+const adminDashboardCache = new Map();
+const ADMIN_DASHBOARD_CACHE_TTL_MS = 45 * 1000; // 45 seconds TTL for fast responses
+
 /**
  * GET /api/admin/dashboard
  * Dynamically switches between SUPER_ADMIN (Platform) and COMPANY_ADMIN (Tenant)
  */
 exports.getAdminDashboard = async (req, res, next) => {
   try {
-    const { range = "30d" } = req.query;
-    const startDate = getStartDateForRange(range);
+    const { range = "30d", refresh } = req.query;
     const isSuperAdmin = req.user.role === "SUPER_ADMIN" || (req.user.role === "admin" && !req.user.companyId);
+    const cacheKey = `${isSuperAdmin ? "SUPER" : req.user.companyId || "COMPANY"}_${range}`;
+
+    // Fast-path cache check: return cached metrics instantly unless explicitly refreshed
+    if (refresh !== "true" && adminDashboardCache.has(cacheKey)) {
+      const cached = adminDashboardCache.get(cacheKey);
+      if (Date.now() - cached.timestamp < ADMIN_DASHBOARD_CACHE_TTL_MS) {
+        return res.status(200).json({
+          success: true,
+          data: cached.data,
+          ...cached.data,
+          cached: true,
+        });
+      }
+    }
+
+    const startDate = getStartDateForRange(range);
 
     // Helper for funnel aggregation
     const getFunnelCounts = async (matchFilter) => {
@@ -406,6 +424,8 @@ exports.getAdminDashboard = async (req, res, next) => {
             })),
       };
 
+      adminDashboardCache.set(cacheKey, { data: dashboardData, timestamp: Date.now() });
+
       return res.status(200).json({
         success: true,
         data: dashboardData,
@@ -440,6 +460,11 @@ exports.getAdminDashboard = async (req, res, next) => {
       funnelData,
       recentCompanies,
       recentAuditLogs,
+      // FL-11: moved from serial awaits into the batch to eliminate extra round-trips
+      attentionReports,
+      attentionOrgRequests,
+      applicationTrends,
+      fallbackActivity,
     ] = await Promise.all([
       Company.countDocuments(),
       Company.countDocuments({ status: { $in: ["active", "ACTIVE"] } }),
@@ -464,6 +489,15 @@ exports.getAdminDashboard = async (req, res, next) => {
       getFunnelCounts({}),
       Company.find().sort({ createdAt: -1 }).limit(5).lean(),
       AuditLog.find().sort({ createdAt: -1 }).limit(8).lean(),
+      // FL-11: these were previously serial awaits — now concurrent
+      Report.find({ status: "Open" }).limit(3).lean(),
+      OrganizationRequest.find({ status: "PENDING" }).limit(3).lean(),
+      Application.aggregate([
+        { $match: { createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+      Application.find().populate("candidateId", "fullName email").sort({ createdAt: -1 }).limit(5).lean(),
     ]);
 
     const totalUsers = totalStudents + totalEmployers + totalFreshers + totalProfessionals;
@@ -471,17 +505,7 @@ exports.getAdminDashboard = async (req, res, next) => {
     const activeOpportunities = activeJobs + activeInternships;
     const pendingReviews = pendingJobs + pendingInternships + pendingOrgRequests;
 
-    // Monthly Trends aggregation
-    const applicationTrends = await Application.aggregate([
-      { $match: { createdAt: { $gte: startDate } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+    // applicationTrends is now fetched in the batch above (fallback: empty array)
 
     const superAdminDashboardData = {
       role: "SUPER_ADMIN",
@@ -528,14 +552,14 @@ exports.getAdminDashboard = async (req, res, next) => {
       },
       userGrowth: applicationTrends.map((item) => ({ date: item._id, count: item.count })),
       attention: [
-        ...(await Report.find({ status: "Open" }).limit(3).lean()).map((r) => ({
+        ...(attentionReports || []).map((r) => ({
           id: r._id,
           title: `Report: ${r.reportType || "Flagged Content"} - ${r.title || r.details?.slice(0, 30)}`,
           category: "Reports",
           severity: "high",
           link: "/admin/reports",
         })),
-        ...(await OrganizationRequest.find({ status: "PENDING" }).limit(3).lean()).map((o) => ({
+        ...(attentionOrgRequests || []).map((o) => ({
           id: o._id,
           title: `New Organization Request: ${o.organizationName}`,
           category: "Onboarding",
@@ -551,7 +575,7 @@ exports.getAdminDashboard = async (req, res, next) => {
             status: log.module || "Platform",
             date: log.createdAt,
           }))
-        : (await Application.find().populate("candidateId", "fullName email").sort({ createdAt: -1 }).limit(5).lean()).map((app) => ({
+        : (fallbackActivity || []).map((app) => ({
             id: app._id,
             title: `Application for ${app.opportunityTitle || "Role"}`,
             candidate: app.candidateId?.fullName || "Candidate",
@@ -566,6 +590,8 @@ exports.getAdminDashboard = async (req, res, next) => {
         createdAt: c.createdAt,
       })),
     };
+
+    adminDashboardCache.set(cacheKey, { data: superAdminDashboardData, timestamp: Date.now() });
 
     return res.status(200).json({
       success: true,

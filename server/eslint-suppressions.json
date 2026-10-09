@@ -130,11 +130,6 @@
       "count": 1
     }
   },
-  "controllers/paymentController.js": {
-    "no-unused-vars": {
-      "count": 2
-    }
-  },
   "controllers/professionalController.js": {
     "max-lines": {
       "count": 1
