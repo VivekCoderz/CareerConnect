@@ -22,6 +22,7 @@ const AdminEmployers = lazyWithRetry(() => import("./pages/admin/AdminEmployers"
 const AdminOpportunities = lazyWithRetry(() => import("./pages/admin/AdminOpportunities"));
 const AdminApplications = lazyWithRetry(() => import("./pages/admin/AdminApplications"));
 const AdminReports = lazyWithRetry(() => import("./pages/admin/AdminReports"));
+const AdminSupportTickets = lazyWithRetry(() => import("./pages/admin/AdminSupportTickets"));
 const AdminSettings = lazyWithRetry(() => import("./pages/admin/AdminSettings"));
 const AdminSentryTest = lazyWithRetry(() => import("./pages/admin/AdminSentryTest"));
 
@@ -509,6 +510,7 @@ function AppRoutes() {
             <Route element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}>
               <Route path="/admin/companies" element={<AdminCompanies />} />
               <Route path="/admin/company-admins" element={<AdminCompanyAdmins />} />
+              <Route path="/admin/support-tickets" element={<AdminSupportTickets />} />
               {/* Monitoring check (I08): sends test errors to Sentry */}
               <Route path="/admin/sentry-test" element={<AdminSentryTest />} />
             </Route>

@@ -1,6 +1,7 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
@@ -479,6 +480,9 @@ const FresherDashboard = () => {
               </div>
             </div>
           )}
+
+          {/* ================= HELP & SUPPORT ================= */}
+          {activeTab === "support" && <SupportTickets />}
 
           {/* ==================== CERTIFICATIONS ==================== */}
           {activeTab === "certifications" && (

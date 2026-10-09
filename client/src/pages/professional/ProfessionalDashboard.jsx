@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
@@ -644,6 +645,9 @@ const ProfessionalDashboard = () => {
               )}
             </div>
           )}
+
+          {/* ================= HELP & SUPPORT ================= */}
+          {activeTab === "support" && <SupportTickets />}
 
           {/* Settings Dedicated Tab */}
           {activeTab === "settings" && (
