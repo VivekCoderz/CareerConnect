@@ -1912,18 +1912,18 @@ const confirmParsedProfileHandler = async (req, res) => {
       ];
 
       if (userType === "student") {
+        // Same split as the first import: only interpersonal "other" skills are soft (T02, CC-02).
+        const otherSkills = splitOtherSkills(splitSkills(parsedData.skills?.other));
         profile.technicalSkills = mergeSkillStrings(
           profile.technicalSkills || [],
           [
             ...splitSkills(parsedData.skills?.programmingLanguages),
             ...splitSkills(parsedData.skills?.frameworks),
             ...splitSkills(parsedData.skills?.tools),
+            ...otherSkills.technical,
           ]
         );
-        profile.softSkills = mergeSkillStrings(
-          profile.softSkills || [],
-          splitSkills(parsedData.skills?.other)
-        );
+        profile.softSkills = mergeSkillStrings(profile.softSkills || [], otherSkills.soft);
       } else {
         const currentSkills = profile.skills || {};
         profile.skills = {

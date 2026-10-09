@@ -39,6 +39,7 @@ const POPULAR_TECHNICAL_SKILLS = [
   "GraphQL",
   "Data Structures",
   "Algorithms",
+  "Problem Solving",
   "Linux",
   "Postman",
   "Firebase",
@@ -48,7 +49,6 @@ const POPULAR_TECHNICAL_SKILLS = [
 const POPULAR_SOFT_SKILLS = [
   "Communication",
   "Teamwork",
-  "Problem Solving",
   "Leadership",
   "Time Management",
   "Critical Thinking",
