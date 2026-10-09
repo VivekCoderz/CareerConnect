@@ -11,7 +11,7 @@ import {
 } from "../../services/applicationService";
 import { createInterview } from "../../services/interviewService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
-import { openResume } from "../../utils/resumeAccess";
+import { openResume, downloadResume } from "../../utils/resumeAccess";
 import { safeHttpUrl } from "../../utils/safeUrl";
 
 const DEFAULT_STAGES = [
@@ -364,7 +364,7 @@ export default function EmployerApplicationDetailPage() {
                 )}
 
                 {resumeUrl && (
-                  <div className="pt-3 border-t border-slate-100">
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
                     <button
                       type="button"
                       onClick={() => openResume(resumeUrl)}
@@ -372,6 +372,14 @@ export default function EmployerApplicationDetailPage() {
                     >
                       <span>📄</span>
                       <span>Review Candidate Resume ↗</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadResume(resumeUrl, studentName)}
+                      className="w-full py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <span>⬇</span>
+                      <span>Download Resume</span>
                     </button>
                   </div>
                 )}

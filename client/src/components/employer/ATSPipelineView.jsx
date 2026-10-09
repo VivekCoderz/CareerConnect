@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import ApplicantExportModal from "./ApplicantExportModal";
-import { openResume } from "../../utils/resumeAccess";
+import { openResume, downloadResume } from "../../utils/resumeAccess";
 import BulkActionBar from "./BulkActionBar";
 import { safeHttpUrl } from "../../utils/safeUrl";
 
@@ -1451,13 +1451,22 @@ const ATSPipelineView = ({
                       </h4>
                       <div className="flex items-center gap-3 flex-wrap">
                         {info.resumeUrl ? (
-                          <button
-                            type="button"
-                            onClick={() => openResume(info.resumeUrl)}
-                            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5"
-                          >
-                            <span>📄</span> View Student Resume ↗
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openResume(info.resumeUrl)}
+                              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5"
+                            >
+                              <span>📄</span> View Student Resume ↗
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadResume(info.resumeUrl, info.name)}
+                              className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-xs flex items-center gap-1.5"
+                            >
+                              <span>⬇</span> Download Resume
+                            </button>
+                          </>
                         ) : (
                           <span className="text-xs text-slate-400">No resume attached</span>
                         )}
