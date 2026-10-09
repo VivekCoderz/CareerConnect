@@ -9,6 +9,7 @@ import {
   saveOpportunity,
 } from "../../services/studentDashboardService";
 import { isExternalOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
+import { getPageCache, setPageCache } from "../../utils/pageCache";
 import { FEATURES } from "../../config/features";
 
 // Subcomponents
@@ -78,13 +79,16 @@ const StudentDashboard = () => {
   const [coursesView, setCoursesView] = useState("catalog"); // catalog | my-courses | detail
   const [selectedCourseId, setSelectedCourseId] = useState(null);
 
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Coming back to the dashboard shows the last data at once and refreshes it (FL-09).
+  const userId = user?._id || user?.id;
+  const [cachedDashboard] = useState(() => getPageCache("studentDashboard", userId));
+  const [dashboardData, setDashboardData] = useState(cachedDashboard);
+  const [loading, setLoading] = useState(!cachedDashboard);
   const [error, setError] = useState(null);
 
-  const [savedIds, setSavedIds] = useState([]);
-  const [savedList, setSavedList] = useState([]);
-  const [applicationsData, setApplicationsData] = useState(null);
+  const [savedIds, setSavedIds] = useState(() => (cachedDashboard?.savedOpportunities || []).map((s) => s.id));
+  const [savedList, setSavedList] = useState(() => cachedDashboard?.savedOpportunities || []);
+  const [applicationsData, setApplicationsData] = useState(() => cachedDashboard?.applications || null);
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = "success") => {
@@ -93,11 +97,13 @@ const StudentDashboard = () => {
   };
 
   const fetchDashboard = async () => {
-    setLoading(true);
+    // Full-screen loader only when there's nothing to show yet.
+    if (!getPageCache("studentDashboard", userId)) setLoading(true);
     setError(null);
     try {
       const res = await getStudentDashboardData();
       if (res?.success && res?.data) {
+        setPageCache("studentDashboard", userId, res.data);
         setDashboardData(res.data);
         setSavedList(res.data.savedOpportunities || []);
         setSavedIds((res.data.savedOpportunities || []).map((s) => s.id));

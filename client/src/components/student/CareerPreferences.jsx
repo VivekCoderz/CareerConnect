@@ -16,16 +16,20 @@ const CareerPreferences = ({ profile, setProfile }) => {
   const [interestInput, setInterestInput] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Re-fill the form only when these saved preferences change, not when another section of
+  // the profile saves (that used to wipe unsaved edits here, FL-09).
+  const savedPrefs = JSON.stringify([profile?.careerGoal, profile?.interests, profile?.jobPreferences]);
   useEffect(() => {
+    const [careerGoal, interests, jobPreferences] = JSON.parse(savedPrefs);
     setForm({
-      careerGoal: profile?.careerGoal || "",
-      interests: profile?.interests || [],
-      preferredRoles: profile?.jobPreferences?.preferredRoles || [],
-      preferredLocations: profile?.jobPreferences?.preferredLocations || [],
-      jobTypes: profile?.jobPreferences?.jobTypes || [],
-      remote: profile?.jobPreferences?.remote || false,
+      careerGoal: careerGoal || "",
+      interests: interests || [],
+      preferredRoles: jobPreferences?.preferredRoles || [],
+      preferredLocations: jobPreferences?.preferredLocations || [],
+      jobTypes: jobPreferences?.jobTypes || [],
+      remote: jobPreferences?.remote || false,
     });
-  }, [profile]);
+  }, [savedPrefs]);
 
   const addItem = (field, value, clear) => {
     const trimmed = value.trim();
