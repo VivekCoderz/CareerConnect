@@ -39,7 +39,7 @@ const markBroadcastRead = async (notification, userId) => {
 exports.getNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
-    await seedWelcomeNotificationsIfEmpty(userId);
+    await seedWelcomeNotificationsIfEmpty(userId, req.user.role);
     const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
     const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit, 10) || 20));
     const cursor = await NotificationReadCursor.findOne({ userId }).lean();

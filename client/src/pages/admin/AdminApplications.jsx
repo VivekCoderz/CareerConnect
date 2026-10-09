@@ -24,6 +24,8 @@ import {
   FileText,
 } from "lucide-react";
 
+const STAGE_OPTIONS = ["Applied", "Under Review", "Shortlisted", "Interview Scheduled", "Hired", "Rejected"];
+
 const AdminApplications = () => {
   const [applications, setApplications] = useState([]);
   const [stats, setStats] = useState({
@@ -107,9 +109,6 @@ const AdminApplications = () => {
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 Application Management
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Page 28
-              </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Global overview of candidate submissions, interview pipeline advancement, and placement outcomes.
@@ -291,6 +290,11 @@ const AdminApplications = () => {
                             disabled={updatingId === app._id}
                             className="text-[11px] py-1 px-2 rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-hidden focus:border-indigo-500"
                           >
+                            {/* Show stages outside this short list (Withdrawn, Offered...) as they are,
+                                instead of falling back to "Applied". */}
+                            {!STAGE_OPTIONS.includes(app.status || "Applied") && (
+                              <option value={app.status}>{app.status}</option>
+                            )}
                             <option value="Applied">Applied</option>
                             <option value="Under Review">Under Review</option>
                             <option value="Shortlisted">Shortlisted</option>

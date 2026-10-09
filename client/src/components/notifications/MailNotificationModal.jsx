@@ -1,4 +1,8 @@
-import { Link } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { Link, useLocation } from "react-router-dom";
+
+// Older messages were written with markdown bold; the reader shows plain text.
+const plainText = (text = "") => String(text).replace(/\*\*(.+?)\*\*/g, "$1");
 
 const MailNotificationModal = ({
   notification,
@@ -6,7 +10,13 @@ const MailNotificationModal = ({
   onClose,
   onDelete,
 }) => {
+  const location = useLocation();
   if (!isOpen || !notification) return null;
+
+  // A button back to the page the user is already on does nothing visible.
+  const actionUrl = notification.actionUrl || "";
+  const showAction = Boolean(actionUrl) &&
+    actionUrl !== location.pathname && actionUrl !== location.pathname + location.search;
 
   const categoryBadgeMap = {
     job: { label: "💼 Job Opportunity", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -25,7 +35,9 @@ const MailNotificationModal = ({
       })
     : "Just now";
 
-  return (
+  // Portal to <body>: inside the sticky, blurred header a "fixed" overlay is positioned
+  // against the header, which pushed the top of the message off screen.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
       <div
         className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
@@ -59,7 +71,7 @@ const MailNotificationModal = ({
                 {notification.title}
               </h2>
               <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                From: <span className="text-slate-800">{notification.sender}</span> &lt;notifications@e2job.com&gt;
+                From: <span className="text-slate-800">{notification.sender || "E2Job"}</span>
               </p>
             </div>
           </div>
@@ -122,7 +134,7 @@ const MailNotificationModal = ({
 
           {/* Formatted Mail Message */}
           <div className="whitespace-pre-line font-sans text-slate-700 leading-relaxed text-sm">
-            {notification.content}
+            {plainText(notification.content)}
           </div>
 
           {/* Required Skills Chips */}
@@ -151,11 +163,11 @@ const MailNotificationModal = ({
             onClick={onClose}
             className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-bold transition"
           >
-            ← Back to Inbox
+            Close
           </button>
 
-          {notification.actionUrl && (
-            notification.actionUrl.startsWith("http") ? (
+          {showAction && (
+            actionUrl.startsWith("http") ? (
               <a
                 href={notification.actionUrl}
                 target="_blank"
@@ -178,7 +190,8 @@ const MailNotificationModal = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
