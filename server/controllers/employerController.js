@@ -24,7 +24,7 @@ const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
 const Course = require("../models/Course");
 const { getEmployerDashboardData } = require("../services/employerDashboardService");
-const { isPublicEmployerProfile } = require("../utils/employerOwnership");
+const { getActiveCompany } = require("../utils/employerOwnership");
 const { ipKeyGenerator } = require("express-rate-limit");
 
 // Company size options offered by the connect-company form (EmployerDashboard).
@@ -509,7 +509,12 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
 
     // Only published, admin-approved profiles are public, and not while the employer's
     // company is inactive or deleted (ADM-11/12). Anything else looks like "not found".
-    if (!(await isPublicEmployerProfile(profile))) {
+    const isPublic = Boolean(profile) &&
+      profile.isPublished === true &&
+      profile.verificationStatus === "approved" &&
+      (!profile.userId?.companyId || Boolean(await getActiveCompany(profile.userId)));
+
+    if (!isPublic) {
       return res.status(404).json({
         success: false,
         message: "Company profile not found",

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const Job = require("../models/Job");
-const { getOwnerScope, listingOwnerClauses, isPublicEmployerProfile } = require("../utils/employerOwnership");
+const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
@@ -312,11 +312,10 @@ exports.getJobById = async (req, res, next) => {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(404).json({ success: false, message: "Job not found" });
     }
-    const job = await Job.findById(req.params.id).populate({
-      path: "employerId",
-      select: "companyName logo headquarters industry description website isPublished verificationStatus userId",
-      populate: { path: "userId", select: "companyId" },
-    });
+    const job = await Job.findById(req.params.id).populate(
+      "employerId",
+      "companyName logo headquarters industry description website"
+    );
 
     const publiclyVisible = job && job.status === "Published" && !isListingExpired(job);
     if (!job || (!publiclyVisible && (!req.user ||
@@ -332,18 +331,9 @@ exports.getJobById = async (req, res, next) => {
     // Increment view count
     if (publiclyVisible) await Job.updateOne({ _id: job._id }, { $inc: { viewsCount: 1 } });
 
-    // The client links the company name to /companies/:id only when that page will show it
-    // (CC-01); the fields behind the check are not part of the public listing.
-    const listing = toPublicListing(job, req.user);
-    if (listing.employerId && typeof listing.employerId === "object") {
-      const { isPublished, verificationStatus, userId, ...employer } = listing.employerId;
-      employer.hasPublicProfile = await isPublicEmployerProfile(job.employerId);
-      listing.employerId = employer;
-    }
-
     return res.status(200).json({
       success: true,
-      job: listing,
+      job: toPublicListing(job, req.user),
     });
   } catch (error) {
     next(error);
