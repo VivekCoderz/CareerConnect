@@ -24,8 +24,27 @@ export const getAdminMe = async () => {
   return response.data;
 };
 
-export const getAdminDashboard = async (range = "30d") => {
-  const response = await api.get(`/admin/dashboard?range=${range}`);
+const clientDashboardCache = new Map();
+const CLIENT_CACHE_TTL_MS = 60 * 1000;
+
+export const getCachedAdminDashboard = (range = "30d") => {
+  const cached = clientDashboardCache.get(range);
+  if (cached && Date.now() - cached.timestamp < CLIENT_CACHE_TTL_MS) {
+    return cached.data;
+  }
+  return null;
+};
+
+export const getAdminDashboard = async (range = "30d", forceRefresh = false) => {
+  const cached = clientDashboardCache.get(range);
+  if (!forceRefresh && cached && Date.now() - cached.timestamp < CLIENT_CACHE_TTL_MS) {
+    return { success: true, data: cached.data, cached: true };
+  }
+
+  const response = await api.get(`/admin/dashboard?range=${range}${forceRefresh ? "&refresh=true" : ""}`);
+  if (response.data?.success && response.data?.data) {
+    clientDashboardCache.set(range, { data: response.data.data, timestamp: Date.now() });
+  }
   return response.data;
 };
 

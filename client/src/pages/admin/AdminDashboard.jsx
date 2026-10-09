@@ -1,5 +1,5 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import AdminKPICards from "../../components/admin/AdminKPICard";
 import UserGrowthChart from "../../components/admin/UserGrowthChart";
@@ -7,23 +7,35 @@ import OpportunityOverview from "../../components/admin/OpportunityOverview";
 import ApplicationFunnel from "../../components/admin/ApplicationFunnel";
 import RequiresAttention from "../../components/admin/RequiresAttention";
 import RecentActivity from "../../components/admin/RecentActivity";
-import { getAdminDashboard } from "../../services/adminService";
-import { AlertCircle, RefreshCw, Sparkles } from "lucide-react";
+import { getAdminDashboard, getCachedAdminDashboard } from "../../services/adminService";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 const AdminDashboard = () => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState("30d");
+  const [data, setData] = useState(() => getCachedAdminDashboard("30d"));
+  const [loading, setLoading] = useState(() => !getCachedAdminDashboard("30d"));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [timeRange, setTimeRange] = useState("30d");
 
-  const loadDashboard = useCallback(async (range = timeRange, isBackground = false) => {
-    if (!isBackground) setLoading(true);
-    else setRefreshing(true);
+  // FL-11: Use a ref to track current data state without adding it to
+  // useCallback deps — prevents loadDashboard from being re-created on
+  // every successful data fetch, which was causing repeated API calls.
+  const dataRef = useRef(data);
+  useEffect(() => { dataRef.current = data; }, [data]);
+
+  // FL-11: 'data' removed from deps — read via dataRef to avoid
+  // creating a new function reference on every data change.
+  const loadDashboard = useCallback(async (range = timeRange, isBackground = false, force = false) => {
+    // Show full-page loader only on initial load (no data yet).
+    if (!isBackground && !dataRef.current) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     setError(null);
 
     try {
-      const res = await getAdminDashboard(range);
+      const res = await getAdminDashboard(range, force);
       if (res?.success) {
         setData(res.data);
       } else {
@@ -42,16 +54,24 @@ const AdminDashboard = () => {
   }, [timeRange]);
 
   useEffect(() => {
-    loadDashboard(timeRange, false);
+    const cached = getCachedAdminDashboard(timeRange);
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+      // Revalidate in background
+      loadDashboard(timeRange, true, false);
+    } else {
+      loadDashboard(timeRange, false, false);
+    }
   }, [timeRange]);
 
-  const handleRangeChange = (newRange) => {
+  const handleRangeChange = useCallback((newRange) => {
     setTimeRange(newRange);
-  };
+  }, []);
 
-  const handleManualRefresh = () => {
-    loadDashboard(timeRange, true);
-  };
+  const handleManualRefresh = useCallback(() => {
+    loadDashboard(timeRange, true, true);
+  }, [loadDashboard, timeRange]);
 
   return (
     <AdminLayout onRefresh={handleManualRefresh} isRefreshing={refreshing}>
