@@ -2883,6 +2883,7 @@ exports.getAdminApplications = async (req, res, next) => {
       Application.find(filter)
         .populate("candidateId", "fullName email profileImage phone city")
         .populate("companyId", "name logo")
+        .populate("employerId", "companyName")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Number(limit))
