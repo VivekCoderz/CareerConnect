@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { fetchLiveResumeAPI } from "../../services/resumeService";
 import ResumePreview from "../../components/resume-builder/ResumePreview";
@@ -8,17 +8,12 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import { openResume } from "../../utils/resumeAccess";
 import {
   Printer,
-  Share2,
   Copy,
   Check,
-  ExternalLink,
   Edit3,
-  ArrowLeft,
   Sparkles,
   Download,
   AlertCircle,
-  Eye,
-  FileText,
 } from "lucide-react";
 
 const TEMPLATES = [
@@ -32,7 +27,6 @@ const TEMPLATES = [
 
 const LiveResume = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { user: currentUser } = useSelector((state) => state.auth);
 
   const [resumeData, setResumeData] = useState(null);
@@ -40,7 +34,6 @@ const LiveResume = () => {
   const [error, setError] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState("classic");
   const [copied, setCopied] = useState(false);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;

@@ -95,7 +95,7 @@ router.patch(
   "/bulk-status",
   protect,
   employerOnly,
-  ensureFn(applicationController.bulkUpdateApplicationStatus, "bulkUpdateApplicationStatus")
+  ensureFn(bulkUpdateApplicationStatus, "bulkUpdateApplicationStatus")
 );
 
 router.patch(

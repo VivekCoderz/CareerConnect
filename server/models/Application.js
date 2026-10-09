@@ -317,17 +317,6 @@ const applicationSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.Mixed,
           default: {},
         },
-        // Backward compatibility
-        stage: String,
-        notes: String,
-        changedBy: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        changedAt: {
-          type: Date,
-          default: Date.now,
-        },
       },
     ],
 
