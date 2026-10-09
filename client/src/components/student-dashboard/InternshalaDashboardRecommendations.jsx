@@ -32,6 +32,178 @@ const FALLBACK_COURSE = {
   skillsCovered: ["React", "Node.js", "Express", "System Design"],
 };
 
+
+// How many jobs and how many internships the dashboard shows (FL-06).
+const PICKS_PER_TYPE = 4;
+
+const idOf = (item) => String(item.id || item._id || item.jobId);
+
+const pickSkills = (item) =>
+  [item?.skillsRequired, item?.skills, item?.requiredSkills].find((l) => Array.isArray(l) && l.length) || [];
+
+const payText = (item, isJob) =>
+  isJob
+    ? item.salary ||
+      (item.salaryRange?.min
+        ? `₹${item.salaryRange.min.toLocaleString()} - ₹${(item.salaryRange.max || item.salaryRange.min).toLocaleString()}`
+        : null)
+    : item.stipend || (item.stipendAmount?.min ? `₹${item.stipendAmount.min.toLocaleString()} / month` : null);
+
+const THEME = {
+  Job: { badge: "💼 JOB", badgeCls: "bg-emerald-50 text-emerald-700 border-emerald-200", hover: "hover:border-emerald-500", title: "group-hover:text-emerald-700", logo: "bg-emerald-50 border-emerald-200 text-emerald-700", apply: "bg-emerald-600 hover:bg-emerald-700", applyLabel: "Apply Now" },
+  Internship: { badge: "🎓 INTERNSHIP", badgeCls: "bg-blue-50 text-blue-700 border-blue-200", hover: "hover:border-blue-500", title: "group-hover:text-blue-700", logo: "bg-blue-50 border-blue-200 text-blue-700", apply: "bg-[#1e3a8a] hover:bg-blue-700", applyLabel: "Quick Apply" },
+};
+
+/** One recommended job or internship. */
+const OpportunityCard = ({ item, type, isSaved, isApplied, onSave, onApply }) => {
+  const t = THEME[type];
+  const isJob = type === "Job";
+  const skills = pickSkills(item);
+  const pay = payText(item, isJob);
+  const applyHref = item.applyLink || item.applyUrl;
+  const isExternal = applyHref && /^https?:\/\//.test(applyHref);
+  const extra = isJob ? item.type || item.employmentType : item.duration;
+
+  return (
+    <div className={`bg-white rounded-2xl border border-slate-200/90 ${t.hover} hover:shadow-xl transition-all duration-300 p-5 flex flex-col justify-between gap-4 group min-w-0`}>
+      <div>
+        <span className={`inline-flex px-2.5 py-0.5 rounded-md text-[11px] font-extrabold border ${t.badgeCls}`}>{t.badge}</span>
+
+        <div className="flex items-start justify-between gap-3 mt-3">
+          <div className="space-y-1 min-w-0">
+            <h3 className={`text-sm font-bold text-slate-900 ${t.title} transition line-clamp-2`}>
+              <OpportunityTitleLink item={item} type={type}>{item.title}</OpportunityTitleLink>
+            </h3>
+            {item.company && <p className="text-xs font-semibold text-slate-600 line-clamp-1">{item.company}</p>}
+          </div>
+          {item.logo || item.companyLogo ? (
+            <img
+              src={item.logo || item.companyLogo}
+              alt={item.company || ""}
+              className="w-10 h-10 rounded-xl object-contain p-1 bg-white border border-slate-200 shrink-0"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          ) : (
+            <div className={`w-10 h-10 rounded-xl border font-black text-base flex items-center justify-center shrink-0 ${t.logo}`}>
+              {(item.company || item.title || "?")[0]}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-1.5 text-xs text-slate-600 mt-3 pt-3 border-t border-slate-100">
+          {(item.location || item.workMode) && (
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-slate-400 shrink-0">📍</span>
+              {item.location && <span className="font-medium text-slate-700 line-clamp-1">{item.location}</span>}
+              {item.location && item.workMode && <span className="text-slate-300">•</span>}
+              {item.workMode && <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">{item.workMode}</span>}
+            </div>
+          )}
+          {pay && (
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-600 font-bold shrink-0">💵</span>
+              <span className="font-bold text-emerald-700 line-clamp-1">{pay}</span>
+            </div>
+          )}
+          {extra && (
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 shrink-0">{isJob ? "💼" : "⏳"}</span>
+              <span className="text-slate-500 font-medium">{extra}</span>
+            </div>
+          )}
+        </div>
+
+        {skills.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
+            {skills.slice(0, 3).map((sk, idx) => (
+              <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 text-[10px] font-medium border border-slate-200/80">
+                {sk}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Buttons sit side by side when there is room and stack in narrow cards. */}
+      <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+        {/* Saving isn't stored yet (/api/student/save returns 501) */}
+        {FEATURES.savedJobs && (
+          <button
+            type="button"
+            onClick={() => onSave && onSave(item)}
+            className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+              isSaved ? "bg-amber-50 border-amber-300 text-amber-600" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+            }`}
+            title={isSaved ? "Saved" : `Save ${type}`}
+          >
+            {isSaved ? "★" : "☆"}
+          </button>
+        )}
+
+        <ViewDetailsButton item={item} type={type} className="grow basis-28 py-2.5 px-2" />
+
+        {isApplied ? (
+          <button type="button" disabled className="grow basis-28 py-2.5 px-2 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
+            ✓ Applied
+          </button>
+        ) : isExternal ? (
+          <a
+            href={applyHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`grow basis-28 text-center py-2.5 px-2 ${t.apply} text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1`}
+          >
+            <span>Apply Online</span>
+            <span aria-hidden="true">↗</span>
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onApply && onApply(item)}
+            className={`grow basis-28 py-2.5 px-2 ${t.apply} text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1`}
+          >
+            <span>{t.applyLabel}</span>
+            <span>›</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/** A titled row of up to PICKS_PER_TYPE cards, or the empty card. */
+const PicksRow = ({ title, items, type, href, onViewAll, savedIds, appliedIds, onSave, onApply }) => (
+  <div className="space-y-3">
+    <div className="flex items-center justify-between gap-3">
+      <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">{title}</h3>
+      <Link to={href} onClick={onViewAll} className="text-xs font-bold text-[#1e3a8a] hover:underline whitespace-nowrap">
+        View all {type === "Job" ? "jobs" : "internships"} →
+      </Link>
+    </div>
+    {items.length > 0 ? (
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {items.map((item) => (
+          <OpportunityCard
+            key={idOf(item)}
+            item={item}
+            type={type}
+            isSaved={savedIds.includes(item.id || item._id)}
+            isApplied={appliedIds.has(idOf(item))}
+            onSave={onSave}
+            onApply={onApply}
+          />
+        ))}
+      </div>
+    ) : (
+      <div className="max-w-sm">
+        <EmptyOpportunityCard type={type === "Job" ? "job" : "internship"} href={href} />
+      </div>
+    )}
+  </div>
+);
+
 const InternshalaDashboardRecommendations = ({
   jobs = [],
   internships = [],
@@ -45,42 +217,11 @@ const InternshalaDashboardRecommendations = ({
 }) => {
   const [activeCategory, setActiveCategory] = useState("all");
 
-  const topJob = jobs.find((job) => !appliedJobIds.has(String(job.id || job._id || job.jobId))) || null;
-  const topInternship = internships.find((internship) => !appliedInternshipIds.has(String(internship.id || internship._id || internship.jobId))) || null;
+  // Up to PICKS_PER_TYPE of each that the candidate hasn't applied to yet.
+  const jobPicks = jobs.filter((job) => !appliedJobIds.has(idOf(job))).slice(0, PICKS_PER_TYPE);
+  const internshipPicks = internships.filter((i) => !appliedInternshipIds.has(idOf(i))).slice(0, PICKS_PER_TYPE);
   const topCourse = courses && courses.length > 0 ? courses[0] : FALLBACK_COURSE;
-
-  const isJobSaved = topJob && savedIds.includes(topJob.id || topJob._id);
-  const isJobApplied = topJob && appliedJobIds.has(String(topJob.id || topJob._id));
-  const isInternshipSaved = topInternship && savedIds.includes(topInternship.id || topInternship._id);
-  const isInternshipApplied = topInternship && appliedInternshipIds.has(String(topInternship.id || topInternship._id));
-
-  // Normalize skills arrays safely
-  const pickSkills = (item) =>
-    [item?.skillsRequired, item?.skills, item?.requiredSkills].find((l) => Array.isArray(l) && l.length) || [];
-  const jobSkills = pickSkills(topJob);
-  const internshipSkills = pickSkills(topInternship);
   const courseSkills = topCourse.skillsCovered || topCourse.skills || ["Full Stack", "Live Projects"];
-
-  // Normalize salary / stipend strings
-  const jobSalary =
-    topJob?.salary ||
-    (topJob?.salaryRange?.min
-      ? `₹${topJob.salaryRange.min.toLocaleString()} - ₹${(topJob.salaryRange.max || topJob.salaryRange.min).toLocaleString()}`
-      : null);
-
-  const internshipStipend =
-    topInternship?.stipend ||
-    (topInternship?.stipendAmount?.min
-      ? `₹${topInternship.stipendAmount.min.toLocaleString()} / month`
-      : null);
-
-  // Format apply link for job
-  const jobApplyHref = topJob?.applyLink || topJob?.applyUrl;
-  const isJobExternal = jobApplyHref && (jobApplyHref.startsWith("http://") || jobApplyHref.startsWith("https://"));
-
-  // Format apply link for internship
-  const intApplyHref = topInternship?.applyLink || topInternship?.applyUrl;
-  const isIntExternal = intApplyHref && (intApplyHref.startsWith("http://") || intApplyHref.startsWith("https://"));
 
   return (
     <div className="space-y-8 animate-fade-in w-full max-w-7xl mx-auto">
@@ -179,7 +320,7 @@ const InternshalaDashboardRecommendations = ({
                 Latest For You
               </h2>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                {topJob || topInternship ? "New on E2Job" : "Check back soon"}
+                {jobPicks.length || internshipPicks.length ? "New on E2Job" : "Check back soon"}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -234,325 +375,37 @@ const InternshalaDashboardRecommendations = ({
           </div>
         </div>
 
-        {/* Dynamic Card Container */}
-        <div
-          className={
-            activeCategory === "all"
-            ? `grid grid-cols-1 gap-5 ${FEATURES.courses ? "md:grid-cols-3" : "md:grid-cols-2"}`
-              : "grid grid-cols-1 max-w-xl mx-auto md:mx-0 gap-5"
-          }
-        >
-          {/* ================= CARD 1: RECOMMENDED JOB ================= */}
-          {(activeCategory === "all" || activeCategory === "job") && (topJob ? (
-            <div className="bg-white rounded-2xl border border-slate-200/90 hover:border-emerald-500 hover:shadow-xl transition-all duration-300 p-5 sm:p-6 flex flex-col justify-between gap-4 group">
-              <div>
-                {/* Header Badge Row */}
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    💼 JOB • LATEST
-                  </span>
-                </div>
+        {/* Jobs and internships: up to 4 each (FL-06) */}
+        <div className="space-y-6">
+          {(activeCategory === "all" || activeCategory === "job") && (
+            <PicksRow
+              title="Jobs for you"
+              items={jobPicks}
+              type="Job"
+              href="/jobs"
+              savedIds={savedIds}
+              appliedIds={appliedJobIds}
+              onSave={onSave}
+              onApply={onApply}
+            />
+          )}
 
-                {/* Company & Title */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1 min-w-0">
-                    <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition line-clamp-1">
-                      <OpportunityTitleLink item={topJob} type="Job">{topJob.title}</OpportunityTitleLink>
-                    </h3>
-                    {topJob.company && (
-                      <p className="text-xs font-semibold text-slate-600 line-clamp-1">
-                        {topJob.company}
-                      </p>
-                    )}
-                  </div>
-                  {topJob.logo || topJob.companyLogo ? (
-                    <img
-                      src={topJob.logo || topJob.companyLogo}
-                      alt={topJob.company || ""}
-                      className="w-11 h-11 rounded-xl object-contain p-1 bg-white border border-slate-200 shrink-0"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-base flex items-center justify-center shrink-0">
-                      {(topJob.company || topJob.title || "?")[0]}
-                    </div>
-                  )}
-                </div>
+          {(activeCategory === "all" || activeCategory === "internship") && (
+            <PicksRow
+              title="Internships for you"
+              items={internshipPicks}
+              type="Internship"
+              href="/internships"
+              onViewAll={() => onNavigateTab && onNavigateTab("internships")}
+              savedIds={savedIds}
+              appliedIds={appliedInternshipIds}
+              onSave={onSave}
+              onApply={onApply}
+            />
+          )}
+        </div>
 
-                {/* Subtle Divider */}
-                <div className="border-t border-slate-100 my-3.5" />
-
-                {/* Metadata List with Icons */}
-                <div className="space-y-2 text-xs text-slate-600">
-                  {(topJob.location || topJob.workMode) && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 shrink-0">📍</span>
-                      {topJob.location && (
-                        <span className="font-medium text-slate-700 line-clamp-1">
-                          {topJob.location}
-                        </span>
-                      )}
-                      {topJob.location && topJob.workMode && <span className="text-slate-300">•</span>}
-                      {topJob.workMode && (
-                        <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
-                          {topJob.workMode}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {jobSalary && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-emerald-600 font-bold shrink-0">💵</span>
-                      <span className="font-bold text-emerald-700">{jobSalary}</span>
-                    </div>
-                  )}
-
-                  {(topJob.type || topJob.employmentType) && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 shrink-0">💼</span>
-                      <span className="text-slate-500 font-medium">{topJob.type || topJob.employmentType}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Skills Tags */}
-                {jobSkills && jobSkills.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
-                    {jobSkills.slice(0, 3).map((sk, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 text-[10px] font-medium border border-slate-200/80"
-                      >
-                        {sk}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Bottom Actions Row */}
-              <div>
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
-                  {/* Saving isn't stored yet (/api/student/save returns 501) */}
-                  {FEATURES.savedJobs && (
-                    <button
-                      type="button"
-                      onClick={() => onSave && onSave(topJob)}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                        isJobSaved
-                          ? "bg-amber-50 border-amber-300 text-amber-600"
-                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                      }`}
-                      title={isJobSaved ? "Saved" : "Save Job"}
-                    >
-                      {isJobSaved ? "★" : "☆"}
-                    </button>
-                  )}
-
-                  <ViewDetailsButton item={topJob} type="Job" className="flex-1 py-2.5 px-3" />
-
-                  {isJobApplied ? (
-                    <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
-                      ✓ Applied
-                    </button>
-                  ) : isJobExternal ? (
-                    <a
-                      href={jobApplyHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 text-center py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1"
-                    >
-                      <span>Apply Online</span>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => onApply && onApply(topJob)}
-                      className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1"
-                    >
-                      <span>Apply Now</span>
-                      <span>›</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Footer Explorer Link */}
-                <div className="text-center pt-2.5 border-t border-slate-50 mt-2.5">
-                  <Link
-                    to="/jobs"
-                    className="text-[11px] font-bold text-emerald-700 hover:underline inline-flex items-center gap-1"
-                  >
-                    <span>Explore all jobs (10/page)</span>
-                    <span>→</span>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ) : <EmptyOpportunityCard type="job" href="/jobs" />)}
-
-          {/* ================= CARD 2: RECOMMENDED INTERNSHIP ================= */}
-          {(activeCategory === "all" || activeCategory === "internship") && (topInternship ? (
-            <div className="bg-white rounded-2xl border border-slate-200/90 hover:border-blue-500 hover:shadow-xl transition-all duration-300 p-5 sm:p-6 flex flex-col justify-between gap-4 group">
-              <div>
-                {/* Header Badge Row */}
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
-                    🎓 INTERNSHIP • LATEST
-                  </span>
-                </div>
-
-                {/* Company & Title */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1 min-w-0">
-                    <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition line-clamp-1">
-                      <OpportunityTitleLink item={topInternship} type="Internship">{topInternship.title}</OpportunityTitleLink>
-                    </h3>
-                    {topInternship.company && (
-                      <p className="text-xs font-semibold text-slate-600 line-clamp-1">
-                        {topInternship.company}
-                      </p>
-                    )}
-                  </div>
-                  {topInternship.logo || topInternship.companyLogo ? (
-                    <img
-                      src={topInternship.logo || topInternship.companyLogo}
-                      alt={topInternship.company || ""}
-                      className="w-11 h-11 rounded-xl object-contain p-1 bg-white border border-slate-200 shrink-0"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 font-black text-base flex items-center justify-center shrink-0">
-                      {(topInternship.company || topInternship.title || "?")[0]}
-                    </div>
-                  )}
-                </div>
-
-                {/* Subtle Divider */}
-                <div className="border-t border-slate-100 my-3.5" />
-
-                {/* Metadata List with Icons */}
-                <div className="space-y-2 text-xs text-slate-600">
-                  {(topInternship.location || topInternship.workMode) && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 shrink-0">📍</span>
-                      {topInternship.location && (
-                        <span className="font-medium text-slate-700 line-clamp-1">
-                          {topInternship.location}
-                        </span>
-                      )}
-                      {topInternship.location && topInternship.workMode && <span className="text-slate-300">•</span>}
-                      {topInternship.workMode && (
-                        <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">
-                          {topInternship.workMode}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {internshipStipend && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-emerald-600 font-bold shrink-0">💵</span>
-                      <span className="font-bold text-emerald-700">{internshipStipend}</span>
-                    </div>
-                  )}
-
-                  {topInternship.duration && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 shrink-0">⏳</span>
-                      <span className="text-slate-500 font-medium">
-                        {topInternship.duration}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Skills Tags */}
-                {internshipSkills && internshipSkills.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
-                    {internshipSkills.slice(0, 3).map((sk, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 text-[10px] font-medium border border-slate-200/80"
-                      >
-                        {sk}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Bottom Actions Row */}
-              <div>
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
-                  {/* Saving isn't stored yet (/api/student/save returns 501) */}
-                  {FEATURES.savedJobs && (
-                    <button
-                      type="button"
-                      onClick={() => onSave && onSave(topInternship)}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                        isInternshipSaved
-                          ? "bg-amber-50 border-amber-300 text-amber-600"
-                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                      }`}
-                      title={isInternshipSaved ? "Saved" : "Save Internship"}
-                    >
-                      {isInternshipSaved ? "★" : "☆"}
-                    </button>
-                  )}
-
-                  <ViewDetailsButton item={topInternship} type="Internship" className="flex-1 py-2.5 px-3" />
-
-                  {isInternshipApplied ? (
-                    <button type="button" disabled className="flex-1 py-2.5 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl cursor-not-allowed">
-                      ✓ Applied
-                    </button>
-                  ) : isIntExternal ? (
-                    <a
-                      href={intApplyHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 text-center py-2.5 px-3 bg-[#1e3a8a] hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1"
-                    >
-                      <span>Apply Online</span>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => onApply && onApply(topInternship)}
-                      className="flex-1 py-2.5 px-3 bg-[#1e3a8a] hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1"
-                    >
-                      <span>Quick Apply</span>
-                      <span>›</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Footer Explorer Link */}
-                <div className="text-center pt-2.5 border-t border-slate-50 mt-2.5">
-                  <Link
-                    to="/internships"
-                    onClick={() => onNavigateTab && onNavigateTab("internships")}
-                    className="text-[11px] font-bold text-blue-700 hover:underline inline-flex items-center gap-1"
-                  >
-                    <span>Explore all internships (10/page)</span>
-                    <span>→</span>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ) : <EmptyOpportunityCard type="internship" href="/internships" />)}
-
+        <div className="grid grid-cols-1 max-w-sm gap-5">
           {/* ================= CARD 3: RECOMMENDED COURSE ================= */}
                     {FEATURES.courses && (activeCategory === "all" || activeCategory === "course") && (
             <div className="bg-white rounded-2xl border border-slate-200/90 hover:border-purple-500 hover:shadow-xl transition-all duration-300 p-5 sm:p-6 flex flex-col justify-between gap-4 group">
