@@ -1,6 +1,7 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useDispatch, useSelector } from "react-redux";
 import { FEATURES } from "../../config/features";
@@ -2424,6 +2425,11 @@ const EmployerDashboard = () => {
               />
             </div>
           )}
+
+          {/* ======================================================== */}
+          {/* HELP & SUPPORT                                           */}
+          {/* ======================================================== */}
+          {safeActiveTab === "support" && <SupportTickets />}
 
           {/* ======================================================== */}
           {/* TAB 13: HIRING & TRAINING ANALYTICS                      */}

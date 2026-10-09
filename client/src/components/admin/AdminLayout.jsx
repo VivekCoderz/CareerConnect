@@ -23,6 +23,7 @@ import {
   Clock,
   Sparkles,
   RefreshCw,
+  LifeBuoy,
 } from "lucide-react";
 
 const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
@@ -130,6 +131,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
         { label: "Opportunities", path: "/admin/opportunities", icon: Briefcase },
         { label: "Applications", path: "/admin/applications", icon: FileSpreadsheet },
         { label: "Reports", path: "/admin/reports", icon: BarChart3 },
+        { label: "Support Tickets", path: "/admin/support-tickets", icon: LifeBuoy },
         { label: "Settings", path: "/admin/settings", icon: Settings },
       ]
     : [

@@ -1,6 +1,7 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
@@ -506,6 +507,9 @@ const StudentDashboard = () => {
               onApply={handleApply}
             />
           )}
+
+          {/* ================= HELP & SUPPORT ================= */}
+          {activeTab === "support" && <SupportTickets />}
 
           {/* ================= NOTIFICATIONS ================= */}
           {activeTab === "notifications" && (

@@ -69,6 +69,7 @@ const notificationSchema = new mongoose.Schema(
         "COMPANY_VERIFICATION",
         "LISTING_STATUS",
         "OFFER",
+        "SUPPORT_TICKET",
         "GENERAL",
       ],
       default: "GENERAL",
