@@ -345,6 +345,7 @@ const StudentDashboard = () => {
           profile={profile}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
+          searchPlaceholder={activeTab === "interviews" ? "Search interviews by company, role or round..." : undefined}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onLogout={handleLogout}
@@ -484,7 +485,7 @@ const StudentDashboard = () => {
           {/* ================= INTERVIEWS ================= */}
           {activeTab === "interviews" && (
             <div className="animate-fade-in">
-              <CandidateInterviewsView />
+              <CandidateInterviewsView searchQuery={searchQuery} />
             </div>
           )}
 

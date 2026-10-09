@@ -15,6 +15,7 @@ const DashboardHeader = ({
   profile,
   searchQuery,
   onSearchChange,
+  searchPlaceholder = "Search jobs, internships, courses, skills...",
   notifications: propNotifications = [],
   onOpenMobileSidebar,
   onToggleSidebar,
@@ -198,7 +199,7 @@ const DashboardHeader = ({
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search jobs, internships, courses, skills..."
+              placeholder={searchPlaceholder}
               className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50/70 text-xs sm:text-sm outline-none transition focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
             />
           </div>
