@@ -158,12 +158,17 @@ const LiveResume = () => {
                 <Sparkles className="w-3 h-3 text-indigo-600" />
                 Live Resume
               </span>
-              <span className="text-xs font-semibold text-slate-700 truncate hidden lg:block">
-                {candidateName}
-              </span>
+              {resumeData && (
+                <span className="text-xs font-semibold text-slate-700 truncate hidden lg:block">
+                  {candidateName}
+                </span>
+              )}
             </div>
           </div>
 
+          {/* Template picker and actions only once a resume is loaded. */}
+          {resumeData && (
+            <>
           {/* Center: Template Picker */}
           <div className="hidden sm:flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/80">
             {TEMPLATES.slice(0, 4).map((t) => (
@@ -237,6 +242,8 @@ const LiveResume = () => {
               </Link>
             )}
           </div>
+            </>
+          )}
         </div>
       </header>
 

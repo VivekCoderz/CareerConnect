@@ -3088,6 +3088,13 @@ const atsPdfOptimizeHandler = async (req, res) => {
  * GET /api/resume/live/:id
  * Public endpoint to view a candidate's shareable live web resume
  */
+// Profiles store location as { city, state, country }; the resume shows one line of text.
+const locationText = (location) => {
+  if (!location) return "";
+  if (typeof location === "string") return location;
+  return [location.city, location.state, location.country].filter(Boolean).join(", ");
+};
+
 const getLiveResumeHandler = async (req, res) => {
   try {
     const { id } = req.params;
@@ -3125,7 +3132,7 @@ const getLiveResumeHandler = async (req, res) => {
               fullName: user.fullName || "",
               email: user.email || "",
               phone: profile.phone || profile.contactNumber || "",
-              location: profile.location || "",
+              location: locationText(profile.location),
               bio: profile.bio || profile.summary || "",
               links: {
                 linkedin: profile.socialLinks?.linkedin || profile.linkedin || "",
@@ -3257,7 +3264,7 @@ const getMyLiveResumeHandler = async (req, res) => {
           fullName: req.user.fullName || "",
           email: req.user.email || "",
           phone: profile.phone || profile.contactNumber || "",
-          location: profile.location || "",
+          location: locationText(profile.location),
           bio: profile.bio || profile.summary || "",
           links: {
             linkedin: profile.socialLinks?.linkedin || profile.linkedin || "",
