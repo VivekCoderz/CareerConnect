@@ -29,6 +29,7 @@ const {
   getMyAppliedIds,
   getEmployerApplications,
   getApplicationById,
+  bulkUpdateApplicationStatus,
   updateApplicationStatus,
   updateApplicationStage,
   addApplicationNote,

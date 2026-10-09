@@ -5,6 +5,7 @@ const CourseOrder = require("../models/CourseOrder");
 const CourseApplication = require("../models/CourseApplication");
 const Enrollment = require("../models/Enrollment");
 const Notification = require("../models/Notification");
+const AuditLog = require("../models/AuditLog");
 
 // ==========================================
 // CONFIGURATION & CREDENTIALS
@@ -490,3 +491,150 @@ exports.getPaymentReceipt = async (req, res) => {
     });
   }
 };
+
+// ==========================================
+// 5. RAZORPAY WEBHOOK HANDLER
+// POST /api/payment/webhook
+// ==========================================
+exports.handleWebhook = async (req, res) => {
+  try {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
+    const signature = req.headers["x-razorpay-signature"];
+    const eventId = req.headers["x-razorpay-event-id"] || "";
+
+    if (!webhookSecret) {
+      console.warn("Payment Webhook: RAZORPAY_WEBHOOK_SECRET is not configured");
+      return res.status(503).json({ success: false, message: "Webhook secret is not configured" });
+    }
+
+    if (!signature) {
+      return res.status(400).json({ success: false, message: "Missing x-razorpay-signature header" });
+    }
+
+    // Verify signature
+    const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    const expectedSignature = crypto.createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
+
+    const expectedBuffer = Buffer.from(expectedSignature);
+    const receivedBuffer = Buffer.from(String(signature));
+
+    if (expectedBuffer.length !== receivedBuffer.length || !crypto.timingSafeEqual(expectedBuffer, receivedBuffer)) {
+      console.warn("Payment Webhook: Invalid webhook signature");
+      return res.status(400).json({ success: false, message: "Invalid webhook signature" });
+    }
+
+    const event = req.body?.event;
+    const payload = req.body?.payload || {};
+
+    // Record audit entry
+    await AuditLog.create({
+      action: "PAYMENT_WEBHOOK_RECEIVED",
+      module: "Settings",
+      target: event || "Razorpay Webhook",
+      details: `Event: ${event}, Event ID: ${eventId}`,
+      ipAddress: req.ip || "127.0.0.1",
+    }).catch(() => {});
+
+    // ------------------------------------------
+    // EVENT 1: PAYMENT CAPTURED / ORDER PAID
+    // ------------------------------------------
+    if (event === "payment.captured" || event === "order.paid") {
+      const paymentEntity = payload.payment?.entity || {};
+      const orderEntity = payload.order?.entity || {};
+      const razorpayOrderId = paymentEntity.order_id || orderEntity.id;
+      const razorpayPaymentId = paymentEntity.id;
+
+      if (!razorpayOrderId) {
+        return res.status(200).json({ success: true, message: "No order ID in event payload" });
+      }
+
+      // Idempotency check: Find order
+      const order = await CourseOrder.findOne({ razorpayOrderId });
+      if (!order) {
+        console.warn(`Payment Webhook: Order ${razorpayOrderId} not found in database`);
+        return res.status(200).json({ success: true, message: "Order not found; recorded for review" });
+      }
+
+      // Check if already completed (Idempotent replay)
+      if (order.status === "completed") {
+        return res.status(200).json({ success: true, message: "Order already completed" });
+      }
+
+      // Update Order Status
+      order.status = "completed";
+      if (razorpayPaymentId) order.razorpayPaymentId = razorpayPaymentId;
+      order.paidAt = new Date();
+      if (eventId) {
+        order.metadata = { ...(order.metadata || {}), webhookEventId: eventId };
+      }
+      await order.save();
+
+      // Enroll Candidate
+      await CourseApplication.findOneAndUpdate(
+        { student: order.user, course: order.course },
+        { status: "Enrolled" },
+        { upsert: true, new: true }
+      ).catch(() => {});
+
+      await Enrollment.findOneAndUpdate(
+        { userId: order.user, courseId: order.course },
+        {
+          userId: order.user,
+          courseId: order.course,
+          status: "Enrolled",
+          progressPercentage: 0,
+          lastAccessedAt: new Date(),
+        },
+        { upsert: true, new: true }
+      ).catch(() => {});
+
+      // Send In-App Notification
+      try {
+        const course = await Course.findById(order.course).select("title");
+        await Notification.create({
+          recipient: order.user,
+          recipientId: order.user,
+          sender: "E2Job Payments",
+          senderRole: "system",
+          title: "Payment Confirmed! 💳",
+          preview: `Your enrollment in ${course?.title || "course"} is active.`,
+          message: `Your payment was verified via webhook. Order ID: ${razorpayOrderId}`,
+          category: "payment",
+          link: "/student/courses",
+        });
+      } catch {}
+
+      // Log success audit
+      await AuditLog.create({
+        action: "PAYMENT_COMPLETED",
+        module: "Settings",
+        target: String(order.course),
+        details: `Payment fulfilled via webhook for Order: ${razorpayOrderId}, Payment: ${razorpayPaymentId}`,
+        ipAddress: req.ip || "127.0.0.1",
+      }).catch(() => {});
+
+      return res.status(200).json({ success: true, message: "Webhook processed and enrollment unlocked" });
+    }
+
+    // ------------------------------------------
+    // EVENT 2: PAYMENT FAILED
+    // ------------------------------------------
+    if (event === "payment.failed") {
+      const paymentEntity = payload.payment?.entity || {};
+      const razorpayOrderId = paymentEntity.order_id;
+      if (razorpayOrderId) {
+        await CourseOrder.findOneAndUpdate(
+          { razorpayOrderId, status: "created" },
+          { status: "failed", metadata: { failureReason: paymentEntity.error_description } }
+        ).catch(() => {});
+      }
+      return res.status(200).json({ success: true, message: "Payment failure recorded" });
+    }
+
+    return res.status(200).json({ success: true, message: `Event ${event} acknowledged` });
+  } catch (error) {
+    console.error("Payment Webhook Handler Error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error processing webhook" });
+  }
+};
+

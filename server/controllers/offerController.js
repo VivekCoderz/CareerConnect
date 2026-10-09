@@ -252,3 +252,41 @@ exports.respondToOffer = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * GET /api/offers/:id/pdf
+ * Generates and streams PDF offer letter for candidate or employer
+ */
+exports.exportOfferPdf = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const offer = await JobOffer.findById(id)
+      .populate("candidateId", "fullName email phone location skills")
+      .populate("jobId", "title department employmentType location companyName")
+      .populate("employerId", "companyName logo");
+
+    if (!offer) {
+      return res.status(404).json({ success: false, message: "Offer not found" });
+    }
+
+    // Authorization check
+    const isCandidate = offer.candidateId?._id?.toString() === req.user._id.toString();
+    let isEmployer = req.user.role === "employer" || req.user.userType === "employer";
+    if (req.user.role !== "admin" && !isCandidate && !isEmployer) {
+      return res.status(403).json({ success: false, message: "Not authorized to download this offer letter" });
+    }
+
+    const { generateOfferLetterPdf } = require("../utils/generateOfferLetterPdf");
+    const pdfBuffer = await generateOfferLetterPdf(offer, offer.candidateId, offer.employerId, offer.jobId);
+
+    const safeCandidateName = (offer.candidateId?.fullName || "Candidate").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filename = `Offer_Letter_${safeCandidateName}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    return res.end(pdfBuffer);
+  } catch (error) {
+    next(error);
+  }
+};

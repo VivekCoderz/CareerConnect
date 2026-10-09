@@ -728,14 +728,35 @@ exports.updateApplicationStatus = async (req, res, next) => {
 // Lets an employer shortlist or reject many applicants at once (e.g. 300).
 // Offers and hiring stay one at a time on purpose.
 // ==========================================
-const BULK_STATUSES = ["Under Review", "Shortlisted", "Interview", "Rejected"];
+const BULK_STATUS_MAP = {
+  Applied: "Applied",
+  Approved: "Approved",
+  Screening: "Under Review",
+  "Under Review": "Under Review",
+  "under review": "Under Review",
+  Shortlist: "Shortlisted",
+  Shortlisted: "Shortlisted",
+  shortlisted: "Shortlisted",
+  Assessment: "Assessment",
+  Interview: "Interview",
+  "Interview Scheduled": "Interview Scheduled",
+  "Interview Completed": "Interview Completed",
+  Select: "Selected",
+  Selected: "Selected",
+  selected: "Selected",
+  Reject: "Rejected",
+  Rejected: "Rejected",
+  rejected: "Rejected",
+};
+const ALLOWED_BULK_STATUSES = ["Under Review", "Shortlisted", "Interview", "Rejected", "Selected", "Assessment", "Approved"];
 const MAX_BULK_APPLICATIONS = 300;
 
 exports.bulkUpdateApplicationStatus = async (req, res, next) => {
   try {
-    const { applicationIds, status } = req.body || {};
-    if (!BULK_STATUSES.includes(status)) {
-      return res.status(400).json({ success: false, message: `Bulk status must be one of: ${BULK_STATUSES.join(", ")}` });
+    const { applicationIds, status: rawStatus } = req.body || {};
+    const status = BULK_STATUS_MAP[rawStatus] || rawStatus;
+    if (!ALLOWED_BULK_STATUSES.includes(status)) {
+      return res.status(400).json({ success: false, message: `Bulk status must be one of: ${ALLOWED_BULK_STATUSES.join(", ")}` });
     }
     if (!Array.isArray(applicationIds) || applicationIds.length === 0 || applicationIds.length > MAX_BULK_APPLICATIONS) {
       return res.status(400).json({ success: false, message: `Select between 1 and ${MAX_BULK_APPLICATIONS} applications` });
@@ -768,12 +789,14 @@ exports.bulkUpdateApplicationStatus = async (req, res, next) => {
           $push: { stageHistory: historyEntry },
         }
       );
-      // The ones this request changed carry its history entry.
-      const changedIds = new Set((await Application.find({
+      // Retrieve the applications that were updated to target status
+      const updatedDocs = await Application.find({
         _id: { $in: toUpdate.map((a) => a._id) },
-        stageHistory: { $elemMatch: { changedAt: now, changedBy: req.user._id, notes: historyEntry.notes } },
-      }).distinct("_id")).map(String));
-      updated = toUpdate.filter((a) => changedIds.has(String(a._id))).map((a) => ({ ...a, status }));
+        status,
+      })
+        .select("_id candidateId employerId status opportunityTitle companyName")
+        .lean();
+      updated = updatedDocs;
 
       if (status === "Rejected") await JobOffer.withdrawPending(updated.map((a) => a._id));
       updated.forEach((a) => socketService.emitApplicationUpdated(a));

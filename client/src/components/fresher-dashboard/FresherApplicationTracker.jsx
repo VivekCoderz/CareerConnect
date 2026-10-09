@@ -12,12 +12,6 @@ const STATUS_BADGES = {
   Rejected: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
-const SAMPLE_APPLICATIONS = [
-  { company: "Google", title: "Software Engineer Intern", appliedDate: "Sep 10, 2026", status: "Under Review" },
-  { company: "Amazon", title: "Associate Developer", appliedDate: "Sep 7, 2026", status: "Applied" },
-  { company: "Flipkart", title: "Full Stack Developer", appliedDate: "Sep 4, 2026", status: "Shortlisted" },
-];
-
 const FresherApplicationTracker = ({ applications = {} }) => {
   const stats = applications?.stats || {};
   const recentList = applications?.recent || [];

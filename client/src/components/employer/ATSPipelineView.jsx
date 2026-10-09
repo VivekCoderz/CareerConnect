@@ -510,14 +510,14 @@ const ATSPipelineView = ({
       {/* 3. KANBAN BOARD VIEW                                     */}
       {/* ======================================================== */}
       {viewMode === "kanban" && filteredApps.length > 0 && (
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin items-start">
+        <div className="flex gap-4 pb-4 items-start w-full overflow-x-auto custom-scrollbar pt-1">
           {activeStages.map((stage, sIdx) => {
             const stageApps = kanbanColumns[sIdx];
 
             return (
               <div
                 key={sIdx}
-                className="w-72 flex-shrink-0 bg-slate-100/70 rounded-3xl border border-slate-200/80 p-3.5 space-y-3 flex flex-col max-h-[78vh]"
+                className="flex-1 min-w-[240px] max-w-[340px] flex-shrink-0 bg-slate-100/70 rounded-3xl border border-slate-200/80 p-3.5 space-y-3 flex flex-col max-h-[78vh]"
               >
                 {/* Column Header */}
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
@@ -535,7 +535,7 @@ const ATSPipelineView = ({
                 </div>
 
                 {/* Candidate Cards Column */}
-                <div className="space-y-2.5 overflow-y-auto flex-1 scrollbar-thin pr-1">
+                <div className="space-y-2.5 overflow-y-auto flex-1 custom-scrollbar pr-1">
                   {stageApps.length === 0 ? (
                     <div className="py-8 text-center text-slate-400 text-xs font-medium">
                       No candidates in this round
@@ -669,7 +669,7 @@ const ATSPipelineView = ({
           })}
 
           {/* Kanban Selected Column */}
-          <div className="w-72 flex-shrink-0 bg-emerald-50/60 rounded-3xl border border-emerald-200 p-3.5 space-y-3 flex flex-col max-h-[78vh]">
+          <div className="flex-1 min-w-[240px] max-w-[340px] flex-shrink-0 bg-emerald-50/60 rounded-3xl border border-emerald-200 p-3.5 space-y-3 flex flex-col max-h-[78vh]">
             <div className="flex items-center justify-between border-b border-emerald-200 pb-2.5">
               <div className="flex items-center gap-1.5">
                 <span className="text-emerald-700 font-bold text-xs">★ Selected Candidates</span>
@@ -678,7 +678,7 @@ const ATSPipelineView = ({
                 {stageCounts.Selected || 0}
               </span>
             </div>
-            <div className="space-y-2.5 overflow-y-auto flex-1 scrollbar-thin pr-1">
+            <div className="space-y-2.5 overflow-y-auto flex-1 custom-scrollbar pr-1">
               {jobFilteredApps
                 .filter((a) => getCandidateStageData(a).isSelected)
                 .map((app) => {

@@ -23,4 +23,8 @@ router.get("/my-orders", protect, paymentController.getMyOrders);
 // GET /api/payment/receipt/:paymentId
 router.get("/receipt/:paymentId", protect, paymentController.getPaymentReceipt);
 
+// Razorpay transactional webhook (idempotent fulfillment & audit logging)
+// POST /api/payment/webhook
+router.post("/webhook", paymentController.handleWebhook);
+
 module.exports = router;

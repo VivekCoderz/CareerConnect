@@ -115,8 +115,9 @@ const MyInternships = lazyWithRetry(() => import("./pages/employer/MyInternships
 const EditInternship = lazyWithRetry(() => import("./pages/employer/EditInternship"));
 const JobPostingFlow = lazyWithRetry(() => import("./pages/employer/JobPostingFlow"));
 
-// Lazy-loaded Pages: Resume Builder
+// Lazy-loaded Pages: Resume Builder & Live Resume (FL-15)
 const ResumeBuilder = lazyWithRetry(() => import("./pages/resume/ResumeBuilder"));
+const LiveResume = lazyWithRetry(() => import("./pages/resume/LiveResume"));
 
 // Lightweight Page Fallback Loader
 const PageFallback = () => (
@@ -529,9 +530,13 @@ function AppRoutes() {
           </Route>
 
           {/* =================================================
-              RESUME BUILDER
+              RESUME BUILDER & LIVE RESUME (FL-15)
           ================================================= */}
           <Route path="/resume-builder" element={<ResumeBuilder />} />
+          <Route path="/live-resume" element={<LiveResume />} />
+          <Route path="/live-resume/:id" element={<LiveResume />} />
+          <Route path="/resume/live" element={<LiveResume />} />
+          <Route path="/resume/live/:id" element={<LiveResume />} />
 
           {/* ========== DEFAULT & 404 ========== */}
           <Route path="/" element={<RootRoute />} />

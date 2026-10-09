@@ -1252,7 +1252,6 @@ const EmployerDashboard = () => {
                 initialJobId={atsJobId}
                 jobs={jobs}
                 applications={applications}
-                jobs={jobs}
                 onUpdateStage={handleUpdateAppStage}
                 onMoveNextStage={handleMoveNextStage}
                 onSelectCandidate={handleSelectCandidate}
