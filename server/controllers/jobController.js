@@ -25,6 +25,7 @@ const {
 // so the student dashboard and opportunities feeds refresh when a job changes.
 const { clearSearchCache } = require("../services/jobScraperService");
 const { categoryClauses } = require("../utils/categoryKeywords");
+const { queryString, cityRegex, normalizeWorkMode } = require("../utils/listingFilters");
 const { getPlatformSettings } = require("../services/platformSettings");
 const { isEmployerApproved } = require("../middleware/employerVerification");
 const { notifyListingClosedInBackground } = require("../services/listingClosure");
@@ -106,22 +107,12 @@ exports.sanitizeRecruitmentStages = sanitizeRecruitmentStages;
 // GET /api/jobs (Filterable job listings for public / employer)
 exports.getJobs = async (req, res, next) => {
   try {
-    const {
-      search,
-      q,
-      department,
-      category,
-      employmentType,
-      workMode,
-      location,
-      city,
-      status,
-      myJobs,
-      source,
-      sort = "latest",
-      page = 1,
-      limit = 10,
-    } = req.query;
+    const { myJobs, page = 1, limit = 10 } = req.query;
+    // Filters are read as plain strings so ?workMode[$ne]=x can't become a Mongo operator.
+    const [search, q, department, category, employmentType, workMode, location, city, status, source] = [
+      "search", "q", "department", "category", "employmentType", "workMode", "location", "city", "status", "source",
+    ].map((key) => queryString(req.query[key]));
+    const sort = queryString(req.query.sort) || "latest";
 
     const isMyJobs = myJobs === "true" || myJobs === true || myJobs === "1";
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -144,7 +135,7 @@ exports.getJobs = async (req, res, next) => {
     // Keyword search is applied after the other filters are built (see findPage below).
     const rawSearch = (search || q || "").trim();
 
-    const reqType = req.query.employmentType || req.query.opportunityType || req.query.type;
+    const reqType = employmentType || queryString(req.query.opportunityType) || queryString(req.query.type);
     if (reqType && reqType !== "All" && reqType !== "all") {
       if (reqType.toLowerCase() === "internship") {
         query.employmentType = { $regex: /^internship$/i };
@@ -171,10 +162,10 @@ exports.getJobs = async (req, res, next) => {
       query.$and = [...(query.$and || []), { $or: categoryClauses(category) }];
     }
     if (employmentType && employmentType !== "All") query.employmentType = employmentType;
-    if (workMode && workMode !== "All") query.workMode = workMode;
-    const locFilter = (city || location || "").trim();
+    if (workMode && workMode !== "All") query.workMode = normalizeWorkMode(workMode);
+    const locFilter = city || location;
     if (locFilter && locFilter !== "All") {
-      const locRegex = new RegExp(escapeRegex(locFilter), "i");
+      const locRegex = cityRegex(locFilter);
       const locConditions = [{ city: locRegex }, { location: locRegex }];
       if (locFilter.toLowerCase() === "remote") {
         locConditions.push({ workMode: /Remote/i });
