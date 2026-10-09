@@ -416,8 +416,6 @@ const InternshipDiscoveryPage = () => {
             >
               <option value="All">🌟 All Opportunities</option>
               <option value="internship">🎓 Internships</option>
-              <option value="fulltime">💼 Full-Time Jobs</option>
-              <option value="parttime">⏰ Part-Time</option>
             </select>
 
             {/* Paid / PPO */}
@@ -448,7 +446,6 @@ const InternshipDiscoveryPage = () => {
             {[
               { label: "🌟 All Opportunities", value: "All", type: "opp" },
               { label: "🎓 Internships Only", value: "internship", type: "opp" },
-              { label: "💼 Full-Time Jobs", value: "fulltime", type: "opp" },
               { label: "🏠 Remote / WFH", value: "Remote", type: "work" },
               { label: "🎯 PPO Internships", value: "true", type: "ppo" },
             ].map((tab, idx) => {
