@@ -8,17 +8,8 @@ const User = require("../models/User");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
-const { createNotification } = require("./notificationService");
+const { createNotification, DASHBOARDS, dashboardPath } = require("./notificationService");
 const { queueEmail, track } = require("./notificationEmail");
-
-const DASHBOARDS = {
-  student: "/student/dashboard",
-  fresher: "/fresher/dashboard",
-  professional: "/professional/dashboard",
-  employer: "/employer/dashboard",
-};
-const dashboardPath = (user) =>
-  DASHBOARDS[user?.userType] || (user?.role === "employer" ? DASHBOARDS.employer : DASHBOARDS.student);
 
 const idOf = (value) => value?._id || value || null;
 

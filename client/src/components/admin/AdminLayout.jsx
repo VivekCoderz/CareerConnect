@@ -25,6 +25,17 @@ import {
   RefreshCw,
 } from "lucide-react";
 
+// Pending-alert count beside a sidebar item.
+const NavBadge = ({ count, active }) => (
+  <span
+    className={`min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
+      active ? "bg-white text-slate-900" : "bg-amber-500 text-white"
+    }`}
+  >
+    {count > 9 ? "9+" : count}
+  </span>
+);
+
 const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
   const { user } = useSelector((state) => state.auth);
   const location = useLocation();
@@ -123,6 +134,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
   const navItems = isSuperAdmin
     ? [
         { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
+        { label: "Notifications", path: "/admin/notifications", icon: Bell, badge: unreadNotifCount },
         { label: "Companies", path: "/admin/companies", icon: Building2 },
         { label: "Company Admins", path: "/admin/company-admins", icon: ShieldCheck },
         { label: "Users", path: "/admin/users", icon: GraduationCap },
@@ -134,6 +146,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
       ]
     : [
         { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
+        { label: "Notifications", path: "/admin/notifications", icon: Bell, badge: unreadNotifCount },
         { label: "Company", path: "/admin/company", icon: Building2 },
         { label: "Users", path: "/admin/users", icon: GraduationCap },
         { label: "Opportunities", path: "/admin/opportunities", icon: Briefcase },
@@ -304,7 +317,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
                         <div className="flex items-start justify-between gap-2">
                           <p className="font-semibold text-slate-900">{notif.title}</p>
                           <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                            {new Date(notif.timestamp).toLocaleDateString()}
+                            {new Date(notif.createdAt).toLocaleDateString()}
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-600 mt-0.5">{notif.message}</p>
@@ -392,7 +405,9 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
                     />
                     <span>{item.label}</span>
                   </div>
-                  {isHighlighted && (
+                  {item.badge > 0 ? (
+                    <NavBadge count={item.badge} active={isHighlighted} />
+                  ) : isHighlighted && (
                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
                   )}
                 </Link>
@@ -457,7 +472,9 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
                         />
                         <span>{item.label}</span>
                       </div>
-                      {isHighlighted && (
+                      {item.badge > 0 ? (
+                        <NavBadge count={item.badge} active={isHighlighted} />
+                      ) : isHighlighted && (
                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
                       )}
                     </Link>

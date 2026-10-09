@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
+import useLiveNotifications from "../../hooks/useLiveNotifications";
 import { getFresherDashboardData } from "../../services/fresherDashboardService";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { FEATURES } from "../../config/features";
@@ -31,6 +32,7 @@ import StudentCoursesPage from "../courses/StudentCoursesPage";
 import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
 import CourseDetailsPage from "../courses/CourseDetailsPage";
 import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
+import NotificationInbox from "../../components/notifications/NotificationInbox";
 
 const FresherDashboard = () => {
   const navigate = useNavigate();
@@ -106,6 +108,8 @@ const FresherDashboard = () => {
     }
     setMobileSidebarOpen(false);
   };
+
+  const inbox = useLiveNotifications(handleSelectTab);
 
   const handleApply = (item) => {
     setSelectedOpportunityForTailoring({
@@ -192,6 +196,7 @@ const FresherDashboard = () => {
         onLogout={handleLogout}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+        unreadNotifications={inbox.unreadCount}
       />
 
       {/* Main Content Area */}
@@ -328,6 +333,17 @@ const FresherDashboard = () => {
             <div className="animate-fade-in">
               <CandidateInterviewsView />
             </div>
+          )}
+
+          {/* ==================== NOTIFICATIONS ==================== */}
+          {activeTab === "notifications" && (
+            <NotificationInbox
+              notifications={inbox.notifications}
+              unreadCount={inbox.unreadCount}
+              onNotificationClick={inbox.open}
+              onMarkAllRead={inbox.markAllRead}
+              onDeleteNotification={inbox.remove}
+            />
           )}
 
           {/* ==================== COURSES ==================== */}

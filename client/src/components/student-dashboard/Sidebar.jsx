@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../common/BrandLogo";
 import { FEATURES } from "../../config/features";
+import UnreadBadge from "../notifications/UnreadBadge";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
@@ -28,6 +29,7 @@ const Sidebar = ({
   onLogout,
   collapsed = false,
   onToggleCollapse,
+  unreadNotifications = 0,
 }) => {
   useEffect(() => {
     if (mobileOpen) {
@@ -136,7 +138,7 @@ const Sidebar = ({
                     onCloseMobile();
                   }}
                   title={collapsed ? item.label : undefined}
-                  className={`w-full flex items-center ${
+                  className={`relative w-full flex items-center ${
                     collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3.5 py-2.5"
                   } rounded-xl text-sm font-medium transition text-left ${
                     isActive
@@ -153,6 +155,9 @@ const Sidebar = ({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d={item.icon} />
                   </svg>
                   {!collapsed && <span className="truncate">{item.label}</span>}
+                  {item.id === "notifications" && (
+                    <UnreadBadge count={unreadNotifications} collapsed={collapsed} active={isActive} />
+                  )}
                 </button>
               );
             })}
