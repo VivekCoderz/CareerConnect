@@ -5,8 +5,8 @@ const PRESET_SKILLS = {
   frameworks: ["React", "Node.js", "Express", "Next.js", "Tailwind CSS", "Spring Boot", "Django", "Redux"],
   databases: ["MongoDB", "MySQL", "PostgreSQL", "Redis", "Firebase", "SQLite"],
   tools: ["Git", "GitHub", "Postman", "Docker", "VS Code", "Linux", "AWS", "Figma", "Jira"],
-  softSkills: ["Problem Solving", "Communication", "Teamwork", "Time Management", "Adaptability", "Critical Thinking"],
-  technical: ["REST API", "Data Structures & Algorithms", "Object-Oriented Programming (OOP)", "System Design Basics", "CI/CD Basics"],
+  softSkills: ["Communication", "Teamwork", "Time Management", "Adaptability", "Critical Thinking"],
+  technical: ["Problem Solving", "REST API", "Data Structures & Algorithms", "Object-Oriented Programming (OOP)", "System Design Basics", "CI/CD Basics"],
 };
 
 const CATEGORY_META = {
