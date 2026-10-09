@@ -2484,6 +2484,8 @@ exports.approveOpportunity = async (req, res, next) => {
     if (adminNote) opp.adminNote = adminNote.trim();
 
     await opp.save();
+    // Student feeds are cached for 30 minutes; drop them so the change shows on the next load (JP-03).
+    clearSearchCache();
 
     // Create Audit Log
     try {
@@ -2553,6 +2555,7 @@ exports.rejectOpportunity = async (req, res, next) => {
     opp.adminNote = adminNote.trim();
 
     await opp.save();
+    clearSearchCache();
 
     // Create Audit Log
     try {
@@ -2659,6 +2662,7 @@ exports.editOpportunity = async (req, res, next) => {
     if (duration !== undefined) opp.duration = duration;
 
     await opp.save();
+    clearSearchCache();
 
     try {
       await AuditLog.create({
@@ -2712,6 +2716,7 @@ exports.closeOpportunity = async (req, res, next) => {
     const wasClosed = opp.status === "Closed";
     opp.status = "Closed";
     await opp.save();
+    clearSearchCache();
     if (!wasClosed) notifyListingClosedInBackground(type.toLowerCase() === "internship" ? "internship" : "job", opp._id, { senderId: req.user._id });
 
     try {
@@ -2834,6 +2839,7 @@ exports.updateOpportunityStatus = async (req, res, next) => {
       opp.rejectedAt = new Date();
     }
     await opp.save();
+    clearSearchCache();
 
     return res.status(200).json({
       success: true,

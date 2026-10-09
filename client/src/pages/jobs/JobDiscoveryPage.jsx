@@ -388,7 +388,8 @@ const JobDiscoveryPage = () => {
                 <option value="All">All Modes</option>
                 <option value="Remote">Remote / WFH</option>
                 <option value="Hybrid">Hybrid</option>
-                <option value="On-Site">On-Site</option>
+                {/* Must match the Job.workMode value ("On-site"); the API matches it exactly. */}
+                <option value="On-site">On-Site</option>
               </select>
             </div>
 
