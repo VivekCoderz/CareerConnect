@@ -375,43 +375,53 @@ const sendAiRecommendationNotification = async ({
   }
 };
 
+// Plain text only: the inbox shows content as-is, so markdown would appear as "**".
+// Keep every line true; nothing here may promise a feature the platform does not have.
+const WELCOME_CANDIDATE = `Welcome to E2Job.
+
+Here is how to get started:
+1. Complete your profile and upload your resume, so employers can see your skills.
+2. Browse Jobs and Internships and apply with one click.
+3. Track every application under My Applications. You will get a notification here when an employer updates it.
+4. Have a question about skills, your resume or interviews? Use the Ask AI button at the bottom-right of the page.
+
+E2Job Team`;
+
+const WELCOME_EMPLOYER = `Welcome to E2Job.
+
+Here is how to get started:
+1. Complete your company profile. Every company is verified by the E2Job team before its listings go live.
+2. Post a job or internship. It goes live once the E2Job team approves it.
+3. Review applicants in the ATS Pipeline and download the list from Export.
+
+Questions? Write to support@e2job.com.
+
+E2Job Team`;
+
 /**
- * Seed initial helpful notifications if user inbox is empty
+ * Seed a welcome notification if the user's inbox is empty.
+ * No actionUrl: opening it shows the full message instead of a link back to the same page.
  */
-const seedWelcomeNotificationsIfEmpty = async (userId) => {
+const seedWelcomeNotificationsIfEmpty = async (userId, role = "user") => {
   try {
     const count = await Notification.countDocuments({
       $or: [{ recipient: userId }, { recipientId: userId }, { recipient: null }],
     });
 
     if (count === 0) {
+      const isEmployer = role === "employer";
       await Notification.create([
         {
           recipient: userId,
           recipientId: userId,
-          sender: "E2Job AI Assistant 🤖",
-          senderRole: "ai",
-          senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=E2JobAI",
-          title: "Welcome to E2Job! Your personalized AI is ready",
-          preview: "Hi! I'm your personal platform AI Assistant. I analyze live jobs, internships, and courses for you.",
-          content: `
-Hello! Welcome to your E2Job workspace.
-
-I am your personal AI Career Advisor, powered by live platform RAG (Retrieval-Augmented Generation).
-
-Here's what I can do for you:
-1. **Real-time Opportunity Alerts:** Whenever a new internship or job matching your target profile is listed, I will send you a mail notification directly.
-2. **Instant Questions & Guidance:** Look at the floating AI button at the bottom-right of your screen. Click it anytime to ask questions about required skills, resume gaps, or interview prep.
-3. **Smart Recommendations:** I continuously match active campus drives and top tech openings to help you apply early.
-
-Feel free to browse your dashboard or test asking me anything in the side chat!
-
-Warm regards,  
-**E2Job AI Team**
-          `.trim(),
-          category: "ai_recommendation",
-          actionUrl: "/student/dashboard",
-          actionText: "Open Dashboard ›",
+          sender: "E2Job Team",
+          senderRole: "system",
+          title: "Welcome to E2Job",
+          preview: isEmployer
+            ? "How to get started: company profile, posting jobs and reviewing applicants."
+            : "How to get started: your profile, jobs, applications and Ask AI.",
+          content: isEmployer ? WELCOME_EMPLOYER : WELCOME_CANDIDATE,
+          category: "system",
           isRead: false,
         },
       ]);

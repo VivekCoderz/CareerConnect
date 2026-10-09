@@ -243,6 +243,8 @@ export default function JobDetailPage() {
 
   const renderJob = () => {
     const company = job.employerId && typeof job.employerId === "object" ? job.employerId : null;
+    // CC-01: the company page opens for every employer (unpublished profiles show the basics).
+    const hasCompanyPage = Boolean(company?._id);
     const pay = formatPay(job);
     const experience = formatExperience(job.experience);
     const place = job.location || [job.city, job.state].filter(Boolean).join(", ");
@@ -256,7 +258,7 @@ export default function JobDetailPage() {
             )}
             <div className="space-y-1 min-w-0">
               <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight wrap-break-word">{job.title}</h1>
-              {companyName && (company?._id ? (
+              {companyName && (hasCompanyPage ? (
                 <Link to={`/companies/${company._id}`} className="text-sm font-bold text-blue-700 hover:underline">
                   {companyName}
                 </Link>
@@ -321,9 +323,11 @@ export default function JobDetailPage() {
           <Section title={companyName ? `About ${companyName}` : "About the company"}>
             <p className="text-xs text-slate-500">{[company.industry, formatHeadquarters(company.headquarters)].filter(Boolean).join(" · ")}</p>
             {company.description && <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{company.description}</p>}
-            <Link to={`/companies/${company._id}`} className="inline-block text-xs font-bold text-blue-700 hover:underline">
-              View company profile →
-            </Link>
+            {hasCompanyPage && (
+              <Link to={`/companies/${company._id}`} className="inline-block text-xs font-bold text-blue-700 hover:underline">
+                View company profile →
+              </Link>
+            )}
           </Section>
         )}
 

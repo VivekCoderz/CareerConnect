@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import InternshipDiscoveryMenu from "../internships/InternshipDiscoveryMenu";
 import NotificationInboxDrawer from "../notifications/NotificationInboxDrawer";
 import {
@@ -22,6 +22,7 @@ const DashboardHeader = ({
   onNavigateTab,
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const notifRef = useRef(null);
@@ -73,21 +74,24 @@ const DashboardHeader = ({
     }
   };
 
-  const handleNotificationClick = async (notif) => {
+  const markReadInList = async (notif) => {
+    if (notif.isRead) return;
     try {
-      if (!notif.isRead) {
-        await markNotificationRead(notif._id || notif.id);
-        setNotifList((prev) =>
-          prev.map((n) =>
-            (n._id || n.id) === (notif._id || notif.id) ? { ...n, isRead: true } : n
-          )
-        );
-        setLiveUnreadCount((c) => Math.max(0, c - 1));
-      }
+      await markNotificationRead(notif._id || notif.id);
+      setNotifList((prev) =>
+        prev.map((n) =>
+          (n._id || n.id) === (notif._id || notif.id) ? { ...n, isRead: true } : n
+        )
+      );
+      setLiveUnreadCount((c) => Math.max(0, c - 1));
     } catch (e) {
       console.warn("Failed to mark read:", e);
     }
+  };
 
+  // Returns true when it navigated; otherwise the drawer opens the full message (BUG-003/004).
+  const handleNotificationClick = (notif) => {
+    markReadInList(notif);
     setShowNotifs(false);
 
     if (
@@ -101,9 +105,17 @@ const DashboardHeader = ({
       } else {
         navigate("/student/dashboard?tab=interviews");
       }
-    } else if (notif.actionUrl) {
-      navigate(notif.actionUrl);
+      return true;
     }
+    // Internal links to another page navigate; a link back to this page or an external
+    // link opens the message, which has its own button.
+    const url = notif.actionUrl || "";
+    const here = location.pathname + location.search;
+    if (url.startsWith("/") && url !== here && url !== location.pathname) {
+      navigate(url);
+      return true;
+    }
+    return false;
   };
 
   const handleDeleteNotif = async (id) => {

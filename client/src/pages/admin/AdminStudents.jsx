@@ -137,9 +137,6 @@ const AdminStudents = () => {
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 Student & Candidate Management
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Page 25
-              </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Global directory of registered students, freshers, and working professionals across the platform.

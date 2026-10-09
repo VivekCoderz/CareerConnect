@@ -58,6 +58,8 @@ describe("GET /api/admin/applications", () => {
     expect(res.body.data.applications).toHaveLength(5);
     expect(res.body.data.pagination).toEqual({ page: 1, limit: 12, total: 5, pages: 1 });
     expect(res.body.data.stats).toMatchObject({ total: 5, applied: 1, shortlisted: 1, interview: 1, hired: 1, rejected: 1 });
+    // The Company column needs the employer's name (was "Organization").
+    expect(res.body.data.applications[0].employerId.companyName).toBe("Fake Admin List Co");
     // Older top-level fields stay for existing callers.
     expect(res.body.total).toBe(5);
   });

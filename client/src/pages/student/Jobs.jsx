@@ -106,7 +106,7 @@ export default function Jobs({
             Jobs
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Campus openings + curated external listings
+            Jobs from employers on E2Job and remote roles from job boards
           </p>
         </div>
         {!embedded && (
@@ -408,7 +408,7 @@ export default function Jobs({
             Explore Career Opportunities
           </h1>
           <p className="text-sm text-blue-100 mt-2 max-w-xl">
-            Discover vetted on-campus placement drives and verified industry job opportunities tailored to your career trajectory.
+            Jobs from employers on E2Job, plus remote roles from job boards. Filter by category, location and work mode.
           </p>
         </div>
 
