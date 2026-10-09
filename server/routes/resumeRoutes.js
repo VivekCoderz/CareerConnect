@@ -27,6 +27,8 @@ const {
   generateATSResumeHandler,
   atsPdfCheckHandler,
   atsPdfOptimizeHandler,
+  getLiveResumeHandler,
+  getMyLiveResumeHandler,
 } = require("../controllers/resumeController.js");
 
 const router = express.Router();
@@ -82,8 +84,14 @@ const atsPdfUpload = multer({
   },
 });
 
+// Public Live Resume endpoint for shareable web links (FL-15)
+router.get("/live/:id", getLiveResumeHandler);
+
 // All resume routes require authentication
 router.use(protect);
+
+// Current user's live resume endpoint (FL-15)
+router.get("/live", getMyLiveResumeHandler);
 
 // After any successful resume change, delete the user's resume files that nothing
 // references any more (runs in the background, after the response).

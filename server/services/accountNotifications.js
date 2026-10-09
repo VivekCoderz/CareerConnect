@@ -8,6 +8,7 @@ const User = require("../models/User");
 const Job = require("../models/Job");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
+const Application = require("../models/Application");
 const { createNotification } = require("./notificationService");
 const { queueEmail, track } = require("./notificationEmail");
 
@@ -49,27 +50,51 @@ const INTERVIEW_TEXT = {
  */
 const notifyInterviewEvent = fireAndForget("interview", async ({ type, interview, application = null }) => {
   const text = INTERVIEW_TEXT[type];
-  if (!text) return;
-  const candidate = await loadUser(interview.candidateId);
-  if (!candidate?.email) return;
+  if (!text || !interview) return;
+
+  // 1. Resolve Application if not passed
+  let appRecord = application;
+  if (!appRecord && interview.applicationId) {
+    appRecord = await Application.findById(idOf(interview.applicationId))
+      .select("studentEmail studentName opportunityTitle companyName candidateId")
+      .lean()
+      .catch(() => null);
+  }
+
+  // 2. Resolve Candidate user
+  const candidateUserId = idOf(interview.candidateId) || idOf(appRecord?.candidateId);
+  const candidate = candidateUserId ? await loadUser(candidateUserId).catch(() => null) : null;
+
+  // 3. Fallback for recipient email and name
+  const recipientEmail = candidate?.email || appRecord?.studentEmail || interview?.candidateEmail;
+  if (!recipientEmail) {
+    console.warn(`[notifications] No recipient email found for interview ${interview._id || "unknown"}`);
+    return;
+  }
+
+  const recipientName = candidate?.fullName || appRecord?.studentName || interview?.candidateName || "Candidate";
+
   const { title, company } = await listingInfo({
     jobId: interview.jobId,
     internshipId: interview.internshipId,
-    opportunityTitle: application?.opportunityTitle,
-    companyName: application?.companyName,
+    opportunityTitle: appRecord?.opportunityTitle,
+    companyName: appRecord?.companyName,
   });
+
   const when = [interview.scheduledDate, interview.scheduledTime || interview.startTime].filter(Boolean).join(" at ");
   const lines = [`${interview.roundName || "Interview"} for ${title}${company ? ` at ${company}` : ""}.`];
   if (type !== "cancelled") {
     if (when) lines.push(`When: ${when}`);
-    if (interview.interviewType || interview.mode) lines.push(`Mode: ${interview.interviewType || interview.mode}`);
+    if (interview.interviewType || interview.mode || interview.meetingMode) {
+      lines.push(`Mode: ${interview.interviewType || interview.mode || interview.meetingMode}`);
+    }
   }
   const meetingLink = type !== "cancelled" && /^https?:\/\//i.test(interview.meetingLink || "") ? interview.meetingLink : null;
   queueEmail({
-    to: candidate.email,
+    to: recipientEmail,
     subject: `${text.subject}: ${title}`,
     heading: text.heading,
-    greetingName: candidate.fullName,
+    greetingName: recipientName,
     lines,
     extraLink: meetingLink ? { url: meetingLink, text: "Join the interview" } : null,
     linkPath: `${dashboardPath(candidate)}?tab=interviews`,
@@ -78,20 +103,33 @@ const notifyInterviewEvent = fireAndForget("interview", async ({ type, interview
 });
 
 /** Candidate: an offer was sent. Details (salary, terms) are only shown in the dashboard. */
-const notifyOfferSent = fireAndForget("offer", async ({ offer }) => {
-  const candidate = await loadUser(offer.candidateId);
-  if (!candidate?.email) return;
+const notifyOfferSent = fireAndForget("offer", async ({ offer, application = null }) => {
+  if (!offer) return;
+  let appRecord = application;
+  if (!appRecord && offer.applicationId) {
+    appRecord = await Application.findById(idOf(offer.applicationId))
+      .select("studentEmail studentName opportunityTitle companyName candidateId")
+      .lean()
+      .catch(() => null);
+  }
+  const candidateUserId = idOf(offer.candidateId) || idOf(appRecord?.candidateId);
+  const candidate = candidateUserId ? await loadUser(candidateUserId).catch(() => null) : null;
+  const recipientEmail = candidate?.email || appRecord?.studentEmail;
+  if (!recipientEmail) return;
+
+  const recipientName = candidate?.fullName || appRecord?.studentName || "Candidate";
+
   const [job, profile] = await Promise.all([
-    offer.jobId ? Job.findById(idOf(offer.jobId)).select("title companyName").lean() : null,
-    offer.employerId ? EmployerProfile.findById(idOf(offer.employerId)).select("companyName").lean() : null,
+    offer.jobId ? Job.findById(idOf(offer.jobId)).select("title companyName").lean().catch(() => null) : null,
+    offer.employerId ? EmployerProfile.findById(idOf(offer.employerId)).select("companyName").lean().catch(() => null) : null,
   ]);
-  const company = profile?.companyName || job?.companyName || "";
-  const role = offer.designation || job?.title || "a role";
+  const company = profile?.companyName || job?.companyName || appRecord?.companyName || "";
+  const role = offer.designation || job?.title || appRecord?.opportunityTitle || "a role";
   queueEmail({
-    to: candidate.email,
+    to: recipientEmail,
     subject: `You have a job offer${company ? ` from ${company}` : ""}`,
     heading: "You have received an offer",
-    greetingName: candidate.fullName,
+    greetingName: recipientName,
     lines: [`${company || "An employer"} has sent you an offer for ${role}. Review and respond in your dashboard.`],
     // Offers are accepted/declined on My Applications; no dashboard has an offers tab.
     linkPath: "/applications",
