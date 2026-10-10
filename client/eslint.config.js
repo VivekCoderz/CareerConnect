@@ -28,4 +28,9 @@ export default defineConfig([
     files: ['vite.config.js', 'eslint.config.js'],
     languageOptions: { globals: globals.node },
   },
+  {
+    // Cloudflare Worker (see wrangler.jsonc): adds service-worker globals.
+    files: ['worker/**/*.js'],
+    languageOptions: { globals: globals.serviceworker },
+  },
 ])
