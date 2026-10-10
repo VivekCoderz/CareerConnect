@@ -195,6 +195,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/support-tickets", supportTicketRoutes);
 
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
+app.get("/api/companies/:companyId/jobs", require("./controllers/employerController").getPublicCompanyJobs);
 
 // G02: public sitemap (www.e2job.com/sitemap.xml is rewritten here by client/vercel.json).
 app.get("/sitemap.xml", require("./controllers/sitemapController").getSitemap);

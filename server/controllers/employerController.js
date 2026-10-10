@@ -24,7 +24,8 @@ const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
 const Course = require("../models/Course");
 const { getEmployerDashboardData } = require("../services/employerDashboardService");
-const { findCompanyPage } = require("../utils/employerOwnership");
+const { findCompanyPage, getActiveCompany, listingOwnerClauses } = require("../utils/employerOwnership");
+const { openListingQuery } = require("../utils/listingExpiry");
 const { ipKeyGenerator } = require("express-rate-limit");
 
 // Company size options offered by the connect-company form (EmployerDashboard).
@@ -355,8 +356,8 @@ exports.getEmployerDashboard = async (req, res, next) => {
       });
     }
 
-    // Resolve effective companyId
-    const effectiveCompanyId = req.user.companyId || null;
+    // The company's jobs and applicants only count while it is active (ADM-11/12, FL-01).
+    const effectiveCompanyId = (await getActiveCompany(req.user))?._id || null;
 
     let profile = await EmployerProfile.findOne({ userId });
     if (!profile) {
@@ -489,6 +490,14 @@ exports.getEmployerDashboard = async (req, res, next) => {
   }
 };
 
+// The approved company behind /companies/:companyId, or null: the same rule as the company
+// page itself (basics even before the profile is published; pending or rejected never).
+const findPublicCompanyProfile = async (companyId) => {
+  const page = await findCompanyPage(companyId);
+  if (!page || page.profile.verificationStatus !== "approved") return null;
+  return { profile: page.profile, activeCompany: page.company };
+};
+
 /**
  * GET /api/companies/:companyId
  * Public company profile for candidates & students
@@ -582,6 +591,39 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
       success: true,
       company: publicProfile,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Fields a company page's job list shows; moderation and internal fields stay out.
+const COMPANY_JOB_FIELDS =
+  "title employmentType workMode location city state salaryRange stipend deadline createdAt openings";
+const COMPANY_JOBS_MAX = 50;
+
+/**
+ * GET /api/companies/:companyId/jobs
+ * Open jobs of one company only (FL-01/02): the jobs this employer posted plus, while their
+ * Company is active, the jobs posted under it by colleagues. Same "not found" rule as the
+ * profile itself.
+ */
+exports.getPublicCompanyJobs = async (req, res, next) => {
+  try {
+    const found = await findPublicCompanyProfile(req.params.companyId);
+    if (!found) {
+      return res.status(404).json({ success: false, message: "Company profile not found" });
+    }
+
+    const { profile, activeCompany } = found;
+    const scope = { userId: profile.userId?._id || profile.userId, profileId: profile._id, companyId: activeCompany?._id || null };
+    const filter = openListingQuery({ $and: [{ $or: listingOwnerClauses(scope) }] });
+
+    const [jobs, total] = await Promise.all([
+      Job.find(filter).select(COMPANY_JOB_FIELDS).sort({ createdAt: -1, _id: -1 }).limit(COMPANY_JOBS_MAX).lean(),
+      Job.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({ success: true, jobs, total });
   } catch (error) {
     next(error);
   }
