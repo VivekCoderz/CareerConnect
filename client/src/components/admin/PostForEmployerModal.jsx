@@ -82,12 +82,12 @@ const PostForEmployerModal = ({ open, onClose, onPosted }) => {
 
         <label className="block text-sm font-semibold text-slate-800">
           Employer (approved only)
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search company name or email" className={`${input} mt-1`} />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search organization name or email" className={`${input} mt-1`} />
           <select value={employerId} onChange={(e) => setEmployerId(e.target.value)} className={`${input} mt-2`} required>
             <option value="">Select an employer…</option>
             {employers.map((emp) => (
               <option key={emp._id} value={emp._id}>
-                {emp.companyName || "Unnamed company"} {emp.userId?.email ? `· ${emp.userId.email}` : ""}
+                {emp.companyName || "Unnamed organization"} {emp.userId?.email ? `· ${emp.userId.email}` : ""}
               </option>
             ))}
           </select>
