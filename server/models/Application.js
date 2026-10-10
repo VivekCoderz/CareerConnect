@@ -207,6 +207,23 @@ const applicationSchema = new mongoose.Schema(
 
     stageHistory: [
       {
+        stage: {
+          type: String,
+          default: "",
+        },
+        notes: {
+          type: String,
+          default: "",
+        },
+        changedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          default: null,
+        },
+        changedAt: {
+          type: Date,
+          default: Date.now,
+        },
         stageId: {
           type: mongoose.Schema.Types.ObjectId,
           default: null,
@@ -299,17 +316,6 @@ const applicationSchema = new mongoose.Schema(
         metadata: {
           type: mongoose.Schema.Types.Mixed,
           default: {},
-        },
-        // Backward compatibility
-        stage: String,
-        notes: String,
-        changedBy: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        changedAt: {
-          type: Date,
-          default: Date.now,
         },
       },
     ],

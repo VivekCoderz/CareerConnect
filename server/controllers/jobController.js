@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const Job = require("../models/Job");
-const { getOwnerScope, listingOwnerClauses } = require("../utils/employerOwnership");
+const { getOwnerScope, listingOwnerClauses, companyListingFilter } = require("../utils/employerOwnership");
 const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const Company = require("../models/Company");
@@ -25,6 +25,7 @@ const {
 // so the student dashboard and opportunities feeds refresh when a job changes.
 const { clearSearchCache } = require("../services/jobScraperService");
 const { categoryClauses } = require("../utils/categoryKeywords");
+const { queryString, cityRegex, normalizeWorkMode } = require("../utils/listingFilters");
 const { getPlatformSettings } = require("../services/platformSettings");
 const { isEmployerApproved } = require("../middleware/employerVerification");
 const { notifyListingClosedInBackground } = require("../services/listingClosure");
@@ -106,22 +107,14 @@ exports.sanitizeRecruitmentStages = sanitizeRecruitmentStages;
 // GET /api/jobs (Filterable job listings for public / employer)
 exports.getJobs = async (req, res, next) => {
   try {
-    const {
-      search,
-      q,
-      department,
-      category,
-      employmentType,
-      workMode,
-      location,
-      city,
-      status,
-      myJobs,
-      source,
-      sort = "latest",
-      page = 1,
-      limit = 10,
-    } = req.query;
+    const { myJobs, page = 1, limit = 10 } = req.query;
+    // Filters are read as plain strings so ?workMode[$ne]=x can't become a Mongo operator.
+    const [search, q, department, category, employmentType, workMode, location, city, status, source] = [
+      "search", "q", "department", "category", "employmentType", "workMode", "location", "city", "status", "source",
+    ].map((key) => queryString(req.query[key]));
+    const sort = queryString(req.query.sort) || "latest";
+    // CC-01: ?company= lists one company's jobs; absent means "no company filter".
+    const company = req.query.company === undefined ? undefined : queryString(req.query.company);
 
     const isMyJobs = myJobs === "true" || myJobs === true || myJobs === "1";
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -141,10 +134,17 @@ exports.getJobs = async (req, res, next) => {
       query.status = "Published";
     }
 
+    // One company's jobs, for its /companies/:id page (CC-01).
+    if (company !== undefined && !isMyJobs) {
+      const { invalid, clause } = await companyListingFilter(company);
+      if (invalid) return res.status(400).json({ success: false, message: "Invalid company id" });
+      query.$and = [...(query.$and || []), clause];
+    }
+
     // Keyword search is applied after the other filters are built (see findPage below).
     const rawSearch = (search || q || "").trim();
 
-    const reqType = req.query.employmentType || req.query.opportunityType || req.query.type;
+    const reqType = employmentType || queryString(req.query.opportunityType) || queryString(req.query.type);
     if (reqType && reqType !== "All" && reqType !== "all") {
       if (reqType.toLowerCase() === "internship") {
         query.employmentType = { $regex: /^internship$/i };
@@ -171,10 +171,10 @@ exports.getJobs = async (req, res, next) => {
       query.$and = [...(query.$and || []), { $or: categoryClauses(category) }];
     }
     if (employmentType && employmentType !== "All") query.employmentType = employmentType;
-    if (workMode && workMode !== "All") query.workMode = workMode;
-    const locFilter = (city || location || "").trim();
+    if (workMode && workMode !== "All") query.workMode = normalizeWorkMode(workMode);
+    const locFilter = city || location;
     if (locFilter && locFilter !== "All") {
-      const locRegex = new RegExp(escapeRegex(locFilter), "i");
+      const locRegex = cityRegex(locFilter);
       const locConditions = [{ city: locRegex }, { location: locRegex }];
       if (locFilter.toLowerCase() === "remote") {
         locConditions.push({ workMode: /Remote/i });
@@ -312,9 +312,10 @@ exports.getJobById = async (req, res, next) => {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(404).json({ success: false, message: "Job not found" });
     }
+    // isPublished tells the job page whether /companies/:id will open (BUG-001).
     const job = await Job.findById(req.params.id).populate(
       "employerId",
-      "companyName logo headquarters industry description website"
+      "companyName logo headquarters industry description website isPublished"
     );
 
     const publiclyVisible = job && job.status === "Published" && !isListingExpired(job);

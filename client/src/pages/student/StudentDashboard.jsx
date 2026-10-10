@@ -1,14 +1,17 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
+import useLiveNotifications from "../../hooks/useLiveNotifications";
 import {
   getStudentDashboardData,
   saveOpportunity,
 } from "../../services/studentDashboardService";
 import { isExternalOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
+import { getPageCache, setPageCache } from "../../utils/pageCache";
 import { FEATURES } from "../../config/features";
 
 // Subcomponents
@@ -33,6 +36,7 @@ import SavedOpportunitiesCard from "../../components/student-dashboard/SavedOppo
 import UpcomingDeadlinesCard from "../../components/student-dashboard/UpcomingDeadlinesCard";
 import CareerGoalCard from "../../components/student-dashboard/CareerGoalCard";
 import QuickActionsCard from "../../components/student-dashboard/QuickActionsCard";
+import NotificationInbox from "../../components/notifications/NotificationInbox";
 
 // Internship module (embedded)
 import Internships from "./Internships";
@@ -78,13 +82,16 @@ const StudentDashboard = () => {
   const [coursesView, setCoursesView] = useState("catalog"); // catalog | my-courses | detail
   const [selectedCourseId, setSelectedCourseId] = useState(null);
 
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Coming back to the dashboard shows the last data at once and refreshes it (FL-09).
+  const userId = user?._id || user?.id;
+  const [cachedDashboard] = useState(() => getPageCache("studentDashboard", userId));
+  const [dashboardData, setDashboardData] = useState(cachedDashboard);
+  const [loading, setLoading] = useState(!cachedDashboard);
   const [error, setError] = useState(null);
 
-  const [savedIds, setSavedIds] = useState([]);
-  const [savedList, setSavedList] = useState([]);
-  const [applicationsData, setApplicationsData] = useState(null);
+  const [savedIds, setSavedIds] = useState(() => (cachedDashboard?.savedOpportunities || []).map((s) => s.id));
+  const [savedList, setSavedList] = useState(() => cachedDashboard?.savedOpportunities || []);
+  const [applicationsData, setApplicationsData] = useState(() => cachedDashboard?.applications || null);
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = "success") => {
@@ -93,11 +100,13 @@ const StudentDashboard = () => {
   };
 
   const fetchDashboard = async () => {
-    setLoading(true);
+    // Full-screen loader only when there's nothing to show yet.
+    if (!getPageCache("studentDashboard", userId)) setLoading(true);
     setError(null);
     try {
       const res = await getStudentDashboardData();
       if (res?.success && res?.data) {
+        setPageCache("studentDashboard", userId, res.data);
         setDashboardData(res.data);
         setSavedList(res.data.savedOpportunities || []);
         setSavedIds((res.data.savedOpportunities || []).map((s) => s.id));
@@ -131,6 +140,8 @@ const StudentDashboard = () => {
     }
     setMobileSidebarOpen(false);
   };
+
+  const inbox = useLiveNotifications(handleSelectTab);
 
   // Internship only when the listing says so (or has a stipend and no type info); otherwise a Job.
   const opportunityKind = (item) => {
@@ -318,7 +329,6 @@ const StudentDashboard = () => {
     careerGoal,
     jobPreferences,
     upcomingDeadlines,
-    notifications,
   } = dashboardData || {};
 
   return (
@@ -332,6 +342,7 @@ const StudentDashboard = () => {
         onLogout={handleLogout}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+        unreadNotifications={inbox.unreadCount}
       />
 
       {/* Main */}
@@ -345,10 +356,10 @@ const StudentDashboard = () => {
           profile={profile}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
+          searchPlaceholder={activeTab === "interviews" ? "Search interviews by company, role or round..." : undefined}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onLogout={handleLogout}
-          onNavigateTab={handleSelectTab}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-7 max-w-7xl w-full mx-auto">
@@ -484,7 +495,7 @@ const StudentDashboard = () => {
           {/* ================= INTERVIEWS ================= */}
           {activeTab === "interviews" && (
             <div className="animate-fade-in">
-              <CandidateInterviewsView />
+              <CandidateInterviewsView searchQuery={searchQuery} />
             </div>
           )}
 
@@ -500,30 +511,18 @@ const StudentDashboard = () => {
             />
           )}
 
+          {/* ================= HELP & SUPPORT ================= */}
+          {activeTab === "support" && <SupportTickets />}
+
           {/* ================= NOTIFICATIONS ================= */}
           {activeTab === "notifications" && (
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
-              <h2 className="text-lg font-bold text-slate-900">All Notifications</h2>
-              <div className="divide-y divide-slate-100">
-                {notifications && notifications.length > 0 ? (
-                  notifications.map((n) => (
-                    <div key={n.id || n._id} className="py-4">
-                      <div className="flex justify-between items-start gap-3">
-                        <h3 className="text-sm font-bold text-slate-900">{n.title}</h3>
-                        <span className="text-xs text-slate-400 shrink-0">
-                          {n.date || n.createdAt}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1">{n.message}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-slate-500 py-6 text-center">
-                    No notifications.
-                  </p>
-                )}
-              </div>
-            </div>
+            <NotificationInbox
+              notifications={inbox.notifications}
+              unreadCount={inbox.unreadCount}
+              onNotificationClick={inbox.open}
+              onMarkAllRead={inbox.markAllRead}
+              onDeleteNotification={inbox.remove}
+            />
           )}
 
           {/* ================= PROFILE ================= */}

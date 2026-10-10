@@ -9,6 +9,7 @@ import {
 } from "../../services/internshipService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import ModerationBadge from "../../components/employer/ModerationBadge";
+import { DASHBOARD_INTERNSHIPS } from "../../utils/employerRoutes";
 import { EMPTY_LISTING_FORM, CATEGORY_OPTIONS, listingFormError, experiencePayload } from "../../utils/listingForm";
 
 const STAGE_TYPES = [
@@ -438,7 +439,7 @@ export default function CreateOpportunityPage() {
         if (res.success) {
           setSuccessMsg(getSuccessMessage("Internship", targetStatus, res));
           window.scrollTo({ top: 0, behavior: "smooth" });
-          setTimeout(() => navigate("/employer/internships"), 2500);
+          setTimeout(() => navigate(DASHBOARD_INTERNSHIPS), 2500);
         } else {
           setError(res.message || "Failed to save internship");
         }

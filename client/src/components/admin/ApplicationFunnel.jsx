@@ -147,4 +147,4 @@ const ApplicationFunnel = ({ applicationFunnel = {} }) => {
   );
 };
 
-export default ApplicationFunnel;
+export default React.memo(ApplicationFunnel);

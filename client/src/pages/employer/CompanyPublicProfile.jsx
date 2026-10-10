@@ -2,14 +2,21 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getPublicCompanyProfile, getEmployerProfile } from "../../services/employerService";
+import { getJobs } from "../../services/jobService";
+import { getInternships } from "../../services/internshipService";
 import useSeo from "../../hooks/useSeo";
 import BrandLogo from "../../components/common/BrandLogo";
+import CompanyListingsPanel from "../../components/employer-profile/CompanyListingsPanel";
+
+const LISTINGS_LIMIT = 50;
+const EMPTY_LISTINGS = { companyId: null, items: null, total: 0, error: false };
 
 const CompanyPublicProfile = () => {
   const { companyId } = useParams();
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState("about");
   const [isFollowing, setIsFollowing] = useState(false);
 
@@ -32,6 +39,8 @@ const CompanyPublicProfile = () => {
           }
         }
       } catch (err) {
+        // "Company Not Found" only when the server says there is no such company.
+        setNotFound(err.response?.status === 404);
         setError(err.response?.data?.message || "Failed to load company profile.");
       } finally {
         setLoading(false);
@@ -42,6 +51,30 @@ const CompanyPublicProfile = () => {
   }, [companyId]);
 
   const isPreview = !companyId || companyId === "preview";
+
+  // This company's open jobs and internships; the server filters them by ?company= (CC-01).
+  // Kept with the id they were loaded for, so another company's list never shows meanwhile.
+  const [jobsResult, setJobsResult] = useState(EMPTY_LISTINGS);
+  const [internshipsResult, setInternshipsResult] = useState(EMPTY_LISTINGS);
+  useEffect(() => {
+    if (isPreview) return;
+    let cancelled = false;
+    const load = (fetchList, listKey, setResult) =>
+      fetchList({ company: companyId, limit: LISTINGS_LIMIT })
+        .then((res) => {
+          if (cancelled) return;
+          const items = res?.[listKey] || [];
+          setResult({ companyId, items, total: res?.pagination?.total ?? items.length, error: false });
+        })
+        .catch(() => { if (!cancelled) setResult({ ...EMPTY_LISTINGS, companyId, error: true }); });
+    load(getJobs, "jobs", setJobsResult);
+    load(getInternships, "internships", setInternshipsResult);
+    return () => { cancelled = true; };
+  }, [companyId, isPreview]);
+  const forThisCompany = (result) => (result.companyId === companyId ? result : EMPTY_LISTINGS);
+  const jobs = forThisCompany(jobsResult);
+  const internships = forThisCompany(internshipsResult);
+
   const seoHq = company?.headquarters;
   const hqText = typeof seoHq === "string" ? seoHq : [seoHq?.city, seoHq?.state].filter(Boolean).join(", ");
   useSeo({
@@ -52,7 +85,8 @@ const CompanyPublicProfile = () => {
       ? `${company.companyName}${company.industry ? ` (${company.industry})` : ""} on E2Job. ${company.description || "See open jobs and internships and apply free."}`
       : undefined,
     path: `/companies/${companyId || ""}`,
-    noindex: isPreview || (!loading && !company),
+    // Search engines get only published, approved showcases (as in sitemap.xml).
+    noindex: isPreview || (!loading && !company) || company?.isShowcasePublic === false,
   });
 
   if (loading) {
@@ -71,7 +105,9 @@ const CompanyPublicProfile = () => {
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
         <div className="text-center max-w-md space-y-4">
           <div className="text-5xl">🏢</div>
-          <h2 className="text-xl font-bold text-slate-900">Company Not Found</h2>
+          <h2 className="text-xl font-bold text-slate-900">
+            {notFound || !error ? "Company Not Found" : "Couldn't load this company"}
+          </h2>
           <p className="text-xs text-slate-500">{error || "This company profile is currently unavailable."}</p>
           <Link
             to="/home"
@@ -96,12 +132,22 @@ const CompanyPublicProfile = () => {
         </Link>
 
         <div className="flex items-center gap-3">
-          <Link
-            to="/home"
-            className="text-xs font-semibold text-slate-600 hover:text-slate-900"
-          >
-            Explore Opportunities
-          </Link>
+          {/* The employer previewing their own page (/employer/company) gets a way back. */}
+          {isPreview ? (
+            <Link
+              to="/employer/dashboard"
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+            >
+              ← Back to Dashboard
+            </Link>
+          ) : (
+            <Link
+              to="/home"
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+            >
+              Explore Opportunities
+            </Link>
+          )}
         </div>
       </header>
 
@@ -187,7 +233,11 @@ const CompanyPublicProfile = () => {
                 { id: "culture", label: "Culture & Perks" },
                 { id: "team", label: "Leadership & Team" },
                 { id: "hiring", label: "Hiring Criteria" },
-                // "Open Positions" is hidden until the jobs API can list one company's real openings.
+                // The employer's own preview has no public listings to load.
+                ...(isPreview ? [] : [
+                  { id: "jobs", label: jobs.items ? `Jobs (${jobs.total})` : "Jobs" },
+                  { id: "internships", label: internships.items ? `Internships (${internships.total})` : "Internships" },
+                ]),
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -461,6 +511,26 @@ const CompanyPublicProfile = () => {
               </div>
             )}
           </div>
+        )}
+
+        {/* Tab 5: Jobs */}
+        {activeTab === "jobs" && (
+          <CompanyListingsPanel
+            title={`Jobs at ${company.companyName}`}
+            result={jobs}
+            type="Job"
+            emptyText="No jobs posted yet"
+          />
+        )}
+
+        {/* Tab 6: Internships */}
+        {activeTab === "internships" && (
+          <CompanyListingsPanel
+            title={`Internships at ${company.companyName}`}
+            result={internships}
+            type="Internship"
+            emptyText="No internships posted yet"
+          />
         )}
 
       </main>

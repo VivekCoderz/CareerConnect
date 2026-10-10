@@ -1098,26 +1098,21 @@ const uploadResumeHandler = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: "No resume file provided. Please select a PDF, DOC, or DOCX file.",
+        message: "No resume file provided. Please select a PDF file.",
       });
     }
 
     const original = (req.file.originalname || "").toLowerCase();
-    const isAllowedExt =
-      original.endsWith(".pdf") ||
-      original.endsWith(".doc") ||
-      original.endsWith(".docx");
+    const isAllowedExt = original.endsWith(".pdf");
     const isAllowedMime = [
       "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/octet-stream",
     ].includes(req.file.mimetype);
 
-    if (!isAllowedExt && !isAllowedMime) {
+    if (!isAllowedExt || !isAllowedMime) {
       return res.status(400).json({
         success: false,
-        message: "Only PDF, DOC, and DOCX files are allowed for resume upload.",
+        message: "Only PDF files are allowed for resume upload.",
       });
     }
 
@@ -1912,18 +1907,18 @@ const confirmParsedProfileHandler = async (req, res) => {
       ];
 
       if (userType === "student") {
+        // Same split as the first import: only interpersonal "other" skills are soft (T02, CC-02).
+        const otherSkills = splitOtherSkills(splitSkills(parsedData.skills?.other));
         profile.technicalSkills = mergeSkillStrings(
           profile.technicalSkills || [],
           [
             ...splitSkills(parsedData.skills?.programmingLanguages),
             ...splitSkills(parsedData.skills?.frameworks),
             ...splitSkills(parsedData.skills?.tools),
+            ...otherSkills.technical,
           ]
         );
-        profile.softSkills = mergeSkillStrings(
-          profile.softSkills || [],
-          splitSkills(parsedData.skills?.other)
-        );
+        profile.softSkills = mergeSkillStrings(profile.softSkills || [], otherSkills.soft);
       } else {
         const currentSkills = profile.skills || {};
         profile.skills = {
@@ -3089,6 +3084,236 @@ const atsPdfOptimizeHandler = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/resume/live/:id
+ * Public endpoint to view a candidate's shareable live web resume
+ */
+// Profiles store location as { city, state, country }; the resume shows one line of text.
+const locationText = (location) => {
+  if (!location) return "";
+  if (typeof location === "string") return location;
+  return [location.city, location.state, location.country].filter(Boolean).join(", ");
+};
+
+const getLiveResumeHandler = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let resume = null;
+    const notShared = () => res.status(404).json({ success: false, message: "This resume is not shared." });
+
+    if (id && mongoose.Types.ObjectId.isValid(id)) {
+      resume = await Resume.findById(id).populate("user", "fullName email role userType");
+      if (!resume) {
+        resume = await Resume.findOne({ user: id })
+          .sort({ isPrimary: -1, updatedAt: -1 })
+          .populate("user", "fullName email role userType");
+      }
+    }
+
+    // Public link: only for an owner who turned sharing on (FL-15). Without it, a resume
+    // (with email and phone) would be readable by anyone who knows a user or resume id.
+    const ownerId = resume ? resume.user?._id || resume.user : id;
+    if (!ownerId || !mongoose.Types.ObjectId.isValid(ownerId)) return notShared();
+    const owner = await User.findById(ownerId).select("liveResumeShared").lean();
+    if (!owner?.liveResumeShared) return notShared();
+
+    // Profile fallback if not found directly in Resume collection
+    if (!resume && id && mongoose.Types.ObjectId.isValid(id)) {
+      const user = await User.findById(id).select("fullName email role userType");
+      if (user) {
+        const student = await StudentProfile.findOne({ userId: id }).lean();
+        const fresher = !student ? await FresherProfile.findOne({ userId: id }).lean() : null;
+        const pro = !student && !fresher ? await ProfessionalProfile.findOne({ userId: id }).lean() : null;
+        const profile = student || fresher || pro;
+
+        if (profile) {
+          const rawData = {
+            personal: {
+              fullName: user.fullName || "",
+              email: user.email || "",
+              phone: profile.phone || profile.contactNumber || "",
+              location: locationText(profile.location),
+              bio: profile.bio || profile.summary || "",
+              links: {
+                linkedin: profile.socialLinks?.linkedin || profile.linkedin || "",
+                github: profile.socialLinks?.github || profile.github || "",
+                portfolio: profile.socialLinks?.portfolio || profile.portfolio || "",
+              },
+            },
+            education: profile.education || [],
+            skills: profile.skills || [],
+            projects: profile.projects || [],
+            experience: profile.experience || [],
+            certifications: profile.certifications || [],
+            achievements: profile.achievements || [],
+          };
+
+          return res.status(200).json({
+            success: true,
+            isProfileFallback: true,
+            resume: {
+              _id: `profile_${id}`,
+              title: `${user.fullName}'s Live Resume`,
+              selectedTemplate: "classic",
+              rawData,
+              generatedData: null,
+              user: {
+                _id: user._id,
+                fullName: user.fullName,
+                email: user.email,
+              },
+            },
+          });
+        }
+      }
+    }
+
+    if (!resume) {
+      return res.status(404).json({
+        success: false,
+        message: "Live resume not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      resume: {
+        _id: resume._id,
+        title: resume.title,
+        selectedTemplate: resume.selectedTemplate || "classic",
+        rawData: resume.rawData,
+        generatedData: resume.generatedData,
+        user: resume.user
+          ? {
+              _id: resume.user._id,
+              fullName: resume.user.fullName,
+              email: resume.user.email,
+            }
+          : null,
+        updatedAt: resume.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error("getLiveResumeHandler error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch live resume",
+      error: publicError(error),
+    });
+  }
+};
+
+/**
+ * POST /api/resume/live/share { enabled }
+ * Turns the public live resume link on or off for the signed-in user.
+ */
+const setLiveResumeSharing = async (req, res) => {
+  try {
+    const enabled = req.body?.enabled === true;
+    await User.updateOne({ _id: req.user._id }, { $set: { liveResumeShared: enabled } });
+    return res.status(200).json({ success: true, shared: enabled });
+  } catch (error) {
+    console.error("setLiveResumeSharing error:", error);
+    return res.status(500).json({ success: false, message: "Could not update sharing" });
+  }
+};
+
+/**
+ * GET /api/resume/live
+ * Authenticated endpoint for current user's primary/active live resume
+ */
+const getMyLiveResumeHandler = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const resume = await Resume.findOne({ user: req.user._id })
+      .sort({ isPrimary: -1, updatedAt: -1 });
+
+    if (resume) {
+      return res.status(200).json({
+        success: true,
+      shared: Boolean(req.user.liveResumeShared),
+        resume: {
+          _id: resume._id,
+          title: resume.title,
+          selectedTemplate: resume.selectedTemplate || "classic",
+          rawData: resume.rawData,
+          generatedData: resume.generatedData,
+          resumeUrl: resume.resumeUrl,
+          user: {
+            _id: req.user._id,
+            fullName: req.user.fullName,
+            email: req.user.email,
+          },
+          updatedAt: resume.updatedAt,
+        },
+      });
+    }
+
+    // Profile fallback
+    const student = await StudentProfile.findOne({ userId: req.user._id }).lean();
+    const fresher = !student ? await FresherProfile.findOne({ userId: req.user._id }).lean() : null;
+    const pro = !student && !fresher ? await ProfessionalProfile.findOne({ userId: req.user._id }).lean() : null;
+    const profile = student || fresher || pro;
+
+    if (profile) {
+      const rawData = {
+        personal: {
+          fullName: req.user.fullName || "",
+          email: req.user.email || "",
+          phone: profile.phone || profile.contactNumber || "",
+          location: locationText(profile.location),
+          bio: profile.bio || profile.summary || "",
+          links: {
+            linkedin: profile.socialLinks?.linkedin || profile.linkedin || "",
+            github: profile.socialLinks?.github || profile.github || "",
+            portfolio: profile.socialLinks?.portfolio || profile.portfolio || "",
+          },
+        },
+        education: profile.education || [],
+        skills: profile.skills || [],
+        projects: profile.projects || [],
+        experience: profile.experience || [],
+        certifications: profile.certifications || [],
+        achievements: profile.achievements || [],
+      };
+
+      return res.status(200).json({
+        success: true,
+      shared: Boolean(req.user.liveResumeShared),
+        isProfileFallback: true,
+        resume: {
+          _id: `profile_${req.user._id}`,
+          title: `${req.user.fullName}'s Live Resume`,
+          selectedTemplate: "classic",
+          rawData,
+          generatedData: null,
+          resumeUrl: profile.resume?.resumeUrl || "",
+          user: {
+            _id: req.user._id,
+            fullName: req.user.fullName,
+            email: req.user.email,
+          },
+        },
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      message: "No live resume found yet. Create or save your resume to view it live.",
+    });
+  } catch (error) {
+    console.error("getMyLiveResumeHandler error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch live resume",
+      error: publicError(error),
+    });
+  }
+};
+
 module.exports = {
   generateResumeHandler,
   updateResumeHandler,
@@ -3113,4 +3338,7 @@ module.exports = {
   atsFixHandler,
   atsPdfCheckHandler,
   atsPdfOptimizeHandler,
+  getLiveResumeHandler,
+  getMyLiveResumeHandler,
+  setLiveResumeSharing,
 };

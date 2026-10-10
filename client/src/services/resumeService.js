@@ -210,3 +210,23 @@ export const optimizeAtsPdfAPI = async (resume, jobDescription, additionalEviden
   const response = await api.post("/resume/ats-pdf/optimize", atsPdfForm(resume, jobDescription, additionalEvidence, confirmedSkills, claimsConfirmed));
   return response.data;
 };
+
+/**
+ * Turn the public live resume link on or off (FL-15). Off by default.
+ */
+export const setLiveResumeSharingAPI = async (enabled) => {
+  const res = await api.post("/resume/live/share", { enabled });
+  return res.data;
+};
+
+/**
+ * Fetch live web resume (FL-15)
+ */
+export const fetchLiveResumeAPI = async (id = null) => {
+  if (id) {
+    const res = await api.get(`/resume/live/${id}`);
+    return res.data;
+  }
+  const res = await api.get("/resume/live");
+  return res.data;
+};

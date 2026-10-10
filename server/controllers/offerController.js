@@ -252,3 +252,53 @@ exports.respondToOffer = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * GET /api/offers/:id/pdf
+ * Generates and streams PDF offer letter for candidate or employer
+ */
+exports.exportOfferPdf = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const offer = await JobOffer.findById(id)
+      .populate("candidateId", "fullName email phone location skills")
+      .populate("jobId", "title department employmentType location companyName")
+      .populate("employerId", "companyName logo");
+
+    if (!offer) {
+      return res.status(404).json({ success: false, message: "Offer not found" });
+    }
+
+    // Authorization check
+    const isCandidate = offer.candidateId?._id?.toString() === req.user._id.toString();
+    // Same ownership rule as GET /api/offers: being an employer is not enough, the offer
+    // must be this employer's (created by them, under their profile, or for their job).
+    let isEmployer = false;
+    if (req.user.role === "employer" || req.user.userType === "employer") {
+      const scope = await getOwnerScope(req.user);
+      const ownsJob = offer.jobId
+        ? await Job.exists({ _id: offer.jobId._id || offer.jobId, $or: listingOwnerClauses(scope) })
+        : null;
+      isEmployer =
+        String(offer.createdBy || "") === String(req.user._id) ||
+        (scope.profileId && String(offer.employerId?._id || offer.employerId || "") === String(scope.profileId)) ||
+        Boolean(ownsJob);
+    }
+    if (!["admin", "SUPER_ADMIN"].includes(req.user.role) && !isCandidate && !isEmployer) {
+      return res.status(403).json({ success: false, message: "Not authorized to download this offer letter" });
+    }
+
+    const { generateOfferLetterPdf } = require("../utils/generateOfferLetterPdf");
+    const pdfBuffer = await generateOfferLetterPdf(offer, offer.candidateId, offer.employerId, offer.jobId);
+
+    const safeCandidateName = (offer.candidateId?.fullName || "Candidate").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filename = `Offer_Letter_${safeCandidateName}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    return res.end(pdfBuffer);
+  } catch (error) {
+    next(error);
+  }
+};

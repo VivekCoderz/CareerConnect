@@ -52,8 +52,9 @@ const getEmployerDashboardData = async (companyId, user = null) => {
   }
   const profileId = profile?._id ? (mongoose.Types.ObjectId.isValid(profile._id) ? new mongoose.Types.ObjectId(profile._id) : profile._id) : null;
 
-  // Resolve companyId: check passed companyId or user.companyId or profile.companyId
-  let rawCompanyId = companyId || user?.companyId || null;
+  // The caller passes the user's company only while it is active (ADM-11/12); falling back to
+  // user.companyId here would show an inactive or deleted company's jobs (FL-01).
+  const rawCompanyId = companyId || null;
   const compObjectId = rawCompanyId && mongoose.Types.ObjectId.isValid(rawCompanyId)
     ? new mongoose.Types.ObjectId(rawCompanyId)
     : null;

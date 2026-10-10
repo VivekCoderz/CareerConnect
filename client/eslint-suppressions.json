@@ -1,7 +1,7 @@
 {
   "src/App.jsx": {
     "no-unused-vars": {
-      "count": 3
+      "count": 1
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -19,14 +19,11 @@
   },
   "src/components/admin/AdminKPICard.jsx": {
     "no-unused-vars": {
-      "count": 2
+      "count": 1
     }
   },
   "src/components/admin/AdminLayout.jsx": {
     "no-unused-vars": {
-      "count": 3
-    },
-    "react-hooks/set-state-in-effect": {
       "count": 1
     }
   },
@@ -37,27 +34,17 @@
   },
   "src/components/admin/ApplicationFunnel.jsx": {
     "no-unused-vars": {
-      "count": 4
-    }
-  },
-  "src/components/admin/OpportunityOverview.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/components/admin/RecentActivity.jsx": {
-    "no-unused-vars": {
-      "count": 1
+      "count": 3
     }
   },
   "src/components/admin/RequiresAttention.jsx": {
     "no-unused-vars": {
-      "count": 2
+      "count": 1
     }
   },
   "src/components/admin/UserGrowthChart.jsx": {
     "no-unused-vars": {
-      "count": 3
+      "count": 2
     }
   },
   "src/components/ai/FloatingAiAssistant.jsx": {
@@ -391,11 +378,6 @@
       "count": 2
     }
   },
-  "src/components/fresher-dashboard/FresherApplicationTracker.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "src/components/fresher-profile/FresherProfileHeader.jsx": {
     "no-unused-vars": {
       "count": 1
@@ -422,11 +404,6 @@
     }
   },
   "src/components/jobs/JobDiscoveryMenu.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/components/notifications/NotificationInboxDrawer.jsx": {
     "no-unused-vars": {
       "count": 1
     }
@@ -638,19 +615,6 @@
       "count": 2
     }
   },
-  "src/components/student-dashboard/DashboardHeader.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/student-dashboard/InternshalaDashboardRecommendations.jsx": {
-    "max-lines": {
-      "count": 1
-    }
-  },
   "src/components/student-dashboard/JobRecommendationsCard.jsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -661,7 +625,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 6
+      "count": 5
     }
   },
   "src/components/student/AchievementsSection.jsx": {
@@ -816,7 +780,7 @@
   },
   "src/pages/admin/AdminDashboard.jsx": {
     "no-unused-vars": {
-      "count": 2
+      "count": 1
     },
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -1063,7 +1027,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 3
+      "count": 2
     },
     "react-hooks/set-state-in-effect": {
       "count": 2

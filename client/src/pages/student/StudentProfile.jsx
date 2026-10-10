@@ -1,7 +1,9 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { getStudentProfile } from "../../services/studentProfileService";
+import { getPageCache, setPageCache } from "../../utils/pageCache";
 
 import ProfileHeader from "../../components/student/ProfileHeader";
 import PersonalInfo from "../../components/student/PersonalInfo";
@@ -15,12 +17,25 @@ import CareerPreferences from "../../components/student/CareerPreferences";
 import ResumeSection from "../../components/student/ResumeSection";
 
 const StudentProfile = () => {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Coming back to the profile shows the last loaded copy at once and refreshes it (FL-09).
+  const { user } = useSelector((state) => state.auth);
+  const userId = user?._id || user?.id;
+  const [profile, setProfileState] = useState(() => getPageCache("studentProfile", userId));
+  const [loading, setLoading] = useState(!profile);
   const [error, setError] = useState(null);
 
+  // Every section saves through this, so the cached copy stays current.
+  const setProfile = (next) => {
+    setProfileState((prev) => {
+      const value = typeof next === "function" ? next(prev) : next;
+      setPageCache("studentProfile", userId, value);
+      return value;
+    });
+  };
+
   const fetchProfile = async () => {
-    setLoading(true);
+    // Full-screen loader only when there's nothing to show yet.
+    if (!getPageCache("studentProfile", userId)) setLoading(true);
     setError(null);
     try {
       const data = await getStudentProfile();
@@ -138,7 +153,7 @@ const StudentProfile = () => {
       />
 
       <CareerPreferences
-        preferences={safeProfile.jobPreferences || {}}
+        profile={safeProfile}
         setProfile={setProfile}
       />
 

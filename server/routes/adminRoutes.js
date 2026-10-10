@@ -77,6 +77,7 @@ const {
   // External job feeds
   syncExternalJobs,
 } = require("../controllers/adminController");
+const { getAdminTickets, updateAdminTicket } = require("../controllers/supportTicketController");
 
 // ===================================================
 // PUBLIC ADMIN AUTHENTICATION & ACTIVATION
@@ -124,6 +125,10 @@ router.get("/companies/:id", requireSuperAdmin, getAdminCompanyById);
 router.put("/companies/:id", requireSuperAdmin, sanitizeInputs, updateAdminCompany);
 router.patch("/companies/:id/status", requireSuperAdmin, updateAdminCompanyStatus);
 router.delete("/companies/:id", requireSuperAdmin, deleteAdminCompany);
+
+// Support tickets raised by users (SUPER_ADMIN)
+router.get("/support-tickets", requireSuperAdmin, getAdminTickets);
+router.patch("/support-tickets/:id", requireSuperAdmin, sanitizeInputs, updateAdminTicket);
 
 // External job feeds: run the scheduled sync now (SUPER_ADMIN)
 router.post("/jobs/sync", requireSuperAdmin, syncExternalJobs);

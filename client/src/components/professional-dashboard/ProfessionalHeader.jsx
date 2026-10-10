@@ -9,15 +9,12 @@ const ProfessionalHeader = ({
   professionalRole: propRole,
   activeTab,
   onSelectTab,
-  notifications = [],
   onOpenMobileSidebar,
   onToggleSidebar,
   onLogout,
 }) => {
   const navigate = useNavigate();
-  const [showNotifs, setShowNotifs] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const notifRef = useRef(null);
   const profileRef = useRef(null);
 
   const professionalName =
@@ -29,12 +26,10 @@ const ProfessionalHeader = ({
     "Not set yet";
   const profileImage = user?.profileImage || profile?.userId?.profileImage;
   const initial = professionalName.charAt(0).toUpperCase();
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifs(false);
       if (profileRef.current && !profileRef.current.contains(e.target)) setShowProfileMenu(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -120,59 +115,8 @@ const ProfessionalHeader = ({
           </nav>
         </div>
 
-        {/* Right: Notifications, Avatar, Name & Dropdown */}
+        {/* Right: Avatar, Name & Dropdown */}
         <div className="flex items-center gap-3">
-          {/* Notifications Dropdown */}
-          <div className="relative" ref={notifRef}>
-            <button
-              onClick={() => setShowNotifs((v) => !v)}
-              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
-              aria-label="Notifications"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.8"
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                />
-              </svg>
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-purple-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center animate-pulse">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-
-            {showNotifs && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <span className="text-sm font-bold text-slate-900">Notifications</span>
-                  <span className="text-[11px] font-semibold text-purple-600 cursor-pointer hover:underline">
-                    Mark all as read
-                  </span>
-                </div>
-                <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto mt-2">
-                  {notifications && notifications.length > 0 ? (
-                    notifications.map((n, idx) => (
-                      <div key={idx} className="py-3 first:pt-1 last:pb-1">
-                        <div className="flex justify-between items-start gap-2">
-                          <h4 className="text-xs font-bold text-slate-900">{n.title}</h4>
-                          <span className="text-[10px] text-slate-400 shrink-0">{n.date || "Today"}</span>
-                        </div>
-                        <p className="text-xs text-slate-600 mt-1">{n.message}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="py-6 text-center text-xs text-slate-400">
-                      No notifications at this time
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Profile / Avatar / Dropdown */}
           <div className="relative" ref={profileRef}>
             <button

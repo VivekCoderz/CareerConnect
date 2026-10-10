@@ -200,20 +200,53 @@ describe("ADM-11/12 inactive or deleted company", () => {
 });
 
 describe("public company profile", () => {
-  it("is 404 unless published and approved", async () => {
+  it("shows only the basics until published; 404 for unknown or unapproved companies (CC-01)", async () => {
     const employer = await createEmployer();
+    await EmployerProfile.updateOne({ _id: employer.profile._id }, {
+      $set: { description: "Fake description", mission: "Fake private mission", officialEmail: "hr@fake.test" },
+    });
     const path = `/api/companies/${employer.profile._id}`;
-    expect((await request(app).get(path)).statusCode).toBe(404); // approved, not published
+
+    // Approved, not published: the job page links here, so the page opens with the basics only.
+    const draft = await request(app).get(path);
+    expect(draft.statusCode).toBe(200);
+    expect(draft.body.company).toMatchObject({
+      companyName: "Fake Employer Co", description: "Fake description", isShowcasePublic: false,
+    });
+    expect(draft.body.company.mission).toBeUndefined();
+    expect(draft.body.company.officialEmail).toBeUndefined();
 
     await EmployerProfile.updateOne({ _id: employer.profile._id }, { $set: { isPublished: true, verificationStatus: "pending" } });
+    // Pending (or rejected) employers get no public page at all.
     expect((await request(app).get(path)).statusCode).toBe(404);
 
     await EmployerProfile.updateOne({ _id: employer.profile._id }, { $set: { verificationStatus: "approved" } });
     const res = await request(app).get(path);
     expect(res.statusCode).toBe(200);
     expect(res.body.company.companyName).toBe("Fake Employer Co");
+    expect(res.body.company.mission).toBe("Fake private mission");
+    expect(res.body.company.isShowcasePublic).toBe(true);
     // The page shows "Verified employer" from this field.
     expect(res.body.company.verificationStatus).toBe("approved");
+
+    expect((await request(app).get(`/api/companies/${"0".repeat(24)}`)).statusCode).toBe(404);
+    expect((await request(app).get("/api/companies/not-an-id")).statusCode).toBe(404);
+  });
+
+  it("fills an unpublished profile's empty basics from its Company, never its contact details", async () => {
+    const company = await Company.create({
+      name: uniq("Linked Co"), status: "active", website: "https://linked.example.test",
+      industry: "Fake Industry", location: "Fake City", email: "private@linked.test", phone: "9000000000",
+    });
+    const employer = await createEmployer({ companyId: company._id });
+    await EmployerProfile.updateOne({ _id: employer.profile._id }, { $set: { industry: "", website: "" } });
+
+    const res = await request(app).get(`/api/companies/${employer.profile._id}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.company).toMatchObject({
+      website: "https://linked.example.test", industry: "Fake Industry", headquarters: { city: "Fake City" },
+    });
+    expect(JSON.stringify(res.body)).not.toMatch(/private@linked\.test|9000000000/);
   });
 
   it("an employer can't approve their own profile through a profile update", async () => {

@@ -103,4 +103,4 @@ const RecentActivity = ({ activities = [] }) => {
   );
 };
 
-export default RecentActivity;
+export default React.memo(RecentActivity);

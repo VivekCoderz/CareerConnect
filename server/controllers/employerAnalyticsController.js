@@ -7,6 +7,7 @@ const JobOffer = require("../models/JobOffer");
 const Employee = require("../models/Employee");
 const TrainingAssignment = require("../models/TrainingAssignment");
 const EmployerProfile = require("../models/EmployerProfile");
+const { getActiveCompany } = require("../utils/employerOwnership");
 
 const getEmployerProfileId = async (user) => {
   let profile = await EmployerProfile.findOne({ userId: user._id });
@@ -24,7 +25,8 @@ exports.getAnalytics = async (req, res, next) => {
   try {
     const employerId = await getEmployerProfileId(req.user);
     const userId = req.user._id;
-    const companyId = req.user.companyId || null;
+    // Company-wide data only while the company is active (ADM-11/12, FL-01).
+    const companyId = (await getActiveCompany(req.user))?._id || null;
 
     // 1. Ownership filters
     const jobOwnerConditions = [];

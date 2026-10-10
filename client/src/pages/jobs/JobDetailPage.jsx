@@ -10,23 +10,13 @@ import ReportListingButton from "../../components/common/ReportListingButton";
 import useSeo from "../../hooks/useSeo";
 import { buildJobPostingSchema, toJsonLd } from "../../utils/jobPostingSchema";
 import { isPastDeadline } from "../../utils/listingDeadline";
+import { formatPay } from "../../utils/listingPay";
 import BrandLogo from "../../components/common/BrandLogo";
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
 const formatDate = (value) =>
   value ? new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
-
-const formatLakh = (n) => `₹${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 1)}L`;
-
-// Salary is shown only when the employer entered one.
-const formatPay = (job) => {
-  if (job.employmentType === "Internship" && job.stipend) return job.stipend;
-  const { min = 0, max = 0, isNegotiable } = job.salaryRange || {};
-  if (!min && !max) return null;
-  const range = min && max && min !== max ? `${formatLakh(min)} – ${formatLakh(max)}` : formatLakh(max || min);
-  return `${range} / yr${isNegotiable ? " (negotiable)" : ""}`;
-};
 
 const formatExperience = (exp) => {
   if (!exp) return null;
@@ -243,6 +233,8 @@ export default function JobDetailPage() {
 
   const renderJob = () => {
     const company = job.employerId && typeof job.employerId === "object" ? job.employerId : null;
+    // CC-01: the company page opens for every employer (unpublished profiles show the basics).
+    const hasCompanyPage = Boolean(company?._id);
     const pay = formatPay(job);
     const experience = formatExperience(job.experience);
     const place = job.location || [job.city, job.state].filter(Boolean).join(", ");
@@ -256,7 +248,7 @@ export default function JobDetailPage() {
             )}
             <div className="space-y-1 min-w-0">
               <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight wrap-break-word">{job.title}</h1>
-              {companyName && (company?._id ? (
+              {companyName && (hasCompanyPage ? (
                 <Link to={`/companies/${company._id}`} className="text-sm font-bold text-blue-700 hover:underline">
                   {companyName}
                 </Link>
@@ -321,9 +313,11 @@ export default function JobDetailPage() {
           <Section title={companyName ? `About ${companyName}` : "About the company"}>
             <p className="text-xs text-slate-500">{[company.industry, formatHeadquarters(company.headquarters)].filter(Boolean).join(" · ")}</p>
             {company.description && <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{company.description}</p>}
-            <Link to={`/companies/${company._id}`} className="inline-block text-xs font-bold text-blue-700 hover:underline">
-              View company profile →
-            </Link>
+            {hasCompanyPage && (
+              <Link to={`/companies/${company._id}`} className="inline-block text-xs font-bold text-blue-700 hover:underline">
+                View company profile →
+              </Link>
+            )}
           </Section>
         )}
 

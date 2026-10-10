@@ -29,6 +29,7 @@ const {
   getMyAppliedIds,
   getEmployerApplications,
   getApplicationById,
+  bulkUpdateApplicationStatus,
   updateApplicationStatus,
   updateApplicationStage,
   addApplicationNote,
@@ -94,7 +95,7 @@ router.patch(
   "/bulk-status",
   protect,
   employerOnly,
-  ensureFn(applicationController.bulkUpdateApplicationStatus, "bulkUpdateApplicationStatus")
+  ensureFn(bulkUpdateApplicationStatus, "bulkUpdateApplicationStatus")
 );
 
 router.patch(

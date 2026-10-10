@@ -18,6 +18,42 @@ const getActiveCompany = async (user) => {
   return isCompanyActive(company) ? company : null;
 };
 
+const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
+
+/**
+ * The company behind a public /companies/:id page (CC-01): `id` is an EmployerProfile id or
+ * its user's id. Returns { profile, company, scope }, where company is the employer's active
+ * Company (if any) and scope is for listingOwnerClauses (their own listings plus colleagues'
+ * under that Company). Returns null when there is no such company to show: an unknown id,
+ * a profile without its user account, or a company that is inactive or deleted (ADM-11/12).
+ * Whether the showcase itself is public (published and approved) is up to the caller.
+ */
+const findCompanyPage = async (id) => {
+  if (!OBJECT_ID.test(String(id || ""))) return null;
+  const profile = await EmployerProfile.findOne({ $or: [{ _id: id }, { userId: id }] })
+    .populate("userId", "fullName email profileImage companyId");
+  if (!profile?.userId) return null;
+
+  const company = await getActiveCompany(profile.userId);
+  if (profile.userId.companyId && !company) return null;
+  return {
+    profile,
+    company,
+    scope: { userId: profile.userId._id, profileId: profile._id, companyId: company?._id || null },
+  };
+};
+
+/**
+ * For the public list endpoints' ?company=<id> filter (CC-01): { invalid: true } for a
+ * malformed id, otherwise { clause } to add under $and. The clause matches that company
+ * page's listings, or nothing when there is no such company page.
+ */
+const companyListingFilter = async (id) => {
+  if (!OBJECT_ID.test(String(id))) return { invalid: true };
+  const page = await findCompanyPage(id);
+  return { clause: page ? { $or: listingOwnerClauses(page.scope) } : { _id: null } };
+};
+
 /** { userId, profileId, companyId } for ownership queries. */
 const getOwnerScope = async (user) => {
   const [profile, company] = await Promise.all([
@@ -68,6 +104,8 @@ const findOwnedApplication = async (user, applicationId, populate = []) => {
 module.exports = {
   isCompanyActive,
   getActiveCompany,
+  findCompanyPage,
+  companyListingFilter,
   getOwnerScope,
   listingOwnerClauses,
   applicationOwnerClauses,

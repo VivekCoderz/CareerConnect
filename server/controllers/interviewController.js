@@ -870,7 +870,6 @@ exports.scheduleInterview = async (req, res, next) => {
         notificationType: "INTERVIEW_SCHEDULED",
         relatedInterviewId: interview._id,
         relatedApplicationId: application._id,
-        actionUrl: "/student/dashboard?tab=interviews",
         metadata: {
           roundNumber: roundNum,
           scheduledDate,
@@ -1006,7 +1005,6 @@ exports.rescheduleInterview = async (req, res, next) => {
         notificationType: "INTERVIEW_RESCHEDULED",
         relatedInterviewId: interview._id,
         relatedApplicationId: interview.applicationId,
-        actionUrl: "/student/dashboard?tab=interviews",
         metadata: {
           roundNumber: interview.roundNumber,
           previousDate: prevDate,
@@ -1104,7 +1102,6 @@ exports.cancelInterview = async (req, res, next) => {
         notificationType: "INTERVIEW_CANCELLED",
         relatedInterviewId: interview._id,
         relatedApplicationId: interview.applicationId,
-        actionUrl: "/student/dashboard?tab=interviews",
         metadata: {
           roundNumber: interview.roundNumber,
           cancelledDate: interview.scheduledDate,
@@ -1347,7 +1344,6 @@ exports.submitInterviewScorecard = async (req, res, next) => {
         notificationType: "INTERVIEW_RESULT",
         relatedInterviewId: interview._id,
         relatedApplicationId: interview.applicationId,
-        actionUrl: "/student/dashboard?tab=interviews",
         metadata: {
           roundNumber: interview.roundNumber,
           result: finalResult,

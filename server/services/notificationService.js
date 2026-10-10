@@ -7,6 +7,28 @@ const locationLine = (item) => {
   return where ? `**Location:** ${where}` : "";
 };
 
+const DASHBOARDS = {
+  student: "/student/dashboard",
+  fresher: "/fresher/dashboard",
+  professional: "/professional/dashboard",
+  employer: "/employer/dashboard",
+};
+const dashboardPath = (user) =>
+  DASHBOARDS[user?.userType] || (user?.role === "employer" ? DASHBOARDS.employer : DASHBOARDS.student);
+
+// Where clicking an in-app notification takes its recipient when the caller gives no link.
+const defaultActionUrl = (notificationType, user) => {
+  if (notificationType?.startsWith("INTERVIEW_")) return `${dashboardPath(user)}?tab=interviews`;
+  switch (notificationType) {
+    case "APPLICATION_STATUS": return "/applications";
+    // Candidates accept or decline offers on My Applications; employers track them on their dashboard.
+    case "OFFER": return dashboardPath(user) === DASHBOARDS.employer ? DASHBOARDS.employer : "/applications";
+    case "COMPANY_VERIFICATION":
+    case "LISTING_STATUS": return DASHBOARDS.employer;
+    default: return null;
+  }
+};
+
 // In-memory set of SSE client response streams: Map<userId, Set<res>>
 const sseClients = new Map();
 const locallyDelivered = new Map();
@@ -137,14 +159,14 @@ const createNotification = async ({
   notificationType = "GENERAL",
   relatedInterviewId = null,
   relatedApplicationId = null,
-  actionUrl = "",
+  actionUrl = null,
   metadata = {},
 }) => {
   try {
     if (!recipientId) return null;
 
     // Verify recipient exists
-    const recipient = await User.findById(recipientId).select("_id email fullName");
+    const recipient = await User.findById(recipientId).select("_id email fullName userType role");
     if (!recipient) return null;
 
     const notif = await Notification.create({
@@ -161,7 +183,7 @@ const createNotification = async ({
       category: "system",
       relatedInterviewId,
       relatedApplicationId,
-      actionUrl,
+      actionUrl: actionUrl || defaultActionUrl(notificationType, recipient),
       metadata,
     });
 
@@ -242,11 +264,12 @@ const createOpportunityNotification = async ({ type, item, sender = "E2Job Platf
     let content = "";
     let category = "job";
     let actionUrl = "/jobs";
+    const listingId = item._id ? String(item._id) : null;
     let actionText = "View Opportunity ›";
 
     if (type === "job") {
       category = "job";
-      actionUrl = `/jobs`;
+      actionUrl = listingId ? `/jobs/${listingId}` : "/jobs";
       actionText = "Apply For Job ›";
       title = `Hot Job Match: ${item.title} at ${sender}`;
       preview = `Exciting career opportunity for ${item.title}${item.salary ? ` (${item.salary})` : ""}. Apply now!`;
@@ -267,7 +290,7 @@ Don't wait—early applicants have a 3x higher interview rate. Click below to su
       `.trim();
     } else if (type === "internship") {
       category = "internship";
-      actionUrl = `/internships`;
+      actionUrl = listingId ? `/internships/${listingId}` : "/internships";
       actionText = "Apply For Internship ›";
       title = `New Internship Alert: ${item.title} at ${sender}`;
       preview = `New internship opportunity for ${item.title}${item.stipend ? ` (${item.stipend})` : ""}.`;
@@ -288,7 +311,7 @@ Submit your resume and statement of purpose before the deadline.
       `.trim();
     } else if (type === "course") {
       category = "course";
-      actionUrl = item._id ? `/courses/${item._id}` : `/courses`;
+      actionUrl = listingId ? `/courses/${listingId}` : "/courses";
       actionText = "Enroll In Course ›";
       title = `New Course Available: ${item.title}`;
       preview = `Master new skills with ${item.title} (${item.provider || "Geeta University Academy"}). Free enrollment!`;
@@ -319,7 +342,7 @@ Industry projects and completion certificate included. Start learning today!
       category,
       actionUrl,
       actionText,
-      relatedId: item._id ? String(item._id) : null,
+      relatedId: listingId,
       metadata: {
         company: sender,
         location: item.location,
@@ -338,90 +361,10 @@ Industry projects and completion certificate included. Start learning today!
   }
 };
 
-/**
- * Send an AI Recommendation Mail to a user
- */
-const sendAiRecommendationNotification = async ({
-  userId,
-  title,
-  preview,
-  content,
-  category = "ai_recommendation",
-  actionUrl = "/student/dashboard",
-  actionText = "View Recommendation ›",
-  metadata = {},
-}) => {
-  try {
-    const notification = await Notification.create({
-      recipient: userId,
-      recipientId: userId,
-      sender: "E2Job AI Assistant 🤖",
-      senderRole: "ai",
-      senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=E2JobAI",
-      title,
-      preview,
-      content,
-      category,
-      actionUrl,
-      actionText,
-      metadata,
-    });
-
-    broadcastRealtimeNotification(notification, userId);
-    return notification;
-  } catch (err) {
-    console.error("Failed to send AI recommendation notification:", err.message);
-    return null;
-  }
-};
-
-/**
- * Seed initial helpful notifications if user inbox is empty
- */
-const seedWelcomeNotificationsIfEmpty = async (userId) => {
-  try {
-    const count = await Notification.countDocuments({
-      $or: [{ recipient: userId }, { recipientId: userId }, { recipient: null }],
-    });
-
-    if (count === 0) {
-      await Notification.create([
-        {
-          recipient: userId,
-          recipientId: userId,
-          sender: "E2Job AI Assistant 🤖",
-          senderRole: "ai",
-          senderAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=E2JobAI",
-          title: "Welcome to E2Job! Your personalized AI is ready",
-          preview: "Hi! I'm your personal platform AI Assistant. I analyze live jobs, internships, and courses for you.",
-          content: `
-Hello! Welcome to your E2Job workspace.
-
-I am your personal AI Career Advisor, powered by live platform RAG (Retrieval-Augmented Generation).
-
-Here's what I can do for you:
-1. **Real-time Opportunity Alerts:** Whenever a new internship or job matching your target profile is listed, I will send you a mail notification directly.
-2. **Instant Questions & Guidance:** Look at the floating AI button at the bottom-right of your screen. Click it anytime to ask questions about required skills, resume gaps, or interview prep.
-3. **Smart Recommendations:** I continuously match active campus drives and top tech openings to help you apply early.
-
-Feel free to browse your dashboard or test asking me anything in the side chat!
-
-Warm regards,  
-**E2Job AI Team**
-          `.trim(),
-          category: "ai_recommendation",
-          actionUrl: "/student/dashboard",
-          actionText: "Open Dashboard ›",
-          isRead: false,
-        },
-      ]);
-    }
-  } catch (err) {
-    console.warn("Could not seed welcome notifications:", err.message);
-  }
-};
-
 module.exports = {
+  DASHBOARDS,
+  dashboardPath,
+  defaultActionUrl,
   registerSseClient,
   broadcastRealtimeNotification,
   createNotification,
@@ -429,6 +372,4 @@ module.exports = {
   markAsRead,
   markAllAsRead,
   createOpportunityNotification,
-  sendAiRecommendationNotification,
-  seedWelcomeNotificationsIfEmpty,
 };

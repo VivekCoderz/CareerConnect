@@ -525,6 +525,15 @@ const ResumeBuilder = () => {
 
             {/* Right: Primary Call to Action */}
             <div className="flex items-center gap-2 shrink-0">
+              <Link
+                to="/live-resume"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer whitespace-nowrap"
+                title="View and share your Live Web Resume"
+              >
+                <span>⚡</span>
+                <span>Live Resume</span>
+              </Link>
+
               <button
                 type="button"
                 onClick={handleStartAtsResume}
@@ -622,6 +631,18 @@ const ResumeBuilder = () => {
                 <span>📎</span>
                 <span>Import Existing Resume</span>
               </button>
+
+              {/* Tab 5: Live Resume (FL-15) */}
+              <Link
+                to="/live-resume"
+                className="px-3 sm:px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-indigo-600 hover:text-indigo-800 hover:bg-white/60 font-semibold"
+              >
+                <span>⚡</span>
+                <span>Live Resume</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-700">
+                  Live
+                </span>
+              </Link>
             </div>
           </div>
 

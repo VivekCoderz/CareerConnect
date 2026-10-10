@@ -4,7 +4,7 @@ const Job = require("../models/Job");
 const Application = require("../models/Application");
 const Course = require("../models/Course");
 const { isEligibleForInternship } = require("../utils/eligibility");
-const { getAggregatedOpportunities } = require("../services/jobScraperService");
+const { getAggregatedOpportunities, isMisfiledInternshipTitle } = require("../services/jobScraperService");
 const { withoutListed } = require("../utils/listingSecurity");
 const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 const mongoose = require("mongoose")
@@ -211,6 +211,8 @@ module.exports.getStudentDashboard = async (req, res, next) => {
             .lean(),
         ]);
         dbInternships = [...(internshipDocs || []), ...(jobInternDocs || [])]
+          // Feed listings like "Internal Audit Manager" filed as internships before FL-03.
+          .filter((doc) => !(doc.isExternal && isMisfiledInternshipTitle(doc.title)))
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
           .slice(0, 20);
         dbJobs = dbJobsDocs || [];

@@ -24,7 +24,7 @@ const UserGrowthChart = ({ data = [], currentRange = "30d", onRangeChange, users
     if (!data || data.length === 0) return [];
     return data.map((d) => ({
       date: d.date,
-      count: Number(d.registrationCount) || 0,
+      count: Number(d.registrationCount) || Number(d.count) || 0,
     }));
   }, [data]);
 
@@ -314,4 +314,4 @@ const UserGrowthChart = ({ data = [], currentRange = "30d", onRangeChange, users
   );
 };
 
-export default UserGrowthChart;
+export default React.memo(UserGrowthChart);

@@ -2,8 +2,9 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import { getAdminApplications, updateApplicationStatus } from "../../services/adminService";
-import { openResume } from "../../utils/resumeAccess";
+import { openResume, downloadResume } from "../../utils/resumeAccess";
 import {
+  Download,
   FileSpreadsheet,
   Search,
   CheckCircle2,
@@ -23,6 +24,8 @@ import {
   X,
   FileText,
 } from "lucide-react";
+
+const STAGE_OPTIONS = ["Applied", "Under Review", "Shortlisted", "Interview Scheduled", "Hired", "Rejected"];
 
 const AdminApplications = () => {
   const [applications, setApplications] = useState([]);
@@ -97,6 +100,10 @@ const AdminApplications = () => {
     return "bg-slate-100 text-slate-700 border-slate-200";
   };
 
+  // The resume submitted with this application, not the candidate's current profile
+  // resume (the admin list doesn't load that one).
+  const selectedResumeUrl = selectedApplication?.resumeUrl || selectedApplication?.applicationData?.resumeUrl || "";
+
   return (
     <AdminLayout onRefresh={() => fetchApplications(pagination.page)} isRefreshing={loading}>
       <div className="space-y-6">
@@ -107,9 +114,6 @@ const AdminApplications = () => {
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 Application Management
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Page 28
-              </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Global overview of candidate submissions, interview pipeline advancement, and placement outcomes.
@@ -291,6 +295,11 @@ const AdminApplications = () => {
                             disabled={updatingId === app._id}
                             className="text-[11px] py-1 px-2 rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-hidden focus:border-indigo-500"
                           >
+                            {/* Show stages outside this short list (Withdrawn, Offered...) as they are,
+                                instead of falling back to "Applied". */}
+                            {!STAGE_OPTIONS.includes(app.status || "Applied") && (
+                              <option value={app.status}>{app.status}</option>
+                            )}
                             <option value="Applied">Applied</option>
                             <option value="Under Review">Under Review</option>
                             <option value="Shortlisted">Shortlisted</option>
@@ -398,7 +407,7 @@ const AdminApplications = () => {
                   </div>
                 )}
 
-                {selectedApplication.candidateId?.resumeUrl && (
+                {selectedResumeUrl && (
                   <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-100 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-indigo-600" />
@@ -407,14 +416,24 @@ const AdminApplications = () => {
                         <p className="text-[11px] text-slate-400">PDF Document</p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => openResume(selectedApplication.candidateId.resumeUrl)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 transition"
-                    >
-                      <span>Open</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openResume(selectedResumeUrl)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 transition"
+                      >
+                        <span>View</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadResume(selectedResumeUrl, selectedApplication.candidateId?.fullName)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-indigo-200 bg-white text-indigo-700 font-semibold text-xs hover:bg-indigo-50 transition"
+                      >
+                        <span>Download</span>
+                        <Download className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

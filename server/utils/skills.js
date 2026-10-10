@@ -1,16 +1,17 @@
 // Skill-name helpers shared by resume parsing and the skill-gap analyses.
 
-// Interpersonal skills. Anything else a resume parser can't place is technical.
-const SOFT_SKILLS = new Set([
+// Interpersonal skills. Anything else a resume parser can't place is technical, including
+// Problem Solving, which our profiles list with DSA as a technical skill (CC-02).
+const SOFT_SKILLS = [
   "communication", "verbal communication", "written communication", "teamwork", "team work",
-  "collaboration", "leadership", "team leadership", "problem solving", "critical thinking",
+  "collaboration", "leadership", "team leadership", "critical thinking",
   "analytical thinking", "time management", "adaptability", "flexibility", "creativity",
   "presentation", "presentation skills", "public speaking", "negotiation", "empathy",
   "interpersonal skills", "attention to detail", "decision making", "conflict resolution",
   "multitasking", "work ethic", "self motivated", "self-motivated", "organization",
   "organisational skills", "organizational skills", "active listening", "emotional intelligence",
   "mentoring", "customer service", "stakeholder management",
-]);
+];
 
 // Different spellings of the same technical skill, keyed by their normalised form.
 const SYNONYMS = {
@@ -35,7 +36,10 @@ const normalizeSkill = (name) => {
   return SYNONYMS[key] || key;
 };
 
-const isSoftSkill = (name) => SOFT_SKILLS.has(String(name || "").trim().toLowerCase());
+// Compared with normalizeSkill, so "Team-Work", "teamwork" and "Team Work" are all soft.
+const SOFT_SKILL_KEYS = new Set(SOFT_SKILLS.map(normalizeSkill));
+
+const isSoftSkill = (name) => SOFT_SKILL_KEYS.has(normalizeSkill(name));
 
 /** Splits a resume's "other" skills into technical and soft skills. */
 const splitOtherSkills = (skills = []) => ({

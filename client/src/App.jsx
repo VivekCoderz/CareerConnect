@@ -22,6 +22,8 @@ const AdminEmployers = lazyWithRetry(() => import("./pages/admin/AdminEmployers"
 const AdminOpportunities = lazyWithRetry(() => import("./pages/admin/AdminOpportunities"));
 const AdminApplications = lazyWithRetry(() => import("./pages/admin/AdminApplications"));
 const AdminReports = lazyWithRetry(() => import("./pages/admin/AdminReports"));
+const AdminSupportTickets = lazyWithRetry(() => import("./pages/admin/AdminSupportTickets"));
+const AdminNotifications = lazyWithRetry(() => import("./pages/admin/AdminNotifications"));
 const AdminSettings = lazyWithRetry(() => import("./pages/admin/AdminSettings"));
 const AdminSentryTest = lazyWithRetry(() => import("./pages/admin/AdminSentryTest"));
 
@@ -107,16 +109,15 @@ const EmployerDashboard = lazyWithRetry(
 const CompanyPublicProfile = lazyWithRetry(
   () => import("./pages/employer/CompanyPublicProfile"),
 );
-const PostInternship = lazyWithRetry(() => import("./pages/employer/PostInternship"));
 const CreateOpportunityPage = lazyWithRetry(() => import("./pages/employer/CreateOpportunityPage"));
 const EmployerApplicationDetailPage = lazyWithRetry(() => import("./pages/employer/EmployerApplicationDetailPage"));
 const StudentApplicationTrackingPage = lazyWithRetry(() => import("./pages/student/StudentApplicationTrackingPage"));
 const MyInternships = lazyWithRetry(() => import("./pages/employer/MyInternships"));
-const EditInternship = lazyWithRetry(() => import("./pages/employer/EditInternship"));
 const JobPostingFlow = lazyWithRetry(() => import("./pages/employer/JobPostingFlow"));
 
-// Lazy-loaded Pages: Resume Builder
+// Lazy-loaded Pages: Resume Builder & Live Resume (FL-15)
 const ResumeBuilder = lazyWithRetry(() => import("./pages/resume/ResumeBuilder"));
+const LiveResume = lazyWithRetry(() => import("./pages/resume/LiveResume"));
 
 // Lightweight Page Fallback Loader
 const PageFallback = () => (
@@ -509,6 +510,7 @@ function AppRoutes() {
             <Route element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}>
               <Route path="/admin/companies" element={<AdminCompanies />} />
               <Route path="/admin/company-admins" element={<AdminCompanyAdmins />} />
+              <Route path="/admin/support-tickets" element={<AdminSupportTickets />} />
               {/* Monitoring check (I08): sends test errors to Sentry */}
               <Route path="/admin/sentry-test" element={<AdminSentryTest />} />
             </Route>
@@ -525,13 +527,18 @@ function AppRoutes() {
             <Route path="/admin/opportunities" element={<AdminOpportunities />} />
             <Route path="/admin/applications" element={<AdminApplications />} />
             <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/notifications" element={<AdminNotifications />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
           </Route>
 
           {/* =================================================
-              RESUME BUILDER
+              RESUME BUILDER & LIVE RESUME (FL-15)
           ================================================= */}
           <Route path="/resume-builder" element={<ResumeBuilder />} />
+          <Route path="/live-resume" element={<LiveResume />} />
+          <Route path="/live-resume/:id" element={<LiveResume />} />
+          <Route path="/resume/live" element={<LiveResume />} />
+          <Route path="/resume/live/:id" element={<LiveResume />} />
 
           {/* ========== DEFAULT & 404 ========== */}
           <Route path="/" element={<RootRoute />} />

@@ -27,11 +27,14 @@ const {
   generateATSResumeHandler,
   atsPdfCheckHandler,
   atsPdfOptimizeHandler,
+  getLiveResumeHandler,
+  getMyLiveResumeHandler,
+  setLiveResumeSharing,
 } = require("../controllers/resumeController.js");
 
 const router = express.Router();
 
-// Multer memory storage for Cloudinary upload
+// Multer memory storage for Cloudinary upload (PDF only for launch consistency)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 8, parts: 9 },
@@ -50,7 +53,7 @@ const upload = multer({
 
 const validateResumeUpload = (req, res, next) => {
   if (req.file && !isResumeFile(req.file)) {
-    return res.status(400).json({ success: false, message: "Invalid resume file" });
+    return res.status(400).json({ success: false, message: "Invalid resume file. Only valid PDF files are accepted." });
   }
   next();
 };
@@ -82,8 +85,15 @@ const atsPdfUpload = multer({
   },
 });
 
+// Public Live Resume endpoint for shareable web links (FL-15)
+router.get("/live/:id", getLiveResumeHandler);
+
 // All resume routes require authentication
 router.use(protect);
+
+// Current user's live resume endpoint (FL-15)
+router.get("/live", getMyLiveResumeHandler);
+router.post("/live/share", setLiveResumeSharing);
 
 // After any successful resume change, delete the user's resume files that nothing
 // references any more (runs in the background, after the response).
