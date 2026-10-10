@@ -109,12 +109,10 @@ const EmployerDashboard = lazyWithRetry(
 const CompanyPublicProfile = lazyWithRetry(
   () => import("./pages/employer/CompanyPublicProfile"),
 );
-const PostInternship = lazyWithRetry(() => import("./pages/employer/PostInternship"));
 const CreateOpportunityPage = lazyWithRetry(() => import("./pages/employer/CreateOpportunityPage"));
 const EmployerApplicationDetailPage = lazyWithRetry(() => import("./pages/employer/EmployerApplicationDetailPage"));
 const StudentApplicationTrackingPage = lazyWithRetry(() => import("./pages/student/StudentApplicationTrackingPage"));
 const MyInternships = lazyWithRetry(() => import("./pages/employer/MyInternships"));
-const EditInternship = lazyWithRetry(() => import("./pages/employer/EditInternship"));
 const JobPostingFlow = lazyWithRetry(() => import("./pages/employer/JobPostingFlow"));
 
 // Lazy-loaded Pages: Resume Builder & Live Resume (FL-15)

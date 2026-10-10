@@ -132,12 +132,22 @@ const CompanyPublicProfile = () => {
         </Link>
 
         <div className="flex items-center gap-3">
-          <Link
-            to="/home"
-            className="text-xs font-semibold text-slate-600 hover:text-slate-900"
-          >
-            Explore Opportunities
-          </Link>
+          {/* The employer previewing their own page (/employer/company) gets a way back. */}
+          {isPreview ? (
+            <Link
+              to="/employer/dashboard"
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+            >
+              ← Back to Dashboard
+            </Link>
+          ) : (
+            <Link
+              to="/home"
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+            >
+              Explore Opportunities
+            </Link>
+          )}
         </div>
       </header>
 

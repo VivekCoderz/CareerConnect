@@ -7,8 +7,7 @@ import useLiveNotifications from "../../hooks/useLiveNotifications";
 import NotificationInbox from "../../components/notifications/NotificationInbox";
 import { useDispatch, useSelector } from "react-redux";
 import { FEATURES } from "../../config/features";
-import PostInternship from "./PostInternship";
-import EditInternship from "./EditInternship";
+import { POST_INTERNSHIP } from "../../utils/employerRoutes";
 
 // Services
 import {
@@ -63,8 +62,16 @@ const EmployerDashboard = () => {
   // Layout & Tab State
   // Open the tab named in ?tab= (kept in the URL by useTabInUrl, so a refresh stays put).
   const [tabSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(() => tabSearchParams.get("tab") || "overview");
+  // Internships live inside Job Management; old ?tab=internships links open that view.
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = tabSearchParams.get("tab") || "overview";
+    return tab === "internships" ? "jobs" : tab;
+  });
   useTabInUrl(activeTab, "overview");
+  // Job Management shows jobs or internships (?view=internships opens the latter).
+  const [jobMgmtView, setJobMgmtView] = useState(() =>
+    tabSearchParams.get("view") === "internships" || tabSearchParams.get("tab") === "internships" ? "internships" : "jobs"
+  );
   // Job the ATS tab opens filtered to ("All" = every job); set by "View applications".
   const [atsJobId, setAtsJobId] = useState("All");
   const selectTab = (tab) => {
@@ -151,10 +158,6 @@ const EmployerDashboard = () => {
       setDownloadingPdfJobId(null);
     }
   };
-
-  // Internship View States
-  const [internshipView, setInternshipView] = useState("list"); // "list", "new", "edit"
-  const [internshipIdToEdit, setInternshipIdToEdit] = useState(null);
 
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -1019,10 +1022,7 @@ const EmployerDashboard = () => {
               data={dashboardData}
               onPostJob={() => navigate("/employer/jobs/new")}
               postingDisabled={postingDisabled}
-              onPostInternship={() => {
-                setActiveTab("internships");
-                setInternshipView("new");
-              }}
+              onPostInternship={() => navigate(POST_INTERNSHIP)}
               onViewApplications={() => setActiveTab("ats")}
               onViewJobApplications={(jobId) => {
                 setAtsJobId(String(jobId));
@@ -1065,36 +1065,6 @@ const EmployerDashboard = () => {
           )}
 
           {/* ======================================================== */}
-          {/* TAB: INTERNSHIP MANAGEMENT                               */}
-          {/* ======================================================== */}
-          {safeActiveTab === "internships" && (
-            <div className="space-y-5 animate-fade-in bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
-              {internshipView === "list" && (
-                <MyInternships
-                  onPostClick={() => setInternshipView("new")}
-                  onEditClick={(id) => {
-                    setInternshipIdToEdit(id);
-                    setInternshipView("edit");
-                  }}
-                />
-              )}
-              {internshipView === "new" && (
-                <PostInternship
-                  onCancel={() => setInternshipView("list")}
-                  onSuccess={() => setInternshipView("list")}
-                />
-              )}
-              {internshipView === "edit" && (
-                <EditInternship
-                  id={internshipIdToEdit}
-                  onCancel={() => setInternshipView("list")}
-                  onSuccess={() => setInternshipView("list")}
-                />
-              )}
-            </div>
-          )}
-
-          {/* ======================================================== */}
           {/* TAB 2: JOB MANAGEMENT                                    */}
           {/* ======================================================== */}
           {safeActiveTab === "jobs" && (
@@ -1102,19 +1072,50 @@ const EmployerDashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 tracking-tight">Job & Opportunity Management</h2>
-                  <p className="text-xs text-slate-500">Create, edit, pause and track vacancies</p>
+                  <p className="text-xs text-slate-500">Create, edit, pause and track jobs and internships</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate("/employer/jobs/create?type=job")}
+                  onClick={() => navigate(jobMgmtView === "internships" ? POST_INTERNSHIP : "/employer/jobs/create?type=job")}
                   disabled={postingDisabled}
                   title={postingDisabled ? "Your company is awaiting verification" : undefined}
                   className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span>+</span> Post Opportunity
+                  <span>+</span> {jobMgmtView === "internships" ? "Post Internship" : "Post Job"}
                 </button>
               </div>
 
+              {/* Jobs | Internships */}
+              <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200" role="tablist">
+                {[
+                  { id: "jobs", label: "Jobs", count: jobs.length },
+                  { id: "internships", label: "Internships", count: internships.length },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={jobMgmtView === t.id}
+                    onClick={() => setJobMgmtView(t.id)}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                      jobMgmtView === t.id ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {t.label}
+                    <span className="px-1.5 py-0.5 rounded-md bg-slate-200/70 text-[10px] font-black text-slate-700">{t.count}</span>
+                  </button>
+                ))}
+              </div>
+
+              {jobMgmtView === "internships" && <MyInternships embedded onListChange={setInternships} />}
+
+              {jobMgmtView === "jobs" && jobs.length === 0 && (
+                <div className="text-center py-14 bg-white border border-slate-200 rounded-2xl">
+                  <p className="text-slate-600 font-semibold text-sm">No jobs yet</p>
+                </div>
+              )}
+
+              {jobMgmtView === "jobs" && (
               <div className="space-y-3">
                 {jobs.map((job) => (
                   <div
@@ -1239,6 +1240,7 @@ const EmployerDashboard = () => {
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
 
