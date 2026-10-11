@@ -6,8 +6,9 @@ const PendingOTP = require("../../models/PendingOTP");
 const { issueOtp, verifyOtp, consumeVerifiedOtp } = require("../../services/otpService");
 const { createUserWithToken } = require("../helpers/createTestUser");
 
-// Employer signup: the mobile number is optional, a signup code expires after one minute,
-// and a code once accepted stays usable while the employer finishes the form.
+// Employer signup: the mobile number is optional and may be shared with other accounts, a
+// signup code expires after one minute, and a code once accepted stays usable while the
+// employer finishes the form.
 const CONSENT = { acceptedTerms: true, termsVersion: "2026-10-01" };
 const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
 const MINUTE = 60 * 1000;
@@ -38,6 +39,21 @@ const registerEmployer = async (extra = {}) => {
   });
 };
 
+const registerCandidate = async (phone) => {
+  const { email, verificationToken } = await verifiedEmail();
+  return request(app).post("/api/auth/register").send({
+    firstName: "Asha",
+    lastName: "Rao",
+    email,
+    verificationToken,
+    phone,
+    password: "Password@123",
+    confirmPassword: "Password@123",
+    type: "student",
+    ...CONSENT,
+  });
+};
+
 const expiresInMs = async (email) => (await PendingOTP.findOne({ email }).lean()).expiresAt.getTime() - Date.now();
 
 describe("employer signup without a mobile number", () => {
@@ -65,10 +81,33 @@ describe("employer signup without a mobile number", () => {
     const valid = await registerEmployer({ phone: "9876543210" });
     expect(valid.status).toBe(201);
     expect(valid.body.user.phone).toBe("9876543210");
+  });
 
-    const taken = await registerEmployer({ phone: "9876543210" });
-    expect(taken.status).toBe(409);
-    expect(taken.body.field).toBe("phone");
+  it("lets employers use a number another account already has", async () => {
+    const candidate = await registerCandidate("9123456780");
+    expect(candidate.status).toBe(201);
+
+    const first = await registerEmployer({ phone: "9123456780" });
+    const second = await registerEmployer({ phone: "9123456780" });
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(await User.countDocuments({ phone: "9123456780", role: "employer" })).toBe(2);
+
+    const googleUser = await createUserWithToken({ phone: "", isProfileComplete: false, authProviders: ["google"] });
+    const google = await request(app)
+      .post("/api/auth/complete-employer-google-onboarding")
+      .set(auth(googleUser))
+      .send({ phone: "9123456780", companyName: "G Co", contactPerson: "G", designation: "HR", industry: "IT", location: "Delhi", ...CONSENT });
+    expect(google.status).toBe(200);
+  });
+
+  it("still keeps candidate numbers unique among candidates, ignoring employers", async () => {
+    expect((await registerEmployer({ phone: "9000000001" })).status).toBe(201);
+    expect((await registerCandidate("9000000001")).status).toBe(201);
+
+    const duplicate = await registerCandidate("9000000001");
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body.field).toBe("phone");
   });
 
   it("lets a Google employer finish onboarding without a phone", async () => {

@@ -81,7 +81,8 @@ const generateUniqueUsername = async (email) => {
   return `user${Date.now()}`;
 };
 
-// Helper: Check if phone number is already registered across any user
+// Helper: Check if phone number is already registered. Employers may share a number
+// (several recruiters, one office line), so their numbers never block anyone.
 const isPhoneAlreadyTaken = async (phone, countryCode = "+91", excludeUserId = null) => {
   if (!phone) return false;
   const digits = String(phone).replace(/\D/g, "");
@@ -96,7 +97,7 @@ const isPhoneAlreadyTaken = async (phone, countryCode = "+91", excludeUserId = n
     { phone: `${countryCode}${last10}` },
   ];
 
-  const query = { $or: orConditions };
+  const query = { $or: orConditions, role: { $ne: "employer" } };
   if (excludeUserId) {
     query._id = { $ne: excludeUserId };
   }
@@ -105,9 +106,10 @@ const isPhoneAlreadyTaken = async (phone, countryCode = "+91", excludeUserId = n
   return !!existing;
 };
 
-// Employers may leave the mobile number empty. When given it must be valid and unused.
+// Employers may leave the mobile number empty, and may use a number another account
+// already has. When given it must be a valid number.
 // Returns { phone, countryCode } (phone "" when empty) or { status, error } to send back.
-const readOptionalEmployerPhone = async (phone, countryCode, excludeUserId = null) => {
+const readOptionalEmployerPhone = (phone, countryCode) => {
   const cleanCountryCode = countryCode?.toString().trim() || "+91";
   const cleanPhone = (phone ?? "").toString().replace(/\D/g, "");
   if (!cleanPhone) return { phone: "", countryCode: cleanCountryCode };
@@ -123,9 +125,6 @@ const readOptionalEmployerPhone = async (phone, countryCode, excludeUserId = nul
             : "Please enter a valid mobile number (6-15 digits)",
       },
     };
-  }
-  if (await isPhoneAlreadyTaken(cleanPhone, cleanCountryCode, excludeUserId)) {
-    return { status: 409, error: { success: false, field: "phone", message: "Mobile number is already registered" } };
   }
   return { phone: cleanPhone, countryCode: cleanCountryCode };
 };
@@ -1578,7 +1577,7 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     }
 
-    const phoneCheck = await readOptionalEmployerPhone(phone, countryCode);
+    const phoneCheck = readOptionalEmployerPhone(phone, countryCode);
     if (phoneCheck.error) return res.status(phoneCheck.status).json(phoneCheck.error);
     const { phone: cleanPhone, countryCode: cleanCountryCode } = phoneCheck;
 
@@ -2051,7 +2050,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
     }
 
     // -------- Validation --------
-    const phoneCheck = await readOptionalEmployerPhone(phone, countryCode, userId);
+    const phoneCheck = readOptionalEmployerPhone(phone, countryCode);
     if (phoneCheck.error) return res.status(phoneCheck.status).json(phoneCheck.error);
     const { phone: cleanPhone, countryCode: cleanCountryCode } = phoneCheck;
 
