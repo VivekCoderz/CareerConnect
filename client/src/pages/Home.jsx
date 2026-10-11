@@ -13,6 +13,7 @@ import ViewDetailsButton from "../components/common/ViewDetailsButton";
 import { opportunityLink } from "../utils/opportunityApply";
 import { FEATURES } from "../config/features";
 import useSeo from "../hooks/useSeo";
+import { needsOnboarding } from "../utils/userRoles";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ const Home = () => {
     if (isInitialized && user) {
       if (user.hasPassword === false) {
         navigate("/set-password", { replace: true });
-      } else if (!user.phone?.trim() || !user.isProfileComplete) {
+      } else if (needsOnboarding(user)) {
         navigate(user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile", { replace: true });
       } else {
         navigate(getDashboardPath(user.userType || user.role, user), { replace: true });

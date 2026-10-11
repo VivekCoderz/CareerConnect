@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef, useContext, createContext, Suspense } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { setUser } from "../../redux/features/authSlice";
 import { getAdminNotifications, adminLogout } from "../../services/adminService";
 import BrandLogo from "../common/BrandLogo";
+import JourneyLoader from "../common/JourneyLoader";
 import {
   LayoutDashboard,
   GraduationCap,
@@ -33,7 +34,12 @@ const NavBadge = ({ count, active }) => (
   </span>
 );
 
-const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
+// The page on screen tells the shell's header refresh button what to do.
+const AdminPageContext = createContext(null);
+
+// Sidebar and header for every /admin page. Mounted once as a layout route (App.jsx), so
+// moving between admin pages or running an action only changes the content in <main>.
+export const AdminShell = () => {
   const { user } = useSelector((state) => state.auth);
   const location = useLocation();
   const navigate = useNavigate();
@@ -56,10 +62,22 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
 
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
+  // Set by the current page through <AdminLayout onRefresh isRefreshing>.
+  const refreshRef = useRef(null);
+  const [refreshState, setRefreshState] = useState({ enabled: false, isRefreshing: false });
+  const [pageContext] = useState(() => ({
+    setRefreshHandler: (handler) => {
+      refreshRef.current = handler;
+    },
+    setRefreshState,
+  }));
+  const { enabled: hasRefresh, isRefreshing } = refreshState;
+
   const notifContainerRef = useRef(null);
   const profileContainerRef = useRef(null);
 
-  // Load Admin Notifications
+  // Load Admin Notifications. Refetched on each page change so the badge stays current
+  // (e.g. after reading them on the Notifications page) without remounting the shell.
   useEffect(() => {
     const fetchNotifs = async () => {
       try {
@@ -73,7 +91,7 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
       }
     };
     fetchNotifs();
-  }, []);
+  }, [location.pathname]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -156,10 +174,10 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
         {/* Right Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Refresh Action */}
-          {onRefresh && (
+          {hasRefresh && (
             <button
               type="button"
-              onClick={onRefresh}
+              onClick={() => refreshRef.current?.()}
               disabled={isRefreshing}
               title="Synchronize Database Metrics"
               className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition cursor-pointer"
@@ -373,10 +391,42 @@ const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
 
         {/* Main Workspace (offset by fixed sidebar on desktop) */}
         <main className="flex-1 lg:pl-60 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 min-h-[calc(100vh-4rem)]">
-          {children}
+          <AdminPageContext.Provider value={pageContext}>
+            <Suspense
+              fallback={
+                <div className="min-h-[50vh] flex items-center justify-center">
+                  <JourneyLoader />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
+          </AdminPageContext.Provider>
         </main>
       </div>
     </div>
   );
-}
+};
+
+/**
+ * Wraps an admin page's content. The sidebar and header come from AdminShell; this only
+ * passes the page's refresh action to the header's refresh button.
+ * @param {() => void} [onRefresh]
+ * @param {boolean} [isRefreshing]
+ */
+const AdminLayout = ({ children, onRefresh, isRefreshing = false }) => {
+  const shell = useContext(AdminPageContext);
+  const enabled = Boolean(onRefresh);
+
+  useEffect(() => {
+    shell?.setRefreshHandler(onRefresh);
+  });
+  useEffect(() => {
+    shell?.setRefreshState({ enabled, isRefreshing: Boolean(isRefreshing) });
+  }, [shell, enabled, isRefreshing]);
+  useEffect(() => () => shell?.setRefreshState({ enabled: false, isRefreshing: false }), [shell]);
+
+  return children;
+};
+
 export default AdminLayout;

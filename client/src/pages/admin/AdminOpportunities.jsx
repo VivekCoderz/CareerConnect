@@ -593,7 +593,7 @@ const AdminOpportunities = () => {
             OPPORTUNITIES TABLE (Real MongoDB Records)
         ================================================== */}
         <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
-          {loading ? (
+          {loading && opportunities.length === 0 ? (
             <div className="p-16 text-center text-slate-400 flex flex-col items-center justify-center">
               <JourneyLoader variant="admin" size="sm" className="mb-2" />
               <p className="text-xs font-bold text-slate-700">Querying database opportunities...</p>

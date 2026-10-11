@@ -262,7 +262,7 @@ const AdminUsers = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? (
+                {loading && users.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center gap-2">
@@ -350,7 +350,7 @@ const AdminUsers = () => {
           </div>
 
           {/* Dynamic Pagination Bar */}
-          {!loading && totalCount > 0 && (
+          {totalCount > 0 && (
             <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-slate-500">
               <div>
                 Showing <span className="font-bold text-slate-700">{startRecord}</span> to{" "}
