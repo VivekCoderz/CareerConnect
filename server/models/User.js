@@ -345,12 +345,13 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Ensure phone is unique per countryCode when non-empty
+// A candidate's phone is unique per countryCode when non-empty. Employers may share a
+// number, so they are left out (config/db.js replaces the older index that covered everyone).
 userSchema.index(
   { phone: 1, countryCode: 1 },
   {
     unique: true,
-    partialFilterExpression: { phone: { $type: "string", $gt: "" } },
+    partialFilterExpression: { phone: { $type: "string", $gt: "" }, role: "user" },
   }
 );
 
