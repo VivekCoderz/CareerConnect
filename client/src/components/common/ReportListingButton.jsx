@@ -62,7 +62,7 @@ export default function ReportListingButton({ opportunityType, opportunityId, cl
     setError("");
     try {
       const res = await api.post("/reports", { opportunityType, opportunityId, reason, details: details.trim() });
-      setDone(res.data?.message || "Thanks, our team will review this within 24 hours.");
+      setDone(res.data?.message || "Thanks, our team will review this.");
     } catch (err) {
       const data = err.response?.data;
       if (data?.code === "ALREADY_REPORTED") setDone(data.message);

@@ -36,7 +36,11 @@ const InternshipDiscoveryMenu = ({ studentCity = "" }) => {
   const catCounts = categoryData?.categoryCounts || {};
 
   const topLocations = [
-    { label: "Work From Home", path: "/internships/work-from-home", count: categoryData?.workFromHomeCount, badge: "Popular" },
+    { label: "Online Internship", path: "/internships/work-from-home", count: categoryData?.workFromHomeCount, badge: "Popular" },
+    { label: "Chandigarh Region", path: "/internships/in/chandigarh", count: cityCounts["Chandigarh"] },
+    { label: "Lucknow Region", path: "/internships/in/lucknow", count: cityCounts["Lucknow"] },
+    { label: "Dehradun Region", path: "/internships/in/dehradun", count: cityCounts["Dehradun"] },
+    { label: "Indore Region", path: "/internships/in/indore", count: cityCounts["Indore"] },
     { label: "Internships in Bangalore", path: "/internships/in/bangalore", count: cityCounts["Bangalore"] },
     { label: "Internships in Delhi", path: "/internships/in/delhi", count: cityCounts["Delhi"] },
     { label: "Internships in Hyderabad", path: "/internships/in/hyderabad", count: cityCounts["Hyderabad"] },
@@ -70,7 +74,7 @@ const InternshipDiscoveryMenu = ({ studentCity = "" }) => {
   const exploreMore = [
     { label: "Live Jobs & Matrix (LinkedIn/Remote)", path: "/opportunities", count: "Live", icon: "🚀", badge: "Matrix" },
     { label: "Latest Internships", path: "/internships/latest", count: categoryData?.totalActive, icon: "⚡" },
-    { label: "Remote / Work From Home", path: "/internships/work-from-home", count: categoryData?.workFromHomeCount, icon: "🏠" },
+    { label: "Online Internships", path: "/internships/work-from-home", count: categoryData?.workFromHomeCount, icon: "🏠" },
     { label: "Paid Internships", path: "/internships/paid", count: categoryData?.paidCount, icon: "💰" },
     { label: "Internships with Job Offer (PPO)", path: "/internships/with-job-offer", count: categoryData?.withJobOfferCount, icon: "🎯" },
     { label: "International Internships", path: "/internships/international", count: categoryData?.internationalCount, icon: "🌍" },

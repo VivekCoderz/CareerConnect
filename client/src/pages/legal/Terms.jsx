@@ -131,9 +131,7 @@ export default function Terms() {
           <dt className="font-semibold text-slate-900">Questions</dt>
           <dd><Email value={LEGAL.emails.support} label="support email" /></dd>
           <dt className="font-semibold text-slate-900">Grievance Officer</dt>
-          <dd>
-            <Fill value={LEGAL.grievanceOfficer} label="name" />, <Email value={LEGAL.emails.grievance} label="grievance email" />
-          </dd>
+          <dd><Email value={LEGAL.emails.grievance} label="grievance email" /></dd>
           <dt className="font-semibold text-slate-900">Report a fake job or fraud</dt>
           <dd>
             Use <strong>Report this job</strong> on the listing, or email <Email value={LEGAL.emails.report} label="report email" />

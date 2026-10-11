@@ -43,7 +43,7 @@ const JobDiscoveryMenu = () => {
   const exploreMore = [
     { label: "Latest & Fresh Jobs", path: "/jobs/latest", icon: "⚡" },
     { label: "Remote Jobs", path: "/jobs/work-from-home", icon: "🏠" },
-    { label: "Campus Drives", path: "/opportunities?source=campus", icon: "🎓" },
+    { label: "Campus Hiring", path: "/opportunities?source=campus", icon: "🎓" },
     { label: "Live Opportunities Matrix", path: "/opportunities", icon: "🚀", badge: "Live" },
   ];
 
