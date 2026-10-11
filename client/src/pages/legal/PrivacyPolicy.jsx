@@ -139,7 +139,7 @@ export default function PrivacyPolicy() {
           <li><strong>withdraw consent</strong> at any time by deleting your account (this does not affect processing that happened before);</li>
           <li><strong>nominate</strong> another person to exercise your rights if you die or become unable to do so;</li>
           <li>
-            <strong>raise a complaint</strong> with our Grievance Officer (section 9). If you are not satisfied with the
+            <strong>raise a complaint</strong> with our grievance team (section 9). If you are not satisfied with the
             response, you may approach the Data Protection Board of India.
           </li>
         </List>
@@ -159,19 +159,13 @@ export default function PrivacyPolicy() {
         </p>
       </Section>
 
-      <Section title="9. Grievance Officer and contact">
+      <Section title="9. Grievances and contact">
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
-          <dt className="font-semibold text-slate-900">Grievance Officer</dt>
-          <dd><Fill value={LEGAL.grievanceOfficer} label="name" /></dd>
           <dt className="font-semibold text-slate-900">Email</dt>
           <dd><Email value={LEGAL.emails.grievance} label="grievance email" /></dd>
           <dt className="font-semibold text-slate-900">Address</dt>
           <dd><Fill value={LEGAL.registeredAddress} label="registered address" /></dd>
         </dl>
-        <p>
-          We aim to acknowledge complaints within <strong>48 hours</strong> and resolve them within{" "}
-          <strong><Fill value={LEGAL.resolutionDays} label="30" /> days</strong>.
-        </p>
       </Section>
     </LegalLayout>
   );

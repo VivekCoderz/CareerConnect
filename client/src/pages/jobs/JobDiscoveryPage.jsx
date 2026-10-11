@@ -333,7 +333,7 @@ const JobDiscoveryPage = () => {
               {pageHeading}
             </h2>
             <p className="text-sm text-blue-100/90 leading-relaxed">
-              Full-time and fresher openings from employers on E2Job, plus remote roles from Remotive and Arbeitnow.
+              Full-time and fresher openings from employers on E2Job, plus remote roles from top job boards.
             </p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
 import { useEffect, useState, Suspense } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {FEATURES} from "./config/features";
@@ -255,6 +255,12 @@ const AuthInitializer = ({ children }) => {
 
 function AppRoutes() {
   const location = useLocation();
+  const navigationType = useNavigationType();
+  // A link to a new page opens at the top (the router otherwise keeps the old scroll
+  // position, e.g. footer links opened halfway down). Back/forward keeps the browser's own.
+  useEffect(() => {
+    if (navigationType !== "POP" && !location.hash) window.scrollTo(0, 0);
+  }, [location.pathname, navigationType, location.hash]);
   // Remounting on each page change resets everything below. Admin pages share one shell,
   // so they keep a single key (the sidebar and header stay mounted); resetKey still clears
   // an error when the admin moves to another page.

@@ -32,7 +32,7 @@ describe("POST /api/reports (G11)", () => {
       details: "They asked for a Rs 2,000 registration fee on WhatsApp.",
     });
     expect(res.status).toBe(201);
-    expect(res.body.message).toMatch(/within 2 hours/);
+    expect(res.body.message).toMatch(/on priority/);
 
     const saved = await Report.findOne({ opportunityId: job._id }).lean();
     expect(saved.priority).toBe("Critical");

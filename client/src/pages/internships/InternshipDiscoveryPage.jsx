@@ -24,6 +24,10 @@ const INTERNSHIP_CITIES = [
   { value: "Chennai", label: "Chennai" },
   { value: "Kolkata", label: "Kolkata" },
   { value: "Jaipur", label: "Jaipur" },
+  { value: "Chandigarh", label: "Chandigarh Region" },
+  { value: "Lucknow", label: "Lucknow Region" },
+  { value: "Dehradun", label: "Dehradun Region" },
+  { value: "Indore", label: "Indore Region" },
 ];
 
 const INTERNSHIP_CATEGORIES = [
@@ -247,7 +251,7 @@ const InternshipDiscoveryPage = () => {
 
   // Dynamic Title Generator
   const pageHeading = useMemo(() => {
-    if (isWorkFromHome) return "Work From Home / Remote Internships";
+    if (isWorkFromHome) return "Online Internships";
     if (isInternational) return "International Global Internships";
     if (isLatest) return "Latest & Recently Posted Internships";
     if (isPaidOnly) return "Paid Stipend Internships";

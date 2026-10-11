@@ -11,7 +11,6 @@ export const LEGAL = {
     "First Floor, 23, Ashoka Apartment, Pocket 11A, Rohini Sector 23, New Delhi, North West Delhi, Delhi 201005",
   jurisdictionCity: "Delhi", // courts with jurisdiction (Terms §12)
 
-  grievanceOfficer: "Amit Verma", // name of the Grievance Officer (DPDP Act)
   // Placeholder inboxes on the company domain until the real ones are set up; each
   // must be a monitored mailbox before launch (grievance is a DPDP requirement).
   emails: {
@@ -23,7 +22,6 @@ export const LEGAL = {
   },
 
   deletionDays: 30, // days to delete profile and resumes after account deletion
-  resolutionDays: 30, // days to resolve a grievance
 };
 
 /** Version of the Terms and Privacy Policy a new account agrees to; sent as termsVersion at signup. */
@@ -34,10 +32,8 @@ const required = [
   LEGAL.entityName,
   LEGAL.registeredAddress,
   LEGAL.jurisdictionCity,
-  LEGAL.grievanceOfficer,
   ...Object.values(LEGAL.emails),
   LEGAL.deletionDays,
-  LEGAL.resolutionDays,
 ];
 
 export const isLegalComplete = required.every((value) => value !== null && value !== "");

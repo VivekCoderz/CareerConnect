@@ -564,6 +564,10 @@ exports.getInternshipCategories = async (req, res, next) => {
       "Jaipur",
       "Gurugram",
       "Noida",
+      "Chandigarh",
+      "Lucknow",
+      "Dehradun",
+      "Indore",
     ];
 
     const cityCounts = {};
