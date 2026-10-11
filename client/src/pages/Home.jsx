@@ -574,7 +574,7 @@ const Home = () => {
                   JOBS
                 </span>
                 <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-300 transition leading-snug">
-                  Jobs for freshers
+                  Early-Career Jobs
                 </h3>
                 <p className="text-xs text-sky-100 mt-1">Entry-level and fresher openings</p>
               </div>
@@ -590,15 +590,15 @@ const Home = () => {
             >
               <div>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-200 border border-amber-300/30">
-                  CAMPUS DRIVES
+                  CAMPUS HIRING
                 </span>
                 <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-200 transition leading-snug">
-                  Campus & Fresher Recruitment
+                  Jobs for freshers
                 </h3>
-                <p className="text-xs text-amber-100 mt-1">Campus drives and fresher hiring from approved employers</p>
+                <p className="text-xs text-amber-100 mt-1">Campus hiring and fresher jobs from approved employers</p>
               </div>
               <span className="text-xs font-bold text-amber-200 mt-4 inline-flex items-center gap-1">
-                View On-Campus Drives →
+                View Campus Hiring →
               </span>
             </Link>
 
@@ -638,7 +638,7 @@ const Home = () => {
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
                 POPULAR CATEGORIES:{" "}
                 <Link to="/internships/work-from-home" className="text-blue-600 font-semibold hover:underline">
-                  Work from home
+                  Online Internship
                 </Link>{" "}
                 •{" "}
                 <Link to="/internships/in/delhi" className="text-blue-600 font-semibold hover:underline">

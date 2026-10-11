@@ -221,7 +221,7 @@ export default function OpportunitiesPage() {
     if (item.isExclusive || src.includes("campus") || src.includes("gu")) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
-          <Sparkles className="w-3 h-3 text-amber-600" /> GU On-Campus Drive
+          <Sparkles className="w-3 h-3 text-amber-600" /> Campus Hiring
         </span>
       );
     }
@@ -242,14 +242,14 @@ export default function OpportunitiesPage() {
     if (src.includes("remotive")) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-          Remotive Remote
+          Remote Jobs
         </span>
       );
     }
     if (src.includes("arbeitnow")) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-          Arbeitnow Global
+          Global Jobs
         </span>
       );
     }
@@ -338,7 +338,7 @@ export default function OpportunitiesPage() {
                 Live Job & Internship Aggregator Matrix
               </span>
               <span className="text-xs text-blue-200/80">
-                · E2Job employers + Remotive + Arbeitnow + campus drives
+                · E2Job employers + Campus Hiring
               </span>
             </div>
 
@@ -346,7 +346,7 @@ export default function OpportunitiesPage() {
               Opportunities tailored for your Degree & Domain
             </h2>
             <p className="text-xs sm:text-sm text-blue-100/90 max-w-2xl leading-relaxed">
-              Real-time multi-source crawler scraping top job boards, remote platforms, and campus placement drives calibrated specifically to E2Job curriculum & specializations.
+              Real-time multi-source crawler scraping top job boards, remote platforms, and campus hiring calibrated specifically to E2Job curriculum & specializations.
             </p>
 
             {/* Quick stats pills */}
@@ -472,9 +472,9 @@ export default function OpportunitiesPage() {
                 className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium outline-none focus:border-blue-600"
               >
                 <option value="all">All Platforms</option>
-                <option value="remotive">Remotive Remote</option>
-                <option value="arbeitnow">Arbeitnow Global</option>
-                <option value="campus">GU Campus Drives Only</option>
+                <option value="remotive">Remote Jobs</option>
+                <option value="arbeitnow">Global Jobs</option>
+                <option value="campus">Campus Hiring Process</option>
               </select>
             </div>
 
@@ -522,7 +522,7 @@ export default function OpportunitiesPage() {
               { label: "🌟 All Opportunities", onClick: () => { setOpportunityType("all"); setWorkMode("all"); setScope("all"); } },
               { label: "💼 Full-Time Jobs", onClick: () => { setOpportunityType("fulltime"); setScope("all"); } },
               { label: "🎓 Internships", onClick: () => { setOpportunityType("internship"); setScope("all"); } },
-              { label: "🏛️ GU Campus Drives", onClick: () => { setScope("on-campus"); setSource("campus"); } },
+              { label: "🏛️ Campus Hiring Process", onClick: () => { setScope("on-campus"); setSource("campus"); } },
               { label: "🏠 Remote Jobs", onClick: () => { setWorkMode("Remote"); } },
             ].map((tab, idx) => (
               <button
@@ -545,7 +545,7 @@ export default function OpportunitiesPage() {
               Scraping and Aggregating Live Multi-Source Feed...
             </p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Checking E2Job listings, Remotive, Arbeitnow and campus drives for "{program} · {specialization}".
+              Checking E2Job listings, remote job boards and campus hiring for "{program} · {specialization}".
             </p>
           </div>
         ) : opportunities.length > 0 ? (

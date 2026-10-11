@@ -97,8 +97,8 @@ exports.createUserReport = async (req, res, next) => {
     return res.status(201).json({
       success: true,
       message: reasonInfo.urgent
-        ? "Thanks for reporting this. We review money and scam reports within 2 hours. Please don't pay anything."
-        : "Thanks, our team will review this within 24 hours.",
+        ? "Thanks for reporting this. We review money and scam reports on priority. Please don't pay anything."
+        : "Thanks, our team will review this.",
     });
   } catch (error) {
     next(error);
