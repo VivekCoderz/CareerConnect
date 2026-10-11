@@ -223,7 +223,7 @@ const AdminCompanyAdminsContent = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? (
+                {loading && admins.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="py-12 text-center text-slate-400">
                       Loading Company Administrators...

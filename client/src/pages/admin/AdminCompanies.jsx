@@ -402,7 +402,7 @@ const AdminCompaniesContent = () => {
             </div>
 
             {/* Companies Grid */}
-            {loadingCompanies ? (
+            {loadingCompanies && companies.length === 0 ? (
               <div className="py-16 text-center">
                 <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-xs text-slate-500">Querying live MongoDB company records...</p>
@@ -545,7 +545,7 @@ const AdminCompaniesContent = () => {
             </div>
 
             {/* Requests Table / Cards */}
-            {loadingRequests ? (
+            {loadingRequests && orgRequests.length === 0 ? (
               <div className="py-16 text-center">
                 <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-xs text-slate-500">Retrieving organization requests from MongoDB...</p>

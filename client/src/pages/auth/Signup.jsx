@@ -22,6 +22,7 @@ import { generateStrongPassword } from "../../utils/passwordGenerator";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
 import { TERMS_VERSION } from "../../config/legal";
+import { needsOnboarding } from "../../utils/userRoles";
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
@@ -144,6 +145,8 @@ const Signup = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [otpSuccessMsg, setOtpSuccessMsg] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
+  // A code is valid for 60 seconds on the server, the same as the resend timer.
+  const otpExpired = otpSent && !emailVerified && resendCooldown === 0;
   const [fieldErrors, setFieldErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -394,7 +397,7 @@ const Signup = () => {
 
       if (requiresPasswordSetup || user.hasPassword === false) {
         navigate("/set-password", { replace: true });
-      } else if (!user.phone?.trim() || !user.isProfileComplete) {
+      } else if (needsOnboarding(user)) {
         navigate("/onboarding/profile", { replace: true });
       } else {
         navigate(getDashboardPath(user.userType, user), { replace: true });
@@ -991,8 +994,8 @@ const Signup = () => {
                         </span>
 
                         {resendCooldown > 0 ? (
-                          <span className="text-[11px] text-slate-400 font-medium">
-                            Resend in {resendCooldown}s
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            Code expires in {resendCooldown}s
                           </span>
                         ) : (
                           <button
@@ -1028,12 +1031,18 @@ const Signup = () => {
                         <button
                           type="button"
                           onClick={handleVerifyInlineOTP}
-                          disabled={verifyingOtp || otp.length !== 6}
+                          disabled={verifyingOtp || otpExpired || otp.length !== 6}
                           className="h-10 px-4 rounded-lg bg-[#008bdc] hover:bg-[#0077ba] disabled:bg-blue-300 text-white text-xs font-semibold transition shadow-sm"
                         >
                           {verifyingOtp ? "Verifying..." : "Submit OTP"}
                         </button>
                       </div>
+
+                      {otpExpired && !otpError && (
+                        <p className="text-xs text-red-600 font-medium">
+                          This OTP has expired. Please click Resend OTP to get a new code.
+                        </p>
+                      )}
 
                       {otpError && (
                         <p className="text-xs text-red-600 font-medium">
@@ -1041,7 +1050,7 @@ const Signup = () => {
                         </p>
                       )}
 
-                      {otpSuccessMsg && !otpError && (
+                      {otpSuccessMsg && !otpError && !otpExpired && (
                         <p className="text-xs text-emerald-600 font-medium">
                           {otpSuccessMsg}
                         </p>

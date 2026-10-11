@@ -12,6 +12,10 @@ import RoleProtectedRoute from "./components/RoleProtectedRoute";
 // Admin & 404
 import NotFound from "./pages/NotFound";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
+// Admin sidebar + header, shared by every /admin page (see the admin routes below).
+const AdminShell = lazyWithRetry(() =>
+  import("./components/admin/AdminLayout").then((mod) => ({ default: mod.AdminShell }))
+);
 const AdminDashboard = lazyWithRetry(() => import("./pages/admin/AdminDashboard"));
 const AdminLogin = lazyWithRetry(() => import("./pages/admin/AdminLogin"));
 const AdminCompanies = lazyWithRetry(() => import("./pages/admin/AdminCompanies"));
@@ -130,6 +134,7 @@ const PageFallback = () => (
 import { getCurrentUser } from "./services/authService";
 import { setUser, setInitialized } from "./redux/features/authSlice";
 import { getDashboardPath } from "./utils/dashboardRedirect";
+import { needsOnboarding } from "./utils/userRoles";
 
 // ─── Route Guards for Public Pages ──────────────────────────────────────────
 const RootRoute = () => {
@@ -142,7 +147,7 @@ const RootRoute = () => {
     if (user.hasPassword === false) {
       return <Navigate to="/set-password" replace />;
     }
-    if (!user.phone?.trim() || !user.isProfileComplete) {
+    if (needsOnboarding(user)) {
       return (
         <Navigate
           to={
@@ -175,7 +180,7 @@ const PublicOnlyRoute = ({ children }) => {
     if (user.hasPassword === false) {
       return <Navigate to="/set-password" replace />;
     }
-    if (!user.phone?.trim() || !user.isProfileComplete) {
+    if (needsOnboarding(user)) {
       return (
         <Navigate
           to={
@@ -250,8 +255,12 @@ const AuthInitializer = ({ children }) => {
 
 function AppRoutes() {
   const location = useLocation();
+  // Remounting on each page change resets everything below. Admin pages share one shell,
+  // so they keep a single key (the sidebar and header stay mounted); resetKey still clears
+  // an error when the admin moves to another page.
+  const boundaryKey = location.pathname.startsWith("/admin/") ? "admin" : location.pathname;
   return (
-    <ErrorBoundary key={location.pathname}>
+    <ErrorBoundary key={boundaryKey} resetKey={location.pathname}>
       <Suspense fallback={<PageFallback />}>
 <Routes>
             {/* =================================================
@@ -504,31 +513,33 @@ function AppRoutes() {
 
           {/* Strictly Protected Admin Routes */}
           <Route element={<AdminProtectedRoute />}>
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route element={<AdminShell />}>
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
-            {/* SUPER_ADMIN ONLY: Platform Multi-Tenant Provisioning & Management */}
-            <Route element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}>
-              <Route path="/admin/companies" element={<AdminCompanies />} />
-              <Route path="/admin/company-admins" element={<AdminCompanyAdmins />} />
-              <Route path="/admin/support-tickets" element={<AdminSupportTickets />} />
-              {/* Monitoring check (I08): sends test errors to Sentry */}
-              <Route path="/admin/sentry-test" element={<AdminSentryTest />} />
+              {/* SUPER_ADMIN ONLY: Platform Multi-Tenant Provisioning & Management */}
+              <Route element={<AdminProtectedRoute allowedRoles={["SUPER_ADMIN"]} />}>
+                <Route path="/admin/companies" element={<AdminCompanies />} />
+                <Route path="/admin/company-admins" element={<AdminCompanyAdmins />} />
+                <Route path="/admin/support-tickets" element={<AdminSupportTickets />} />
+                {/* Monitoring check (I08): sends test errors to Sentry */}
+                <Route path="/admin/sentry-test" element={<AdminSentryTest />} />
+              </Route>
+
+              {/* COMPANY_ADMIN ONLY: Own Assigned Organization Profile & Settings */}
+              <Route element={<AdminProtectedRoute allowedRoles={["COMPANY_ADMIN"]} />}>
+                <Route path="/admin/company" element={<AdminCompanyProfile />} />
+              </Route>
+
+              {/* Shared Scoped Admin Routes */}
+              <Route path="/admin/users" element={<AdminUsers />} />
+              <Route path="/admin/students" element={<AdminUsers />} />
+              <Route path="/admin/employers" element={<AdminEmployers />} />
+              <Route path="/admin/opportunities" element={<AdminOpportunities />} />
+              <Route path="/admin/applications" element={<AdminApplications />} />
+              <Route path="/admin/reports" element={<AdminReports />} />
+              <Route path="/admin/notifications" element={<AdminNotifications />} />
+              <Route path="/admin/settings" element={<AdminSettings />} />
             </Route>
-
-            {/* COMPANY_ADMIN ONLY: Own Assigned Organization Profile & Settings */}
-            <Route element={<AdminProtectedRoute allowedRoles={["COMPANY_ADMIN"]} />}>
-              <Route path="/admin/company" element={<AdminCompanyProfile />} />
-            </Route>
-
-            {/* Shared Scoped Admin Routes */}
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/students" element={<AdminUsers />} />
-            <Route path="/admin/employers" element={<AdminEmployers />} />
-            <Route path="/admin/opportunities" element={<AdminOpportunities />} />
-            <Route path="/admin/applications" element={<AdminApplications />} />
-            <Route path="/admin/reports" element={<AdminReports />} />
-            <Route path="/admin/notifications" element={<AdminNotifications />} />
-            <Route path="/admin/settings" element={<AdminSettings />} />
           </Route>
 
           {/* =================================================
