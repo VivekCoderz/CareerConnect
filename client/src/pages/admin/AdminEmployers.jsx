@@ -186,7 +186,7 @@ const AdminEmployers = () => {
 
         {/* Employers Table */}
         <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
-          {loading ? (
+          {loading && employers.length === 0 ? (
             <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center">
               <JourneyLoader variant="admin" size="sm" className="mb-2" />
               <p className="text-xs font-semibold">Loading employer accounts...</p>

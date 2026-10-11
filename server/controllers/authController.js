@@ -105,6 +105,31 @@ const isPhoneAlreadyTaken = async (phone, countryCode = "+91", excludeUserId = n
   return !!existing;
 };
 
+// Employers may leave the mobile number empty. When given it must be valid and unused.
+// Returns { phone, countryCode } (phone "" when empty) or { status, error } to send back.
+const readOptionalEmployerPhone = async (phone, countryCode, excludeUserId = null) => {
+  const cleanCountryCode = countryCode?.toString().trim() || "+91";
+  const cleanPhone = (phone ?? "").toString().replace(/\D/g, "");
+  if (!cleanPhone) return { phone: "", countryCode: cleanCountryCode };
+  if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
+    return {
+      status: 400,
+      error: {
+        success: false,
+        field: "phone",
+        message:
+          cleanCountryCode === "+91"
+            ? "Please enter a valid 10-digit mobile number"
+            : "Please enter a valid mobile number (6-15 digits)",
+      },
+    };
+  }
+  if (await isPhoneAlreadyTaken(cleanPhone, cleanCountryCode, excludeUserId)) {
+    return { status: 409, error: { success: false, field: "phone", message: "Mobile number is already registered" } };
+  }
+  return { phone: cleanPhone, countryCode: cleanCountryCode };
+};
+
 // Shared user payload shape
 const userPayload = (user, extra = {}) => ({
   _id: user._id,
@@ -131,6 +156,8 @@ const userPayload = (user, extra = {}) => ({
   userType: user.userType,
   profileCompletion: user.profileCompletion || 0,
   isProfileComplete: user.isProfileComplete || false,
+  // Signup finished (employers: company details given). Phone is optional for employers.
+  onboardingComplete: Boolean(user.onboardingCompletedAt),
   socialLinks: user.socialLinks,
   isActive: user.isActive,
   hasPassword: Boolean(user.hasPassword && (user.password !== undefined ? !!user.password : true)),
@@ -203,7 +230,7 @@ module.exports.sendOTP = async (req, res, next) => {
           <div style="background: #f1f5f9; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0;">
             <span style="font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #0f172a;">${otp}</span>
           </div>
-          <p style="color: #94a3b8; font-size: 14px;">This code expires in 10 minutes.</p>
+          <p style="color: #94a3b8; font-size: 14px;">This code expires in 1 minute.</p>
           <p style="color: #94a3b8; font-size: 13px;">If you didn't request this, ignore this email.</p>
         </div>
       `,
@@ -1551,36 +1578,9 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     }
 
-    if (!phone || !phone.toString().trim()) {
-      return res.status(400).json({
-        success: false,
-        field: "phone",
-        message: "Mobile number is required",
-      });
-    }
-
-    const cleanPhone = phone.toString().trim().replace(/\D/g, "");
-    const cleanCountryCode = countryCode?.trim() || "+91";
-
-    if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
-      return res.status(400).json({
-        success: false,
-        field: "phone",
-        message:
-          cleanCountryCode === "+91"
-            ? "Please enter a valid 10-digit mobile number"
-            : "Please enter a valid mobile number (6-15 digits)",
-      });
-    }
-
-    const phoneExists = await isPhoneAlreadyTaken(cleanPhone, cleanCountryCode);
-    if (phoneExists) {
-      return res.status(409).json({
-        success: false,
-        field: "phone",
-        message: "Mobile number is already registered",
-      });
-    }
+    const phoneCheck = await readOptionalEmployerPhone(phone, countryCode);
+    if (phoneCheck.error) return res.status(phoneCheck.status).json(phoneCheck.error);
+    const { phone: cleanPhone, countryCode: cleanCountryCode } = phoneCheck;
 
     if (!password) {
       return res.status(400).json({
@@ -1674,6 +1674,7 @@ module.exports.registerEmployer = async (req, res, next) => {
       username: await generateUniqueUsername(normalizedEmail),
       isEmailVerified: true,
       isProfileComplete: false,
+      onboardingCompletedAt: new Date(),
       profileCompletion: 20,
       authProviders: ["email"],
       hasPassword: true,
@@ -1686,7 +1687,7 @@ module.exports.registerEmployer = async (req, res, next) => {
         userId: user._id,
         companyName: companyName.trim(),
         officialEmail: normalizedEmail,
-        mobile: phone.trim(),
+        mobile: cleanPhone,
         website: website?.trim() || "",
         companyType: companyType || "Private",
         industry: industry?.trim() || "Information Technology",
@@ -1699,7 +1700,7 @@ module.exports.registerEmployer = async (req, res, next) => {
           name: contactPerson.trim(),
           designation: designation.trim(),
           email: normalizedEmail,
-          phone: phone.trim(),
+          phone: cleanPhone,
         },
         currentStep: 1,
         profileCompletion: 20,
@@ -1731,6 +1732,7 @@ module.exports.registerEmployer = async (req, res, next) => {
         fullName: user.fullName,
         username: user.username,
         email: user.email,
+        countryCode: user.countryCode,
         phone: user.phone,
         profileImage: user.profileImage,
         role: user.role,
@@ -1738,6 +1740,7 @@ module.exports.registerEmployer = async (req, res, next) => {
         companyName: companyName.trim(),
         hasPassword: true,
         authProviders: ["email"],
+        onboardingComplete: true,
       },
     });
   } catch (error) {
@@ -2048,31 +2051,9 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
     }
 
     // -------- Validation --------
-    if (!phone?.trim()) {
-      return res.status(400).json({ success: false, field: "phone", message: "Mobile number is required" });
-    }
-    const cleanPhone = phone.replace(/\D/g, "");
-    const cleanCountryCode = countryCode.trim() || "+91";
-
-    if (!validatePhoneFormat(cleanPhone, cleanCountryCode)) {
-      return res.status(400).json({
-        success: false,
-        field: "phone",
-        message:
-          cleanCountryCode === "+91"
-            ? "Please enter a valid 10-digit mobile number"
-            : "Please enter a valid mobile number (6-15 digits)",
-      });
-    }
-
-    const phoneExists = await isPhoneAlreadyTaken(cleanPhone, cleanCountryCode, userId);
-    if (phoneExists) {
-      return res.status(409).json({
-        success: false,
-        field: "phone",
-        message: "Mobile number is already registered",
-      });
-    }
+    const phoneCheck = await readOptionalEmployerPhone(phone, countryCode, userId);
+    if (phoneCheck.error) return res.status(phoneCheck.status).json(phoneCheck.error);
+    const { phone: cleanPhone, countryCode: cleanCountryCode } = phoneCheck;
 
     if (!companyName?.trim()) {
       return res.status(400).json({ success: false, field: "companyName", message: "Company name is required" });
@@ -2099,6 +2080,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
         role: "employer",
         userType: "employer",
         profileCompletion: 40,
+        onboardingCompletedAt: new Date(),
         ...(existingProfile ? {} : { consent }),
       },
       { new: true }
@@ -2115,7 +2097,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
           userId,
           companyName: companyName.trim(),
           officialEmail: user.email,
-          mobile: phone.trim(),
+          mobile: cleanPhone,
           website: website?.trim() || "",
           companyType: companyType || "Private",
           industry: industry.trim(),
@@ -2128,7 +2110,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
             name: contactPerson.trim(),
             designation: designation.trim(),
             email: user.email,
-            phone: phone.trim(),
+            phone: cleanPhone,
           },
           currentStep: 1,
           profileCompletion: 40,

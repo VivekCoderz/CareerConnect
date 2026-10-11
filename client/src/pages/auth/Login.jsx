@@ -16,6 +16,7 @@ import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { getSafeRedirect } from "../../utils/authRedirect";
 import { getCaptchaToken } from "../../utils/captcha";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
+import { needsOnboarding } from "../../utils/userRoles";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -167,7 +168,7 @@ const Login = () => {
       // Step 3: Route based on account status
       if (requiresPasswordSetup || user.hasPassword === false) {
         navigate("/set-password", { replace: true });
-      } else if (!user.phone?.trim() || !user.isProfileComplete) {
+      } else if (needsOnboarding(user)) {
         navigate(
           user.role === "employer" || loginType === "employer"
             ? "/onboarding/employer"

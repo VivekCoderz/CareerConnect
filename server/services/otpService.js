@@ -2,7 +2,13 @@ const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP");
 const OtpRateLimit = require("../models/OtpRateLimit");
 
-const OTP_TTL_MS = 10 * 60 * 1000;
+// How long a code can be entered. Signup codes match the 60-second timer on the signup
+// forms; password reset codes last ten minutes.
+const OTP_TTL_MS = { verification: 60 * 1000 };
+const DEFAULT_OTP_TTL_MS = 10 * 60 * 1000;
+// Once a code is accepted, its one-time token stays usable this long, so going back a step
+// or taking time on the rest of the form doesn't ask for a new code.
+const VERIFIED_TOKEN_TTL_MS = 30 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 
 const normalizeEmail = (email) =>
@@ -26,7 +32,7 @@ const issueOtp = async (email, purpose) => {
         email,
         purpose,
         otpHash,
-        expiresAt: new Date(Date.now() + OTP_TTL_MS),
+        expiresAt: new Date(Date.now() + (OTP_TTL_MS[purpose] || DEFAULT_OTP_TTL_MS)),
         verifiedAt: null,
         verificationTokenHash: null,
         attempts: 0,
@@ -58,6 +64,7 @@ const verifyOtp = async (email, purpose, code, options = {}) => {
   if (isMatch) {
     const verificationToken = crypto.randomBytes(32).toString("hex");
     existing.verifiedAt = now;
+    existing.expiresAt = new Date(now.getTime() + VERIFIED_TOKEN_TTL_MS);
     existing.verificationTokenHash = crypto.createHash("sha256").update(verificationToken).digest("hex");
     await existing.save();
     return verificationToken;

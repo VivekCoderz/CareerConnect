@@ -313,6 +313,12 @@ const userSchema = new mongoose.Schema(
       max: [100, "Profile completion cannot exceed 100"],
     },
 
+    // Set when signup is finished. Employers may have no phone, so the phone alone can't say it.
+    onboardingCompletedAt: {
+      type: Date,
+      default: null,
+    },
+
     isProfileComplete: {
       type: Boolean,
       default: false,

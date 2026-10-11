@@ -13,6 +13,7 @@ import {
 import { setUser, logout } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 import { cancelGoogleSignup } from "../../services/authService";
+import { needsOnboarding } from "../../utils/userRoles";
 
 // Eye icon
 const EyeIcon = ({ hidden = false }) => (
@@ -79,7 +80,7 @@ const SetPassword = () => {
     if (isSubmittingRef.current) return;
 
     if (user.hasPassword) {
-      if (!user.phone?.trim() || !user.isProfileComplete) {
+      if (needsOnboarding(user)) {
         navigate(
           user.role === "employer" ? "/onboarding/employer" : "/onboarding/profile",
           { replace: true }
@@ -156,7 +157,7 @@ const SetPassword = () => {
       // - Candidates/Students → select role (Student / Fresher / Professional) -> then collect info (/onboarding/profile)
       if (updatedUser.role === "employer") {
         navigate("/onboarding/employer", { replace: true });
-      } else if (!updatedUser.phone?.trim() || !updatedUser.isProfileComplete) {
+      } else if (needsOnboarding(updatedUser)) {
         navigate("/onboarding/profile", { replace: true });
       } else {
         navigate(getDashboardPath(updatedUser.userType || "student", updatedUser), { replace: true });

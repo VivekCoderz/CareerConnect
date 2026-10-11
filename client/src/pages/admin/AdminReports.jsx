@@ -674,7 +674,7 @@ const AdminReports = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? (
+                {loading && reports.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="py-16 text-center">
                       <div className="flex flex-col items-center justify-center gap-2 text-slate-400">

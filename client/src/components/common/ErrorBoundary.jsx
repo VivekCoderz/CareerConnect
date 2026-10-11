@@ -12,6 +12,13 @@ class ErrorBoundary extends Component {
     return { hasError: true };
   }
 
+  // A new resetKey (e.g. the page path) clears a caught error without remounting children.
+  componentDidUpdate(prevProps) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
+  }
+
   componentDidCatch(error, info) {
     console.error(error, info);
     // Report render errors to Sentry with the component stack (no-op without VITE_SENTRY_DSN).
