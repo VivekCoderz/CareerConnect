@@ -1,4 +1,5 @@
-const protect = require("../../middleware/authMiddleware");
+// Header-only sign-in, so an E2Job cookie or session in the same browser never leaks in.
+const { bearerAuth: protect } = require("./bearer");
 const CampusMember = require("../models/CampusMember");
 
 const ADMIN_ROLES = ["SUPER_ADMIN"];

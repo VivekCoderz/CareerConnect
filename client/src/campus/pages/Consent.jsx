@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { campusApi, errorMessage } from "../api";
 import { useCampus } from "../useCampus";
 import Layout from "../components/Layout";
@@ -7,8 +6,7 @@ import { Button, Card, Notice } from "../components/ui";
 
 // Data notice on first sign-in (PRD R5): required before anything else opens.
 const Consent = () => {
-  const { institution, member, setSession } = useCampus();
-  const navigate = useNavigate();
+  const { institution, member } = useCampus();
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -18,8 +16,8 @@ const Consent = () => {
     setError("");
     try {
       await campusApi.post("/consent", { accepted: true });
-      setSession((s) => ({ ...s, needsConsent: false }));
-      navigate(member?.role === "manager" ? "/manager" : "/profile?welcome=1");
+      // A fresh load, so every page sees the accepted notice; students check their profile first.
+      window.location.replace(member?.role === "manager" ? "/manager" : "/profile?welcome=1");
     } catch (e) {
       setError(errorMessage(e));
     } finally {

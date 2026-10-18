@@ -54,6 +54,7 @@ export const downloadFile = async (path, fileName) => {
 
 /** E2Job staff sign in with the existing admin login (architecture section 5). */
 export const adminLogin = async (emailOrUsername, password) => {
-  const res = await axios.post(`${ROOT}/admin/login`, { emailOrUsername, password }, { withCredentials: true });
+  // No cookies: the campus portal uses the returned token only.
+  const res = await axios.post(`${ROOT}/admin/login`, { emailOrUsername, password });
   return res.data;
 };

@@ -98,7 +98,7 @@ const Landing = () => {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="order-first rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:order-none">
           <h2 className="text-xl font-bold text-slate-900">Sign in</h2>
           <p className="mt-1 text-sm text-slate-600">Use the email your university registered for you.</p>
           <div className="mt-6 space-y-4">

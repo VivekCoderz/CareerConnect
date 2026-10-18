@@ -21,7 +21,8 @@ const CampusMember = require("../campus/models/CampusMember");
 const CampusAssessment = require("../campus/models/CampusAssessment");
 const CampusAttempt = require("../campus/models/CampusAttempt");
 const CampusGradingJob = require("../campus/models/CampusGradingJob");
-const { CampusSession } = require("../campus/models/CampusSession");
+const { CampusSession, CampusAttendance } = require("../campus/models/CampusSession");
+const CampusFile = require("../campus/models/CampusFile");
 const bank = require("../campus/data/mba-assessment-v1");
 const { startAttempt, finalizeAttempt } = require("../campus/services/attempts");
 const { recompute } = require("../campus/services/scoring");
@@ -37,11 +38,44 @@ const LAST = ["Patil", "Deshmukh", "Joshi", "Kulkarni", "Pawar", "Shinde", "Jadh
 const rand = (seed) => () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 const rnd = rand(42);
 
-const WRITTEN_SAMPLES = [
-  "First I would check sales by region and channel and compare our price with the competitor. I would also ask retailers and customers why they switched. If price is the main reason, I would launch a smaller value pack and a two-week promotion in the weakest regions. I would also improve shelf presence in modern trade and stress our real fruit content in communication, so customers see why we cost more.",
-  "I would meet the team one to one to understand workload and blockers, then re-plan the project with clear priorities and owners. Short weekly goals and a daily ten-minute check-in would help us catch delays early. I would remove low-value tasks and recognise good work openly.",
-  "Many older customers worry about fraud and find apps hard to use. I would offer assisted sign-up in branches, a simple mode with large text, and clear safety messages. Family members could help through a referral offer. Success would be measured by active users above 50 and their monthly transactions.",
+// Sentence pools per written question, so sample students write different answers and the
+// copy check only flags the few that really overlap.
+const WRITTEN_POOLS = [
+  [
+    "First I would check sales by region and channel to see where the fall is largest.",
+    "I would compare our price and pack sizes with the new competitor in each market.",
+    "Talking to retailers and a few customers would tell us why people switched.",
+    "If price is the main reason, a smaller value pack at a lower price point would help.",
+    "A two-week promotion in the weakest regions could win back trial.",
+    "We should stress what makes our juice better, such as real fruit content.",
+    "Better shelf placement in modern trade stores would improve visibility.",
+    "I would track weekly sales after each action to see what works.",
+  ],
+  [
+    "I would meet each team member to understand their workload and blockers.",
+    "The project plan needs new, realistic deadlines with one clear owner per task.",
+    "A short daily check-in would surface delays before they become missed deadlines.",
+    "Low-value work can be paused so the team focuses on what matters most.",
+    "I would recognise good work openly to lift morale.",
+    "Where skills are missing, I would arrange quick help or pairing.",
+    "I would share progress with stakeholders honestly so expectations are clear.",
+    "After two weeks we would review what improved and adjust the plan.",
+  ],
+  [
+    "Many customers above 50 worry about fraud and find apps hard to use.",
+    "Branch staff could help them sign up and do their first transactions.",
+    "A simple mode with large text and fewer steps would make the app easier.",
+    "Clear messages about safety, like never sharing an OTP, would build trust.",
+    "Family members could help through a referral offer.",
+    "Short videos in regional languages could explain common tasks.",
+    "Success would be measured by active users above 50 and monthly transactions.",
+    "A helpline number inside the app would give quick support.",
+  ],
 ];
+const answerFor = (poolIndex) => {
+  const pool = [...WRITTEN_POOLS[poolIndex]].sort(() => rnd() - 0.5);
+  return pool.slice(0, 3 + Math.floor(rnd() * 3)).join(" ");
+};
 
 async function main() {
   const uri = process.env.MONGODB_URI || "";
@@ -125,6 +159,8 @@ async function main() {
     { upsert: true, returnDocument: "after" }
   );
 
+  const oldDemo = await CampusSession.find({ institutionId: institution._id, title: /^\[Demo\]/ }).select("_id").lean();
+  await CampusAttendance.deleteMany({ sessionId: { $in: oldDemo.map((x) => x._id) } });
   await CampusSession.deleteMany({ institutionId: institution._id, title: /^\[Demo\]/ });
   const at = (minutes) => new Date(now + minutes * 60 * 1000);
   await CampusSession.insertMany([
@@ -132,19 +168,33 @@ async function main() {
     { title: "[Demo] Quant foundations", band: 1, startAt: at(10), endAt: at(70), trainerName: "E2Job Trainer" },
     { title: "[Demo] Case interview practice", band: null, startAt: at(24 * 60), endAt: at(25 * 60), trainerName: "E2Job Trainer" },
   ].map((s) => ({ ...s, institutionId: institution._id, batchId: batch._id, meetUrl: "https://meet.google.com/abc-defg-hij", status: "scheduled" })));
+  const orientation = await CampusSession.findOne({ institutionId: institution._id, title: /^\[Demo\] Orientation/ });
+  await CampusAttendance.insertMany(students.filter(() => rnd() < 0.75).map((m) => ({
+    sessionId: orientation._id, institutionId: institution._id, memberId: m._id, joinedAt: orientation.startAt,
+  })));
 
   let attempts = 0;
   if (has("--with-results")) {
-    await CampusAttempt.deleteMany({ assessmentId: assessment._id, memberId: { $in: students.map((s) => s._id) } });
+    const old = await CampusAttempt.find({ assessmentId: assessment._id, memberId: { $in: students.map((s) => s._id) } }).select("_id").lean();
+    await CampusFile.deleteMany({ attemptId: { $in: old.map((a) => a._id) } });
+    await CampusAttempt.deleteMany({ _id: { $in: old.map((a) => a._id) } });
     for (const member of students.slice(0, 40)) {
       member.consentAt = member.consentAt || new Date();
       await member.save();
       const { attempt } = await startAttempt(assessment, member);
       const skill = member.cgpa / 10;
-      attempt.answers = bank.questions.filter((q) => q.type !== "speaking").map((q) => (q.type === "mcq"
-        ? { questionId: q.id, optionId: rnd() < 0.35 + skill * 0.5 ? q.correctOptionId : q.options[Math.floor(rnd() * 4)].id }
-        : { questionId: q.id, text: WRITTEN_SAMPLES[Number(q.id.slice(1)) - 47] }));
-      attempt.proctor.countedEvents = rnd() < 0.15 ? 1 + Math.floor(rnd() * 2) : 0;
+      // A tiny placeholder file stands in for the speaking recording of sample students.
+      const audio = await CampusFile.create({ institutionId: institution._id, attemptId: attempt._id, kind: "audio", mimeType: "audio/webm", size: 4, storage: "mongo", data: Buffer.from("demo") });
+      attempt.answers = bank.questions.map((q) => {
+        if (q.type === "mcq") return { questionId: q.id, optionId: rnd() < 0.35 + skill * 0.5 ? q.correctOptionId : q.options[Math.floor(rnd() * 4)].id };
+        if (q.type === "written") return { questionId: q.id, text: answerFor(Number(q.id.slice(1)) - 47) };
+        return { questionId: q.id, audioFileId: audio._id };
+      });
+      const warnings = rnd() < 0.15 ? 1 + Math.floor(rnd() * 2) : 0;
+      attempt.proctor.countedEvents = warnings;
+      for (let w = 0; w < warnings; w += 1) {
+        attempt.proctor.events.push({ type: w ? "fullscreen_exit" : "tab_hidden", at: new Date(attempt.startedAt.getTime() + (10 + w * 12) * 60000), counted: true });
+      }
       await attempt.save();
       const done = await finalizeAttempt(attempt._id, "student");
       done.marks.forEach((m) => {

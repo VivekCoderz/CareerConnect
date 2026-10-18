@@ -159,3 +159,18 @@ describe("university dashboard and reports (PRD R14)", () => {
     expect(pdf.body.subarray(0, 4).toString()).toBe("%PDF");
   });
 });
+
+describe("campus sign-in uses only the Authorization header", () => {
+  it("ignores an E2Job token cookie from the same browser", async () => {
+    const uni = await createInstitution();
+    const admin = await createAdmin();
+    await importStudents(uni, admin.token, ROWS.slice(0, 1));
+    const student = await signIn(uni, "one@fakeuni.test");
+    // A cookie for the admin plus the student's header: the student must win.
+    const res = await api(uni).get("/me", student).set("Cookie", `token=${admin.token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.member.email).toBe("one@fakeuni.test");
+    // A cookie alone does not sign anyone in.
+    expect((await api(uni).get("/me").set("Cookie", `token=${admin.token}`)).status).toBe(401);
+  });
+});
