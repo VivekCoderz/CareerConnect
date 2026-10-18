@@ -70,7 +70,7 @@ const finalizeAttempt = async (attemptId, reason) => {
   const attempt = await CampusAttempt.findOneAndUpdate(
     { _id: attemptId, status: "in_progress" },
     { $set: { status, submitReason: reason, submittedAt: new Date() } },
-    { new: true }
+    { returnDocument: "after" }
   );
   if (!attempt) return CampusAttempt.findById(attemptId);
   const assessment = await CampusAssessment.findById(attempt.assessmentId);

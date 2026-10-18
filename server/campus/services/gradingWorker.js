@@ -21,7 +21,7 @@ const claimJob = (now = new Date()) =>
       $or: [{ lockedUntil: null }, { lockedUntil: { $lt: now } }],
     },
     { $set: { status: "running", lockedUntil: new Date(now.getTime() + LOCK_MS) }, $inc: { tries: 1 } },
-    { sort: { nextRunAt: 1 }, new: true }
+    { sort: { nextRunAt: 1 }, returnDocument: "after" }
   );
 
 /** Writes a mark into the attempt and recomputes its totals. */

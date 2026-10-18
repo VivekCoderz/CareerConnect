@@ -3,6 +3,7 @@ const CampusAttempt = require("../models/CampusAttempt");
 const { toStudentQuestion } = require("../models/CampusAssessment");
 const { startAttempt, finalizeAttempt, recordEvent, acceptsAnswers } = require("../services/attempts");
 const { saveFile } = require("../services/files");
+const { pendingItems } = require("../services/scoring");
 
 // Student side of the assessment (PRD R8 to R12). The client never sends scores, deadlines or
 // question order; the server decides all of them.
@@ -216,7 +217,10 @@ exports.result = async (req, res, next) => {
     if (!assessment) return res.status(404).json({ success: false, message: "Assessment not found." });
     const attempt = await CampusAttempt.findOne({ assessmentId: assessment._id, userId: req.user._id });
     if (!attempt) return res.status(200).json({ success: true, status: "not_attempted" });
-    if (!assessment.resultsPublishedAt) return res.status(200).json({ success: true, status: "pending" });
+    // A test taken after publishing waits until its own marks are done.
+    if (!assessment.resultsPublishedAt || attempt.status === "in_progress" || pendingItems(attempt).length) {
+      return res.status(200).json({ success: true, status: "pending" });
+    }
     const sections = assessment.sections.map((s) => {
       const v = attempt.scores.bySection.get(s.key) || { score: 0, max: 0 };
       return { key: s.key, title: s.title, score: v.score, max: v.max };

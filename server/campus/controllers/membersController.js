@@ -75,7 +75,7 @@ exports.commitImport = async (req, res, next) => {
     const batch = await Batch.findOneAndUpdate(
       { institutionId: req.institution._id, name: batchName },
       { $setOnInsert: { institutionId: req.institution._id, name: batchName } },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
     const counts = { created: 0, updated: 0, skipped: 0 };
     const problems = [];
