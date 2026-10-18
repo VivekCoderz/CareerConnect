@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { LogOut } from "lucide-react";
 import { useCampus } from "../useCampus";
@@ -17,17 +18,22 @@ const NAV = {
   ],
 };
 
-export const BrandMark = ({ institution, compact = false }) => (
-  <span className="flex items-center gap-3">
-    {institution?.logoUrl ? (
-      <img src={institution.logoUrl} alt={institution.name} className={compact ? "h-9 w-auto" : "h-12 w-auto"} onError={(e) => { e.currentTarget.style.display = "none"; }} />
-    ) : null}
-    <span className="leading-tight">
-      <span className="block text-sm font-bold text-slate-900 sm:text-base">{institution?.name}</span>
-      <span className="block text-xs text-slate-500">Assessment Portal</span>
+// The university logo already carries its name, so the name text only shows without a logo.
+export const BrandMark = ({ institution, compact = false }) => {
+  const [logoOk, setLogoOk] = useState(true);
+  const showLogo = Boolean(institution?.logoUrl) && logoOk;
+  return (
+    <span className="flex items-center gap-3">
+      {showLogo && (
+        <img src={institution.logoUrl} alt={institution.name} className={compact ? "h-9 w-auto sm:h-10" : "h-11 w-auto sm:h-14"} onError={() => setLogoOk(false)} />
+      )}
+      <span className="leading-tight">
+        {!showLogo && <span className="block text-sm font-bold text-slate-900 sm:text-base">{institution?.name}</span>}
+        <span className={`block text-xs text-slate-500 ${showLogo ? "hidden border-l border-slate-200 pl-3 sm:block" : ""}`}>Assessment Portal</span>
+      </span>
     </span>
-  </span>
-);
+  );
+};
 
 export const Footer = () => (
   <footer className="mt-12 border-t border-slate-200 py-6 text-center text-xs text-slate-500">

@@ -1,8 +1,8 @@
 // Turns an attempt's marks into section and total scores, and the student's strengths and
 // improvements (PRD R11, R12). Pure functions: callers save the attempt.
 
+// 70% and above is a strength; anything below is a point to improve (weakest first).
 const STRONG = 0.7;
-const WEAK = 0.5;
 
 const markFor = (attempt, questionId) => attempt.marks.find((m) => m.questionId === questionId);
 
@@ -44,7 +44,7 @@ const recompute = (assessment, attempt) => {
   const pct = (r) => `${Math.round(r * 100)}%`;
   attempt.feedback = {
     strengths: ranked.filter((s) => s.ratio >= STRONG).slice(0, 3).map((s) => `${s.title} (${pct(s.ratio)})`),
-    improvements: ranked.filter((s) => s.ratio < WEAK).reverse().slice(0, 3).map((s) => `${s.title} (${pct(s.ratio)})`),
+    improvements: ranked.filter((s) => s.ratio < STRONG).reverse().slice(0, 3).map((s) => `${s.title} (${pct(s.ratio)})`),
   };
   if (!attempt.feedback.strengths.length && ranked[0]) attempt.feedback.strengths = [`${ranked[0].title} (${pct(ranked[0].ratio)})`];
   return attempt;

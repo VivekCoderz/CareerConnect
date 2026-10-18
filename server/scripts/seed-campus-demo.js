@@ -91,7 +91,7 @@ async function main() {
         name: "Sandip University",
         shortName: "Sandip University",
         logoUrl: "/campus/sandip-logo.png",
-        brandColor: "#8B1E24",
+        brandColor: "#C8102E",
         programName: "MBA Assessment and Training Programme",
         helpContact: "support@e2job.com",
         status: "active",
