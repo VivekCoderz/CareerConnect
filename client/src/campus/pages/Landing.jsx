@@ -8,6 +8,7 @@ import { useCampus } from "../useCampus";
 import { BrandMark, Footer } from "../components/Layout";
 import { Button, Notice } from "../components/ui";
 import { inputClass } from "../format";
+import { homeFor } from "../home";
 
 // Sample students without Google accounts sign in here in local QA only; the server refuses
 // this in production as well.
@@ -20,13 +21,10 @@ const FEATURES = [
   { icon: ShieldCheck, title: "Fair and secure", text: "Sign in with your university account. Every test is checked the same way." },
 ];
 
-const routeAfterSignIn = (data) => {
-  if (data.needsConsent) return "/welcome";
-  return data.member?.role === "manager" ? "/manager" : "/dashboard";
-};
-
 const Landing = () => {
-  const { institution, setSession } = useCampus();
+  const campus = useCampus();
+  const { institution, setSession, member, staff, signOut } = campus;
+  const signedIn = Boolean(member || staff);
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -35,7 +33,7 @@ const Landing = () => {
   const finish = (data) => {
     setToken(data.token);
     setSession({ loading: false, member: data.member, batch: null, needsConsent: data.needsConsent, staff: null });
-    navigate(routeAfterSignIn(data));
+    navigate(homeFor({ member: data.member, staff: null, needsConsent: data.needsConsent }));
   };
 
   const google = async () => {
@@ -98,27 +96,40 @@ const Landing = () => {
           </div>
         </div>
 
-        <div className="order-first rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:order-none">
-          <h2 className="text-xl font-bold text-slate-900">Sign in</h2>
-          <p className="mt-1 text-sm text-slate-600">Use the email your university registered for you.</p>
-          <div className="mt-6 space-y-4">
-            {error && <Notice tone="red">{error}</Notice>}
-            <Button className="w-full py-3" onClick={google} disabled={busy || !isFirebaseConfigured}>
-              Sign in with Google
-            </Button>
-            {!isFirebaseConfigured && <p className="text-xs text-slate-500">Google sign-in is not set up on this server.</p>}
-            {DEV_LOGIN && (
-              <form onSubmit={devSignIn} className="space-y-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 p-4">
-                <p className="text-xs font-semibold text-amber-900">Demo only: sign in as a sample student or the manager</p>
-                <input className={inputClass} value={devEmail} onChange={(e) => setDevEmail(e.target.value)} aria-label="Sample email" />
-                <Button type="submit" variant="secondary" className="w-full" disabled={busy}>Demo sign-in</Button>
-              </form>
-            )}
-            <p className="text-xs text-slate-500">
-              Trouble signing in? Contact {institution?.helpContact}.
-            </p>
+        {signedIn ? (
+          <div className="order-first rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:order-none">
+            <h2 className="text-xl font-bold text-slate-900">Welcome back{member?.name ? `, ${member.name.split(" ")[0]}` : ""}</h2>
+            <p className="mt-1 text-sm text-slate-600">You are signed in as {member?.email || staff?.email || "E2Job staff"}.</p>
+            <div className="mt-6 space-y-3">
+              <Button className="w-full py-3" onClick={() => navigate(homeFor(campus))}>
+                {staff ? "Open E2Job review" : member?.role === "manager" ? "Open university dashboard" : "Go to my dashboard"}
+              </Button>
+              <Button variant="secondary" className="w-full" onClick={signOut}>Sign out</Button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="order-first rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:order-none">
+            <h2 className="text-xl font-bold text-slate-900">Sign in</h2>
+            <p className="mt-1 text-sm text-slate-600">Use the email your university registered for you.</p>
+            <div className="mt-6 space-y-4">
+              {error && <Notice tone="red">{error}</Notice>}
+              <Button className="w-full py-3" onClick={google} disabled={busy || !isFirebaseConfigured}>
+                Sign in with Google
+              </Button>
+              {!isFirebaseConfigured && <p className="text-xs text-slate-500">Google sign-in is not set up on this server.</p>}
+              {DEV_LOGIN && (
+                <form onSubmit={devSignIn} className="space-y-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 p-4">
+                  <p className="text-xs font-semibold text-amber-900">Demo only: sign in as a sample student or the manager</p>
+                  <input className={inputClass} value={devEmail} onChange={(e) => setDevEmail(e.target.value)} aria-label="Sample email" />
+                  <Button type="submit" variant="secondary" className="w-full" disabled={busy}>Demo sign-in</Button>
+                </form>
+              )}
+              <p className="text-xs text-slate-500">
+                Trouble signing in? Contact {institution?.helpContact}.
+              </p>
+            </div>
+          </div>
+        )}
       </main>
       <Footer />
     </div>

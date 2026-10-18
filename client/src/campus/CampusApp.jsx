@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { CampusProvider } from "./context";
 import { useCampus } from "./useCampus";
 import { Spinner } from "./components/ui";
+import { homeFor } from "./home";
 import Landing from "./pages/Landing";
 import Consent from "./pages/Consent";
 import Dashboard from "./pages/Dashboard";
@@ -18,13 +19,6 @@ import OpsClasses from "./pages/ops/OpsClasses";
 
 // The campus portal (docs/campus/architecture.md). Rendered instead of the E2Job app on a
 // campus host; uses only campus code and the shared Firebase config.
-
-const homeFor = ({ member, staff, needsConsent }) => {
-  if (staff) return "/ops/students";
-  if (!member) return "/";
-  if (needsConsent) return "/welcome";
-  return member.role === "manager" ? "/manager" : "/dashboard";
-};
 
 /** Lets a route open only for the given people; everyone else goes to their own home. */
 const Only = ({ who, children }) => {
@@ -52,10 +46,9 @@ const Routed = () => {
   if (campus.tenantError === "not_found") return <NotFound />;
   if (campus.tenantError) return <div className="p-10 text-center text-sm text-slate-600">The portal is not reachable right now. Please try again in a moment.</div>;
   if (!campus.institution || campus.loading) return <Spinner label="Opening the portal..." />;
-  const signedIn = Boolean(campus.member || campus.staff);
   return (
     <Routes>
-      <Route path="/" element={signedIn ? <Navigate to={homeFor(campus)} replace /> : <Landing />} />
+      <Route path="/" element={<Landing />} />
       <Route path="/welcome" element={<Only who={["consent"]}><Consent /></Only>} />
       <Route path="/dashboard" element={<Only who={["student"]}><Dashboard /></Only>} />
       <Route path="/profile" element={<Only who={["student"]}><Profile /></Only>} />
