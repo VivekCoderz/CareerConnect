@@ -194,6 +194,9 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/support-tickets", supportTicketRoutes);
 
+// Campus portal for universities (docs/campus). Off unless ENABLE_CAMPUS=true.
+if (flag("ENABLE_CAMPUS")) app.use("/api/campus", require("./campus").router);
+
 app.get("/api/companies/:companyId", require("./controllers/employerController").getPublicCompanyProfile);
 app.get("/api/companies/:companyId/jobs", require("./controllers/employerController").getPublicCompanyJobs);
 

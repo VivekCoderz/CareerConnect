@@ -84,6 +84,9 @@ setInterval(runListingExpirySweep, LISTING_EXPIRY_INTERVAL_MS);
 // Job lists only read the stored listings; requests never call the feeds.
 require("./services/externalJobSync").startExternalJobSyncSchedule();
 
+// Campus portal: AI marking queue and test expiry sweep (docs/campus/architecture.md).
+if (String(process.env.ENABLE_CAMPUS).toLowerCase() === "true") require("./campus").startWorkers();
+
 server.listen(PORT, () => {
   console.log(`E2Job server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
   // Daily summary email of rejections / closed positions (6 PM IST)
