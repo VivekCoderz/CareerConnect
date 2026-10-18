@@ -22,7 +22,7 @@ const OpsLogin = () => {
       const data = await adminLogin(form.email, form.password);
       const role = data?.user?.role;
       if (!data?.token || (role !== "SUPER_ADMIN" && !(role === "admin" && !data.user.companyId))) {
-        setError("This account does not have E2Job admin access.");
+        setError("This account does not have staff access.");
         return;
       }
       setToken(data.token);
@@ -42,7 +42,7 @@ const OpsLogin = () => {
       <div className="mx-auto w-full max-w-md flex-1 px-4 py-16">
         <BrandMark institution={institution} />
         <form onSubmit={submit} className="mt-8 space-y-4 rounded-2xl border border-slate-200 bg-white p-6">
-          <h1 className="text-lg font-bold text-slate-900">E2Job staff sign-in</h1>
+          <h1 className="text-lg font-bold text-slate-900">Staff sign-in</h1>
           {error && <Notice tone="red">{error}</Notice>}
           <Field label="Email or username"><input className={inputClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} autoComplete="username" /></Field>
           <Field label="Password"><input type="password" className={inputClass} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="current-password" /></Field>

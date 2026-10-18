@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { campusApi, errorMessage } from "../api";
 import { useCampus } from "../useCampus";
 import Layout from "../components/Layout";
@@ -29,17 +30,17 @@ const Consent = () => {
     <Layout>
       <Card title="Before you continue">
         <div className="space-y-3 text-sm leading-relaxed text-slate-700">
-          <p>This portal is run by <b>E2Job</b> for <b>{institution?.name}</b>. Please read how your information is used.</p>
+          <p>This is the official assessment and training portal of <b>{institution?.name}</b>. Please read how your information is used.</p>
           <ul className="list-disc space-y-1.5 pl-5">
-            <li>Your details from the university (name, email, roll number, CGPA, phone) and your answers are stored by E2Job.</li>
+            <li>Your details from the university (name, email, roll number, CGPA, phone) and your answers are stored securely for this programme.</li>
             <li>They are used to run your assessment and training and to report your results to {institution?.name}.</li>
             <li>Your written answers are checked by an AI service. Only the answer text is sent, never your name or contact details.</li>
             <li>During the test your camera and microphone must be on. The camera takes a photo every few minutes; photos are private and only reviewed if a test is flagged.</li>
-            <li>Only you, {institution?.name} and the E2Job team can see your results.</li>
+            <li>Only you, {institution?.name} and the programme assessment team can see your results.</li>
           </ul>
           <p>
             Read the full{" "}
-            <a href="https://www.e2job.com/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--campus-brand)] underline">privacy policy</a>.
+            <Link to="/privacy" target="_blank" className="font-semibold text-[var(--campus-brand)] underline">privacy notice</Link>.
           </p>
         </div>
         <label className="mt-5 flex items-start gap-3 text-sm font-semibold text-slate-800">

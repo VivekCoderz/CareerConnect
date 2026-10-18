@@ -48,6 +48,11 @@ export const CampusProvider = ({ children }) => {
     if (!institution) return;
     document.title = `${institution.shortName || institution.name} | Assessment Portal`;
     document.documentElement.style.setProperty("--campus-brand", institution.brandColor || "#0B3A82");
+    if (institution.iconUrl || institution.logoUrl) {
+      const icon = document.querySelector('link[rel="icon"]') || document.head.appendChild(document.createElement("link"));
+      icon.rel = "icon";
+      icon.href = institution.iconUrl || institution.logoUrl;
+    }
   }, [institution]);
 
   const signOut = useCallback(() => {

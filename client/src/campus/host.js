@@ -27,3 +27,11 @@ export const isCampusHost = () => {
   if (host.endsWith(".vercel.app")) return false;
   return !E2JOB_HOSTS.has(host);
 };
+
+/** Removes the main site's title, icon and share tags before the university portal renders. */
+export const clearHostBranding = () => {
+  document.title = "Assessment Portal";
+  document
+    .querySelectorAll('link[rel~="icon"], link[rel="canonical"], link[rel="apple-touch-icon"], meta[property^="og:"], meta[name^="twitter:"], meta[name="description"]')
+    .forEach((el) => el.remove());
+};

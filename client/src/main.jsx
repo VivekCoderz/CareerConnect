@@ -5,7 +5,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { initAnalytics } from "./monitoring/analytics";
-import { isCampusHost } from "./campus/host";
+import { clearHostBranding, isCampusHost } from "./campus/host";
 import CampusApp from "./campus/lazyApp";
 
 import { Provider } from "react-redux";
@@ -16,6 +16,7 @@ import { store } from "./redux/store";
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 if (isCampusHost()) {
+  clearHostBranding();
   root.render(
     <React.StrictMode>
       <Suspense fallback={null}>

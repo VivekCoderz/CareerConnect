@@ -41,7 +41,7 @@ const requireCampusRole = (...roles) => (req, res, next) => {
 /** E2Job operations (import, verification, review, publish). */
 const requireE2JobAdmin = (req, res, next) => {
   if (!isE2JobAdmin(req.user)) {
-    return res.status(403).json({ success: false, code: "FORBIDDEN", message: "E2Job admin access required." });
+    return res.status(403).json({ success: false, code: "FORBIDDEN", message: "Staff access required." });
   }
   return next();
 };

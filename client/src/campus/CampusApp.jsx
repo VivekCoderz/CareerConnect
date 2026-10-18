@@ -5,6 +5,7 @@ import { Spinner } from "./components/ui";
 import { homeFor } from "./home";
 import Landing from "./pages/Landing";
 import Consent from "./pages/Consent";
+import Privacy from "./pages/Privacy";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Classes from "./pages/Classes";
@@ -36,7 +37,7 @@ const NotFound = () => (
   <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-center">
     <div>
       <p className="text-lg font-bold text-slate-900">This portal was not found</p>
-      <p className="mt-2 text-sm text-slate-600">Check the address, or visit <a className="font-semibold underline" href="https://www.e2job.com">www.e2job.com</a>.</p>
+      <p className="mt-2 text-sm text-slate-600">Check the address and try again.</p>
     </div>
   </div>
 );
@@ -49,6 +50,7 @@ const Routed = () => {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/privacy" element={<Privacy />} />
       <Route path="/welcome" element={<Only who={["consent"]}><Consent /></Only>} />
       <Route path="/dashboard" element={<Only who={["student"]}><Dashboard /></Only>} />
       <Route path="/profile" element={<Only who={["student"]}><Profile /></Only>} />

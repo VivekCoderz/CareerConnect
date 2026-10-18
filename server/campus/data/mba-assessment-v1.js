@@ -143,7 +143,7 @@ const instructions = [
   "Your answers are saved as you go. If your connection drops, open the test again to continue; the timer keeps running.",
   "The test runs in full screen with your camera and microphone on. Leaving full screen or switching tabs is recorded; after 3 times the test is submitted automatically.",
   "Copy and paste are turned off.",
-  "Multiple-choice answers are checked automatically. Written answers are checked by AI and reviewed by the E2Job team. The speaking answer is reviewed by the E2Job team.",
+  "Multiple-choice answers are checked automatically. Written answers are checked against a marking guide and reviewed by the assessment team. The speaking answer is reviewed by the assessment team.",
   "The test is submitted automatically when the time is up.",
 ].join("\n");
 

@@ -7,7 +7,7 @@ import { Badge, Button, Card, Field, Notice } from "../components/ui";
 import { BAND_LABEL, inputClass } from "../format";
 
 // Imported details, editable by the student (PRD R6). Editing a verified detail sends it back to
-// "pending" until the E2Job team verifies it again.
+// "pending" until the assessment team verifies it again.
 const Profile = () => {
   const { member, batch, setSession } = useCampus();
   const [params] = useSearchParams();
@@ -65,7 +65,7 @@ const Profile = () => {
         </form>
         {message && <p className="mt-4 text-sm text-slate-600">{message}</p>}
         <p className="mt-4 text-xs text-slate-500">
-          The E2Job team checks your details against the university record. If you change a verified detail, it shows as pending until it is checked again.
+          The assessment team checks your details against the university record. If you change a verified detail, it shows as pending until it is checked again.
         </p>
       </Card>
     </Layout>

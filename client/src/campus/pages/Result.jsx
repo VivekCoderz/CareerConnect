@@ -25,7 +25,7 @@ const Result = () => {
       {!data && !error && <Spinner />}
       {data?.status === "pending" && (
         <Card title="Thank you, your test is submitted">
-          <p className="text-sm text-slate-600">Your result is being checked. It will appear here once the E2Job team publishes the results.</p>
+          <p className="text-sm text-slate-600">Your result is being checked. It will appear here once the results are published.</p>
           <Link to="/dashboard" className="mt-4 inline-block text-sm font-semibold text-[var(--campus-brand)]">Back to dashboard</Link>
         </Card>
       )}

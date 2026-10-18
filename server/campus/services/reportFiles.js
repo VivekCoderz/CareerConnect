@@ -16,7 +16,7 @@ const styleHeader = (ws) => {
 /** Results sheet: one row per student, a column per section. */
 const resultsWorkbook = async ({ assessment, published, rows }, institution) => {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "E2Job";
+  wb.creator = institution?.name || "";
   const ws = wb.addWorksheet("Results");
   const sections = assessment?.sections || [];
   ws.columns = [
@@ -107,9 +107,9 @@ const pdfBuffer = (draw) =>
   });
 
 const heading = (doc, institution, title) => {
-  doc.fillColor("#0B3A82").fontSize(18).text(institution.name);
+  doc.fillColor(institution.brandColor || "#0B3A82").fontSize(18).text(institution.name);
   doc.fillColor("#1F2937").fontSize(13).text(title).moveDown(0.3);
-  doc.fillColor("#64748B").fontSize(9).text(`Generated ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} | Powered by E2Job`).moveDown();
+  doc.fillColor("#64748B").fontSize(9).text(`Generated ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} | ${institution.name}`).moveDown();
   doc.fillColor("#1F2937");
 };
 

@@ -64,10 +64,10 @@ const SignInCard = () => {
     return (
       <div className={CARD}>
         <h2 className="text-xl font-bold text-slate-900">Welcome back{member?.name ? `, ${member.name.split(" ")[0]}` : ""}</h2>
-        <p className="mt-1 text-sm text-slate-600">You are signed in as {member?.email || staff?.email || "E2Job staff"}.</p>
+        <p className="mt-1 text-sm text-slate-600">You are signed in as {member?.email || staff?.email || "staff"}.</p>
         <div className="mt-6 space-y-3">
           <Button className="w-full py-3" onClick={() => navigate(homeFor(campus))}>
-            {staff ? "Open E2Job review" : member?.role === "manager" ? "Open university dashboard" : "Go to my dashboard"}
+            {staff ? "Open review" : member?.role === "manager" ? "Open university dashboard" : "Go to my dashboard"}
           </Button>
           <Button variant="secondary" className="w-full" onClick={signOut}>Sign out</Button>
         </div>

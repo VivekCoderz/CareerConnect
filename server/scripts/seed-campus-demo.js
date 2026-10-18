@@ -80,9 +80,9 @@ const answerFor = (poolIndex) => {
 const SANDIP_LANDING = {
   heroTitle: "MBA Assessment and Training Programme",
   heroText:
-    "One online assessment, a clear report on where you stand, and live training classes planned for your level. Built for the Sandip University MBA batch 2025-27 with E2Job.",
+    "One online assessment, a clear report on where you stand, and live training classes planned for your level. Built for the Sandip University MBA batch 2025-27.",
   about:
-    "Sandip University and E2Job run this programme to prepare MBA students for placements. Every student takes one 60-minute online assessment covering aptitude, reasoning, business knowledge, written business cases and speaking. Results show your score in each section with strengths and points to improve. Training classes are then planned by learning band, so each group works on what it needs most.",
+    "Sandip University runs this programme to prepare MBA students for placements. Every student takes one 60-minute online assessment covering aptitude, reasoning, business knowledge, written business cases and speaking. Results show your score in each section with strengths and points to improve. Training classes are then planned by learning band, so each group works on what it needs most.",
   batchLabel: "MBA batch 2025-27",
   faqs: [],
 };
@@ -101,9 +101,10 @@ async function main() {
         name: "Sandip University",
         shortName: "Sandip University",
         logoUrl: "/campus/sandip-logo.png",
+        iconUrl: "/campus/sandip-icon.png",
         brandColor: "#C8102E",
         programName: "MBA Assessment and Training Programme",
-        helpContact: "support@e2job.com",
+        helpContact: "the Training and Placement Cell",
         landing: SANDIP_LANDING,
         status: "active",
       },
@@ -175,9 +176,9 @@ async function main() {
   await CampusSession.deleteMany({ institutionId: institution._id, title: /^\[Demo\]/ });
   const at = (minutes) => new Date(now + minutes * 60 * 1000);
   await CampusSession.insertMany([
-    { title: "[Demo] Orientation: how the programme works", band: null, startAt: at(-24 * 60), endAt: at(-23 * 60), trainerName: "E2Job Trainer" },
-    { title: "[Demo] Quant foundations", band: 1, startAt: at(10), endAt: at(70), trainerName: "E2Job Trainer" },
-    { title: "[Demo] Case interview practice", band: null, startAt: at(24 * 60), endAt: at(25 * 60), trainerName: "E2Job Trainer" },
+    { title: "[Demo] Orientation: how the programme works", band: null, startAt: at(-24 * 60), endAt: at(-23 * 60), trainerName: "Programme trainer" },
+    { title: "[Demo] Quant foundations", band: 1, startAt: at(10), endAt: at(70), trainerName: "Programme trainer" },
+    { title: "[Demo] Case interview practice", band: null, startAt: at(24 * 60), endAt: at(25 * 60), trainerName: "Programme trainer" },
   ].map((s) => ({ ...s, institutionId: institution._id, batchId: batch._id, meetUrl: "https://meet.google.com/abc-defg-hij", status: "scheduled" })));
   const orientation = await CampusSession.findOne({ institutionId: institution._id, title: /^\[Demo\] Orientation/ });
   await CampusAttendance.insertMany(students.filter(() => rnd() < 0.75).map((m) => ({

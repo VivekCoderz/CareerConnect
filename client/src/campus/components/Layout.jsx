@@ -35,14 +35,17 @@ export const BrandMark = ({ institution, compact = false }) => {
   );
 };
 
-export const Footer = () => (
-  <footer className="mt-12 border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-    Powered by{" "}
-    <a href="https://www.e2job.com" target="_blank" rel="noopener noreferrer" className="font-semibold text-slate-700 hover:underline">E2Job</a>
-    {" · "}
-    <a href="https://www.e2job.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:underline">Privacy</a>
-  </footer>
-);
+// White-label: the portal shows only the university's name (no vendor branding anywhere).
+export const Footer = () => {
+  const { institution } = useCampus();
+  return (
+    <footer className="mt-12 border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+      © {new Date().getFullYear()} {institution?.name}
+      {" · "}
+      <Link to="/privacy" className="hover:underline">Privacy</Link>
+    </footer>
+  );
+};
 
 const Layout = ({ children, wide = false }) => {
   const { institution, member, staff, signOut } = useCampus();

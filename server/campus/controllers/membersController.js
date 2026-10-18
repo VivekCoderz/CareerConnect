@@ -47,7 +47,7 @@ const userFor = async (data) => {
   const existing = await User.findOne({ email: data.email });
   if (existing) {
     if (existing.role !== "user" || (existing.userType && existing.userType !== "student")) {
-      return { error: "This email already belongs to a non-student E2Job account" };
+      return { error: "This email already belongs to a non-student account" };
     }
     return { user: existing };
   }
