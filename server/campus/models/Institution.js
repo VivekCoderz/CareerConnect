@@ -14,6 +14,20 @@ const institutionSchema = new mongoose.Schema(
     allowedEmailDomains: [{ type: String, trim: true, lowercase: true, maxlength: 120 }],
     programName: { type: String, trim: true, maxlength: 120, default: "" },
     helpContact: { type: String, trim: true, maxlength: 160, default: "support@e2job.com" },
+    // Text for the university's own landing page; empty fields fall back to the standard copy.
+    landing: {
+      heroTitle: { type: String, trim: true, maxlength: 160, default: "" },
+      heroText: { type: String, trim: true, maxlength: 400, default: "" },
+      about: { type: String, trim: true, maxlength: 1200, default: "" },
+      batchLabel: { type: String, trim: true, maxlength: 60, default: "" },
+      faqs: [
+        {
+          _id: false,
+          q: { type: String, trim: true, maxlength: 200 },
+          a: { type: String, trim: true, maxlength: 800 },
+        },
+      ],
+    },
     status: { type: String, enum: ["active", "inactive"], default: "active", index: true },
   },
   { timestamps: true }
@@ -31,6 +45,13 @@ institutionSchema.methods.toPublic = function toPublic() {
     brandColor: this.brandColor,
     programName: this.programName,
     helpContact: this.helpContact,
+    landing: {
+      heroTitle: this.landing?.heroTitle || "",
+      heroText: this.landing?.heroText || "",
+      about: this.landing?.about || "",
+      batchLabel: this.landing?.batchLabel || "",
+      faqs: (this.landing?.faqs || []).map(({ q, a }) => ({ q, a })),
+    },
   };
 };
 

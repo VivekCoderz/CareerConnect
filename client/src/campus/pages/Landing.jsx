@@ -1,137 +1,78 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
-import { ClipboardCheck, Video, BarChart3, ShieldCheck } from "lucide-react";
-import { auth, isFirebaseConfigured } from "../../config/firebase";
-import { campusApi, errorMessage, setToken } from "../api";
+import { Link } from "react-router-dom";
 import { useCampus } from "../useCampus";
 import { BrandMark, Footer } from "../components/Layout";
-import { Button, Notice } from "../components/ui";
-import { inputClass } from "../format";
-import { homeFor } from "../home";
+import SignInCard from "./landing/SignInCard";
+import { About, Assessment, Faq, StatsStrip, Training } from "./landing/sections";
 
-// Sample students without Google accounts sign in here in local QA only; the server refuses
-// this in production as well.
-const DEV_LOGIN = import.meta.env.DEV || import.meta.env.VITE_CAMPUS_DEV_LOGIN === "true";
+// The university's own landing page: its brand, the programme, the test, the training bands and
+// sign-in. Per-university copy comes from institution.landing.
 
-const FEATURES = [
-  { icon: ClipboardCheck, title: "Online assessment", text: "50 questions in 60 minutes: aptitude, reasoning, business, scenarios and speaking." },
-  { icon: Video, title: "Live training", text: "Join your classes on Google Meet from your dashboard." },
-  { icon: BarChart3, title: "Clear results", text: "Your score by section, with strengths and points to improve." },
-  { icon: ShieldCheck, title: "Fair and secure", text: "Sign in with your university account. Every test is checked the same way." },
+const NAV = [
+  ["#about", "About"],
+  ["#assessment", "Assessment"],
+  ["#training", "Training"],
+  ["#faq", "FAQ"],
 ];
 
 const Landing = () => {
-  const campus = useCampus();
-  const { institution, setSession, member, staff, signOut } = campus;
+  const { institution, member, staff } = useCampus();
+  const landing = institution?.landing || {};
   const signedIn = Boolean(member || staff);
-  const navigate = useNavigate();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [devEmail, setDevEmail] = useState("student01@demo.e2job.test");
-
-  const finish = (data) => {
-    setToken(data.token);
-    setSession({ loading: false, member: data.member, batch: null, needsConsent: data.needsConsent, staff: null });
-    navigate(homeFor({ member: data.member, staff: null, needsConsent: data.needsConsent }));
-  };
-
-  const google = async () => {
-    setError("");
-    setBusy(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
-      const result = await signInWithPopup(auth, provider);
-      const idToken = await result.user.getIdToken();
-      const res = await campusApi.post("/auth/google", { idToken });
-      finish(res.data);
-    } catch (e) {
-      if (e?.code !== "auth/popup-closed-by-user") setError(errorMessage(e, "Sign-in did not complete. Please try again."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const devSignIn = async (event) => {
-    event.preventDefault();
-    setError("");
-    setBusy(true);
-    try {
-      const res = await campusApi.post("/auth/dev", { email: devEmail });
-      finish(res.data);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <BrandMark institution={institution} />
-          <Link to="/ops/login" className="text-xs font-semibold text-slate-500 hover:text-slate-800">E2Job staff</Link>
+    <div className="min-h-screen bg-slate-50">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+          <BrandMark institution={institution} compact />
+          <nav className="hidden items-center gap-6 md:flex">
+            {NAV.map(([href, label]) => (
+              <a key={href} href={href} className="text-sm font-semibold text-slate-600 hover:text-slate-900">{label}</a>
+            ))}
+          </nav>
+          <a href="#top" className="rounded-lg bg-[var(--campus-brand)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+            {signedIn ? "My account" : "Sign in"}
+          </a>
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-6xl flex-1 gap-10 px-4 py-10 lg:grid-cols-2 lg:items-center">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--campus-brand)]">{institution?.programName}</p>
-          <h1 className="mt-2 text-3xl font-extrabold leading-tight text-slate-900 sm:text-4xl">
-            Welcome to the {institution?.shortName || institution?.name} assessment and training portal
-          </h1>
-          <p className="mt-4 text-base text-slate-600">
-            Sign in with your university Google account to see your profile, take your assessment and join your training classes.
-          </p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            {FEATURES.map(({ icon: Icon, title, text }) => (
-              <div key={title} className="rounded-xl border border-slate-200 bg-white p-4">
-                <Icon className="h-5 w-5 text-[var(--campus-brand)]" />
-                <p className="mt-2 text-sm font-bold text-slate-900">{title}</p>
-                <p className="mt-1 text-sm text-slate-600">{text}</p>
-              </div>
-            ))}
+      <section id="top" className="relative overflow-hidden bg-[var(--campus-brand)] text-white">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-black/0 via-black/10 to-black/40" />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10" />
+        <div className="pointer-events-none absolute -bottom-32 left-1/3 h-80 w-80 rounded-full bg-white/5" />
+        <div className="relative mx-auto grid max-w-6xl gap-10 px-4 pb-24 pt-14 lg:grid-cols-[1.2fr_1fr] lg:items-center lg:pt-20">
+          <div>
+            {landing.batchLabel && (
+              <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-widest ring-1 ring-white/30">{landing.batchLabel}</span>
+            )}
+            <p className="mt-5 text-lg font-semibold text-white/90">{institution?.name}</p>
+            <h1 className="mt-1 text-4xl font-extrabold leading-tight sm:text-5xl">
+              {landing.heroTitle || institution?.programName || "Assessment and Training Portal"}
+            </h1>
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg">
+              {landing.heroText || "Sign in with your university Google account to see your profile, take your assessment and join your training classes."}
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3 text-sm">
+              <a href="#assessment" className="rounded-lg bg-white px-5 py-3 font-semibold text-slate-900 hover:bg-white/90">How the test works</a>
+              <a href="#training" className="rounded-lg px-5 py-3 font-semibold text-white ring-1 ring-white/50 hover:bg-white/10">Training classes</a>
+            </div>
           </div>
+          <SignInCard />
         </div>
+      </section>
 
-        {signedIn ? (
-          <div className="order-first rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:order-none">
-            <h2 className="text-xl font-bold text-slate-900">Welcome back{member?.name ? `, ${member.name.split(" ")[0]}` : ""}</h2>
-            <p className="mt-1 text-sm text-slate-600">You are signed in as {member?.email || staff?.email || "E2Job staff"}.</p>
-            <div className="mt-6 space-y-3">
-              <Button className="w-full py-3" onClick={() => navigate(homeFor(campus))}>
-                {staff ? "Open E2Job review" : member?.role === "manager" ? "Open university dashboard" : "Go to my dashboard"}
-              </Button>
-              <Button variant="secondary" className="w-full" onClick={signOut}>Sign out</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="order-first rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:order-none">
-            <h2 className="text-xl font-bold text-slate-900">Sign in</h2>
-            <p className="mt-1 text-sm text-slate-600">Use the email your university registered for you.</p>
-            <div className="mt-6 space-y-4">
-              {error && <Notice tone="red">{error}</Notice>}
-              <Button className="w-full py-3" onClick={google} disabled={busy || !isFirebaseConfigured}>
-                Sign in with Google
-              </Button>
-              {!isFirebaseConfigured && <p className="text-xs text-slate-500">Google sign-in is not set up on this server.</p>}
-              {DEV_LOGIN && (
-                <form onSubmit={devSignIn} className="space-y-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 p-4">
-                  <p className="text-xs font-semibold text-amber-900">Demo only: sign in as a sample student or the manager</p>
-                  <input className={inputClass} value={devEmail} onChange={(e) => setDevEmail(e.target.value)} aria-label="Sample email" />
-                  <Button type="submit" variant="secondary" className="w-full" disabled={busy}>Demo sign-in</Button>
-                </form>
-              )}
-              <p className="text-xs text-slate-500">
-                Trouble signing in? Contact {institution?.helpContact}.
-              </p>
-            </div>
-          </div>
-        )}
-      </main>
-      <Footer />
+      <div className="px-4">
+        <StatsStrip />
+      </div>
+      <About institution={institution} />
+      <Assessment />
+      <Training />
+      <Faq institution={institution} />
+
+      <div className="border-t border-slate-200 bg-slate-50">
+        <Footer />
+        <p className="pb-6 text-center">
+          <Link to="/ops/login" className="text-xs text-slate-400 hover:text-slate-700">E2Job staff</Link>
+        </p>
+      </div>
     </div>
   );
 };
