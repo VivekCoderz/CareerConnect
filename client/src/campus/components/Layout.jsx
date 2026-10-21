@@ -14,6 +14,7 @@ const NAV = {
     { to: "/ops/students", label: "Students" },
     { to: "/ops/review", label: "Review" },
     { to: "/ops/classes", label: "Classes" },
+    { to: "/ops/admins", label: "Admins" },
     { to: "/manager", label: "University view" },
   ],
 };

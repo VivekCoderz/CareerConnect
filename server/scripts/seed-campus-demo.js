@@ -2,7 +2,7 @@
  * Demo data for the campus portal (docs/campus/architecture.md, section 13).
  *
  * Creates the Sandip University demo tenant, batch MBA 2025-27, 57 sample students with
- * @demo.e2job.test emails, one manager, the 50-question MBA assessment (open now for 7 days)
+ * @demo.portal.test emails, one manager, the 50-question MBA assessment (open now for 7 days)
  * and three training classes. With --with-results, 40 sample students also get a submitted,
  * marked and published test so the dashboards and reports show real-looking numbers.
  *
@@ -110,7 +110,7 @@ async function main() {
       },
       $addToSet: {
         domains: { $each: ["sandip.e2job.com"] },
-        allowedEmailDomains: { $each: ["sandipuniversity.edu.in", "demo.e2job.test"] },
+        allowedEmailDomains: { $each: ["sandipuniversity.edu.in", "demo.portal.test"] },
       },
     },
     { upsert: true, returnDocument: "after" }
@@ -138,7 +138,7 @@ async function main() {
     const fullName = `${FIRST[i % FIRST.length]} ${LAST[(i * 7) % LAST.length]}`;
     const cgpa = Math.round((5.2 + rnd() * 4.3) * 100) / 100;
     students.push(await upsertMember({
-      fullName, email: `student${String(i + 1).padStart(2, "0")}@demo.e2job.test`, rollNo: `MBA25${String(i + 1).padStart(3, "0")}`,
+      fullName, email: `student${String(i + 1).padStart(2, "0")}@demo.portal.test`, rollNo: `MBA25${String(i + 1).padStart(3, "0")}`,
       cgpa, phone: `98${String(10000000 + i * 1371).padStart(8, "0")}`, verified: i % 3 !== 0,
     }));
   }
@@ -148,9 +148,9 @@ async function main() {
     const domain = email.split("@")[1];
     await Institution.updateOne({ _id: institution._id }, { $addToSet: { allowedEmailDomains: domain } });
   }
-  const managerEmail = (arg("--manager-email") || "manager@demo.e2job.test").toLowerCase();
+  const managerEmail = (arg("--manager-email") || "manager@demo.portal.test").toLowerCase();
   await upsertMember({ fullName: "University Portal Manager", email: managerEmail, rollNo: "", cgpa: null, phone: "", role: "manager" });
-  if (managerEmail.split("@")[1] !== "demo.e2job.test") {
+  if (managerEmail.split("@")[1] !== "demo.portal.test") {
     await Institution.updateOne({ _id: institution._id }, { $addToSet: { allowedEmailDomains: managerEmail.split("@")[1] } });
   }
 

@@ -11,6 +11,7 @@ const assessment = require("./controllers/assessmentController");
 const review = require("./controllers/reviewController");
 const sessions = require("./controllers/sessionsController");
 const manager = require("./controllers/managerController");
+const managers = require("./controllers/managersController");
 const { serveRaw } = require("./services/files");
 const worker = require("./services/gradingWorker");
 
@@ -72,6 +73,9 @@ router.post("/ops/import/preview", access.admin, sheetUpload, members.previewImp
 router.post("/ops/import/commit", access.admin, sheetUpload, members.commitImport);
 router.get("/ops/members", access.admin, members.listMembers);
 router.post("/ops/members/:id/verify", access.admin, members.setVerification);
+router.get("/ops/managers", access.admin, managers.list);
+router.post("/ops/managers", access.admin, sanitizeInputs, managers.add);
+router.post("/ops/managers/:id/remove", access.admin, managers.remove);
 router.get("/ops/assessments", access.admin, review.listAssessments);
 router.patch("/ops/assessments/:id", access.admin, review.schedule);
 router.get("/ops/assessments/:id/review", access.admin, review.review);

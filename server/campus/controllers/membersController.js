@@ -42,7 +42,7 @@ exports.previewImport = async (req, res, next) => {
   }
 };
 
-/** Finds or creates the E2Job user behind an imported student. */
+/** Finds or creates the platform user behind an imported student or university admin. */
 const userFor = async (data) => {
   const existing = await User.findOne({ email: data.email });
   if (existing) {
@@ -187,3 +187,6 @@ exports.updateProfile = async (req, res, next) => {
     return next(error);
   }
 };
+
+exports.userFor = userFor;
+exports.audit = audit;

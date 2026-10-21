@@ -174,3 +174,38 @@ describe("campus sign-in uses only the Authorization header", () => {
     expect((await api(uni).get("/me").set("Cookie", `token=${admin.token}`)).status).toBe(401);
   });
 });
+
+describe("university admins added by staff", () => {
+  it("adds an admin on the university domain who can open the dashboard, and removing them ends access", async () => {
+    const uni = await createInstitution();
+    const admin = await createAdmin();
+    await importStudents(uni, admin.token, ROWS.slice(0, 1));
+    const student = await signIn(uni, "one@fakeuni.test");
+
+    expect((await api(uni).post("/ops/managers", student).send({ fullName: "X", email: "x@fakeuni.test" })).status).toBe(403);
+    const wrongDomain = await api(uni).post("/ops/managers", admin.token).send({ fullName: "Dean Office", email: "dean@gmail.com" });
+    expect(wrongDomain.status).toBe(400);
+    expect(wrongDomain.body.errors.email).toMatch(/@fakeuni\.test/);
+    expect((await api(uni).post("/ops/managers", admin.token).send({ fullName: "Fake One", email: "one@fakeuni.test" })).status).toBe(409);
+
+    const added = await api(uni).post("/ops/managers", admin.token).send({ fullName: "Dean Office", email: "Dean@FakeUni.test", phone: "98765 00009" });
+    expect(added.status).toBe(201);
+    expect(added.body.manager).toMatchObject({ role: "manager", email: "dean@fakeuni.test", phone: "9876500009", status: "active" });
+    expect((await api(uni).post("/ops/managers", admin.token).send({ fullName: "Dean Office", email: "dean@fakeuni.test" })).status).toBe(409);
+
+    const dean = (await api(uni).post("/auth/dev").send({ email: "dean@fakeuni.test" })).body;
+    expect(dean.needsConsent).toBe(false);
+    expect((await api(uni).get("/manager/overview", dean.token)).status).toBe(200);
+
+    const list = await api(uni).get("/ops/managers", admin.token);
+    expect(list.body.managers.map((m) => m.email)).toEqual(["dean@fakeuni.test"]);
+
+    expect((await api(uni).post(`/ops/managers/${added.body.manager.id}/remove`, admin.token)).status).toBe(200);
+    expect((await api(uni).get("/manager/overview", dean.token)).status).toBe(403);
+    expect((await api(uni).post("/auth/dev").send({ email: "dean@fakeuni.test" })).body.code).toBe("NOT_REGISTERED");
+
+    expect((await api(uni).post("/ops/managers", admin.token).send({ fullName: "Dean Office", email: "dean@fakeuni.test" })).status).toBe(201);
+    const back = (await api(uni).post("/auth/dev").send({ email: "dean@fakeuni.test" })).body;
+    expect((await api(uni).get("/manager/overview", back.token)).status).toBe(200);
+  });
+});

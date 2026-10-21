@@ -21,7 +21,7 @@ MONGODB_URI=<careerconnect_qa uri> node scripts/seed-campus-demo.js --with-resul
 ```
 
 Creates the Sandip University tenant (slug `sandip`, domain `sandip.e2job.com`), batch MBA 2025-27, 57 sample students
-(`student01@demo.e2job.test` ... `student57@`), the manager `manager@demo.e2job.test`, the 50-question assessment (open
+(`student01@demo.portal.test` ... `student57@`), the manager `manager@demo.portal.test`, the 50-question assessment (open
 for 7 days), three classes, and published results for 40 students. Re-running resets the demo records.
 Real Google accounts: `--extra-emails a@gmail.com,b@gmail.com --manager-email m@gmail.com`.
 The script refuses any database other than `careerconnect_qa` unless `--allow-production-demo` is passed.

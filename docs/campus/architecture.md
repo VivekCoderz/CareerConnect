@@ -212,7 +212,7 @@ Load: 60 students on one Render Starter instance is well within the 100-user loa
 
 ## 13. Demo data and testing
 
-- Seed script `server/scripts/seed-campus-demo.js` (refuses to run unless the database is the QA database or `--allow-production-demo` is passed for the demo tenant): creates the Sandip demo institution, one batch, 57 sample students with `@demo.e2job.test` emails, and adds 3 real Google accounts of the E2Job team as students and 1 as manager, so the demo can sign in with Google. The demo tenant's `allowedEmailDomains` includes those test domains; the real tenant will only have the university domain.
+- Seed script `server/scripts/seed-campus-demo.js` (refuses to run unless the database is the QA database or `--allow-production-demo` is passed for the demo tenant): creates the Sandip demo institution, one batch, 57 sample students with `@demo.portal.test` emails, and adds 3 real Google accounts of the E2Job team as students and 1 as manager, so the demo can sign in with Google. The demo tenant's `allowedEmailDomains` includes those test domains; the real tenant will only have the university domain.
 - Question bank v1 (50 + backup) as a JSON seed reviewed by Ram before loading.
 - Automated tests: tenant isolation, one-attempt rule, server timer and auto-submit, tab-switch auto-submit, band calculation (5.99, 6.0, 7.99, 8.0), import validation, MCQ scoring, grading queue retry and no double grading (Gemini mocked), publish gating, join window and attendance.
 - Existing E2Job test suite must stay green; browser smoke test of both the main site and the campus host before the demo.

@@ -21,7 +21,7 @@ const SignInCard = () => {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [devEmail, setDevEmail] = useState("student01@demo.e2job.test");
+  const [devEmail, setDevEmail] = useState("student01@demo.portal.test");
 
   const finish = (data) => {
     setToken(data.token);
