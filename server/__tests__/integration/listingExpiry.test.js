@@ -8,6 +8,7 @@ const {
   closeExpiredListings,
 } = require("../../utils/listingExpiry");
 const { createTestJob } = require("../helpers/createTestJob");
+const { giveTestResume } = require("../helpers/createTestResume");
 const {
   createUserWithToken,
   createEmployerWithToken,
@@ -58,6 +59,7 @@ describe("expired listings", () => {
     employer = await createEmployerWithToken({ email: "exp-employer@example.com" });
     profile = await createEmployerProfile(employer.user._id, { companyName: "Expiry Co" });
     candidate = await createUserWithToken({ email: "exp-candidate@example.com" });
+    await giveTestResume(candidate.user);
     const owned = { createdBy: employer.user._id, employerId: profile._id, approvedAt: new Date() };
 
     expiredJob = await createTestJob(profile._id, { ...owned, title: "Expired job", deadline: yesterdayIST() });

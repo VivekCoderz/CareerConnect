@@ -50,19 +50,30 @@ export const opportunitySourceName = (item) => {
   }
 };
 
+/** Same wording as the server's 400 when a candidate applies without a resume. */
+export const resumeRequiredMessage = (type = "Job") =>
+  `Please upload your resume before applying for this ${type === "Internship" ? "internship" : "job"}.`;
+
+/** True when the candidate has a resume saved on their account. */
+export const hasSavedResume = (user) => typeof user?.resumeUrl === "string" && user.resumeUrl.trim() !== "";
+
 /**
  * Applies the signed-in candidate to a E2Job job or internship, or opens an
- * external listing's apply link in a new tab.
+ * external listing's apply link in a new tab. Without a saved resume it throws
+ * before sending anything; the server enforces the same rule (JP-01).
  * @param {object} item - listing from a discovery/dashboard feed
  * @param {"Job"|"Internship"} type
+ * @param {object} [user] - signed-in candidate from the auth store
  * @returns {Promise<{ external: boolean, opened?: boolean, success?: boolean, message?: string }>}
  */
-export const applyToOpportunity = async (item, type = "Job") => {
+export const applyToOpportunity = async (item, type = "Job", user) => {
   if (isExternalOpportunity(item)) {
     const url = externalApplyUrl(item);
     if (url) window.open(url, "_blank", "noopener,noreferrer");
     return { external: true, opened: Boolean(url) };
   }
+
+  if (user && !hasSavedResume(user)) throw new Error(resumeRequiredMessage(type));
 
   const id = opportunityId(item);
   const res = type === "Internship" ? await applyToInternship(id, {}) : await applyToJob(id, {});

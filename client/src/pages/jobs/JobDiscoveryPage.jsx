@@ -83,6 +83,7 @@ const JobDiscoveryPage = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [savedIds, setSavedIds] = useState([]);
   const [toast, setToast] = useState(null);
+  const [applyingId, setApplyingId] = useState(null);
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
@@ -193,9 +194,11 @@ const JobDiscoveryPage = () => {
       navigate("/login?redirect=" + encodeURIComponent(location.pathname));
       return;
     }
+    if (applyingId) return;
 
+    setApplyingId(jobItem._id || jobItem.id);
     try {
-      const res = await applyToOpportunity(jobItem, "Job");
+      const res = await applyToOpportunity(jobItem, "Job", user);
       if (res.external) {
         if (!res.opened) showToast("This listing has no apply link.", "error");
         return;
@@ -207,6 +210,8 @@ const JobDiscoveryPage = () => {
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Application could not be submitted.";
       showToast(msg, "error");
+    } finally {
+      setApplyingId(null);
     }
   };
 
@@ -573,9 +578,10 @@ const JobDiscoveryPage = () => {
                     ) : (
                       <button
                         onClick={() => handleApply(jobItem)}
-                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition"
+                        disabled={Boolean(applyingId)}
+                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-xs transition"
                       >
-                        Quick Apply
+                        {applyingId === (jobItem._id || jobItem.id) ? "Applying…" : "Quick Apply"}
                       </button>
                     )}
                   </div>

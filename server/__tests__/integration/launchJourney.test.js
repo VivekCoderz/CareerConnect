@@ -4,6 +4,7 @@ const Application = require("../../models/Application");
 const Internship = require("../../models/Internship");
 const Job = require("../../models/Job");
 const { createTestJob } = require("../helpers/createTestJob");
+const { giveTestResume } = require("../helpers/createTestResume");
 const { createUserWithToken, createEmployerWithToken, createEmployerProfile } = require("../helpers/createTestUser");
 
 describe("launch candidate journey (isolated MongoDB)", () => {
@@ -16,6 +17,7 @@ describe("launch candidate journey (isolated MongoDB)", () => {
 
   beforeEach(async () => {
     candidate = await createUserWithToken({ email: "qa-candidate@example.com" });
+    await giveTestResume(candidate.user);
     otherCandidate = await createUserWithToken({ email: "qa-other@example.com" });
     employer = await createEmployerWithToken({ email: "qa-employer@example.com" });
     otherEmployer = await createEmployerWithToken({ email: "qa-other-employer@example.com" });

@@ -11,6 +11,7 @@ const { notifyApplicationUpdates } = require("../services/applicationNotificatio
 const { acceptsApplications, APPLICATIONS_CLOSED } = require("../utils/listingExpiry");
 const { checkTransition, canTransition, statusesThatCanMoveTo } = require("../utils/applicationStatus");
 const { getOwnerScope, applicationOwnerClauses, findOwnedApplication } = require("../utils/employerOwnership");
+const { resolveApplicationResume } = require("../utils/applicationResume");
 
 // ==========================================
 // HELPERS
@@ -126,12 +127,18 @@ exports.applyToInternship = async (req, res, next) => {
       });
     }
 
+    // JP-01: never create an application without a resume the candidate can use.
+    const resume = await resolveApplicationResume(req.user, resumeUrl, "internship");
+    if (!resume.resumeUrl) {
+      return res.status(400).json({ success: false, message: resume.message });
+    }
+
     // Determine student info: prioritize submitted values, fallback to authenticated req.user
     const studentName = (fullName && fullName.trim()) || req.user.fullName || "";
     const studentEmail = (email && email.trim()) || req.user.email || "";
     const studentPhone = (phone && phone.trim()) || req.user.phone || "";
     const finalCover = (coverLetter || coverNote || "").trim();
-    const finalResume = (resumeUrl || req.user.resumeUrl || "").trim();
+    const finalResume = resume.resumeUrl;
     const finalEducation = (education || degree || "").trim();
     const finalExperience = (experience || "").trim();
     const finalPortfolio = (portfolioUrl || "").trim();
@@ -149,10 +156,11 @@ exports.applyToInternship = async (req, res, next) => {
       skills: skills || [],
       experience: finalExperience,
       portfolioUrl: finalPortfolio,
-      resumeUrl: finalResume,
       coverLetter: finalCover,
       coverNote: finalCover,
       ...(rawAppData && typeof rawAppData === "object" ? rawAppData : {}),
+      // The verified resume, even if applicationData tried to send another one.
+      resumeUrl: finalResume,
     };
 
     // Determine employerId
@@ -309,12 +317,18 @@ exports.applyToJob = async (req, res, next) => {
       });
     }
 
+    // JP-01: never create an application without a resume the candidate can use.
+    const resume = await resolveApplicationResume(req.user, resumeUrl, "job");
+    if (!resume.resumeUrl) {
+      return res.status(400).json({ success: false, message: resume.message });
+    }
+
     // Determine student info: prioritize submitted values, fallback to authenticated req.user
     const studentName = (fullName && fullName.trim()) || req.user.fullName || "";
     const studentEmail = (email && email.trim()) || req.user.email || "";
     const studentPhone = (phone && phone.trim()) || req.user.phone || "";
     const finalCover = (coverLetter || coverNote || "").trim();
-    const finalResume = (resumeUrl || req.user.resumeUrl || "").trim();
+    const finalResume = resume.resumeUrl;
     const finalEducation = (education || degree || "").trim();
     const finalExperience = (experience || "").trim();
     const finalPortfolio = (portfolioUrl || "").trim();
@@ -332,10 +346,11 @@ exports.applyToJob = async (req, res, next) => {
       skills: skills || [],
       experience: finalExperience,
       portfolioUrl: finalPortfolio,
-      resumeUrl: finalResume,
       coverLetter: finalCover,
       coverNote: finalCover,
       ...(rawAppData && typeof rawAppData === "object" ? rawAppData : {}),
+      // The verified resume, even if applicationData tried to send another one.
+      resumeUrl: finalResume,
     };
 
     // Determine employerId

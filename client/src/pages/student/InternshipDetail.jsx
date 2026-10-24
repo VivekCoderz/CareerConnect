@@ -4,6 +4,7 @@ import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getById } from "../../services/internshipService";
 import { applyToInternship, getMyAppliedIds } from "../../services/applicationService";
+import { resumeRequiredMessage } from "../../utils/opportunityApply";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { getStudentProfile } from "../../services/studentProfileService";
 import ResumeUploadInput from "../../components/common/ResumeUploadInput";
@@ -130,6 +131,12 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
 
   const handleApply = async (e) => {
     e.preventDefault();
+    if (applying) return;
+    if (!formData.resumeUrl.trim()) {
+      setSuccessMsg("");
+      setError(resumeRequiredMessage("Internship"));
+      return;
+    }
     try {
       setApplying(true);
       setError("");

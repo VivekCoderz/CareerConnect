@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import { useDispatch } from "react-redux";
 import { uploadResumeAPI } from "../../services/resumeService";
+import { updateUserProfile } from "../../redux/features/authSlice";
 
 /**
  * Universal Resume Input Component
@@ -24,6 +26,7 @@ export default function ResumeUploadInput({
   const [urlInput, setUrlInput] = useState(value || "");
   const [isUrlValid, setIsUrlValid] = useState(true);
   const fileInputRef = useRef(null);
+  const dispatch = useDispatch();
 
   useEffect(() => {
     if (value && value !== urlInput) {
@@ -79,6 +82,8 @@ export default function ResumeUploadInput({
       setUploadProgress(true);
       const res = await uploadResumeAPI(file);
       if (res?.success && res?.resumeUrl) {
+        // The server saved this as the account's resume; keep the signed-in user in step.
+        dispatch(updateUserProfile({ resumeUrl: res.resumeUrl, resumeName: res.resumeName || file.name }));
         onChange?.(res.resumeUrl, {
           fileName: res.resumeName || file.name,
           isFile: true,
