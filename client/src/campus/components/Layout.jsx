@@ -12,6 +12,7 @@ const NAV = {
   manager: [{ to: "/manager", label: "University dashboard" }],
   staff: [
     { to: "/ops/students", label: "Students" },
+    { to: "/ops/tests", label: "Tests" },
     { to: "/ops/review", label: "Review" },
     { to: "/ops/classes", label: "Classes" },
     { to: "/ops/admins", label: "Admins" },

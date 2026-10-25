@@ -23,6 +23,10 @@ const questionSchema = new mongoose.Schema(
     minWords: { type: Number, default: 0 },
     maxWords: { type: Number, default: 0 },
     maxSeconds: { type: Number, default: 0 }, // speaking
+    // The student cannot submit until this is answered (time-up and auto-submit still end the test).
+    compulsory: { type: Boolean, default: false },
+    // Marks taken off for a wrong multiple-choice answer; null uses the assessment's default.
+    negativeMarks: { type: Number, default: null, min: 0 },
   },
   { _id: false }
 );
@@ -47,6 +51,11 @@ const campusAssessmentSchema = new mongoose.Schema(
     sections: { type: [sectionSchema], default: [] },
     questions: { type: [questionSchema], default: [] },
     resultsPublishedAt: { type: Date, default: null },
+    // Multiple choice only; blank answers never lose marks.
+    negativeMarking: {
+      enabled: { type: Boolean, default: false },
+      defaultMarks: { type: Number, default: 0, min: 0 },
+    },
     status: { type: String, enum: ["draft", "scheduled", "archived"], default: "scheduled", index: true },
   },
   { timestamps: true }
@@ -58,8 +67,15 @@ campusAssessmentSchema.methods.windowState = function windowState(now = new Date
   return "open";
 };
 
+/** Marks lost for a wrong answer to this question (0 unless negative marking is on). */
+const negativeFor = (assessment, q) => {
+  if (q.type !== "mcq" || !assessment?.negativeMarking?.enabled) return 0;
+  const value = q.negativeMarks ?? assessment.negativeMarking.defaultMarks;
+  return Number(value) > 0 ? Number(value) : 0;
+};
+
 /** A question as a student may see it: no answer, rubric or explanation. */
-const toStudentQuestion = (q, optionOrder) => {
+const toStudentQuestion = (q, optionOrder, assessment) => {
   const options = (q.options || []).map((o) => ({ id: o.id, text: o.text }));
   const ordered = optionOrder
     ? optionOrder.map((id) => options.find((o) => o.id === id)).filter(Boolean)
@@ -75,6 +91,8 @@ const toStudentQuestion = (q, optionOrder) => {
     maxWords: q.maxWords || 0,
     maxSeconds: q.maxSeconds || 0,
     points: q.points,
+    negativeMarks: negativeFor(assessment, q),
+    compulsory: Boolean(q.compulsory),
   };
 };
 
@@ -82,3 +100,4 @@ const CampusAssessment =
   mongoose.models.CampusAssessment || mongoose.model("CampusAssessment", campusAssessmentSchema);
 module.exports = CampusAssessment;
 module.exports.toStudentQuestion = toStudentQuestion;
+module.exports.negativeFor = negativeFor;

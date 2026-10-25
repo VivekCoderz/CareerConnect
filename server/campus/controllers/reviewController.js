@@ -7,7 +7,7 @@ const { recompute, pendingItems } = require("../services/scoring");
 const { flagSimilarAnswers } = require("../services/similarity");
 const { fileLink } = require("../services/files");
 
-// E2Job review of marks before results go out (PRD R11). Reviewers see flagged and pending items
+// Staff review of marks before results go out (PRD R11). Reviewers see flagged and pending items
 // first, can change any mark with a note, then publish once nothing is pending.
 
 const apiBase = (req) => `${req.protocol}://${req.get("host")}/api/campus`;
@@ -29,6 +29,8 @@ exports.listAssessments = async (req, res, next) => {
       assessments: assessments.map((a) => ({
         id: a._id, title: a.title, opensAt: a.opensAt, closesAt: a.closesAt, timeLimitMinutes: a.timeLimitMinutes,
         questionCount: a.questions.length, resultsPublishedAt: a.resultsPublishedAt, attempts: byA[String(a._id)] || {},
+        batchId: a.batchId, negativeMarking: a.negativeMarking || { enabled: false, defaultMarks: 0 },
+        compulsoryCount: a.questions.filter((q) => q.compulsory).length, totalMarks: a.questions.reduce((s, q) => s + (q.points || 0), 0),
       })),
     });
   } catch (error) {

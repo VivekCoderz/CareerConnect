@@ -2,7 +2,7 @@ import { ORDER, STATUS } from "./status";
 import { Button } from "../components/ui";
 
 // Submit confirmation with a count per question state, and the compulsory questions still open.
-const SubmitDialog = ({ counts, total, missingCompulsory, onGo, onCancel, onSubmit, submitting }) => (
+const SubmitDialog = ({ counts, total, missingCompulsory, onGo, onCancel, onSubmit, submitting, error }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm">
     <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
       <p className="text-xl font-extrabold text-slate-900">Submit your test?</p>
@@ -31,6 +31,7 @@ const SubmitDialog = ({ counts, total, missingCompulsory, onGo, onCancel, onSubm
           </div>
         </div>
       )}
+      {error && <p className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
       <div className="mt-6 flex justify-end gap-3">
         <Button variant="secondary" onClick={onCancel}>Back to test</Button>
         <Button onClick={onSubmit} disabled={submitting || missingCompulsory.length > 0}>Submit test</Button>

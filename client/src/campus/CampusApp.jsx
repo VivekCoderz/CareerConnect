@@ -18,6 +18,7 @@ import OpsReview from "./pages/ops/OpsReview";
 import OpsAttempt from "./pages/ops/OpsAttempt";
 import OpsClasses from "./pages/ops/OpsClasses";
 import OpsAdmins from "./pages/ops/OpsAdmins";
+import OpsTests from "./pages/ops/OpsTests";
 
 // The campus portal (docs/campus/architecture.md). Rendered instead of the E2Job app on a
 // campus host; uses only campus code and the shared Firebase config.
@@ -64,6 +65,7 @@ const Routed = () => {
       <Route path="/ops/review" element={<Only who={["staff"]}><OpsReview /></Only>} />
       <Route path="/ops/attempts/:id" element={<Only who={["staff"]}><OpsAttempt /></Only>} />
       <Route path="/ops/classes" element={<Only who={["staff"]}><OpsClasses /></Only>} />
+      <Route path="/ops/tests" element={<Only who={["staff"]}><OpsTests /></Only>} />
       <Route path="/ops/admins" element={<Only who={["staff"]}><OpsAdmins /></Only>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

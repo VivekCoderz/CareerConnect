@@ -46,7 +46,7 @@ const attemptView = (attempt, assessment) => {
   return {
     ...base,
     sections: assessment.sections,
-    questions: attempt.questionOrder.map((id) => toStudentQuestion(byId.get(id), optionOrder.get?.(id) || optionOrder[id])).filter(Boolean),
+    questions: attempt.questionOrder.map((id) => byId.get(id) && toStudentQuestion(byId.get(id), optionOrder.get?.(id) || optionOrder[id], assessment)).filter(Boolean),
     answers: attempt.answers.map((a) => ({ questionId: a.questionId, optionId: a.optionId, text: a.text, hasAudio: Boolean(a.audioFileId) })),
     bookmarks: attempt.bookmarks || [],
   };
@@ -75,6 +75,8 @@ exports.list = async (req, res, next) => {
           state: a.windowState(),
           attempt: attempt ? { id: attempt._id, status: attempt.status } : null,
           resultsPublished: Boolean(attempt?.releasedAt),
+          negativeMarking: a.negativeMarking?.enabled ? { defaultMarks: a.negativeMarking.defaultMarks } : null,
+          compulsoryCount: a.questions.filter((q) => q.compulsory).length,
         };
       }),
     });
@@ -118,6 +120,13 @@ exports.get = async (req, res, next) => {
   } catch (error) {
     return next(error);
   }
+};
+
+const answeredIn = (attempt, q) => {
+  const a = attempt.answers.find((x) => x.questionId === q.id);
+  if (q.type === "mcq") return Boolean(a?.optionId);
+  if (q.type === "written") return Boolean(a?.text?.trim());
+  return Boolean(a?.audioFileId);
 };
 
 const closed = (res) => res.status(409).json({ success: false, code: "ATTEMPT_CLOSED", message: "This test has already been submitted." });
@@ -234,6 +243,13 @@ exports.submit = async (req, res, next) => {
   try {
     const attempt = await loadOwnAttempt(req);
     if (!attempt) return res.status(404).json({ success: false, message: "Attempt not found." });
+    if (attempt.status === "in_progress") {
+      const assessment = await CampusAssessment.findById(attempt.assessmentId).lean();
+      const missing = assessment.questions.filter((q) => q.compulsory && !answeredIn(attempt, q)).map((q) => q.id);
+      if (missing.length) {
+        return res.status(409).json({ success: false, code: "COMPULSORY_MISSING", message: "Answer every compulsory question before submitting.", questionIds: missing });
+      }
+    }
     const done = attempt.status === "in_progress" ? await finalizeAttempt(attempt._id, "student") : attempt;
     return res.status(200).json({ success: true, status: done.status, submitReason: done.submitReason });
   } catch (error) {

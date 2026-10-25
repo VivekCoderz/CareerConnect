@@ -35,11 +35,22 @@ const TestRunner = ({ attempt, onFinished }) => {
   const writeTimers = useRef({});
   const finished = useRef(false);
 
+  const [submitError, setSubmitError] = useState("");
   const finish = useCallback(async (reason) => {
     if (finished.current) return;
     finished.current = true;
     setSubmitting(true);
-    await campusApi.post(`/attempts/${attempt.id}/submit`).catch(() => null);
+    try {
+      await campusApi.post(`/attempts/${attempt.id}/submit`);
+    } catch (e) {
+      // The server refuses a student's submit while a compulsory question is blank.
+      if (reason === "student" && e?.response?.data?.code === "COMPULSORY_MISSING") {
+        finished.current = false;
+        setSubmitting(false);
+        setSubmitError(e.response.data.message);
+        return;
+      }
+    }
     stopDevices();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     onFinished(reason);
@@ -246,9 +257,10 @@ const TestRunner = ({ attempt, onFinished }) => {
           total={questions.length}
           missingCompulsory={missingCompulsory}
           onGo={(i) => { setConfirming(false); go(i); }}
-          onCancel={() => setConfirming(false)}
+          onCancel={() => { setConfirming(false); setSubmitError(""); }}
           onSubmit={() => finish("student")}
           submitting={submitting}
+          error={submitError}
         />
       )}
     </div>

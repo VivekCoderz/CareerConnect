@@ -1,19 +1,28 @@
 // Turns an attempt's marks into section and total scores, and the student's strengths and
 // improvements (PRD R11, R12). Pure functions: callers save the attempt.
 
+const { negativeFor } = require("../models/CampusAssessment");
+
 // 70% and above is a strength; anything below is a point to improve (weakest first).
 const STRONG = 0.7;
 
 const markFor = (attempt, questionId) => attempt.marks.find((m) => m.questionId === questionId);
 
-/** Marks for every multiple-choice question, straight from the answer key (no AI). */
+/**
+ * Marks for every multiple-choice question, straight from the answer key (no AI). With negative
+ * marking on, a wrong answer loses marks; a blank answer scores 0.
+ */
 const mcqMarks = (assessment, attempt) =>
   assessment.questions
     .filter((q) => q.type === "mcq")
     .map((q) => {
       const answer = attempt.answers.find((a) => a.questionId === q.id);
-      const correct = Boolean(answer?.optionId) && answer.optionId === q.correctOptionId;
-      return { questionId: q.id, score: correct ? q.points : 0, maxScore: q.points, source: "key", status: "done", reason: "" };
+      const answered = Boolean(answer?.optionId);
+      const correct = answered && answer.optionId === q.correctOptionId;
+      const minus = negativeFor(assessment, q);
+      const score = correct ? q.points : answered && minus ? -minus : 0;
+      const reason = correct ? "" : !answered ? "Not answered." : minus ? `Wrong answer (-${minus}).` : "Wrong answer.";
+      return { questionId: q.id, score, maxScore: q.points, source: "key", status: "done", reason };
     });
 
 /** Recomputes section scores, total, review readiness and feedback. */
