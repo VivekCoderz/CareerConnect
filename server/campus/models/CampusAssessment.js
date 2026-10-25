@@ -74,6 +74,7 @@ const toStudentQuestion = (q, optionOrder) => {
     minWords: q.minWords || 0,
     maxWords: q.maxWords || 0,
     maxSeconds: q.maxSeconds || 0,
+    points: q.points,
   };
 };
 

@@ -63,6 +63,8 @@ const campusAttemptSchema = new mongoose.Schema(
     questionOrder: { type: [String], default: [] },
     optionOrder: { type: Map, of: [String], default: {} },
     answers: { type: [answerSchema], default: [] },
+    // Questions the student marked for review; only a reminder, never part of the score.
+    bookmarks: { type: [String], default: [] },
     proctor: {
       events: { type: [eventSchema], default: [] },
       countedEvents: { type: Number, default: 0 },

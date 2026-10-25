@@ -171,3 +171,20 @@ describe("results released per test (PRD R11)", () => {
     expect((await call.post(`/ops/assessments/${assessment._id}/publish`, admin.token)).body.code).toBe("NOTHING_TO_PUBLISH");
   });
 });
+
+describe("bookmarks (mark for review)", () => {
+  it("saves bookmarks on the attempt, returns them on reload, and stops after submit", async () => {
+    const { assessment, token, call } = await setUp();
+    const { attempt } = (await call.post(`/assessments/${assessment._id}/start`, token)).body;
+    expect(attempt.bookmarks).toEqual([]);
+    expect(attempt.timeLimitSeconds).toBe(3600);
+    expect(attempt.questions[0].points).toBeGreaterThan(0);
+    expect((await call.put(`/attempts/${attempt.id}/bookmarks/q2`, token).send({ bookmarked: true })).body.bookmarks).toEqual(["q2"]);
+    await call.put(`/attempts/${attempt.id}/bookmarks/q3`, token).send({ bookmarked: true });
+    await call.put(`/attempts/${attempt.id}/bookmarks/q2`, token).send({ bookmarked: false });
+    expect((await call.get(`/attempts/${attempt.id}`, token)).body.attempt.bookmarks).toEqual(["q3"]);
+    expect((await call.put(`/attempts/${attempt.id}/bookmarks/nope`, token).send({ bookmarked: true })).status).toBe(400);
+    await call.post(`/attempts/${attempt.id}/submit`, token);
+    expect((await call.put(`/attempts/${attempt.id}/bookmarks/q1`, token).send({ bookmarked: true })).body.code).toBe("ATTEMPT_CLOSED");
+  });
+});

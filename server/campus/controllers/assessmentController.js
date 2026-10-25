@@ -33,6 +33,7 @@ const attemptView = (attempt, assessment) => {
     status: attempt.status,
     submitReason: attempt.submitReason,
     remainingSeconds: attempt.status === "in_progress" ? remainingSeconds : 0,
+    timeLimitSeconds: (assessment.timeLimitMinutes || 60) * 60,
     deadlineAt: attempt.deadlineAt,
     countedEvents: attempt.proctor.countedEvents,
     maxTabEvents: assessment.maxTabEvents,
@@ -46,6 +47,7 @@ const attemptView = (attempt, assessment) => {
     sections: assessment.sections,
     questions: attempt.questionOrder.map((id) => toStudentQuestion(byId.get(id), optionOrder.get?.(id) || optionOrder[id])).filter(Boolean),
     answers: attempt.answers.map((a) => ({ questionId: a.questionId, optionId: a.optionId, text: a.text, hasAudio: Boolean(a.audioFileId) })),
+    bookmarks: attempt.bookmarks || [],
   };
 };
 
@@ -136,6 +138,23 @@ exports.saveAnswer = async (req, res, next) => {
     }
     await attempt.save();
     return res.status(200).json({ success: true, savedAt: new Date() });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// PUT /api/campus/attempts/:id/bookmarks/:qid { bookmarked: true|false } ("mark for review")
+exports.bookmark = async (req, res, next) => {
+  try {
+    const attempt = await loadOwnAttempt(req);
+    if (!attempt) return res.status(404).json({ success: false, message: "Attempt not found." });
+    if (!acceptsAnswers(attempt)) return closed(res);
+    if (!attempt.questionOrder.includes(req.params.qid)) return res.status(400).json({ success: false, message: "Unknown question." });
+    const on = req.body?.bookmarked === true;
+    const update = on ? { $addToSet: { bookmarks: req.params.qid } } : { $pull: { bookmarks: req.params.qid } };
+    const saved = await CampusAttempt.findOneAndUpdate({ _id: attempt._id, status: "in_progress" }, update, { returnDocument: "after" });
+    if (!saved) return closed(res);
+    return res.status(200).json({ success: true, bookmarks: saved.bookmarks });
   } catch (error) {
     return next(error);
   }

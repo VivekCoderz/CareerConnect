@@ -54,6 +54,7 @@ router.get("/assessments", access.student, assessment.list);
 router.post("/assessments/:id/start", access.student, assessment.start);
 router.get("/attempts/:id", access.student, assessment.get);
 router.put("/attempts/:id/answers/:qid", access.student, testWriteLimit, assessment.saveAnswer);
+router.put("/attempts/:id/bookmarks/:qid", access.student, testWriteLimit, assessment.bookmark);
 router.post("/attempts/:id/audio/:qid", access.student, testWriteLimit, audioUpload, assessment.saveAudio);
 router.post("/attempts/:id/events", access.student, testWriteLimit, sanitizeInputs, assessment.event);
 router.post("/attempts/:id/snapshot", access.student, testWriteLimit, imageUpload, assessment.snapshot);
