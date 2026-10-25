@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FileSearch, Send } from "lucide-react";
 import { campusApi, errorMessage } from "../../api";
 import { Badge, Button, Card, Notice, Spinner } from "../../components/ui";
+import { formatDateTime } from "../../format";
 import AnswerSheetModal from "./AnswerSheetModal";
 
 // Test analysis for the university: publish panel, section-wise counts, and each student's
@@ -16,12 +17,54 @@ const short = (title) => {
   return words.length > 1 ? words.map((w) => w[0].toUpperCase()).join("") : title;
 };
 
+const stateOf = (st) => (st.released ? "published" : st.pendingMarks ? "marking" : "ready");
+const FILTERS = [["all", "All"], ["ready", "Ready to publish"], ["marking", "Being marked"], ["published", "Published"]];
+const STATE_BADGE = { published: ["green", "Published"], ready: ["blue", "Ready to publish"], marking: ["amber", "Being marked"] };
+
+/** Students with their score, each section (score, right, wrong, skipped) and the answer sheet. */
+const StudentsTable = ({ rows, sections, onSheet }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full min-w-[960px] text-sm">
+      <thead>
+        <tr className="text-left text-xs text-slate-500">
+          <th className="py-2">Student</th><th>Score</th>
+          {sections.map((s) => <th key={s.key} className="px-1 text-center" title={s.title}>{short(s.title)}</th>)}
+          <th>Status</th><th />
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((st) => {
+          const [tone, label] = STATE_BADGE[stateOf(st)];
+          return (
+            <tr key={st.memberId} className="border-t border-slate-100">
+              <td className="py-2"><b className="text-slate-900">{st.fullName}</b><span className="block text-xs text-slate-500">{st.rollNo}{st.submittedAt ? ` · ${formatDateTime(st.submittedAt)}` : ""}</span></td>
+              <td className="font-bold">{st.total}<span className="text-xs font-normal text-slate-500">/{st.max}</span></td>
+              {st.sections.map((s) => (
+                <td key={s.key} className="px-1 text-center" title={`${s.title}: ${s.attempted} attempted, ${s.correct} correct, ${s.wrong} wrong, ${s.skipped} skipped`}>
+                  <span className="block font-semibold text-slate-900">{s.score}/{s.max}</span>
+                  <span className="block text-[10px] text-slate-500">{s.mcq ? `${s.correct}✓ ${s.wrong}✗ ` : ""}{s.skipped ? `${s.skipped} skip` : ""}</span>
+                </td>
+              ))}
+              <td><Badge tone={tone}>{label}</Badge></td>
+              <td className="text-right">
+                <button type="button" onClick={() => onSheet(st.memberId)} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--campus-brand)] hover:underline"><FileSearch className="h-4 w-4" />Answer sheet</button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+    {!rows.length && <p className="py-6 text-center text-sm text-slate-500">No students here.</p>}
+  </div>
+);
+
 const TestAnalysis = ({ onPublished }) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
   const [sheetOf, setSheetOf] = useState(null);
+  const [filter, setFilter] = useState("all");
 
   const load = useCallback(() => {
     campusApi.get("/manager/analysis").then((r) => setData(r.data)).catch((e) => setError(errorMessage(e)));
@@ -48,6 +91,7 @@ const TestAnalysis = ({ onPublished }) => {
   if (!data) return <Spinner />;
   if (!data.assessment) return <p className="text-sm text-slate-500">No test yet.</p>;
   const { publish: p, sections, students } = data;
+  const waiting = students.filter((st) => !st.released);
 
   return (
     <div className="space-y-6">
@@ -66,6 +110,16 @@ const TestAnalysis = ({ onPublished }) => {
         <Button onClick={publish} disabled={busy || !p.toRelease}><Send className="h-4 w-4" />{p.toRelease ? `Publish ${p.toRelease} result${p.toRelease === 1 ? "" : "s"}` : "Nothing to publish"}</Button>
       </div>
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
+
+      {waiting.length > 0 && (
+        <Card title={`Waiting to be published (${waiting.length})`}>
+          <p className="mb-4 text-sm text-slate-600">
+            These students have submitted but cannot see their result yet. Open an answer sheet to check a test before publishing.
+            {p.pendingMarking > 0 && " Tests marked \"Being marked\" still need the assessment team to mark written or speaking answers."}
+          </p>
+          <StudentsTable rows={waiting} sections={sections} onSheet={setSheetOf} />
+        </Card>
+      )}
 
       <Card title="Section-wise analysis">
         <div className="overflow-x-auto">
@@ -91,36 +145,15 @@ const TestAnalysis = ({ onPublished }) => {
       </Card>
 
       <Card title={`Students (${students.length} submitted)`}>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-sm">
-            <thead>
-              <tr className="text-left text-xs text-slate-500">
-                <th className="py-2">Student</th><th>Score</th>
-                {sections.map((s) => <th key={s.key} className="px-1 text-center" title={s.title}>{short(s.title)}</th>)}
-                <th>Status</th><th />
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((st) => (
-                <tr key={st.memberId} className="border-t border-slate-100">
-                  <td className="py-2"><b className="text-slate-900">{st.fullName}</b><span className="block text-xs text-slate-500">{st.rollNo}</span></td>
-                  <td className="font-bold">{st.total}<span className="text-xs font-normal text-slate-500">/{st.max}</span></td>
-                  {st.sections.map((s) => (
-                    <td key={s.key} className="px-1 text-center" title={`${s.title}: ${s.attempted} attempted, ${s.correct} correct, ${s.wrong} wrong, ${s.skipped} skipped`}>
-                      <span className="block font-semibold text-slate-900">{s.score}/{s.max}</span>
-                      <span className="block text-[10px] text-slate-500">{s.mcq ? `${s.correct}✓ ${s.wrong}✗ ` : ""}{s.skipped ? `${s.skipped} skip` : ""}</span>
-                    </td>
-                  ))}
-                  <td>{st.released ? <Badge tone="green">Published</Badge> : st.pendingMarks ? <Badge tone="amber">Being marked</Badge> : <Badge tone="blue">Ready</Badge>}</td>
-                  <td className="text-right">
-                    <button type="button" onClick={() => setSheetOf(st.memberId)} className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--campus-brand)] hover:underline"><FileSearch className="h-4 w-4" />Answer sheet</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!students.length && <p className="py-6 text-center text-sm text-slate-500">No submitted tests yet.</p>}
+        <div className="mb-4 inline-flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
+          {FILTERS.map(([key, label]) => (
+            <button key={key} type="button" onClick={() => setFilter(key)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${filter === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
+              {label} ({students.filter((st) => key === "all" || stateOf(st) === key).length})
+            </button>
+          ))}
         </div>
+        <StudentsTable rows={students.filter((st) => filter === "all" || stateOf(st) === filter)} sections={sections} onSheet={setSheetOf} />
         <p className="mt-3 text-xs text-slate-500">
           {sections.filter((s) => short(s.title) !== s.title).map((s) => `${short(s.title)}: ${s.title}`).join(" · ")}. Under each score: right (✓), wrong (✗) and skipped questions.
         </p>
