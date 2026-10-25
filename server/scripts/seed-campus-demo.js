@@ -4,7 +4,9 @@
  * Creates the Sandip University demo tenant, batch MBA 2025-27, 57 sample students with
  * @demo.portal.test emails, one manager, the 50-question MBA assessment (open now for 7 days)
  * and three training classes. With --with-results, 40 sample students also get a submitted,
- * marked and published test so the dashboards and reports show real-looking numbers.
+ * marked and published test so the dashboards and reports show real-looking numbers, and a
+ * filled profile (photo and resume included). Students 41 to 57 keep an empty profile, so the
+ * "complete your profile first" step can be shown.
  *
  * Safe by default: refuses to run unless the database is careerconnect_qa, or
  * --allow-production-demo is passed (only ever for the demo tenant). Re-running updates the
@@ -26,6 +28,7 @@ const CampusFile = require("../campus/models/CampusFile");
 const bank = require("../campus/data/mba-assessment-v1");
 const { startAttempt, finalizeAttempt } = require("../campus/services/attempts");
 const { recompute } = require("../campus/services/scoring");
+const { fillDemoProfile } = require("./lib/demoProfiles");
 
 const arg = (name) => {
   const i = process.argv.indexOf(name);
@@ -190,9 +193,10 @@ async function main() {
     const old = await CampusAttempt.find({ assessmentId: assessment._id, memberId: { $in: students.map((s) => s._id) } }).select("_id").lean();
     await CampusFile.deleteMany({ attemptId: { $in: old.map((a) => a._id) } });
     await CampusAttempt.deleteMany({ _id: { $in: old.map((a) => a._id) } });
-    for (const member of students.slice(0, 40)) {
+    await CampusFile.deleteMany({ memberId: { $in: students.slice(0, 40).map((m) => m._id) }, kind: { $in: ["photo", "resume"] } });
+    for (const [i, member] of students.slice(0, 40).entries()) {
       member.consentAt = member.consentAt || new Date();
-      await member.save();
+      await fillDemoProfile(member, i);
       const { attempt } = await startAttempt(assessment, member);
       const skill = member.cgpa / 10;
       // A tiny placeholder file stands in for the speaking recording of sample students.

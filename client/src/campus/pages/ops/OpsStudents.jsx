@@ -4,8 +4,9 @@ import { campusApi, errorMessage } from "../../api";
 import Layout from "../../components/Layout";
 import { Badge, Button, Card, Field, Notice } from "../../components/ui";
 import { inputClass } from "../../format";
+import BatchSemester from "./BatchSemester";
 
-// E2Job ops: import the university's sheet (preview first, PRD R3) and verify students (R6).
+// Staff ops: import the university's sheet (preview first, PRD R3) and verify students (R6).
 const ACTION = { create: ["New", "green"], update: ["Update", "blue"], skip: ["Will be skipped", "red"] };
 
 const OpsStudents = () => {
@@ -67,6 +68,7 @@ const OpsStudents = () => {
   return (
     <Layout wide>
       <h1 className="mb-6 text-2xl font-extrabold text-slate-900">Students</h1>
+      <BatchSemester />
       <div className="space-y-6">
         <Card title="Import from the university's sheet">
           <p className="mb-4 text-sm text-slate-600">Columns: name, email, roll no, cgpa, phone (.xlsx or .csv). Nothing is saved until you click Import.</p>

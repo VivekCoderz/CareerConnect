@@ -21,7 +21,7 @@ export const CampusProvider = ({ children }) => {
   // Only called with a token; signed-out visitors start with loading: false.
   const loadMe = useCallback(() =>
     campusApi.get("/me")
-      .then((res) => setSession({ loading: false, member: res.data.member, batch: res.data.batch, needsConsent: res.data.needsConsent, staff: null }))
+      .then((res) => setSession({ loading: false, member: res.data.member, batch: res.data.batch, needsConsent: res.data.needsConsent, profileCompletion: res.data.profileCompletion, staff: null }))
       .catch((error) => {
         const code = error?.response?.data?.code;
         const staff = readStaff();

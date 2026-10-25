@@ -12,6 +12,19 @@ const verificationSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// 10th, 12th or diploma. Board for school; course and institute for a diploma.
+const marksSchema = new mongoose.Schema(
+  {
+    board: { type: String, trim: true, maxlength: 120, default: "" },
+    course: { type: String, trim: true, maxlength: 120, default: "" },
+    institute: { type: String, trim: true, maxlength: 120, default: "" },
+    maxMarks: { type: Number, default: null },
+    obtainedMarks: { type: Number, default: null },
+    year: { type: Number, default: null },
+  },
+  { _id: false }
+);
+
 const campusMemberSchema = new mongoose.Schema(
   {
     institutionId: { type: mongoose.Schema.Types.ObjectId, ref: "Institution", required: true, index: true },
@@ -28,6 +41,23 @@ const campusMemberSchema = new mongoose.Schema(
     verification: { type: verificationSchema, default: () => ({}) },
     consentAt: { type: Date, default: null },
     lastSignInAt: { type: Date, default: null },
+    // Filled by the student after sign-in (services/profile.js); not verified by staff.
+    profile: {
+      dob: { type: Date, default: null },
+      gender: { type: String, enum: ["", "male", "female", "other", "prefer_not_to_say"], default: "" },
+      linkedinUrl: { type: String, trim: true, maxlength: 200, default: "" },
+      photoFileId: { type: mongoose.Schema.Types.ObjectId, ref: "CampusFile", default: null },
+      resumeFileId: { type: mongoose.Schema.Types.ObjectId, ref: "CampusFile", default: null },
+      class10: { type: marksSchema, default: () => ({}) },
+      class12: { type: marksSchema, default: () => ({}) },
+      diploma: { type: marksSchema, default: () => ({}) },
+      graduation: {
+        degree: { type: String, trim: true, maxlength: 120, default: "" },
+        university: { type: String, trim: true, maxlength: 160, default: "" },
+        cgpa: { type: Number, min: 0, max: 10, default: null },
+        year: { type: Number, default: null },
+      },
+    },
     importedAt: { type: Date, default: null },
     status: { type: String, enum: ["active", "removed"], default: "active", index: true },
   },

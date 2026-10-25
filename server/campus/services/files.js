@@ -22,11 +22,11 @@ const uploadToCloudinary = (buffer, { resourceType, folder }) =>
   });
 
 /** Saves an uploaded file for an attempt and returns the CampusFile document. */
-const saveFile = async ({ institutionId, attemptId, kind, buffer, mimeType }) => {
-  const base = { institutionId, attemptId, kind, mimeType, size: buffer.length };
+const saveFile = async ({ institutionId, attemptId = null, memberId = null, kind, buffer, mimeType }) => {
+  const base = { institutionId, attemptId, memberId, kind, mimeType, size: buffer.length };
   if (cloudinaryReady()) {
-    // Cloudinary stores audio under the "video" resource type.
-    const resourceType = kind === "audio" ? "video" : "image";
+    // Cloudinary stores audio under "video" and PDFs under "raw".
+    const resourceType = kind === "audio" ? "video" : kind === "resume" ? "raw" : "image";
     const result = await uploadToCloudinary(buffer, { resourceType, folder: `campus/${kind}` });
     return CampusFile.create({ ...base, storage: "cloudinary", cloudinaryId: result.public_id, cloudinaryResourceType: resourceType });
   }
@@ -39,7 +39,7 @@ const sign = (id, exp) => crypto.createHmac("sha256", process.env.JWT_SECRET || 
 const fileLink = (file, apiBase) => {
   const exp = Math.floor(Date.now() / 1000) + LINK_SECONDS;
   if (file.storage === "cloudinary") {
-    const format = file.kind === "audio" ? "webm" : "jpg";
+    const format = { audio: "webm", resume: "pdf", photo: file.mimeType === "image/png" ? "png" : "jpg" }[file.kind] || "jpg";
     return cloudinary().utils.private_download_url(file.cloudinaryId, format, {
       resource_type: file.cloudinaryResourceType,
       type: "authenticated",
@@ -61,6 +61,8 @@ const serveRaw = async (req, res, next) => {
     const file = await CampusFile.findById(req.params.id).select("+data");
     if (!file || file.storage !== "mongo" || !file.data) return res.status(404).end();
     res.set("Content-Type", file.mimeType);
+    res.set("X-Content-Type-Options", "nosniff");
+    if (file.kind === "resume") res.set("Content-Disposition", "inline; filename=\"resume.pdf\"");
     res.set("Cache-Control", "private, max-age=300");
     return res.send(file.data);
   } catch (error) {

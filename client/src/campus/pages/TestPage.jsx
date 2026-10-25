@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "motion/react";
 import { Camera, CheckCircle2, Clock, ListChecks, Maximize, Mic, Layers, XCircle } from "lucide-react";
 import { campusApi, errorCode, errorMessage } from "../api";
+import { useCampus } from "../useCampus";
 import Layout from "../components/Layout";
 import { Button, Notice, Spinner } from "../components/ui";
 import TestRunner from "../test/TestRunner";
@@ -31,6 +32,7 @@ const Check = ({ ok, icon: Icon, label, children }) => (
 const TestPage = () => {
   const { assessmentId } = useParams();
   const navigate = useNavigate();
+  const { profileCompletion } = useCampus();
   const preview = useRef(null);
   const [info, setInfo] = useState(null);
   const [devicesReady, setDevicesReady] = useState(Boolean(getStream()));
@@ -85,6 +87,7 @@ const TestPage = () => {
   const finished = (reason) => navigate(`/result/${assessmentId}?submitted=${reason}`, { replace: true });
 
   if (attempt) return <TestRunner attempt={attempt} onFinished={finished} />;
+  const profileBlocks = Boolean(info && !info.attempt && profileCompletion && !profileCompletion.complete);
 
   return (
     <Layout wide>
@@ -141,6 +144,13 @@ const TestPage = () => {
           </div>
 
           <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+            {profileBlocks && (
+              <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5">
+                <p className="font-bold text-amber-900">First complete your profile</p>
+                <p className="mt-1 text-sm text-amber-800">It is {profileCompletion.percent}% complete. You need {profileCompletion.required}% to start the test.</p>
+                <Link to="/profile?complete=1" className="mt-3 inline-block rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">Complete profile</Link>
+              </section>
+            )}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-base font-bold text-slate-900">System check</h2>
               <div className="mt-4 aspect-[4/3] overflow-hidden rounded-xl bg-slate-900">
@@ -168,7 +178,7 @@ const TestPage = () => {
                 <input type="checkbox" className="mt-0.5" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
                 I have read the instructions. I will not switch tabs, leave full screen or take help during the test.
               </label>
-              <Button className="mt-4 w-full py-3 text-base" onClick={start} disabled={!devicesReady || !agreed || busy || info.state !== "open"}>
+              <Button className="mt-4 w-full py-3 text-base" onClick={start} disabled={profileBlocks || !devicesReady || !agreed || busy || info.state !== "open"}>
                 {info.attempt ? "Continue test" : "Start test"}
               </Button>
               {info.state !== "open" && <p className="mt-2 text-xs text-slate-500">The test is not open right now.</p>}

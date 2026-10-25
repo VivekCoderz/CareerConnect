@@ -6,6 +6,7 @@ import Layout from "../../components/Layout";
 import { Badge, Button, Card, Notice, Spinner } from "../../components/ui";
 import { BAND_LABEL, inputClass } from "../../format";
 import ProctoringModal from "./ProctoringModal";
+import StudentProfileModal from "./StudentProfileModal";
 
 // University dashboard (PRD R14): students by band, results after publishing, attendance,
 // and the four downloads. Numbers come from the same server data as the downloads.
@@ -40,6 +41,7 @@ const ManagerDashboard = () => {
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState("");
   const [proctoring, setProctoring] = useState(null);
+  const [profileOf, setProfileOf] = useState(null);
 
   useEffect(() => {
     campusApi.get("/manager/overview").then((r) => setSummary(r.data.summary)).catch((e) => setError(errorMessage(e)));
@@ -139,12 +141,16 @@ const ManagerDashboard = () => {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
-                <thead><tr className="text-left text-xs text-slate-500"><th className="py-2">Student</th><th>Band</th><th>Details</th><th>Test</th><th>Score</th><th>Classes</th><th /></tr></thead>
+                <thead><tr className="text-left text-xs text-slate-500"><th className="py-2">Student</th><th>Band</th><th>Profile</th><th>Details</th><th>Test</th><th>Score</th><th>Classes</th><th /></tr></thead>
                 <tbody>
                   {students.map((s) => (
                     <tr key={s.memberId} className="border-t border-slate-100">
-                      <td className="py-2"><b className="text-slate-900">{s.fullName}</b><span className="block text-xs text-slate-500">{s.rollNo} · {s.email}</span></td>
+                      <td className="py-2">
+                        <button type="button" onClick={() => setProfileOf(s.memberId)} className="text-left font-bold text-slate-900 hover:text-[var(--campus-brand)] hover:underline">{s.fullName}</button>
+                        <span className="block text-xs text-slate-500">{s.rollNo} · {s.email}</span>
+                      </td>
                       <td>{s.band ? `Band ${s.band}` : "-"}</td>
+                      <td><Badge tone={s.profileCompletion >= 90 ? "green" : "amber"}>{s.profileCompletion}%</Badge></td>
                       <td>{s.verification === "verified" ? <Badge tone="green">Verified</Badge> : <Badge tone="amber">Pending</Badge>}</td>
                       <td><Badge tone={STATUS[s.testStatus][1]}>{STATUS[s.testStatus][0]}</Badge></td>
                       <td>{s.percentage === null ? "-" : `${s.percentage}%`}</td>
@@ -166,6 +172,7 @@ const ManagerDashboard = () => {
         </div>
       )}
       {proctoring && <ProctoringModal student={proctoring} onClose={() => setProctoring(null)} />}
+      {profileOf && <StudentProfileModal memberId={profileOf} onClose={() => setProfileOf(null)} />}
     </Layout>
   );
 };

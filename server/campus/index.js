@@ -12,6 +12,7 @@ const review = require("./controllers/reviewController");
 const sessions = require("./controllers/sessionsController");
 const manager = require("./controllers/managerController");
 const managers = require("./controllers/managersController");
+const profile = require("./controllers/profileController");
 const { serveRaw } = require("./services/files");
 const worker = require("./services/gradingWorker");
 
@@ -22,6 +23,7 @@ const memory = (maxBytes, field) => multer({ storage: multer.memoryStorage(), li
 const sheetUpload = memory(5 * 1024 * 1024, "file");
 const audioUpload = memory(3 * 1024 * 1024, "audio");
 const imageUpload = memory(400 * 1024, "image");
+const profileFileUpload = memory(2 * 1024 * 1024, "file");
 
 const limiter = (windowMs, max) =>
   rateLimit({
@@ -48,8 +50,10 @@ router.get("/me", access.member, auth.me);
 router.post("/consent", access.member, auth.consent);
 
 // Student
-router.get("/profile", access.consentedMember, members.getProfile);
-router.patch("/profile", access.consentedMember, sanitizeInputs, members.updateProfile);
+router.get("/profile", access.consentedMember, profile.getProfile);
+router.patch("/profile", access.consentedMember, sanitizeInputs, profile.updateProfile);
+router.post("/profile/photo", access.consentedMember, profileFileUpload, profile.upload("photo"));
+router.post("/profile/resume", access.consentedMember, profileFileUpload, profile.upload("resume"));
 router.get("/assessments", access.student, assessment.list);
 router.post("/assessments/:id/start", access.student, assessment.start);
 router.get("/attempts/:id", access.student, assessment.get);
@@ -68,12 +72,15 @@ router.get("/manager/overview", access.manager, manager.overview);
 router.get("/manager/students", access.manager, manager.students);
 router.get("/manager/attempts/:memberId/proctoring", access.manager, manager.proctoring);
 router.get("/manager/reports/:name", access.manager, manager.report);
+router.get("/manager/students/:memberId/profile", access.manager, profile.studentProfile);
 
 // E2Job operations
 router.post("/ops/import/preview", access.admin, sheetUpload, members.previewImport);
 router.post("/ops/import/commit", access.admin, sheetUpload, members.commitImport);
 router.get("/ops/members", access.admin, members.listMembers);
 router.post("/ops/members/:id/verify", access.admin, members.setVerification);
+router.get("/ops/batches", access.admin, profile.listBatches);
+router.patch("/ops/batches/:id", access.admin, profile.setSemester);
 router.get("/ops/managers", access.admin, managers.list);
 router.post("/ops/managers", access.admin, sanitizeInputs, managers.add);
 router.post("/ops/managers/:id/remove", access.admin, managers.remove);

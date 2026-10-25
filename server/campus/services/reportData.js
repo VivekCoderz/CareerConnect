@@ -1,4 +1,5 @@
 const CampusMember = require("../models/CampusMember");
+const { completion } = require("./profile");
 const CampusAssessment = require("../models/CampusAssessment");
 const CampusAttempt = require("../models/CampusAttempt");
 const { CampusSession, CampusAttendance } = require("../models/CampusSession");
@@ -61,6 +62,7 @@ const buildRows = async (institutionId, assessmentId) => {
       sections: shown ? sectionKeys.map((k) => ({ key: k, ...(bySection[k] || { score: 0, max: 0 }) })) : [],
       strengths: shown ? attempt.feedback?.strengths || [] : [],
       improvements: shown ? attempt.feedback?.improvements || [] : [],
+      profileCompletion: completion(m).percent,
       classesHeld: heldForMember,
       classesAttended: attendedBy.get(String(m._id)) || 0,
     };

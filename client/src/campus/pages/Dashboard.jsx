@@ -17,7 +17,7 @@ const assessmentAction = (a) => {
 };
 
 const Dashboard = () => {
-  const { member } = useCampus();
+  const { member, profileCompletion } = useCampus();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
@@ -38,6 +38,16 @@ const Dashboard = () => {
           {member?.verification?.status === "verified" ? "Details verified" : <Link to="/profile" className="font-semibold text-[var(--campus-brand)] underline">Details pending verification</Link>}
         </p>
       </div>
+      {profileCompletion && !profileCompletion.complete && (
+        <div className="mb-6 flex flex-wrap items-center gap-4 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-amber-900">Complete your profile to take the test</p>
+            <p className="text-sm text-amber-800">Your profile is {profileCompletion.percent}% complete; {profileCompletion.required}% is needed. Still to add: {profileCompletion.missing.map((m) => m.label).join(", ")}.</p>
+            <div className="mt-2 h-2 max-w-md overflow-hidden rounded-full bg-amber-200"><div className="h-full rounded-full bg-amber-500" style={{ width: `${profileCompletion.percent}%` }} /></div>
+          </div>
+          <Link to="/profile" className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">Complete profile</Link>
+        </div>
+      )}
       {error && <Notice tone="red">{error}</Notice>}
       {!data && !error && <Spinner />}
       {data && (

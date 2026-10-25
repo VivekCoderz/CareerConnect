@@ -4,6 +4,7 @@ const { toStudentQuestion } = require("../models/CampusAssessment");
 const { startAttempt, finalizeAttempt, recordEvent, acceptsAnswers } = require("../services/attempts");
 const { saveFile } = require("../services/files");
 const { pendingItems } = require("../services/scoring");
+const { completion } = require("../services/profile");
 
 // Student side of the assessment (PRD R8 to R12). The client never sends scores, deadlines or
 // question order; the server decides all of them.
@@ -87,6 +88,17 @@ exports.start = async (req, res, next) => {
   try {
     const assessment = await CampusAssessment.findOne({ _id: req.params.id, institutionId: req.institution._id, batchId: req.member.batchId });
     if (!assessment) return res.status(404).json({ success: false, message: "Assessment not found." });
+    // A new test needs a profile at least 90% complete; a test already started can always continue.
+    const started = await CampusAttempt.exists({ assessmentId: assessment._id, userId: req.user._id });
+    const profile = completion(req.member);
+    if (!started && !profile.complete) {
+      return res.status(403).json({
+        success: false,
+        code: "PROFILE_INCOMPLETE",
+        message: `First complete your profile. It is ${profile.percent}% complete; ${profile.required}% is needed to start the test.`,
+        completion: profile,
+      });
+    }
     const { attempt, error } = await startAttempt(assessment, req.member);
     if (error) return res.status(409).json({ success: false, code: "NOT_OPEN", message: "This assessment is not open right now." });
     const current = attempt.status === "in_progress" && !acceptsAnswers(attempt) ? await finalizeAttempt(attempt._id, "time_up") : attempt;

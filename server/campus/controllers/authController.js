@@ -4,6 +4,7 @@ const CampusMember = require("../models/CampusMember");
 const Batch = require("../models/Batch");
 const getFirebaseAdmin = require("../../config/firebaseAdmin");
 const { isProduction } = require("../middleware/tenant");
+const { completion } = require("../services/profile");
 
 // Same token format as the main E2Job login, so the shared `protect` middleware accepts it.
 const signToken = (user) =>
@@ -99,8 +100,9 @@ exports.me = async (req, res, next) => {
       success: true,
       member: memberView(req.member),
       institution: req.institution.toPublic(),
-      batch: batch ? { id: batch._id, name: batch.name } : null,
+      batch: batch ? { id: batch._id, name: batch.name, semester: batch.semester ?? null } : null,
       needsConsent: !req.member.consentAt,
+      profileCompletion: req.member.role === "student" ? completion(req.member) : null,
     });
   } catch (error) {
     return next(error);

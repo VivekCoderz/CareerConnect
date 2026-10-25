@@ -50,11 +50,33 @@ const importStudents = async (institution, adminToken, rows, batchName = "MBA 20
   return Batch.findById(res.body.batch.id);
 };
 
-/** Signs in with the QA-only dev login and accepts the notice. */
-const signIn = async (institution, email, { consent = true } = {}) => {
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+const PDF = Buffer.from("%PDF-1.4\n%fake resume\n");
+
+// Name, phone and MBA CGPA come from the import, so they are left as imported.
+const FULL_PROFILE = {
+  dob: "2002-05-14",
+  gender: "female",
+  linkedinUrl: "linkedin.com/in/fake-student",
+  class10: { board: "CBSE", maxMarks: 500, obtainedMarks: 430, year: 2018 },
+  class12: { board: "State Board", maxMarks: 600, obtainedMarks: 510, year: 2020 },
+  graduation: { degree: "BBA", university: "Fake University", cgpa: 7.8, year: 2024 },
+};
+
+/** Fills every profile item, photo and resume included, so the student may start a test. */
+const completeProfile = async (institution, token, overrides = {}) => {
+  const res = await api(institution).patch("/profile", token).send({ ...FULL_PROFILE, ...overrides });
+  if (res.status !== 200) throw new Error(`profile failed: ${res.status} ${JSON.stringify(res.body)}`);
+  await api(institution).post("/profile/photo", token).attach("file", PNG, { filename: "me.png", contentType: "image/png" });
+  await api(institution).post("/profile/resume", token).attach("file", PDF, { filename: "cv.pdf", contentType: "application/pdf" });
+};
+
+/** Signs in with the QA-only dev login, accepts the notice and (by default) completes the profile. */
+const signIn = async (institution, email, { consent = true, profile = true } = {}) => {
   const res = await api(institution).post("/auth/dev").send({ email });
   if (res.status !== 200) throw new Error(`sign-in failed: ${res.status} ${JSON.stringify(res.body)}`);
   if (consent) await api(institution).post("/consent", res.body.token).send({ accepted: true });
+  if (consent && profile && res.body.member.role === "student") await completeProfile(institution, res.body.token);
   return res.body.token;
 };
 
@@ -78,4 +100,4 @@ const createAssessment = (institution, batch, overrides = {}) =>
     ...overrides,
   });
 
-module.exports = { app, api, uniq, createInstitution, createAdmin, importStudents, signIn, createAssessment, csv };
+module.exports = { app, api, uniq, createInstitution, createAdmin, importStudents, signIn, completeProfile, createAssessment, csv, PNG, PDF };

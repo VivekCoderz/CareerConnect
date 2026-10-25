@@ -149,44 +149,5 @@ exports.setVerification = async (req, res, next) => {
   }
 };
 
-// GET /api/campus/profile
-exports.getProfile = async (req, res) => res.status(200).json({ success: true, member: memberView(req.member) });
-
-// PATCH /api/campus/profile { fullName?, phone?, cgpa? }: an edit of a verified detail
-// makes it pending again (PRD R6).
-exports.updateProfile = async (req, res, next) => {
-  try {
-    const { fullName, phone, cgpa } = req.body || {};
-    const errors = {};
-    const changes = {};
-    if (fullName !== undefined) {
-      const v = typeof fullName === "string" ? fullName.trim().replace(/\s+/g, " ") : "";
-      if (v.length < 2 || v.length > 120) errors.fullName = "Enter your full name.";
-      else changes.fullName = v;
-    }
-    if (phone !== undefined) {
-      const v = typeof phone === "string" ? phone.replace(/\D/g, "").slice(-10) : "";
-      if (v && v.length !== 10) errors.phone = "Enter a 10-digit mobile number.";
-      else changes.phone = v;
-    }
-    if (cgpa !== undefined) {
-      const v = cgpa === null || cgpa === "" ? null : Number(cgpa);
-      if (v !== null && (!Number.isFinite(v) || v < 0 || v > 10)) errors.cgpa = "CGPA must be from 0 to 10.";
-      else changes.cgpa = v === null ? null : Math.round(v * 100) / 100;
-    }
-    if (Object.keys(errors).length) return res.status(400).json({ success: false, errors, message: "Please correct the highlighted fields." });
-
-    const m = req.member;
-    const changed = Object.keys(changes).filter((k) => changes[k] !== m[k]);
-    changed.forEach((k) => { m[k] = changes[k]; });
-    if (changed.length && m.verification?.status === "verified") m.verification = { status: "pending", by: null, at: null };
-    await m.save();
-    if (changes.fullName && changed.includes("fullName")) await User.updateOne({ _id: m.userId }, { fullName: changes.fullName });
-    return res.status(200).json({ success: true, member: memberView(m) });
-  } catch (error) {
-    return next(error);
-  }
-};
-
 exports.userFor = userFor;
 exports.audit = audit;
