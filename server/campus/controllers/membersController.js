@@ -1,5 +1,4 @@
 const User = require("../../models/User");
-const AuditLog = require("../../models/AuditLog");
 const CampusMember = require("../models/CampusMember");
 const Batch = require("../models/Batch");
 const { readRows, validateRows } = require("../services/importer");
@@ -7,16 +6,9 @@ const { memberView } = require("./authController");
 
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const audit = (req, action, details) =>
-  AuditLog.create({
-    actorId: req.user._id,
-    actorName: req.user.fullName || "",
-    actorEmail: req.user.email || "",
-    action,
-    module: "Campus",
-    target: String(req.institution._id),
-    details,
-  }).catch(() => null); // the action itself already succeeded; a lost log line must not undo it
+const { audit: writeAudit } = require("../utils/audit");
+
+const audit = (req, action, details) => writeAudit(req.user, action, req.institution._id, details); // the action itself already succeeded; a lost log line must not undo it
 
 const parseUpload = async (req) => {
   if (!req.file) throw Object.assign(new Error("Attach the student sheet (.xlsx or .csv)."), { status: 400 });

@@ -4,6 +4,7 @@ jest.mock("../../utils/sendEmail", () => jest.fn().mockResolvedValue({ messageId
 const { api, createInstitution, createAdmin, importStudents, signIn, createAssessment } = require("../helpers/campus");
 const CampusMember = require("../../campus/models/CampusMember");
 const bank = require("../../campus/data/mba-assessment-v1");
+const AuditLog = require("../../models/AuditLog");
 
 describe("test analysis for the university admin", () => {
   it("shows section counts and the answer sheet before publishing, then lets the admin publish", async () => {
@@ -52,6 +53,12 @@ describe("test analysis for the university admin", () => {
     expect(published.body).toMatchObject({ success: true, attempts: 2 });
     expect((await call.get(`/results/${assessment._id}`, one)).body.status).toBe("published");
     expect((await call.get("/manager/analysis", dean)).body.publish).toMatchObject({ toRelease: 0, released: 2 });
+
+    // Who published, and the earlier import, are in the audit log.
+    const logged = await AuditLog.findOne({ module: "Campus", action: "CAMPUS_RESULTS_PUBLISHED", target: String(assessment._id) }).lean();
+    expect(logged).toMatchObject({ actorEmail: expect.stringMatching(/^dean@/) });
+    expect(JSON.parse(logged.details)).toMatchObject({ attempts: 2, inProgress: 0 });
+    expect(await AuditLog.countDocuments({ module: "Campus", action: "CAMPUS_IMPORT", target: String(uni._id) })).toBe(1);
 
     const other = await createInstitution();
     expect((await api(other).get(`/manager/attempts/${first.memberId}/answers`, admin.token)).status).toBe(404);

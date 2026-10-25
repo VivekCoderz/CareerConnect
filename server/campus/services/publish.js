@@ -1,4 +1,4 @@
-const AuditLog = require("../../models/AuditLog");
+const { audit } = require("../utils/audit");
 const CampusAttempt = require("../models/CampusAttempt");
 const { recompute, pendingItems } = require("./scoring");
 
@@ -36,10 +36,7 @@ const publishResults = async (assessment, user) => {
   }
   assessment.resultsPublishedAt = now;
   await assessment.save();
-  AuditLog.create({
-    actorId: user._id, actorName: user.fullName || "", actorEmail: user.email || "",
-    action: "CAMPUS_RESULTS_PUBLISHED", module: "Campus", target: String(assessment._id), details: { attempts: ready.length, inProgress },
-  }).catch(() => null);
+  await audit(user, "CAMPUS_RESULTS_PUBLISHED", assessment._id, { attempts: ready.length, inProgress });
   return { status: 200, body: { success: true, resultsPublishedAt: now, attempts: ready.length, inProgress } };
 };
 

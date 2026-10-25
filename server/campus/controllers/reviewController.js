@@ -1,4 +1,4 @@
-const AuditLog = require("../../models/AuditLog");
+const { audit } = require("../utils/audit");
 const CampusAssessment = require("../models/CampusAssessment");
 const CampusAttempt = require("../models/CampusAttempt");
 const CampusMember = require("../models/CampusMember");
@@ -156,11 +156,7 @@ exports.setMark = async (req, res, next) => {
     attempt.markModified("marks");
     recompute(assessment, attempt);
     await attempt.save();
-    AuditLog.create({
-      actorId: req.user._id, actorName: req.user.fullName || "", actorEmail: req.user.email || "",
-      action: "CAMPUS_MARK_CHANGED", module: "Campus", target: String(attempt._id),
-      details: { questionId: question.id, from: previous, to: score },
-    }).catch(() => null);
+    await audit(req.user, "CAMPUS_MARK_CHANGED", attempt._id, { questionId: question.id, from: previous, to: score });
     return res.status(200).json({ success: true, scores: attempt.scores });
   } catch (error) {
     return next(error);

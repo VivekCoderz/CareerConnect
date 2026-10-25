@@ -1,60 +1,39 @@
 import { useCallback, useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import { campusApi, downloadFile, errorMessage } from "../../api";
 import { useCampus } from "../../useCampus";
 import Layout from "../../components/Layout";
-import { Badge, Button, Card, Notice, Spinner } from "../../components/ui";
-import { BAND_LABEL, inputClass } from "../../format";
+import { Notice, Spinner } from "../../components/ui";
 import ProctoringModal from "./ProctoringModal";
 import StudentProfileModal from "./StudentProfileModal";
 import TestAnalysis from "./TestAnalysis";
+import Overview from "./Overview";
 
-// University dashboard (PRD R14): students by band, results after publishing, attendance,
-// and the four downloads. Numbers come from the same server data as the downloads.
-
-const STATUS = {
-  not_started: ["Not started", "slate"],
-  in_progress: ["In progress", "blue"],
-  submitted: ["Submitted", "green"],
-  auto_submitted: ["Auto-submitted", "amber"],
-};
+// University dashboard (PRD R14). /manager is the overview; /manager/analysis is the test
+// analysis with publishing. Numbers come from the same server data as the downloads.
 
 const REPORTS = [
-  ["results.xlsx", "Results (Excel)"],
-  ["summary.pdf", "Batch summary (PDF)"],
-  ["scorecards.pdf", "Scorecards (PDF)"],
-  ["attendance.xlsx", "Attendance (Excel)"],
+  ["results.xlsx", "Results", FileSpreadsheet],
+  ["summary.pdf", "Batch summary", FileText],
+  ["scorecards.pdf", "Scorecards", FileText],
+  ["attendance.xlsx", "Attendance", FileSpreadsheet],
 ];
+const TABS = [["/manager", "Overview"], ["/manager/analysis", "Test analysis and publish"]];
 
-const Stat = ({ label, value, hint }) => (
-  <div className="rounded-xl border border-slate-200 bg-white p-4">
-    <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-    <p className="mt-1 text-2xl font-extrabold text-slate-900">{value}</p>
-    {hint && <p className="text-xs text-slate-500">{hint}</p>}
-  </div>
-);
-
-const ManagerDashboard = () => {
-  const { institution } = useCampus();
+const ManagerDashboard = ({ view = "overview" }) => {
+  const { institution, member } = useCampus();
   const [summary, setSummary] = useState(null);
-  const [students, setStudents] = useState([]);
-  const [filters, setFilters] = useState({ band: "", status: "", search: "" });
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState("");
   const [proctoring, setProctoring] = useState(null);
   const [profileOf, setProfileOf] = useState(null);
-  const [tab, setTab] = useState("overview");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const loadOverview = useCallback(() => {
     campusApi.get("/manager/overview").then((r) => setSummary(r.data.summary)).catch((e) => setError(errorMessage(e)));
   }, []);
   useEffect(() => { loadOverview(); }, [loadOverview]);
-
-  const loadStudents = useCallback(() => {
-    const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
-    campusApi.get("/manager/students", { params }).then((r) => setStudents(r.data.students)).catch((e) => setError(errorMessage(e)));
-  }, [filters]);
-  useEffect(() => { const t = setTimeout(loadStudents, 250); return () => clearTimeout(t); }, [loadStudents]);
 
   const download = async (name) => {
     setDownloading(name);
@@ -67,122 +46,44 @@ const ManagerDashboard = () => {
     }
   };
 
-  const submitted = (summary?.status?.submitted || 0) + (summary?.status?.auto_submitted || 0);
   return (
     <Layout wide>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">University dashboard</h1>
-          <p className="text-sm text-slate-600">{summary?.assessment?.title || "No assessment yet"} {summary && !summary.published && <Badge tone="amber">Results not published yet</Badge>}</p>
+      <div className="relative mb-6 overflow-hidden rounded-3xl p-6 text-white shadow-xl sm:p-8" style={{ background: "linear-gradient(120deg, var(--campus-brand) 0%, color-mix(in srgb, var(--campus-brand) 55%, #0f172a) 100%)" }}>
+        <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/10 blur-2xl" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-amber-300/10 blur-2xl" />
+        <div className="relative flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">{institution?.name}</p>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">University dashboard</h1>
+            <p className="mt-2 text-sm text-white/80">
+              {summary?.assessment?.title || "No assessment yet"}
+              {member?.fullName ? ` · Signed in as ${member.fullName}` : ""}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {REPORTS.map(([name, label, Icon]) => (
+              <button key={name} type="button" onClick={() => download(name)} disabled={downloading === name}
+                className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3.5 py-2 text-sm font-semibold ring-1 ring-white/25 backdrop-blur transition hover:bg-white/20 disabled:opacity-60">
+                {downloading === name ? <Download className="h-4 w-4 animate-bounce" /> : <Icon className="h-4 w-4" />}
+                {downloading === name ? "Preparing..." : label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {REPORTS.map(([name, label]) => (
-            <Button key={name} variant="secondary" onClick={() => download(name)} disabled={downloading === name}>
-              <Download className="h-4 w-4" /> {downloading === name ? "Preparing..." : label}
-            </Button>
+        <nav className="relative mt-6 inline-flex rounded-xl bg-black/20 p-1 ring-1 ring-white/15">
+          {TABS.map(([to, label]) => (
+            <NavLink key={to} to={to} end
+              className={({ isActive }) => `rounded-lg px-4 py-2 text-sm font-semibold transition ${isActive ? "bg-white text-slate-900 shadow" : "text-white/80 hover:text-white"}`}>
+              {label}
+            </NavLink>
           ))}
-        </div>
+        </nav>
       </div>
-      <div className="mb-6 inline-flex rounded-xl bg-slate-100 p-1" role="tablist">
-        {[["overview", "Overview"], ["analysis", "Test analysis and publish"]].map(([key, label]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-      {tab === "analysis" && <TestAnalysis onPublished={() => { loadOverview(); loadStudents(); }} />}
-      {tab === "overview" && error && <div className="mb-4"><Notice tone="red">{error}</Notice></div>}
-      {tab === "overview" && !summary && !error && <Spinner />}
-      {tab === "overview" && summary && (
-        <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <Stat label="Students" value={summary.students} hint={`${summary.verified} details verified`} />
-            <Stat label="Submitted" value={submitted} hint={`${summary.status.not_started || 0} not started`} />
-            <Stat label="Flagged tests" value={summary.flagged} hint="Fair-test warnings or copying" />
-            <Stat label="Training attendance" value={summary.attendanceRate === null ? "-" : `${summary.attendanceRate}%`} />
-            <Stat label="Results" value={summary.published ? "Published" : "Pending"} />
-          </div>
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            <Card title="By CGPA band" className="lg:col-span-2">
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs text-slate-500"><th className="py-2">Band</th><th>Students</th><th>Submitted</th><th>Average score</th></tr></thead>
-                <tbody>
-                  {summary.byBand.map((b) => (
-                    <tr key={b.band} className="border-t border-slate-100">
-                      <td className="py-2 font-semibold text-slate-800">{BAND_LABEL[b.band]}</td>
-                      <td>{b.students}</td><td>{b.submitted}</td><td>{b.averagePercentage === null ? "-" : `${b.averagePercentage}%`}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-            <Card title="Top performers">
-              {summary.top.length ? (
-                <ol className="space-y-1.5 text-sm">{summary.top.map((t, i) => <li key={t.rollNo || t.fullName}><b>{i + 1}.</b> {t.fullName} <span className="text-slate-500">{t.percentage}%</span></li>)}</ol>
-              ) : <p className="text-sm text-slate-500">Shown after results are published.</p>}
-            </Card>
-          </div>
-
-          {summary.published && (
-            <Card title="Average by section">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {summary.sections.map((s) => (
-                  <div key={s.key}>
-                    <div className="flex justify-between text-sm"><span className="font-semibold text-slate-800">{s.title}</span><span>{s.averagePercentage ?? "-"}%</span></div>
-                    <div className="mt-1 h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-[var(--campus-brand)]" style={{ width: `${s.averagePercentage || 0}%` }} /></div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          <Card title="Students">
-            <div className="mb-4 grid gap-3 sm:grid-cols-3">
-              <input className={inputClass} placeholder="Search name, email or roll number" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
-              <select className={inputClass} value={filters.band} onChange={(e) => setFilters({ ...filters, band: e.target.value })} aria-label="Band">
-                <option value="">All bands</option>
-                {[1, 2, 3].map((b) => <option key={b} value={b}>{BAND_LABEL[b]}</option>)}
-              </select>
-              <select className={inputClass} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} aria-label="Test status">
-                <option value="">All test statuses</option>
-                {Object.entries(STATUS).map(([k, [label]]) => <option key={k} value={k}>{label}</option>)}
-                <option value="flagged">Flagged</option>
-              </select>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead><tr className="text-left text-xs text-slate-500"><th className="py-2">Student</th><th>Band</th><th>Profile</th><th>Details</th><th>Test</th><th>Score</th><th>Classes</th><th /></tr></thead>
-                <tbody>
-                  {students.map((s) => (
-                    <tr key={s.memberId} className="border-t border-slate-100">
-                      <td className="py-2">
-                        <button type="button" onClick={() => setProfileOf(s.memberId)} className="text-left font-bold text-slate-900 hover:text-[var(--campus-brand)] hover:underline">{s.fullName}</button>
-                        <span className="block text-xs text-slate-500">{s.rollNo} · {s.email}</span>
-                      </td>
-                      <td>{s.band ? `Band ${s.band}` : "-"}</td>
-                      <td><Badge tone={s.profileCompletion >= 90 ? "green" : "amber"}>{s.profileCompletion}%</Badge></td>
-                      <td>{s.verification === "verified" ? <Badge tone="green">Verified</Badge> : <Badge tone="amber">Pending</Badge>}</td>
-                      <td><Badge tone={STATUS[s.testStatus][1]}>{STATUS[s.testStatus][0]}</Badge></td>
-                      <td>{s.percentage === null ? "-" : `${s.percentage}%`}</td>
-                      <td>{s.classesAttended} / {s.classesHeld}</td>
-                      <td className="text-right">
-                        {(s.flags.length > 0 || s.fairTestEvents > 0) && (
-                          <button type="button" className="text-xs font-semibold text-amber-700 underline" onClick={() => setProctoring(s)}>
-                            {s.fairTestEvents} warning{s.fairTestEvents === 1 ? "" : "s"}{s.flags.length ? ", copy flag" : ""}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {!students.length && <p className="py-6 text-center text-sm text-slate-500">No students match these filters.</p>}
-            </div>
-          </Card>
-        </div>
-      )}
+      {error && <div className="mb-4"><Notice tone="red">{error}</Notice></div>}
+      {view === "analysis" && <TestAnalysis onPublished={() => { loadOverview(); setRefreshKey((k) => k + 1); }} />}
+      {view === "overview" && !summary && !error && <Spinner />}
+      {view === "overview" && summary && <Overview summary={summary} onProfile={setProfileOf} onProctoring={setProctoring} refreshKey={refreshKey} />}
       {proctoring && <ProctoringModal student={proctoring} onClose={() => setProctoring(null)} />}
       {profileOf && <StudentProfileModal memberId={profileOf} onClose={() => setProfileOf(null)} />}
     </Layout>

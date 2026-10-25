@@ -9,7 +9,10 @@ const NAV = {
     { to: "/classes", label: "Classes" },
     { to: "/profile", label: "Profile" },
   ],
-  manager: [{ to: "/manager", label: "University dashboard" }],
+  manager: [
+    { to: "/manager", label: "Overview", end: true },
+    { to: "/manager/analysis", label: "Test analysis" },
+  ],
   staff: [
     { to: "/ops/students", label: "Students" },
     { to: "/ops/tests", label: "Tests" },
@@ -66,6 +69,7 @@ const Layout = ({ children, wide = false }) => {
                 <NavLink
                   key={l.to}
                   to={l.to}
+                  end={l.end}
                   className={({ isActive }) => `rounded-lg px-3 py-2 text-sm font-semibold ${isActive ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:text-slate-900"}`}
                 >
                   {l.label}
@@ -80,7 +84,7 @@ const Layout = ({ children, wide = false }) => {
         {links.length > 0 && (
           <nav className="flex gap-1 overflow-x-auto border-t border-slate-100 px-4 py-2 sm:hidden">
             {links.map((l) => (
-              <NavLink key={l.to} to={l.to} className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold ${isActive ? "bg-slate-100 text-slate-900" : "text-slate-600"}`}>
+              <NavLink key={l.to} to={l.to} end={l.end} className={({ isActive }) => `whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold ${isActive ? "bg-slate-100 text-slate-900" : "text-slate-600"}`}>
                 {l.label}
               </NavLink>
             ))}

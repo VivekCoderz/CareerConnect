@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { FileSearch, Send } from "lucide-react";
 import { campusApi, errorMessage } from "../../api";
-import { Badge, Button, Card, Notice, Spinner } from "../../components/ui";
+import { Badge, Button, Notice, Spinner } from "../../components/ui";
+import { Panel } from "./visuals";
 import { formatDateTime } from "../../format";
 import AnswerSheetModal from "./AnswerSheetModal";
 
@@ -95,7 +96,7 @@ const TestAnalysis = ({ onPublished }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,.04),0_8px_24px_-12px_rgba(15,23,42,.12)]">
         <div>
           <p className="text-base font-bold text-slate-900">Results: {data.assessment.title} ({data.assessment.totalMarks} marks)</p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -112,16 +113,16 @@ const TestAnalysis = ({ onPublished }) => {
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
 
       {waiting.length > 0 && (
-        <Card title={`Waiting to be published (${waiting.length})`}>
+        <Panel title={`Waiting to be published (${waiting.length})`}>
           <p className="mb-4 text-sm text-slate-600">
             These students have submitted but cannot see their result yet. Open an answer sheet to check a test before publishing.
             {p.pendingMarking > 0 && " Tests marked \"Being marked\" still need the assessment team to mark written or speaking answers."}
           </p>
           <StudentsTable rows={waiting} sections={sections} onSheet={setSheetOf} />
-        </Card>
+        </Panel>
       )}
 
-      <Card title="Section-wise analysis">
+      <Panel title="Section-wise analysis">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-sm">
             <thead><tr className="text-left text-xs text-slate-500"><th className="py-2">Section</th><th>Questions</th><th>Avg attempted</th><th>Correct</th><th>Wrong</th><th>Skipped</th><th>Accuracy (MCQ)</th><th className="w-48">Average score</th></tr></thead>
@@ -142,9 +143,9 @@ const TestAnalysis = ({ onPublished }) => {
           </table>
         </div>
         <p className="mt-3 text-xs text-slate-500">Counts add up every submitted test. Correct and wrong apply to multiple choice; written and speaking count as attempted.</p>
-      </Card>
+      </Panel>
 
-      <Card title={`Students (${students.length} submitted)`}>
+      <Panel title={`Students (${students.length} submitted)`}>
         <div className="mb-4 inline-flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
           {FILTERS.map(([key, label]) => (
             <button key={key} type="button" onClick={() => setFilter(key)}
@@ -157,7 +158,7 @@ const TestAnalysis = ({ onPublished }) => {
         <p className="mt-3 text-xs text-slate-500">
           {sections.filter((s) => short(s.title) !== s.title).map((s) => `${short(s.title)}: ${s.title}`).join(" · ")}. Under each score: right (✓), wrong (✗) and skipped questions.
         </p>
-      </Card>
+      </Panel>
       {sheetOf && <AnswerSheetModal memberId={sheetOf} onClose={() => setSheetOf(null)} />}
     </div>
   );

@@ -60,6 +60,7 @@ const Routed = () => {
       <Route path="/test/:assessmentId" element={<Only who={["student"]}><TestPage /></Only>} />
       <Route path="/result/:assessmentId" element={<Only who={["student"]}><Result /></Only>} />
       <Route path="/manager" element={<Only who={["manager", "staff"]}><ManagerDashboard /></Only>} />
+      <Route path="/manager/analysis" element={<Only who={["manager", "staff"]}><ManagerDashboard view="analysis" /></Only>} />
       <Route path="/ops/login" element={campus.staff ? <Navigate to="/ops/students" replace /> : <OpsLogin />} />
       <Route path="/ops/students" element={<Only who={["staff"]}><OpsStudents /></Only>} />
       <Route path="/ops/review" element={<Only who={["staff"]}><OpsReview /></Only>} />
