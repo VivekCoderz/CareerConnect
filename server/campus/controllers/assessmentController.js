@@ -71,7 +71,7 @@ exports.list = async (req, res, next) => {
           sections: a.sections,
           state: a.windowState(),
           attempt: attempt ? { id: attempt._id, status: attempt.status } : null,
-          resultsPublished: Boolean(a.resultsPublishedAt),
+          resultsPublished: Boolean(attempt?.releasedAt),
         };
       }),
     });
@@ -217,8 +217,8 @@ exports.result = async (req, res, next) => {
     if (!assessment) return res.status(404).json({ success: false, message: "Assessment not found." });
     const attempt = await CampusAttempt.findOne({ assessmentId: assessment._id, userId: req.user._id });
     if (!attempt) return res.status(200).json({ success: true, status: "not_attempted" });
-    // A test taken after publishing waits until its own marks are done.
-    if (!assessment.resultsPublishedAt || attempt.status === "in_progress" || pendingItems(attempt).length) {
+    // Each test waits until staff publish it, including tests taken after an earlier publish.
+    if (!attempt.releasedAt || attempt.status === "in_progress" || pendingItems(attempt).length) {
       return res.status(200).json({ success: true, status: "pending" });
     }
     const sections = assessment.sections.map((s) => {

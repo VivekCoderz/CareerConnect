@@ -215,6 +215,7 @@ async function main() {
       done.markModified("marks");
       recompute(assessment, done);
       done.review.status = "reviewed";
+      done.releasedAt = new Date();
       await done.save();
       attempts += 1;
     }

@@ -76,6 +76,7 @@ exports.review = async (req, res, next) => {
         flags: a.proctor?.flags || [],
         pending: pending.map((m) => ({ questionId: m.questionId, status: m.status, source: m.source })),
         snapshotCount: a.proctor?.snapshots?.length || 0,
+        releasedAt: a.releasedAt || null,
       };
     });
     const weight = (r) => (r.pending.length ? 2 : 0) + (r.flags.length || r.countedEvents ? 1 : 0);
@@ -89,6 +90,7 @@ exports.review = async (req, res, next) => {
         inProgress: rows.filter((r) => r.status === "in_progress").length,
         needsAttention: rows.filter((r) => r.pending.length).length,
         flagged: rows.filter((r) => r.flags.length || r.countedEvents).length,
+        toRelease: rows.filter((r) => !r.releasedAt && r.status !== "in_progress").length,
       },
     });
   } catch (error) {
@@ -167,30 +169,44 @@ exports.publish = async (req, res, next) => {
   try {
     const assessment = await findAssessment(req);
     if (!assessment) return res.status(404).json({ success: false, message: "Assessment not found." });
-    const attempts = await CampusAttempt.find({ assessmentId: assessment._id });
-    const inProgress = attempts.filter((a) => a.status === "in_progress").length;
-    const pending = attempts.filter((a) => pendingItems(a).length).length;
-    if (inProgress || pending) {
+    // Releases every submitted test not released yet. Tests still being taken are left for a later
+    // publish; marks still pending block it, so nothing goes out unreviewed.
+    const unreleased = await CampusAttempt.find({ assessmentId: assessment._id, releasedAt: null });
+    const inProgress = unreleased.filter((a) => a.status === "in_progress").length;
+    const ready = unreleased.filter((a) => a.status !== "in_progress");
+    const pending = ready.filter((a) => pendingItems(a).length).length;
+    if (pending) {
       return res.status(409).json({
         success: false,
         code: "NOT_READY",
-        message: `Not ready: ${inProgress} test(s) still in progress, ${pending} with marks still pending.`,
+        message: `Not ready: ${pending} submitted test(s) still have marks pending.`,
         inProgress,
         pending,
       });
     }
-    for (const attempt of attempts) {
+    if (!ready.length) {
+      return res.status(409).json({
+        success: false,
+        code: "NOTHING_TO_PUBLISH",
+        message: inProgress ? `Nothing to publish yet: ${inProgress} test(s) are still in progress.` : "Every submitted test is already published.",
+        inProgress,
+        pending: 0,
+      });
+    }
+    const now = new Date();
+    for (const attempt of ready) {
       recompute(assessment, attempt);
       attempt.review.status = "reviewed";
+      attempt.releasedAt = now;
       await attempt.save();
     }
-    assessment.resultsPublishedAt = new Date();
+    assessment.resultsPublishedAt = now;
     await assessment.save();
     AuditLog.create({
       actorId: req.user._id, actorName: req.user.fullName || "", actorEmail: req.user.email || "",
-      action: "CAMPUS_RESULTS_PUBLISHED", module: "Campus", target: String(assessment._id), details: { attempts: attempts.length },
+      action: "CAMPUS_RESULTS_PUBLISHED", module: "Campus", target: String(assessment._id), details: { attempts: ready.length, inProgress },
     }).catch(() => null);
-    return res.status(200).json({ success: true, resultsPublishedAt: assessment.resultsPublishedAt, attempts: attempts.length });
+    return res.status(200).json({ success: true, resultsPublishedAt: now, attempts: ready.length, inProgress });
   } catch (error) {
     return next(error);
   }

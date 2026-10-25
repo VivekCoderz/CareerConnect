@@ -58,6 +58,8 @@ const campusAttemptSchema = new mongoose.Schema(
     startedAt: { type: Date, default: Date.now },
     deadlineAt: { type: Date, required: true, index: true },
     submittedAt: { type: Date, default: null },
+    // Set when staff publish results; the student sees their result only after this (PRD R11).
+    releasedAt: { type: Date, default: null },
     questionOrder: { type: [String], default: [] },
     optionOrder: { type: Map, of: [String], default: {} },
     answers: { type: [answerSchema], default: [] },

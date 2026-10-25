@@ -132,3 +132,42 @@ describe("AI marking, review and publishing (PRD R11, R12)", () => {
     expect(saved.marks.find((m) => m.questionId === "q4").status).toBe("failed");
   });
 });
+
+describe("results released per test (PRD R11)", () => {
+  it("keeps a test taken after publishing hidden until staff publish again", async () => {
+    const uni = await createInstitution();
+    const admin = await createAdmin();
+    const batch = await importStudents(uni, admin.token, [
+      ["Early Student", "early@fakeuni.test", "R1", "7.1", ""],
+      ["Late Student", "late@fakeuni.test", "R2", "6.4", ""],
+    ]);
+    const assessment = await createAssessment(uni, batch);
+    const call = api(uni);
+    const takeQuickly = async (email) => {
+      const token = await signIn(uni, email);
+      const { attempt } = (await call.post(`/assessments/${assessment._id}/start`, token)).body;
+      await call.put(`/attempts/${attempt.id}/answers/q1`, token).send({ optionId: "b" });
+      await call.post(`/attempts/${attempt.id}/submit`, token); // written and speaking left blank: nothing to mark
+      return token;
+    };
+
+    const early = await takeQuickly("early@fakeuni.test");
+    const lateToken = await signIn(uni, "late@fakeuni.test");
+    const late = (await call.post(`/assessments/${assessment._id}/start`, lateToken)).body.attempt;
+
+    const first = await call.post(`/ops/assessments/${assessment._id}/publish`, admin.token);
+    expect(first.body).toMatchObject({ attempts: 1, inProgress: 1 });
+    expect((await call.get(`/results/${assessment._id}`, early)).body.status).toBe("published");
+
+    await call.put(`/attempts/${late.id}/answers/q1`, lateToken).send({ optionId: "b" });
+    await call.post(`/attempts/${late.id}/submit`, lateToken);
+    expect((await call.get(`/results/${assessment._id}`, lateToken)).body.status).toBe("pending");
+    const list = (await call.get("/assessments", lateToken)).body.assessments[0];
+    expect(list.resultsPublished).toBe(false);
+
+    const second = await call.post(`/ops/assessments/${assessment._id}/publish`, admin.token);
+    expect(second.body).toMatchObject({ attempts: 1, inProgress: 0 });
+    expect((await call.get(`/results/${assessment._id}`, lateToken)).body.status).toBe("published");
+    expect((await call.post(`/ops/assessments/${assessment._id}/publish`, admin.token)).body.code).toBe("NOTHING_TO_PUBLISH");
+  });
+});

@@ -47,7 +47,8 @@ const OpsReview = () => {
     setMessage(null);
     try {
       const r = await campusApi.post(`/ops/assessments/${selected}/publish`);
-      setMessage({ tone: "green", text: `Results published for ${r.data.attempts} students.` });
+      const later = r.data.inProgress ? ` ${r.data.inProgress} test(s) still in progress will need another publish.` : "";
+      setMessage({ tone: "green", text: `Results published for ${r.data.attempts} students.${later}` });
       load();
     } catch (e) {
       setMessage({ tone: "red", text: errorMessage(e) });
@@ -94,10 +95,15 @@ const OpsReview = () => {
               <Badge tone="red">{review.summary.flagged} flagged</Badge>
               {review.assessment.resultsPublishedAt && <Badge tone="green">Published {formatDateTime(review.assessment.resultsPublishedAt)}</Badge>}
             </div>
-            <Button onClick={publish} disabled={busy || review.summary.needsAttention > 0 || review.summary.inProgress > 0}>Publish results</Button>
+            <Button onClick={publish} disabled={busy || review.summary.needsAttention > 0 || !review.summary.toRelease}>
+              {review.summary.toRelease ? `Publish ${review.summary.toRelease} result${review.summary.toRelease === 1 ? "" : "s"}` : "Nothing new to publish"}
+            </Button>
           </div>
-          {(review.summary.needsAttention > 0 || review.summary.inProgress > 0) && (
-            <Notice tone="amber">Publishing opens once no test is in progress and every speaking answer and failed AI mark has been marked.</Notice>
+          {review.summary.needsAttention > 0 && (
+            <Notice tone="amber">Publishing opens once every speaking answer and failed AI mark has been marked.</Notice>
+          )}
+          {review.summary.needsAttention === 0 && review.summary.inProgress > 0 && (
+            <Notice tone="blue">{review.summary.inProgress} test(s) are still in progress. They are not included and will need another publish.</Notice>
           )}
           <Card title="Attempts">
             <div className="overflow-x-auto">

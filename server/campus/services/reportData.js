@@ -40,6 +40,7 @@ const buildRows = async (institutionId, assessmentId) => {
     const attempt = attemptBy.get(String(m._id));
     const heldForMember = sessions.filter((s) => s.band === null || s.band === m.band).length;
     const bySection = attempt?.scores?.bySection || {};
+    const shown = Boolean(attempt?.releasedAt);
     return {
       memberId: String(m._id),
       fullName: m.fullName,
@@ -53,12 +54,13 @@ const buildRows = async (institutionId, assessmentId) => {
       submitReason: attempt?.submitReason || "",
       fairTestEvents: attempt?.proctor?.countedEvents || 0,
       flags: attempt?.proctor?.flags || [],
-      total: published && attempt ? attempt.scores.total : null,
-      max: published && attempt ? attempt.scores.max : null,
-      percentage: published && attempt ? pct(attempt.scores.total, attempt.scores.max) : null,
-      sections: published && attempt ? sectionKeys.map((k) => ({ key: k, ...(bySection[k] || { score: 0, max: 0 }) })) : [],
-      strengths: published && attempt ? attempt.feedback?.strengths || [] : [],
-      improvements: published && attempt ? attempt.feedback?.improvements || [] : [],
+      released: shown,
+      total: shown ? attempt.scores.total : null,
+      max: shown ? attempt.scores.max : null,
+      percentage: shown ? pct(attempt.scores.total, attempt.scores.max) : null,
+      sections: shown ? sectionKeys.map((k) => ({ key: k, ...(bySection[k] || { score: 0, max: 0 }) })) : [],
+      strengths: shown ? attempt.feedback?.strengths || [] : [],
+      improvements: shown ? attempt.feedback?.improvements || [] : [],
       classesHeld: heldForMember,
       classesAttended: attendedBy.get(String(m._id)) || 0,
     };
