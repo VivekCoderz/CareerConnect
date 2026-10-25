@@ -1,6 +1,6 @@
-// MBA assessment v1 (PRD R8): 50 questions, 60 minutes. 46 multiple choice (1 mark each, checked
-// against the key), 3 written scenarios (10 marks each, AI with the rubric), 1 speaking (10 marks,
-// E2Job reviewer). Maximum 86 marks. Business awareness uses facts that do not change with news.
+// MBA assessment v1 (PRD R8): 50 questions, 60 minutes, 100 marks. 46 multiple choice (1 mark
+// each, checked against the key), 3 written scenarios (12 marks each, AI with the rubric, then a
+// reviewer), 1 speaking (18 marks, reviewer). Business awareness uses facts that do not change.
 
 const mcq = (id, section, prompt, options, correct, extra = {}) => ({
   id,
@@ -33,10 +33,10 @@ const sections = [
   { key: "speaking", title: "Speaking" },
 ];
 
-const WRITTEN_RUBRIC = (specific) => `Total 10 marks.
-- Understanding of the problem (2): ${specific.understanding}
+const WRITTEN_RUBRIC = (specific) => `Total 12 marks.
+- Understanding of the problem (3): ${specific.understanding}
 - Analysis (3): ${specific.analysis}
-- Solution (3): ${specific.solution}
+- Solution (4): ${specific.solution}
 - Communication (2): clear structure, professional language, within 80 to 150 words.
 Give 0 for an answer that is blank, off-topic or copied from the question.`;
 
@@ -103,7 +103,7 @@ const questions = [
 
   // Business scenarios (3), written
   {
-    id: "q47", section: "written", type: "written", points: 10, minWords: 80, maxWords: 150,
+    id: "q47", section: "written", type: "written", points: 12, minWords: 80, maxWords: 150,
     prompt: "You are the marketing manager of a mid-sized FMCG company. Sales of your new juice brand fell 20% last quarter, and a competitor has launched a cheaper product. In 80 to 150 words, explain how you would find the cause and what two actions you would take.",
     rubric: WRITTEN_RUBRIC({
       understanding: "sees that the fall may come from the cheaper competitor but also checks other causes (distribution, quality, season).",
@@ -112,7 +112,7 @@ const questions = [
     }),
   },
   {
-    id: "q48", section: "written", type: "written", points: 10, minWords: 80, maxWords: 150,
+    id: "q48", section: "written", type: "written", points: 12, minWords: 80, maxWords: 150,
     prompt: "Your team of eight has missed two project deadlines and morale is low. As team lead, describe in 80 to 150 words what you would do in the next two weeks.",
     rubric: WRITTEN_RUBRIC({
       understanding: "recognises both the delivery problem and the morale problem.",
@@ -121,7 +121,7 @@ const questions = [
     }),
   },
   {
-    id: "q49", section: "written", type: "written", points: 10, minWords: 80, maxWords: 150,
+    id: "q49", section: "written", type: "written", points: 12, minWords: 80, maxWords: 150,
     prompt: "A bank wants more customers above 50 years of age to use its mobile banking app. In 80 to 150 words, suggest a plan.",
     rubric: WRITTEN_RUBRIC({
       understanding: "identifies likely barriers: trust and fear of fraud, ease of use, digital confidence.",
@@ -132,9 +132,9 @@ const questions = [
 
   // Speaking (1)
   {
-    id: "q50", section: "speaking", type: "speaking", points: 10, maxSeconds: 90,
+    id: "q50", section: "speaking", type: "speaking", points: 18, maxSeconds: 90,
     prompt: "Introduce yourself. Explain why you chose an MBA and what role you want after it. Speak for 60 to 90 seconds.",
-    rubric: "Total 10 marks. Clarity of speech (3); fluency and confidence (3); content and structure: introduction, reason for MBA, target role and why (4).",
+    rubric: "Total 18 marks. Clarity of speech (5); fluency and confidence (5); content and structure: introduction, reason for MBA, target role and why (8).",
   },
 ];
 

@@ -38,9 +38,10 @@ const recompute = (assessment, attempt) => {
     bySection[q.section] = bySection[q.section] || { score: 0, max: 0 };
     bySection[q.section].score += score;
     bySection[q.section].max += maxScore;
-    total += score;
     max += maxScore;
   }
+  // Negative marks can pull a section below zero; a section (and so the total) never goes below 0.
+  Object.values(bySection).forEach((sec) => { sec.score = Math.max(0, Math.round(sec.score * 100) / 100); total += sec.score; });
   attempt.scores = { bySection, total: Math.round(total * 100) / 100, max };
 
   const pendingAi = attempt.marks.some((m) => m.source === "ai" && m.status === "pending");

@@ -112,4 +112,4 @@ const summarize = ({ assessment, published, rows }) => {
   };
 };
 
-module.exports = { buildRows, summarize, pct };
+module.exports = { buildRows, summarize, pct, pickAssessment };

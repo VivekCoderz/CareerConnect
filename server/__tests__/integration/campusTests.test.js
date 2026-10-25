@@ -106,7 +106,9 @@ describe("negative marking and compulsory questions", () => {
     const saved = await CampusAttempt.findById(attempt.id);
     const mark = (prompt) => saved.marks.find((m) => m.questionId === id(prompt)).score;
     expect([mark("Pick B"), mark("Pick C"), mark("Pick A"), mark("Write a plan")]).toEqual([2, -1, -0.5, 0]);
-    expect(saved.scores.total).toBe(0.5);
+    // Quant: 2 - 1 = 1; Reasoning: -0.5 becomes 0 (a section never goes below 0); total 1.
+    expect(saved.scores.bySection.get(assessment.questions.find((q) => q.prompt === "Pick A").section).score).toBe(0);
+    expect(saved.scores.total).toBe(1);
   });
 
   it("time-up still submits with compulsory questions blank, and negative marking can be off", async () => {

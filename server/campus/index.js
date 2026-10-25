@@ -14,6 +14,7 @@ const manager = require("./controllers/managerController");
 const managers = require("./controllers/managersController");
 const profile = require("./controllers/profileController");
 const tests = require("./controllers/testsController");
+const analysis = require("./controllers/analysisController");
 const { serveRaw } = require("./services/files");
 const worker = require("./services/gradingWorker");
 
@@ -74,6 +75,9 @@ router.get("/manager/students", access.manager, manager.students);
 router.get("/manager/attempts/:memberId/proctoring", access.manager, manager.proctoring);
 router.get("/manager/reports/:name", access.manager, manager.report);
 router.get("/manager/students/:memberId/profile", access.manager, profile.studentProfile);
+router.get("/manager/analysis", access.manager, analysis.analysis);
+router.get("/manager/attempts/:memberId/answers", access.manager, analysis.answerSheet);
+router.post("/manager/publish", access.manager, analysis.publish);
 
 // E2Job operations
 router.post("/ops/import/preview", access.admin, sheetUpload, members.previewImport);

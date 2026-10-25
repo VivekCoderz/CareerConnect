@@ -7,6 +7,7 @@ import { Badge, Button, Card, Notice, Spinner } from "../../components/ui";
 import { BAND_LABEL, inputClass } from "../../format";
 import ProctoringModal from "./ProctoringModal";
 import StudentProfileModal from "./StudentProfileModal";
+import TestAnalysis from "./TestAnalysis";
 
 // University dashboard (PRD R14): students by band, results after publishing, attendance,
 // and the four downloads. Numbers come from the same server data as the downloads.
@@ -42,10 +43,12 @@ const ManagerDashboard = () => {
   const [downloading, setDownloading] = useState("");
   const [proctoring, setProctoring] = useState(null);
   const [profileOf, setProfileOf] = useState(null);
+  const [tab, setTab] = useState("overview");
 
-  useEffect(() => {
+  const loadOverview = useCallback(() => {
     campusApi.get("/manager/overview").then((r) => setSummary(r.data.summary)).catch((e) => setError(errorMessage(e)));
   }, []);
+  useEffect(() => { loadOverview(); }, [loadOverview]);
 
   const loadStudents = useCallback(() => {
     const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
@@ -80,9 +83,18 @@ const ManagerDashboard = () => {
           ))}
         </div>
       </div>
-      {error && <div className="mb-4"><Notice tone="red">{error}</Notice></div>}
-      {!summary && !error && <Spinner />}
-      {summary && (
+      <div className="mb-6 inline-flex rounded-xl bg-slate-100 p-1" role="tablist">
+        {[["overview", "Overview"], ["analysis", "Test analysis and publish"]].map(([key, label]) => (
+          <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "analysis" && <TestAnalysis onPublished={() => { loadOverview(); loadStudents(); }} />}
+      {tab === "overview" && error && <div className="mb-4"><Notice tone="red">{error}</Notice></div>}
+      {tab === "overview" && !summary && !error && <Spinner />}
+      {tab === "overview" && summary && (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Stat label="Students" value={summary.students} hint={`${summary.verified} details verified`} />

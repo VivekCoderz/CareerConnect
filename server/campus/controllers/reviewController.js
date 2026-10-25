@@ -5,6 +5,7 @@ const CampusMember = require("../models/CampusMember");
 const CampusFile = require("../models/CampusFile");
 const { recompute, pendingItems } = require("../services/scoring");
 const { flagSimilarAnswers } = require("../services/similarity");
+const { publishResults } = require("../services/publish");
 const { fileLink } = require("../services/files");
 
 // Staff review of marks before results go out (PRD R11). Reviewers see flagged and pending items
@@ -171,44 +172,8 @@ exports.publish = async (req, res, next) => {
   try {
     const assessment = await findAssessment(req);
     if (!assessment) return res.status(404).json({ success: false, message: "Assessment not found." });
-    // Releases every submitted test not released yet. Tests still being taken are left for a later
-    // publish; marks still pending block it, so nothing goes out unreviewed.
-    const unreleased = await CampusAttempt.find({ assessmentId: assessment._id, releasedAt: null });
-    const inProgress = unreleased.filter((a) => a.status === "in_progress").length;
-    const ready = unreleased.filter((a) => a.status !== "in_progress");
-    const pending = ready.filter((a) => pendingItems(a).length).length;
-    if (pending) {
-      return res.status(409).json({
-        success: false,
-        code: "NOT_READY",
-        message: `Not ready: ${pending} submitted test(s) still have marks pending.`,
-        inProgress,
-        pending,
-      });
-    }
-    if (!ready.length) {
-      return res.status(409).json({
-        success: false,
-        code: "NOTHING_TO_PUBLISH",
-        message: inProgress ? `Nothing to publish yet: ${inProgress} test(s) are still in progress.` : "Every submitted test is already published.",
-        inProgress,
-        pending: 0,
-      });
-    }
-    const now = new Date();
-    for (const attempt of ready) {
-      recompute(assessment, attempt);
-      attempt.review.status = "reviewed";
-      attempt.releasedAt = now;
-      await attempt.save();
-    }
-    assessment.resultsPublishedAt = now;
-    await assessment.save();
-    AuditLog.create({
-      actorId: req.user._id, actorName: req.user.fullName || "", actorEmail: req.user.email || "",
-      action: "CAMPUS_RESULTS_PUBLISHED", module: "Campus", target: String(assessment._id), details: { attempts: ready.length, inProgress },
-    }).catch(() => null);
-    return res.status(200).json({ success: true, resultsPublishedAt: now, attempts: ready.length, inProgress });
+    const { status, body } = await publishResults(assessment, req.user);
+    return res.status(status).json(body);
   } catch (error) {
     return next(error);
   }
