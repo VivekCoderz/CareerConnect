@@ -209,3 +209,25 @@ describe("university admins added by staff", () => {
     expect((await api(uni).get("/manager/overview", back.token)).status).toBe(200);
   });
 });
+
+describe("demo sign-in on a hosted demo", () => {
+  const saved = {};
+  beforeEach(() => { ["NODE_ENV", "CAMPUS_DEV_LOGIN", "CAMPUS_DEMO_LOGIN"].forEach((k) => { saved[k] = process.env[k]; }); });
+  afterEach(() => { Object.entries(saved).forEach(([k, v]) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; }); });
+
+  it("works only for @demo.portal.test sample accounts, and only when switched on", async () => {
+    const uni = await createInstitution({ domains: ["localhost"], allowedEmailDomains: ["fakeuni.test", "demo.portal.test"] });
+    const admin = await createAdmin();
+    await importStudents(uni, admin.token, [["Real Student", "real@fakeuni.test", "R1", "7", ""], ["Sample", "student01@demo.portal.test", "R2", "7", ""]]);
+    const hosted = (email) => require("supertest")(require("../../app")).post("/api/campus/auth/dev").set("Origin", "http://localhost:5173").send({ email });
+
+    process.env.NODE_ENV = "production";
+    process.env.CAMPUS_DEV_LOGIN = "true"; // the local switch alone does nothing in production
+    delete process.env.CAMPUS_DEMO_LOGIN;
+    expect((await hosted("student01@demo.portal.test")).status).toBe(404);
+
+    process.env.CAMPUS_DEMO_LOGIN = "true";
+    expect((await hosted("student01@demo.portal.test")).status).toBe(200);
+    expect((await hosted("real@fakeuni.test")).status).toBe(404);
+  });
+});

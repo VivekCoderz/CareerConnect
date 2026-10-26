@@ -80,13 +80,22 @@ exports.googleSignIn = async (req, res, next) => {
   }
 };
 
-// POST /api/campus/auth/dev { email }: local QA only, for sample students without Google accounts.
+// Sample accounts only: no real person can own an address on this domain, so signing in without
+// Google cannot be used to enter a real student's account.
+const DEMO_DOMAIN = "demo.portal.test";
+
+// POST /api/campus/auth/dev { email }: sample students without Google accounts.
+// Local QA: CAMPUS_DEV_LOGIN=true, any imported email. Hosted demo: CAMPUS_DEMO_LOGIN=true, and only
+// @demo.portal.test sample accounts.
 exports.devSignIn = async (req, res, next) => {
   try {
-    if (isProduction() || process.env.CAMPUS_DEV_LOGIN !== "true") {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const localQa = !isProduction() && process.env.CAMPUS_DEV_LOGIN === "true";
+    const hostedDemo = process.env.CAMPUS_DEMO_LOGIN === "true" && emailDomain(email) === DEMO_DOMAIN;
+    if (!localQa && !hostedDemo) {
       return res.status(404).json({ success: false, message: "Not found" });
     }
-    return signInMember(req, res, req.body?.email);
+    return signInMember(req, res, email);
   } catch (error) {
     return next(error);
   }
