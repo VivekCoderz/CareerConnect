@@ -7,12 +7,14 @@ on:
       - develop
       - ram-mohan-code
       - launch/job-portal
+      - hardening
   push:
     branches:
       - main
       - develop
       - ram-mohan-code
       - launch/job-portal
+      - hardening
   workflow_dispatch:
 
 concurrency:
