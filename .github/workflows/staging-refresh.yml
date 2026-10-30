@@ -1,0 +1,150 @@
+name: Staging Refresh
+
+# Rebuilds the staging database from a production backup with personal data scrubbed (H02).
+# The backup is restored and scrubbed in a throwaway MongoDB on the runner; only data that
+# passed the scrub check is uploaded to the staging cluster. See docs/staging.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_key:
+        description: "B2 backup path (leave empty for the latest nightly backup)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-22.04
+
+    services:
+      mongodb:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check the staging target
+        env:
+          STAGING_MONGODB_URI: ${{ secrets.STAGING_MONGODB_URI }}
+          PRODUCTION_MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          host() { printf '%s' "$1" | sed -E 's#^mongodb(\+srv)?://([^@/]*@)?([^/?]+).*#\3#'; }
+          db() { printf '%s' "$1" | sed -E 's#^mongodb(\+srv)?://[^/]+/([^?]*).*#\2#'; }
+
+          test -n "$STAGING_MONGODB_URI" || { echo "Secret STAGING_MONGODB_URI is not set."; exit 1; }
+          STAGING_DB="$(db "$STAGING_MONGODB_URI")"
+          case "$STAGING_DB" in
+            *staging*) ;;
+            *) echo "STAGING_MONGODB_URI must name a database containing 'staging' (got '$STAGING_DB')."; exit 1 ;;
+          esac
+          if [ -n "$PRODUCTION_MONGODB_URI" ] && [ "$(host "$STAGING_MONGODB_URI")" = "$(host "$PRODUCTION_MONGODB_URI")" ]; then
+            echo "Staging must be a separate Atlas cluster, not the production cluster."
+            exit 1
+          fi
+          echo "STAGING_DB=$STAGING_DB" >> "$GITHUB_ENV"
+
+      - name: Install MongoDB Database Tools, GPG and AWS CLI
+        run: |
+          curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-8.0.gpg
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" \
+            | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+          sudo apt-get update
+          sudo apt-get install -y mongodb-database-tools gnupg awscli
+
+      - name: Download encrypted backup from B2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_RESTORE_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_RESTORE_APPLICATION_KEY }}
+          B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
+          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
+          BACKUP_KEY: ${{ inputs.backup_key }}
+        run: |
+          if [ -z "$BACKUP_KEY" ]; then
+            LATEST="$(aws s3 ls "s3://$B2_BUCKET_NAME/nightly/" --endpoint-url "$B2_ENDPOINT" \
+              | awk '{print $4}' | grep '\.archive\.gz\.gpg$' | sort | tail -1)"
+            test -n "$LATEST" || { echo "No nightly backup found."; exit 1; }
+            BACKUP_KEY="nightly/$LATEST"
+          fi
+          echo "Using backup: $BACKUP_KEY"
+          aws s3 cp "s3://$B2_BUCKET_NAME/$BACKUP_KEY" "$RUNNER_TEMP/backup.archive.gz.gpg" --endpoint-url "$B2_ENDPOINT"
+          test -s "$RUNNER_TEMP/backup.archive.gz.gpg"
+
+      - name: Decrypt backup
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          printf '%s' "$BACKUP_PASSPHRASE" | \
+            gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+              --output "$RUNNER_TEMP/backup.archive.gz" \
+              --decrypt "$RUNNER_TEMP/backup.archive.gz.gpg"
+          rm -f "$RUNNER_TEMP/backup.archive.gz.gpg"
+          test -s "$RUNNER_TEMP/backup.archive.gz"
+
+      # Restored under its original database name; renaming here with --nsFrom silently
+      # restores nothing when the name differs (see mongodb-restore-test.yml).
+      - name: Restore backup into scratch MongoDB
+        run: |
+          mongorestore --uri="mongodb://127.0.0.1:27017" --archive="$RUNNER_TEMP/backup.archive.gz" --gzip
+          rm -f "$RUNNER_TEMP/backup.archive.gz"
+
+          SOURCE_DBS="$(docker run --rm --network host mongo:8.0 mongosh "mongodb://127.0.0.1:27017" --quiet --eval '
+            db.adminCommand({ listDatabases: 1 }).databases
+              .map(d => d.name).filter(n => !["admin", "config", "local"].includes(n)).join("\n")')"
+          echo "Databases in backup: $SOURCE_DBS"
+          test "$(printf '%s\n' "$SOURCE_DBS" | grep -c .)" = "1" || { echo "Expected exactly one application database."; exit 1; }
+          echo "SOURCE_DB=$SOURCE_DBS" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        run: npm ci --omit=dev
+        working-directory: server
+
+      - name: Scrub personal data
+        run: node scripts/scrub-staging-data.js "mongodb://127.0.0.1:27017/$SOURCE_DB"
+        working-directory: server
+
+      - name: Upload scrubbed data to staging
+        env:
+          STAGING_MONGODB_URI: ${{ secrets.STAGING_MONGODB_URI }}
+        run: |
+          mongodump --uri="mongodb://127.0.0.1:27017" --db="$SOURCE_DB" --archive="$RUNNER_TEMP/scrubbed.archive.gz" --gzip
+          # Cluster URI without the database path, so --nsFrom/--nsTo do the renaming.
+          CLUSTER_URI="$(printf '%s' "$STAGING_MONGODB_URI" | sed -E 's#^(mongodb(\+srv)?://[^/]+)/[^?]*#\1/#')"
+          mongorestore --uri="$CLUSTER_URI" --archive="$RUNNER_TEMP/scrubbed.archive.gz" --gzip --drop \
+            --nsFrom="$SOURCE_DB.*" --nsTo="$STAGING_DB.*"
+          rm -f "$RUNNER_TEMP/scrubbed.archive.gz"
+
+      - name: Verify staging and reset test accounts
+        env:
+          MONGODB_URI: ${{ secrets.STAGING_MONGODB_URI }}
+          STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
+        run: |
+          node scripts/scrub-staging-data.js "$MONGODB_URI" --verify-only
+          docker run --rm mongo:8.0 mongosh "$MONGODB_URI" --quiet --eval '
+            const users = db.users.estimatedDocumentCount();
+            print("Users in staging: " + users);
+            if (users === 0) throw new Error("Staging restore is empty.");'
+          node scripts/seed-staging-accounts.js
+        working-directory: server
