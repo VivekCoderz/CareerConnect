@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const request = require("supertest");
 const app = require("../../app");
+const Company = require("../../models/Company");
 const EmployerProfile = require("../../models/EmployerProfile");
 const Internship = require("../../models/Internship");
 const Job = require("../../models/Job");
@@ -8,6 +9,7 @@ const User = require("../../models/User");
 const { issueOtp, verifyOtp } = require("../../services/otpService");
 const { updatePlatformSettings } = require("../../services/platformSettings");
 const { approveLegacyEmployers } = require("../../scripts/approve-existing-employers");
+const getFirebaseAdmin = require("../../config/firebaseAdmin.js");
 const {
   createEmployerWithToken,
   createUserWithToken,
@@ -45,11 +47,14 @@ describe("employer verification (S04)", () => {
       role: "SUPER_ADMIN",
       userType: "admin",
     });
+    // An active company, so admin-route 403s come from the super-admin checks and not
+    // from requireActiveCompany.
+    const company = await Company.create({ name: "Verify Admin Co", status: "active" });
     companyAdmin = await createUserWithToken({
       email: "verify-company-admin@example.com",
       role: "COMPANY_ADMIN",
       userType: "admin",
-      companyId: new mongoose.Types.ObjectId(),
+      companyId: company._id,
     });
   });
 
@@ -107,6 +112,23 @@ describe("employer verification (S04)", () => {
       expect(reopened.status).toBe(403);
       expect(reopened.body.message).toBe(AWAITING);
       expect((await Job.findById(created._id).lean()).status).toBe("Paused");
+    });
+
+    it("blocks re-opening an internship until approved, but allows pausing", async () => {
+      const profile = await createEmployerProfile(employer.user._id);
+      const created = (await postInternship(employer)).body.internship;
+      await request(app).post(`/api/admin/opportunities/internship/${created._id}/approve`).set(auth(admin)).send({});
+      expect((await Internship.findById(created._id).lean()).status).toBe("Published");
+      await EmployerProfile.updateOne({ _id: profile._id }, { verificationStatus: "pending" });
+      const statusPath = `/api/internships/${created._id}/status`;
+
+      const paused = await request(app).patch(statusPath).set(auth(employer)).send({ status: "Paused" });
+      expect(paused.status).toBe(200);
+
+      const reopened = await request(app).patch(statusPath).set(auth(employer)).send({ status: "Published" });
+      expect(reopened.status).toBe(403);
+      expect(reopened.body.message).toBe(AWAITING);
+      expect((await Internship.findById(created._id).lean()).status).toBe("Paused");
     });
   });
 
@@ -184,6 +206,22 @@ describe("employer verification (S04)", () => {
       expect(await User.countDocuments({ email: /new-employer/ })).toBe(0);
     });
 
+    it("blocks a new employer's Google sign-in when closed", async () => {
+      await updatePlatformSettings({ allowEmployerRegistration: false });
+      getFirebaseAdmin.verifyIdToken.mockResolvedValueOnce({
+        uid: "google-closed-employer",
+        email: "google-closed-employer@example.com",
+        email_verified: true,
+        firebase: { sign_in_provider: "google.com" },
+        name: "Closed Employer",
+      });
+
+      const res = await request(app).post("/api/auth/google-auth").send({ idToken: "token", role: "employer" });
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe("Employer registration is closed");
+      expect(await User.countDocuments({ email: "google-closed-employer@example.com" })).toBe(0);
+    });
+
     it("blocks the Google employer onboarding path when closed", async () => {
       await updatePlatformSettings({ allowEmployerRegistration: false });
       const googleUser = await createUserWithToken({ email: "google-new@example.com" });
@@ -241,7 +279,9 @@ describe("employer verification (S04)", () => {
 
     it("cannot be called by the employer or a company admin", async () => {
       expect((await verify(employer, profile._id, { status: "approved" })).status).toBe(403);
-      expect((await verify(companyAdmin, profile._id, { status: "approved" })).status).toBe(403);
+      const byCompanyAdmin = await verify(companyAdmin, profile._id, { status: "approved" });
+      expect(byCompanyAdmin.status).toBe(403);
+      expect(byCompanyAdmin.body.message).toMatch(/Super Administrator/);
       expect((await EmployerProfile.findById(profile._id).lean()).verificationStatus).toBe("pending");
     });
 
@@ -264,7 +304,9 @@ describe("employer verification (S04)", () => {
     const putSettings = (identity, body) => request(app).put("/api/admin/settings").set(auth(identity)).send(body);
 
     it("cannot be changed by a company admin or an employer", async () => {
-      expect((await putSettings(companyAdmin, { autoApproveJobs: true })).status).toBe(403);
+      const byCompanyAdmin = await putSettings(companyAdmin, { autoApproveJobs: true });
+      expect(byCompanyAdmin.status).toBe(403);
+      expect(byCompanyAdmin.body.message).toMatch(/Super Administrator/);
       expect((await putSettings(employer, { autoApproveJobs: true })).status).toBe(403);
 
       const res = await request(app).get("/api/admin/settings").set(auth(admin));
