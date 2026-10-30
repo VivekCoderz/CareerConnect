@@ -190,6 +190,14 @@ describe("socket.io lockdown (S05)", () => {
       const stranger = await connect({ token: other.token });
       const receivedByStranger = collect(stranger, ["APPLICATION_UPDATED", "INTERVIEW_STATUS_UPDATED"]);
 
+      // No client event may subscribe the stranger to the owner's employer rooms.
+      for (const event of ["join_employer", "join_user", "join", "join_room"]) {
+        stranger.emit(event, String(employerProfile._id));
+        stranger.emit(event, `employer_${employerProfile._id}`);
+        stranger.emit(event, String(employer.user._id));
+      }
+      await settle();
+
       const toOwner = nextEvent(owner, "INTERVIEW_STATUS_UPDATED");
       socketService.emitApplicationUpdated(applicationB);
       socketService.emitInterviewStatusUpdated(candidateB.user._id, interviewB);
