@@ -27,8 +27,7 @@ const useLogout = () => {
     // 2. Clear Redux auth state
     dispatch(logout());
 
-    // 3. Clear local storage tokens
-    localStorage.removeItem("careerconnect_token");
+    // 3. Clear the cached user (the auth cookie is cleared by the server)
     localStorage.removeItem("careerconnect_user");
 
     // 4. Clear Firebase & Backend sessions asynchronously

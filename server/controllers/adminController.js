@@ -61,10 +61,10 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
   res.cookie("admin_token", token, cookieOptions);
   res.cookie("token", token, cookieOptions); // Read by the general auth middleware
 
+  // The JWT goes only in the httpOnly cookies, never in the JSON (where it could end
+  // up in script-readable storage).
   return res.status(statusCode).json({
     success: true,
-    // AdminLogin.jsx stores this as the Bearer fallback used by api.jsx
-    token,
     user: {
       _id: user._id,
       fullName: user.fullName,
