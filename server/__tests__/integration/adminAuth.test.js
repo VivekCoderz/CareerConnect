@@ -23,6 +23,8 @@ const withEnv = async (vars, fn) => {
 
 const setCookies = (res) => [].concat(res.headers["set-cookie"] || []);
 const cookieNamed = (res, name) => setCookies(res).find((c) => c.startsWith(`${name}=`));
+// The JWT is only in the httpOnly cookie (H07), never in the login JSON.
+const tokenOf = (res) => cookieNamed(res, "token").split(";")[0].slice("token=".length);
 
 describe("admin JWT and cookies (S09)", () => {
   let admin;
@@ -55,14 +57,15 @@ describe("admin JWT and cookies (S09)", () => {
 
     const res = await login(admin);
     expect(res.status).toBe(200);
-    const decoded = jwt.verify(res.body.token, process.env.JWT_SECRET);
+    expect(res.body.token).toBeUndefined();
+    const decoded = jwt.verify(tokenOf(res), process.env.JWT_SECRET);
     expect(decoded.av).toBe(3);
     expect(String(decoded.id)).toBe(String(admin._id));
-    expect(jwt.verify(cookieNamed(res, "token").split(";")[0].slice(6), process.env.JWT_SECRET).av).toBe(3);
+    expect(cookieNamed(res, "token")).toMatch(/HttpOnly/i);
   });
 
   it("revokes the old admin token after a password reset, and a new login works", async () => {
-    const { token } = (await login(admin)).body;
+    const token = tokenOf(await login(admin));
     expect((await me(token)).status).toBe(200);
 
     await resetPassword(admin);
@@ -74,11 +77,11 @@ describe("admin JWT and cookies (S09)", () => {
       .post("/api/admin/login")
       .send({ email: admin.email, password: "NewPassword@456" });
     expect(relogin.status).toBe(200);
-    expect((await me(relogin.body.token)).status).toBe(200);
+    expect((await meWithCookie(tokenOf(relogin))).status).toBe(200);
   });
 
   it("keeps an admin logged in when another admin resets their password", async () => {
-    const { token } = (await login(admin)).body;
+    const token = tokenOf(await login(admin));
 
     await resetPassword(otherAdmin);
 

@@ -143,11 +143,7 @@ const SetPassword = () => {
       });
 
       isSubmittingRef.current = true;
-      const { user: updatedUser, token } = response.data;
-
-      if (token) {
-        localStorage.setItem("careerconnect_token", token);
-      }
+      const { user: updatedUser } = response.data;
 
       // Update Redux auth state with updated user (hasPassword=true)
       dispatch(setUser(updatedUser));
@@ -200,7 +196,6 @@ const SetPassword = () => {
     } finally {
       // 3. Clear local state and localStorage
       dispatch(logout());
-      localStorage.removeItem("careerconnect_token");
       localStorage.removeItem("careerconnect_user");
       setCancelling(false);
       // 4. Navigate back to Home page

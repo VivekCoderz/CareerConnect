@@ -34,7 +34,9 @@ describe("admin login (ADM-03, ADM-15)", () => {
     const login = await request(app).post("/api/admin/login").send({ email: "reset-admin@careerconnect.test", password: "Admin@1234" });
     expect(login.statusCode).toBe(200);
 
-    const me = await as(login.body.token, "get", "/api/admin/me");
+    expect(login.body.token).toBeUndefined();
+
+    const me = await request(app).get("/api/admin/me").set("Cookie", login.headers["set-cookie"]);
     expect(me.statusCode).toBe(200);
   });
 
