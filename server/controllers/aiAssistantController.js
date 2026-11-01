@@ -4,7 +4,7 @@ const { answerUserQuery } = require("../services/ragAiService");
  * POST /api/ai/chat
  * Query personal AI assistant backed by RAG
  */
-exports.chat = async (req, res) => {
+exports.chat = async (req, res, next) => {
   try {
     const { query, conversationHistory = [] } = req.body || {};
     const userId = req.user?._id || null;
@@ -24,10 +24,6 @@ exports.chat = async (req, res) => {
 
     res.json(response);
   } catch (err) {
-    console.error("AI chat error:", err);
-    res.status(500).json({
-      success: false,
-      message: "AI Assistant encountered an error. Please try again.",
-    });
+    return next(err);
   }
 };

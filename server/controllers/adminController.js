@@ -117,7 +117,7 @@ function getStartDateForRange(range) {
  * Strictly authenticates SUPER_ADMIN and COMPANY_ADMIN.
  * Any non-admin account gets a generic 401 error.
  */
-exports.adminLogin = async (req, res) => {
+exports.adminLogin = async (req, res, next) => {
   try {
     const { email, username, emailOrUsername, password } = req.body;
     const loginIdentifier = (email || username || emailOrUsername || "").trim().toLowerCase();
@@ -194,11 +194,7 @@ exports.adminLogin = async (req, res) => {
 
     return sendAdminTokenResponse(user, 200, res, populatedCompany);
   } catch (error) {
-    console.error("Admin login error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error during authentication",
-    });
+    return next(error);
   }
 };
 
@@ -218,7 +214,7 @@ exports.adminLogout = (req, res) => {
 /**
  * GET /api/admin/me
  */
-exports.getAdminMe = async (req, res) => {
+exports.getAdminMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).populate("companyId", "name industry logo status");
     return res.status(200).json({
@@ -226,7 +222,7 @@ exports.getAdminMe = async (req, res) => {
       user,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return next(error);
   }
 };
 

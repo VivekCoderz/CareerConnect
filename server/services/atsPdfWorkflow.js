@@ -5,6 +5,7 @@ const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { PDFParse } = require("pdf-parse");
 const PDFDocument = require("pdfkit");
+const AppError = require("../utils/AppError");
 const {
   normalize,
   parseJobDescriptionText,
@@ -32,14 +33,14 @@ const isHeading = (line) => HEADINGS.test(line.replace(/[:\s]+$/, ""));
 
 async function extractPdfText(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
-    throw new Error("Upload a valid PDF file.");
+    throw new AppError(400, "Upload a valid PDF file.");
   }
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
     const text = cleanText(result?.text);
-    if (text.length < 50) throw new Error("This PDF has too little selectable text. Upload a text-based PDF.");
-    if (text.length > MAX_TEXT_LENGTH) throw new Error("This PDF has too much text for the resume review. Please use a shorter document.");
+    if (text.length < 50) throw new AppError(400, "This PDF has too little selectable text. Upload a text-based PDF.");
+    if (text.length > MAX_TEXT_LENGTH) throw new AppError(400, "This PDF has too much text for the resume review. Please use a shorter document.");
     return text;
   } finally {
     await parser.destroy?.();
@@ -237,9 +238,7 @@ function createFallbackPdf(sourceText, jdText) {
 
 async function compileLatex(latex, { fallbackText, jdText } = {}) {
   if (activeCompilations >= 2) {
-    const error = new Error("Resume generation is busy. Please try again shortly.");
-    error.statusCode = 503;
-    throw error;
+    throw new AppError(503, "Resume generation is busy. Please try again shortly.", { expose: true });
   }
   activeCompilations += 1;
   let directory;
@@ -262,9 +261,7 @@ async function compileLatex(latex, { fallbackText, jdText } = {}) {
       return createFallbackPdf(fallbackText, jdText);
     }
     if (error.code === "ENOENT") {
-      const unavailable = new Error("PDF generation is unavailable because Tectonic is not installed on the server.");
-      unavailable.statusCode = 503;
-      throw unavailable;
+      throw new AppError(503, "PDF generation is unavailable right now. Please try again later.", { expose: true });
     }
     throw error;
   } finally {

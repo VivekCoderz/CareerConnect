@@ -16,7 +16,7 @@ const {
 // 1. CREATE ORDER / FREE ENROLLMENT
 // POST /api/payment/create-order
 // ==========================================
-exports.createOrder = async (req, res) => {
+exports.createOrder = async (req, res, next) => {
   try {
     const user = req.user;
     const { courseId } = req.body;
@@ -166,12 +166,7 @@ exports.createOrder = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Create Payment Order Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to create payment order. Please try again.",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
@@ -179,7 +174,7 @@ exports.createOrder = async (req, res) => {
 // 2. VERIFY PAYMENT & UNLOCK COURSE
 // POST /api/payment/verify
 // ==========================================
-exports.verifyPayment = async (req, res) => {
+exports.verifyPayment = async (req, res, next) => {
   try {
     const user = req.user;
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature, courseId } = req.body;
@@ -298,12 +293,7 @@ exports.verifyPayment = async (req, res) => {
       application,
     });
   } catch (error) {
-    console.error("Verify Payment Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to verify payment.",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
@@ -311,7 +301,7 @@ exports.verifyPayment = async (req, res) => {
 // 3. GET CANDIDATE'S ORDERS & RECEIPTS
 // GET /api/payment/my-orders
 // ==========================================
-exports.getMyOrders = async (req, res) => {
+exports.getMyOrders = async (req, res, next) => {
   try {
     const user = req.user;
     if (!user) {
@@ -324,12 +314,7 @@ exports.getMyOrders = async (req, res) => {
 
     return res.status(200).json({ success: true, orders });
   } catch (error) {
-    console.error("Get My Orders Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to load order history",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
@@ -337,7 +322,7 @@ exports.getMyOrders = async (req, res) => {
 // 4. GET SPECIFIC PAYMENT RECEIPT
 // GET /api/payment/receipt/:paymentId
 // ==========================================
-exports.getPaymentReceipt = async (req, res) => {
+exports.getPaymentReceipt = async (req, res, next) => {
   try {
     const user = req.user;
     const { paymentId } = req.params;
@@ -357,12 +342,7 @@ exports.getPaymentReceipt = async (req, res) => {
 
     return res.status(200).json({ success: true, order });
   } catch (error) {
-    console.error("Get Receipt Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch receipt",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
@@ -370,7 +350,7 @@ exports.getPaymentReceipt = async (req, res) => {
 // 5. RAZORPAY WEBHOOK HANDLER
 // POST /api/payment/webhook
 // ==========================================
-exports.handleWebhook = async (req, res) => {
+exports.handleWebhook = async (req, res, next) => {
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
     const signature = req.headers["x-razorpay-signature"];
@@ -492,7 +472,6 @@ exports.handleWebhook = async (req, res) => {
 
     return res.status(200).json({ success: true, message: `Event ${event} acknowledged` });
   } catch (error) {
-    console.error("Payment Webhook Handler Error:", error);
-    return res.status(500).json({ success: false, message: "Internal server error processing webhook" });
+    return next(error);
   }
 };

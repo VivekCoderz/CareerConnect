@@ -1,4 +1,3 @@
-const { publicErrorMessage } = require("../utils/publicError");
 const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 
 const sanitizeEmployerUpdate = (body) => {
@@ -202,11 +201,7 @@ exports.updateEmployerProfile = async (req, res, next) => {
       profileCompletion: completion,
     });
   } catch (error) {
-    console.error("updateEmployerProfile Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: publicErrorMessage(error, "Failed to update employer profile"),
-    });
+    return next(error);
   }
 };
 
@@ -247,11 +242,7 @@ exports.saveDraftEmployerProfile = async (req, res, next) => {
       profileCompletion: completion,
     });
   } catch (error) {
-    console.error("saveDraftEmployerProfile Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: publicErrorMessage(error, "Failed to save draft"),
-    });
+    return next(error);
   }
 };
 

@@ -1,4 +1,3 @@
-const { publicError, publicErrorMessage } = require("../utils/publicError");
 const {
   generateResume,
   updateResume,
@@ -33,13 +32,14 @@ const { splitOtherSkills, mergeSkillStrings } = require("../utils/skills");
 const { webUrlOrEmpty } = require("../utils/webUrl");
 const mongoose = require("mongoose");
 const atsPdfWorkflow = require("../services/atsPdfWorkflow");
+const AppError = require("../utils/AppError");
 const { openListingQuery } = require("../utils/listingExpiry");
 
 /**
  * POST /api/resume/generate
  * Body: { rawData, template }
  */
-const generateResumeHandler = async (req, res) => {
+const generateResumeHandler = async (req, res, next) => {
   try {
     const { rawData, template, syncProfile } = req.body;
 
@@ -93,12 +93,7 @@ const generateResumeHandler = async (req, res) => {
 
     return res.status(200).json(generated);
   } catch (error) {
-    console.error("generateResume error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to generate resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -106,7 +101,7 @@ const generateResumeHandler = async (req, res) => {
  * POST /api/resume/update
  * Body: { currentResume, instruction }
  */
-const updateResumeHandler = async (req, res) => {
+const updateResumeHandler = async (req, res, next) => {
   try {
     const { currentResume, instruction } = req.body;
 
@@ -147,12 +142,7 @@ const updateResumeHandler = async (req, res) => {
 
     return res.status(200).json(updated);
   } catch (error) {
-    console.error("updateResume error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -193,7 +183,7 @@ const syncPrimaryResumeWithProfile = async (userId, resume) => {
 /**
  * GET /api/resume/me (Active / Primary or Latest resume)
  */
-const getMyResume = async (req, res) => {
+const getMyResume = async (req, res, next) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({
@@ -213,19 +203,14 @@ const getMyResume = async (req, res) => {
 
     return res.status(200).json(resume);
   } catch (error) {
-    console.error("getMyResume error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
 /**
  * GET /api/resume (Get all resumes saved by user)
  */
-const getAllResumes = async (req, res) => {
+const getAllResumes = async (req, res, next) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -241,19 +226,14 @@ const getAllResumes = async (req, res) => {
       resumes,
     });
   } catch (error) {
-    console.error("getAllResumes error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch resumes",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
 /**
  * GET /api/resume/:id (Get single resume by id)
  */
-const getResumeById = async (req, res) => {
+const getResumeById = async (req, res, next) => {
   try {
     const resume = await Resume.findOne({ _id: req.params.id, user: req.user._id });
     if (!resume) {
@@ -261,14 +241,14 @@ const getResumeById = async (req, res) => {
     }
     return res.status(200).json({ success: true, resume });
   } catch (error) {
-    return res.status(500).json({ success: false, message: publicErrorMessage(error) });
+    return next(error);
   }
 };
 
 /**
  * POST /api/resume/save (Save Final Resume with title & primary option)
  */
-const saveFinalResume = async (req, res) => {
+const saveFinalResume = async (req, res, next) => {
   try {
     const { title, template, rawData, generatedData, isPrimary, resumeId } = req.body;
 
@@ -352,19 +332,14 @@ const saveFinalResume = async (req, res) => {
       resumeUrl: resume.resumeUrl,
     });
   } catch (error) {
-    console.error("saveFinalResume error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to save resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
 /**
  * PATCH /api/resume/:id/primary (Set a resume as primary)
  */
-const setPrimaryResume = async (req, res) => {
+const setPrimaryResume = async (req, res, next) => {
   try {
     const { id } = req.params;
     await Resume.updateMany({ user: req.user._id }, { isPrimary: false });
@@ -410,14 +385,14 @@ const setPrimaryResume = async (req, res) => {
       resume,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: publicErrorMessage(error) });
+    return next(error);
   }
 };
 
 /**
  * DELETE /api/resume/:id (Delete a saved resume)
  */
-const deleteResume = async (req, res) => {
+const deleteResume = async (req, res, next) => {
   try {
     const { id } = req.params;
     const deleted = await Resume.findOneAndDelete({ _id: id, user: req.user._id });
@@ -447,7 +422,7 @@ const deleteResume = async (req, res) => {
       deletedId: id,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: publicErrorMessage(error) });
+    return next(error);
   }
 };
 
@@ -455,7 +430,7 @@ const deleteResume = async (req, res) => {
  * PUT /api/resume/manual
  * Body: { generatedData, resumeId }
  */
-const saveManualEdit = async (req, res) => {
+const saveManualEdit = async (req, res, next) => {
   try {
     const { generatedData, resumeId } = req.body;
 
@@ -499,12 +474,7 @@ const saveManualEdit = async (req, res) => {
 
     return res.status(200).json(resume);
   } catch (error) {
-    console.error("saveManualEdit error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to save resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -769,7 +739,7 @@ const skillsToString = (arr = []) =>
  * Reads the authenticated user's profile and maps it to the resume rawData shape.
  * Works for student, fresher, and professional user types.
  */
-const getProfileForResume = async (req, res) => {
+const getProfileForResume = async (req, res, next) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -1080,12 +1050,7 @@ const getProfileForResume = async (req, res) => {
 
     return res.status(200).json({ success: true, rawData, profileFound });
   } catch (error) {
-    console.error("getProfileForResume error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to load profile data for resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -1093,7 +1058,7 @@ const getProfileForResume = async (req, res) => {
  * POST /api/resume/upload
  * Uploads resume PDF to Cloudinary and saves URL in User and profile collections
  */
-const uploadResumeHandler = async (req, res) => {
+const uploadResumeHandler = async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -1169,12 +1134,7 @@ const uploadResumeHandler = async (req, res) => {
       publicId: uploadResult.public_id,
     });
   } catch (error) {
-    console.error("uploadResumeHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to upload resume to Cloudinary",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -1292,7 +1252,7 @@ ${rawText.slice(0, 10000)}
  * Uploads resume PDF, extracts text, uses AI to extract structured JSON,
  * saves Cloudinary URL, and syncs all parsed details directly to user profile.
  */
-const uploadAndParseResumeHandler = async (req, res) => {
+const uploadAndParseResumeHandler = async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -1468,12 +1428,7 @@ const uploadAndParseResumeHandler = async (req, res) => {
       user: userPayloadFn ? userPayloadFn(updatedUser) : updatedUser,
     });
   } catch (error) {
-    console.error("uploadAndParseResumeHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to upload and parse resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -1482,7 +1437,7 @@ const uploadAndParseResumeHandler = async (req, res) => {
  * Uploads resume PDF, extracts text, parses structured data with AI,
  * uploads PDF to Cloudinary, and returns parsed JSON for user review.
  */
-const parseResumeHandler = async (req, res) => {
+const parseResumeHandler = async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -1686,12 +1641,7 @@ const parseResumeHandler = async (req, res) => {
       savedResume,
     });
   } catch (error) {
-    console.error("parseResumeHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to parse resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -1699,7 +1649,7 @@ const parseResumeHandler = async (req, res) => {
  * POST /api/resume/confirm-parsed
  * Merges user-verified parsed data into their existing profile without destroying existing data.
  */
-const confirmParsedProfileHandler = async (req, res) => {
+const confirmParsedProfileHandler = async (req, res, next) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -2132,17 +2082,12 @@ const confirmParsedProfileHandler = async (req, res) => {
       resume: resumeRecord,
     });
   } catch (error) {
-    console.error("confirmParsedProfileHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to confirm and save parsed details to profile",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
 /** POST /api/resume/ats-score */
-const analyzeATSResumeHandler = async (req, res) => {
+const analyzeATSResumeHandler = async (req, res, next) => {
   try {
     const {
       resumeId,
@@ -2212,13 +2157,12 @@ const analyzeATSResumeHandler = async (req, res) => {
       analysis: analyzeATSMatch(resumeData, opportunity),
     });
   } catch (error) {
-    console.error("analyzeATSResumeHandler error:", error);
-    return res.status(500).json({ success: false, message: "Failed to analyze resume", error: publicError(error) });
+    return next(error);
   }
 };
 
 /** POST /api/resume/parse-job-description */
-const parseJobDescriptionHandler = async (req, res) => {
+const parseJobDescriptionHandler = async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Please upload a job description PDF" });
@@ -2245,12 +2189,7 @@ const parseJobDescriptionHandler = async (req, res) => {
       jobDescription,
     });
   } catch (error) {
-    console.error("parseJobDescriptionHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to read the job description PDF",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -2260,7 +2199,7 @@ const parseJobDescriptionHandler = async (req, res) => {
  * on verified user profile/resume data (never invents skills or facts).
  * Renders PDF and uploads to Cloudinary. Saves tailored resume without modifying primary profile.
  */
-const tailorResumeHandler = async (req, res) => {
+const tailorResumeHandler = async (req, res, next) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -2535,12 +2474,7 @@ const tailorResumeHandler = async (req, res) => {
       scoreComparison: bestCandidate.comparison,
     });
   } catch (error) {
-    console.error("tailorResumeHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to generate tailored resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -2548,7 +2482,7 @@ const tailorResumeHandler = async (req, res) => {
  * GET /api/resume/tailored/:opportunityType/:id
  * Fetches an existing tailored resume for a specific job or internship if one exists.
  */
-const getTailoredResumeHandler = async (req, res) => {
+const getTailoredResumeHandler = async (req, res, next) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -2575,8 +2509,7 @@ const getTailoredResumeHandler = async (req, res) => {
       resume,
     });
   } catch (error) {
-    console.error("getTailoredResumeHandler error:", error);
-    return res.status(500).json({ success: false, message: publicErrorMessage(error) });
+    return next(error);
   }
 };
 
@@ -2586,7 +2519,7 @@ const getTailoredResumeHandler = async (req, res) => {
  * Generates an ATS-optimized resume tailored to a specific job description.
  * NEVER invents data – only uses student's actual rawData.
  */
-const generateATSResumeHandler = async (req, res) => {
+const generateATSResumeHandler = async (req, res, next) => {
   try {
     const { rawData, jobDescription, companyName, template } = req.body;
 
@@ -2620,12 +2553,7 @@ const generateATSResumeHandler = async (req, res) => {
 
     return res.status(200).json(generated);
   } catch (error) {
-    console.error("generateATSResume error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to generate ATS-optimized resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -2696,7 +2624,7 @@ const mergeVerifiedATSReport = (richReport, deterministic, candidateData, target
  * POST /api/resume/ats-check
  * Accepts multipart file (req.file) OR resumeText / resumeData + jobDescription
  */
-const atsCheckHandler = async (req, res) => {
+const atsCheckHandler = async (req, res, next) => {
   try {
     const jobDescription = req.body.jobDescription || "";
     const targetRole = req.body.targetRole || "";
@@ -2841,12 +2769,7 @@ const atsCheckHandler = async (req, res) => {
       ),
     });
   } catch (error) {
-    console.error("atsCheckHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to perform ATS gap analysis",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -2854,7 +2777,7 @@ const atsCheckHandler = async (req, res) => {
  * POST /api/resume/ats-fix
  * 1-Click AI Resume Fixer
  */
-const atsFixHandler = async (req, res) => {
+const atsFixHandler = async (req, res, next) => {
   try {
     const { candidateData, jobDescription, gapAnalysis, template } = req.body;
 
@@ -2974,12 +2897,7 @@ const atsFixHandler = async (req, res) => {
       ...fixedResult,
     });
   } catch (error) {
-    console.error("atsFixHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fix and optimize resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -2987,27 +2905,26 @@ const readAtsPdfPair = async (req) => {
   const resume = req.files?.resume?.[0];
   const jobDescription = req.files?.jobDescription?.[0];
   if (!resume || !jobDescription) {
-    const error = new Error("Upload both a resume PDF and a job description PDF.");
-    error.statusCode = 400;
-    throw error;
+    throw new AppError(400, "Upload both a resume PDF and a job description PDF.");
   }
-  const [resumeText, jdText] = await Promise.all([
-    atsPdfWorkflow.extractPdfText(resume.buffer),
-    atsPdfWorkflow.extractPdfText(jobDescription.buffer),
-  ]);
+  // A PDF the parser cannot read is a bad upload, not a server fault.
+  const extract = (file) => atsPdfWorkflow.extractPdfText(file.buffer).catch((error) => {
+    throw error instanceof AppError ? error : new AppError(400, "Could not read this PDF. Upload a text-based PDF.");
+  });
+  const [resumeText, jdText] = await Promise.all([extract(resume), extract(jobDescription)]);
   return { resumeText, jdText };
 };
 
-const atsPdfCheckHandler = async (req, res) => {
+const atsPdfCheckHandler = async (req, res, next) => {
   try {
     const { resumeText, jdText } = await readAtsPdfPair(req);
     return res.json({ success: true, ...atsPdfWorkflow.scorePdfText(resumeText, jdText) });
   } catch (error) {
-    return res.status(error.statusCode || 400).json({ success: false, message: error.message });
+    return next(error);
   }
 };
 
-const atsPdfOptimizeHandler = async (req, res) => {
+const atsPdfOptimizeHandler = async (req, res, next) => {
   try {
     const { resumeText, jdText } = await readAtsPdfPair(req);
     const additionalEvidence = String(req.body?.additionalEvidence || "").trim();
@@ -3076,11 +2993,7 @@ const atsPdfOptimizeHandler = async (req, res) => {
       fileName: "E2Job_ATS_Resume.pdf",
     });
   } catch (error) {
-    console.error("atsPdfOptimizeHandler failed:", error.code || error.name || "unknown error");
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.statusCode ? error.message : "Could not generate the resume PDF. Please try again.",
-    });
+    return next(error);
   }
 };
 
@@ -3095,7 +3008,7 @@ const locationText = (location) => {
   return [location.city, location.state, location.country].filter(Boolean).join(", ");
 };
 
-const getLiveResumeHandler = async (req, res) => {
+const getLiveResumeHandler = async (req, res, next) => {
   try {
     const { id } = req.params;
     let resume = null;
@@ -3194,12 +3107,7 @@ const getLiveResumeHandler = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("getLiveResumeHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch live resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -3207,14 +3115,13 @@ const getLiveResumeHandler = async (req, res) => {
  * POST /api/resume/live/share { enabled }
  * Turns the public live resume link on or off for the signed-in user.
  */
-const setLiveResumeSharing = async (req, res) => {
+const setLiveResumeSharing = async (req, res, next) => {
   try {
     const enabled = req.body?.enabled === true;
     await User.updateOne({ _id: req.user._id }, { $set: { liveResumeShared: enabled } });
     return res.status(200).json({ success: true, shared: enabled });
   } catch (error) {
-    console.error("setLiveResumeSharing error:", error);
-    return res.status(500).json({ success: false, message: "Could not update sharing" });
+    return next(error);
   }
 };
 
@@ -3222,7 +3129,7 @@ const setLiveResumeSharing = async (req, res) => {
  * GET /api/resume/live
  * Authenticated endpoint for current user's primary/active live resume
  */
-const getMyLiveResumeHandler = async (req, res) => {
+const getMyLiveResumeHandler = async (req, res, next) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -3305,12 +3212,7 @@ const getMyLiveResumeHandler = async (req, res) => {
       message: "No live resume found yet. Create or save your resume to view it live.",
     });
   } catch (error) {
-    console.error("getMyLiveResumeHandler error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch live resume",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
