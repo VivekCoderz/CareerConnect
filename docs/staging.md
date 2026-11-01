@@ -24,7 +24,7 @@ Staging is a full copy of the app that deploys from the `hardening` branch. It h
 - Sessions, pending OTPs, OTP rate limits, email usage and resume asset records are emptied.
 - The run then scans every string in the database again. If any real email, phone number or user name is left, it fails and nothing is uploaded.
 
-Because passwords and Firebase UIDs are removed, no real user can sign in to staging. Testers use the four accounts below.
+Because passwords and Firebase UIDs are removed, no real user can sign in to staging. Testers use the test accounts below.
 
 Known limit: a one-word value holding only a name, such as a nested `"Rahul"`, is not replaced. That rule stops the scrub from touching values like `"active"` or `"student"`.
 
@@ -42,7 +42,7 @@ Known limit: a one-word value holding only a name, such as a nested `"Rahul"`, i
 | Secret | Value |
 |---|---|
 | `STAGING_MONGODB_URI` | The staging connection string from step 1 |
-| `STAGING_TEST_PASSWORD` | Password for the four test accounts, at least 10 characters. Share it in the team password manager, not in chat. |
+| `STAGING_TEST_PASSWORD` | Password for the test accounts, at least 10 characters. Share it in the team password manager, not in chat. |
 
 The workflow also reuses the existing backup secrets: `B2_RESTORE_KEY_ID`, `B2_RESTORE_APPLICATION_KEY`, `B2_BUCKET_NAME`, `B2_ENDPOINT`, `BACKUP_PASSPHRASE`, and `MONGODB_URI` (only to check that staging is a different cluster).
 
@@ -98,14 +98,18 @@ Login and signup check reCAPTCHA on staging, as on production. Add the staging f
 
 ## Test accounts
 
-Created by the refresh workflow (`server/scripts/seed-staging-accounts.js`). Each re-run resets their password to `STAGING_TEST_PASSWORD`.
+Created by the refresh workflow (`server/scripts/seed-staging-accounts.js`). Each re-run resets their password to `STAGING_TEST_PASSWORD`. The script can also run on its own, without a data refresh: from `server/`, with `MONGODB_URI` and `STAGING_TEST_PASSWORD` set, run `node scripts/seed-staging-accounts.js`.
 
 | Role | Email | Sign in at |
 |---|---|---|
-| Candidate | `candidate@staging.invalid` | normal login |
+| Candidate: student | `student@staging.invalid` | normal login |
+| Candidate: fresher | `fresher@staging.invalid` | normal login |
+| Candidate: professional | `professional@staging.invalid` | normal login |
 | Employer | `employer@staging.invalid` | normal login; goes through employer onboarding |
+| Company team member | `teammember@staging.invalid` | normal login; employer linked to "Staging Test Company" |
 | Company admin | `companyadmin@staging.invalid` | admin login; belongs to "Staging Test Company" |
 | Super admin | `superadmin@staging.invalid` | admin login |
+| Legacy admin (`role: "admin"`) | `admin@staging.invalid` | admin login |
 
 These addresses can't receive email. Anything that needs an inbox, such as signup OTP or forgot password, has to be tested with a new account on an address in `STAGING_EMAIL_ALLOWLIST`.
 

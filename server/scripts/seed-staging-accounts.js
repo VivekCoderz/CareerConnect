@@ -1,7 +1,8 @@
 /**
- * Creates or resets the four staging test accounts, one per role (H02): candidate, employer,
- * company admin and super admin. All use the password in STAGING_TEST_PASSWORD and an
- * @staging.invalid email, so nothing is ever emailed to them.
+ * Creates or resets the staging test accounts, one per role (H02): the three candidate types,
+ * employer, company team member, company admin, super admin and the legacy "admin" role. All
+ * use the password in STAGING_TEST_PASSWORD and an @staging.invalid email, so nothing is ever
+ * emailed to them.
  *
  * Refuses to run unless MONGODB_URI names a database containing "staging".
  *
@@ -16,10 +17,15 @@ const { databaseName, STAGING_DB_MARKER, STAGING_EMAIL_DOMAIN } = require("../co
 const COMPANY_NAME = "Staging Test Company";
 
 const ACCOUNTS = [
-  { key: "candidate", fullName: "Staging Candidate", role: "user", userType: "student" },
+  { key: "student", fullName: "Staging Student", role: "user", userType: "student" },
+  { key: "fresher", fullName: "Staging Fresher", role: "user", userType: "fresher" },
+  { key: "professional", fullName: "Staging Professional", role: "user", userType: "professional" },
   { key: "employer", fullName: "Staging Employer", role: "employer", userType: "employer" },
+  // An employer who belongs to the staging company.
+  { key: "teammember", fullName: "Staging Team Member", role: "employer", userType: "employer", withCompany: true },
   { key: "companyadmin", fullName: "Staging Company Admin", role: "COMPANY_ADMIN", userType: "admin", withCompany: true },
   { key: "superadmin", fullName: "Staging Super Admin", role: "SUPER_ADMIN", userType: "admin" },
+  { key: "admin", fullName: "Staging Legacy Admin", role: "admin", userType: "admin" },
 ];
 
 async function main() {
