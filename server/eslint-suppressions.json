@@ -85,7 +85,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 6
+      "count": 4
     }
   },
   "controllers/fresherController.js": {

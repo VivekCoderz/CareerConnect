@@ -38,7 +38,7 @@ const markBroadcastRead = async (notification, userId) => {
   return view;
 };
 
-exports.getNotifications = async (req, res) => {
+exports.getNotifications = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
@@ -93,12 +93,11 @@ exports.getNotifications = async (req, res) => {
     res.json({ success: true, notifications: result.items, total,
       unreadCount: result.unread[0]?.value || 0, page, totalPages: Math.ceil(total / limit) || 1 });
   } catch (err) {
-    console.error("Error fetching notifications:", err);
-    res.status(500).json({ success: false, message: "Failed to fetch notifications." });
+    return next(err);
   }
 };
 
-exports.getNotificationById = async (req, res) => {
+exports.getNotificationById = async (req, res, next) => {
   try {
     const notification = await loadAccessible(req.params.id, req.user._id);
     if (!notification) return notFound(res);
@@ -114,12 +113,11 @@ exports.getNotificationById = async (req, res) => {
     if (!view) return notFound(res);
     res.json({ success: true, notification: view });
   } catch (err) {
-    console.error("Error fetching notification details:", err);
-    res.status(500).json({ success: false, message: "Failed to fetch notification." });
+    return next(err);
   }
 };
 
-exports.markAsRead = async (req, res) => {
+exports.markAsRead = async (req, res, next) => {
   try {
     const notification = await loadAccessible(req.params.id, req.user._id);
     if (!notification) return notFound(res);
@@ -133,12 +131,11 @@ exports.markAsRead = async (req, res) => {
     if (!view) return notFound(res);
     res.json({ success: true, notification: view });
   } catch (err) {
-    console.error("Error marking notification read:", err);
-    res.status(500).json({ success: false, message: "Failed to update notification." });
+    return next(err);
   }
 };
 
-exports.markAllAsRead = async (req, res) => {
+exports.markAllAsRead = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const now = new Date();
@@ -148,12 +145,11 @@ exports.markAllAsRead = async (req, res) => {
     ]);
     res.json({ success: true, message: "All notifications marked as read." });
   } catch (err) {
-    console.error("Error marking all read:", err);
-    res.status(500).json({ success: false, message: "Failed to mark all as read." });
+    return next(err);
   }
 };
 
-exports.deleteNotification = async (req, res) => {
+exports.deleteNotification = async (req, res, next) => {
   try {
     const notification = await loadAccessible(req.params.id, req.user._id);
     if (!notification) return notFound(res);
@@ -168,8 +164,7 @@ exports.deleteNotification = async (req, res) => {
     }
     res.json({ success: true, message: "Notification deleted successfully." });
   } catch (err) {
-    console.error("Error deleting notification:", err);
-    res.status(500).json({ success: false, message: "Failed to delete notification." });
+    return next(err);
   }
 };
 

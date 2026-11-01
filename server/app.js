@@ -49,12 +49,7 @@ const supportTicketRoutes = require("./routes/supportTicketRoutes.js");
 const { configureTrustProxy } = require("./config/trustProxy");
 const { globalLimiter } = require("./middleware/rateLimitMiddleware");
 const dbStatus = require("./utils/dbStatus");
-let Sentry;
-try {
-  Sentry = require("@sentry/node");
-} catch {
-  Sentry = { captureException: () => {} };
-}
+const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 const app = express();
 configureTrustProxy(app);
@@ -222,51 +217,9 @@ app.get("/health", (req, res) => {
 });
 
 // 404 handler — must come after all routes so only unmatched requests reach it
-app.use((req, res) => {
-  return res.status(404).json({ success: false, message: "Not found" });
-});
+app.use(notFound);
 
 // Global error handling middleware
-app.use((err, req, res, next) => {
-  if (res.headersSent) {
-    return next(err);
-  }
-  if (err.code === 11000) {
-    const keys = err.keyPattern || err.keyValue || {};
-    const field = ["phone", "email", "username"].find((key) => keys[key] !== undefined);
-    const message = field === "phone"
-      ? "This mobile number is already registered with another account"
-      : field === "email"
-        ? "This email is already registered"
-        : field === "username"
-          ? "This username is already taken"
-          : "This account is already registered";
-    return res.status(409).json({ success: false, field, message });
-  }
-  // Bad input (wrong type, unknown enum value, malformed ID) is the client's
-  // mistake: answer 400 and name the field instead of leaking a Mongoose error.
-  if (err.name === "ValidationError") {
-    const fields = Object.keys(err.errors || {});
-    return res.status(400).json({
-      success: false,
-      fields,
-      message: fields.length ? `Invalid value for: ${fields.join(", ")}` : "Invalid input",
-    });
-  }
-  if (err.name === "CastError") {
-    const field = err.path === "_id" ? "id" : err.path;
-    return res.status(400).json({ success: false, fields: [field], message: `Invalid value for: ${field}` });
-  }
-  console.error("Server Global Error:", err);
-  const status = err.code === "LIMIT_FILE_SIZE" ? 413 : err.statusCode || err.status || 500;
-  // Server faults go to Sentry (a no-op without SENTRY_DSN). Rejected CORS origins are not bugs.
-  if (status >= 500 && !String(err.message).startsWith("Not allowed by CORS")) {
-    Sentry.captureException(err, { tags: { status_code: status, route: req.route?.path || req.baseUrl || req.path } });
-  }
-  return res.status(status).json({
-    success: false,
-    message: status >= 500 && isProduction ? "Internal server error" : err.message || "Internal server error",
-  });
-});
+app.use(errorHandler);
 
 module.exports = app;
