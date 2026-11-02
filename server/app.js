@@ -29,6 +29,7 @@ const paymentRoutes = require("./routes/paymentRoutes.js");
 
 // Employer & Jobs / Internships feature routes
 const jobRoutes = require("./routes/jobRoutes.js");
+const dashboardRoutes = require("./routes/dashboardRoutes.js");
 const internshipRoutes = require("./routes/internshipRoutes.js");
 const applicationRoutes = require("./routes/applicationRoutes.js");
 const candidateRoutes = require("./routes/candidateRoutes.js");
@@ -167,6 +168,7 @@ if (flag("ENABLE_PAYMENTS")) app.use("/api/payment", paymentRoutes);
 
 // Marketplace & Discovery Routes
 app.use("/api/jobs", jobRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/internships", internshipRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/candidates", candidateRoutes);

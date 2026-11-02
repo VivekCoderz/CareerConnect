@@ -409,6 +409,51 @@ const fresherProfileSchema = new mongoose.Schema(
     },
 
     // ==================================================
+    // DASHBOARD PREFERENCES
+    // What the dashboard banner and recommended jobs read. Kept in step with targetRole
+    // and jobPreferences by utils/fresherPreferences.js.
+    // ==================================================
+    preferences: {
+      targetRole: {
+        type: String,
+        trim: true,
+        maxlength: [100, "Target role cannot exceed 100 characters"],
+        default: "",
+      },
+      techStack: [
+        {
+          type: String,
+          trim: true,
+          maxlength: [50, "Tech stack item cannot exceed 50 characters"],
+        },
+      ],
+      jobType: {
+        type: String,
+        enum: ["", "Internship", "Full-time", "Part-time"],
+        default: "",
+      },
+      location: {
+        type: String,
+        trim: true,
+        maxlength: [100, "Location cannot exceed 100 characters"],
+        default: "",
+      },
+    },
+
+    // Set once preferences have been filled from the old fields (backfillPreferences),
+    // so a fresher who later clears a preference doesn't get it filled back in.
+    preferencesSyncedAt: {
+      type: Date,
+    },
+
+    // Times the public profile was opened by someone other than the fresher.
+    profileViews: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // ==================================================
     // PERSONAL & COMMON OVERRIDES (Synched with User)
     // ==================================================
     dateOfBirth: {
@@ -538,7 +583,7 @@ const fresherProfileSchema = new mongoose.Schema(
       employmentTypes: [
         {
           type: String,
-          enum: ["Full-time", "Internship", "Contract", "Freelance", "Apprenticeship", "Graduate Trainee"],
+          enum: ["Full-time", "Part-time", "Internship", "Contract", "Freelance", "Apprenticeship", "Graduate Trainee"],
         },
       ],
       preferredLocations: [
