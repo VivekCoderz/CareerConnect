@@ -1,6 +1,6 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
@@ -8,6 +8,7 @@ import useLogout from "../../hooks/useLogout";
 import useLiveNotifications from "../../hooks/useLiveNotifications";
 import { getFresherDashboardData, getDashboardSummary } from "../../services/fresherDashboardService";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { openExternalApply } from "../../utils/opportunityApply";
 import { FEATURES } from "../../config/features";
 
 // Fresher Dashboard Components
@@ -37,7 +38,6 @@ import CandidateInterviewsView from "../../components/student-dashboard/Candidat
 import NotificationInbox from "../../components/notifications/NotificationInbox";
 
 const FresherDashboard = () => {
-  const navigate = useNavigate();
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
@@ -135,12 +135,6 @@ const FresherDashboard = () => {
     logout();
   };
 
-  const handleSearch = (term) => {
-    if (term.trim()) {
-      navigate(`/jobs?search=${encodeURIComponent(term.trim())}`);
-    }
-  };
-
   const handleSelectTab = (tab) => {
     setActiveTab(tab);
     if (tab === "internships") {
@@ -157,6 +151,12 @@ const FresherDashboard = () => {
   const inbox = useLiveNotifications(handleSelectTab);
 
   const handleApply = (item) => {
+    // External listings are applied to on the employer's site, not through E2Job.
+    const external = openExternalApply(item);
+    if (external) {
+      if (!external.opened) showToast("This listing has no apply link.", "error");
+      return;
+    }
     setSelectedOpportunityForTailoring({
       _id: item._id || item.id,
       id: item._id || item.id,
@@ -253,9 +253,7 @@ const FresherDashboard = () => {
         <FresherNavbar
           user={currentUser}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onLogout={handleLogout}
-          onSearch={handleSearch}
         />
 
         {/* Workspace Body */}

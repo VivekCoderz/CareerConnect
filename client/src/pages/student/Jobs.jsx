@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
 import { getJobs } from "../../services/jobService";
-import { applyToOpportunity } from "../../utils/opportunityApply";
+import { applyToOpportunity, openExternalApply } from "../../utils/opportunityApply";
 import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
 import ViewDetailsButton from "../../components/common/ViewDetailsButton";
 
@@ -63,6 +63,12 @@ export default function Jobs({
   };
 
   const handleApplyClick = async (item) => {
+    // External listings go to the employer's site, also when a dashboard handles applying.
+    const external = openExternalApply(item);
+    if (external) {
+      if (!external.opened) showToast("This listing has no apply link.", "error");
+      return;
+    }
     if (onApply) {
       onApply(item);
       return;
@@ -70,10 +76,6 @@ export default function Jobs({
 
     try {
       const res = await applyToOpportunity(item, "Job");
-      if (res.external) {
-        if (!res.opened) showToast("This listing has no apply link.", "error");
-        return;
-      }
       if (res?.success) {
         setAppliedIds((prev) => [...prev, item._id || item.id]);
         showToast(res.message || `Applied for "${item.title}"!`, "success");
