@@ -39,6 +39,30 @@ const ROLE_SKILLS = {
   "Associate Product Manager": ["Product Roadmap", "User Research", "SQL", "Analytics", "Jira"],
 };
 
+// Other words in a job title that mean the same kind of role (compared after compact(), so
+// "Full-stack" is "fullstack" and "Node.js" is "nodejs"). A Web Developer is also shown
+// Frontend, Full Stack and React jobs.
+const ROLE_TITLE_WORDS = {
+  "Full Stack Developer": ["fullstack", "mern", "mean", "mevn"],
+  "MERN Stack Developer": ["mern", "fullstack"],
+  "Frontend Developer": ["frontend", "react", "angular", "vue", "uidev"],
+  "Backend Developer": ["backend", "nodejs", "node", "express", "django", "springboot"],
+  "Web Developer": ["web", "frontend", "fullstack", "mern", "mean", "react", "nodejs", "javascript"],
+  "Software Developer": ["software", "sde"],
+  "Junior Software Engineer": ["software", "sde"],
+  "Python Developer": ["python", "django", "flask"],
+  "Java Developer": ["java", "springboot"],
+  "Mobile App Developer": ["mobile", "android", "ios", "flutter", "reactnative", "kotlin"],
+  "Data Analyst": ["data", "analyst", "analytics", "bi"],
+  "AI/ML Engineer": ["ai", "ml", "machinelearning", "datascien"],
+  "QA Engineer": ["qa", "test", "quality"],
+  "DevOps Engineer": ["devops", "cloud", "sre"],
+  "UI/UX Designer": ["uiux", "uxui", "productdesign", "ux"],
+};
+
+// Skills too common to say a job is for the fresher's role on their own.
+const GENERIC_SKILLS = ["Git", "GitHub", "Excel", "MS Excel", "Communication", "Problem Solving"];
+
 // Signup "areas of interest" (Signup.jsx / GoogleOnboarding.jsx POPULAR_INTERESTS) that
 // name a role. Custom interests the fresher typed are matched against ROLE_SKILLS, and
 // anything else (e.g. "MERN") is treated as tech stack.
@@ -70,6 +94,7 @@ const STACK_SKILLS = {
 };
 
 const MAX_TECH_STACK = 8;
+const MAX_TARGET_ROLES = 5;
 const PROFILE_SKILL_CATEGORIES = ["programmingLanguages", "frameworks", "databases", "tools", "technical", "softSkills"];
 
 // Words that say how senior a role is, not what it is: "Full Stack Developer" and
@@ -98,10 +123,26 @@ const findRoleKey = (role) => {
   return Object.keys(ROLE_SKILLS).find((key) => compact(key) === compact(role) || roleCore(key) === core) || null;
 };
 
-/** True when a job title is for the given target role. */
+/** True when a job title is for the given target role, or a role close to it (ROLE_TITLE_WORDS). */
 const titleMatchesRole = (title, role) => {
   const core = roleCore(role);
-  return Boolean(core) && compact(title).includes(core);
+  if (!core) return false;
+  const t = compact(title);
+  if (t.includes(core)) return true;
+  // Short words ("ai", "qa", "bi") only count as a whole word, so "qa" doesn't match "Aqua".
+  const words = String(title || "").toLowerCase().split(/[^a-z0-9+#]+/);
+  return (ROLE_TITLE_WORDS[findRoleKey(role)] || []).some((w) => (w.length <= 3 ? words.includes(w) : t.includes(w)));
+};
+
+/**
+ * Normalised skills that say a job is for this fresher: every target role's skills plus the
+ * tech stack (and what each stack stands for), without GENERIC_SKILLS.
+ */
+const roleSkillKeys = (targetRoles = [], techStack = []) => {
+  const roleSkills = targetRoles.flatMap((role) => ROLE_SKILLS[findRoleKey(role)] || []);
+  const keys = skillKeySet(roleSkills, techStack);
+  for (const s of GENERIC_SKILLS) keys.delete(normalizeSkill(s));
+  return keys;
 };
 
 /** Trimmed, de-duplicated (case-insensitive) list of non-empty strings. */
@@ -119,10 +160,21 @@ const uniqueStrings = (list, max = Infinity) => {
   return out;
 };
 
-/** Only the known keys, trimmed; an unknown jobType becomes "". */
+/** The fresher's target roles, first one first. Profiles from before targetRoles have only targetRole. */
+const targetRolesOf = (prefs = {}) =>
+  prefs.targetRoles?.length ? uniqueStrings(prefs.targetRoles, MAX_TARGET_ROLES) : uniqueStrings([prefs.targetRole]);
+
+/**
+ * Only the known keys, trimmed; an unknown jobType becomes "". targetRole is always
+ * targetRoles[0], whichever of the two was sent.
+ */
 const normalizePreferences = (input = {}) => {
   const out = {};
-  if ("targetRole" in input) out.targetRole = clean(input.targetRole);
+  if ("targetRoles" in input || "targetRole" in input) {
+    const raw = "targetRoles" in input ? input.targetRoles : [input.targetRole];
+    out.targetRoles = uniqueStrings(typeof raw === "string" ? raw.split(",") : raw, MAX_TARGET_ROLES);
+    out.targetRole = out.targetRoles[0] || "";
+  }
   if ("techStack" in input) {
     const raw = typeof input.techStack === "string" ? input.techStack.split(",") : input.techStack;
     out.techStack = uniqueStrings(raw, MAX_TECH_STACK);
@@ -135,28 +187,26 @@ const normalizePreferences = (input = {}) => {
   return out;
 };
 
-/** Preferences from the signup "areas of interest". */
+/** Preferences from the signup "areas of interest": every interest that names a role is a target role. */
 const interestsToPreferences = (interests = []) => {
-  let targetRole = "";
+  const roles = [];
   const techStack = [];
   for (const interest of uniqueStrings(interests)) {
     const role = INTEREST_ROLES[interest] || findRoleKey(interest);
-    if (role) {
-      if (!targetRole) targetRole = role;
-    } else {
-      techStack.push(interest);
-    }
+    if (role) roles.push(role);
+    else techStack.push(interest);
   }
-  return { targetRole, techStack: uniqueStrings(techStack, MAX_TECH_STACK) };
+  const targetRoles = uniqueStrings(roles, MAX_TARGET_ROLES);
+  return { targetRole: targetRoles[0] || "", targetRoles, techStack: uniqueStrings(techStack, MAX_TECH_STACK) };
 };
 
 /** FresherProfile fields to create a new fresher with, from their signup interests. */
 const signupPreferenceFields = (interests = []) => {
-  const { targetRole, techStack } = interestsToPreferences(interests);
+  const { targetRole, targetRoles, techStack } = interestsToPreferences(interests);
   return {
-    preferences: { targetRole, techStack, jobType: "", location: "" },
+    preferences: { targetRole, targetRoles, techStack, jobType: "", location: "" },
     preferencesSyncedAt: new Date(),
-    ...(targetRole ? { targetRole, targetRoles: [targetRole], jobPreferences: { preferredRoles: [targetRole] } } : {}),
+    ...(targetRole ? { targetRole, targetRoles, jobPreferences: { preferredRoles: targetRoles } } : {}),
   };
 };
 
@@ -167,8 +217,10 @@ const legacyPreferences = (profile) => {
   const p = toPlain(profile);
   const jp = p.jobPreferences || {};
   const workModes = jp.workMode || [];
+  const targetRole = clean(p.targetRole) || clean(p.targetRoles?.[0]) || clean(jp.preferredRoles?.[0]);
   return {
-    targetRole: clean(p.targetRole) || clean(p.targetRoles?.[0]) || clean(jp.preferredRoles?.[0]),
+    targetRole,
+    targetRoles: targetRole ? uniqueStrings([targetRole, ...(p.targetRoles || [])], MAX_TARGET_ROLES) : [],
     jobType: (jp.employmentTypes || []).find((t) => JOB_TYPES.includes(t)) || "",
     location: clean(jp.preferredLocations?.[0]) || (workModes.includes("Remote") ? "Remote" : ""),
   };
@@ -180,14 +232,22 @@ const withFirst = (list = [], value, previous) => {
   return value ? [value, ...rest] : rest;
 };
 
+/** `values` first, then the rest of `list` without them or any of `previous`. */
+const withAllFirst = (list = [], values = [], previous = []) => {
+  const rest = list.filter((item) => item && !values.includes(item) && !previous.includes(item));
+  return [...values, ...rest];
+};
+
 /** Copies profile.preferences onto the old fields so other features see the same values. */
 const mirrorPreferencesToLegacy = (profile, previous = {}) => {
   const prefs = profile.preferences || {};
-  profile.targetRole = prefs.targetRole || "";
-  profile.targetRoles = withFirst(profile.targetRoles || [], prefs.targetRole, previous.targetRole);
+  const roles = targetRolesOf(toPlain(prefs));
+  const previousRoles = targetRolesOf(previous);
+  profile.targetRole = roles[0] || "";
+  profile.targetRoles = withAllFirst(profile.targetRoles || [], roles, previousRoles);
   profile.jobPreferences = profile.jobPreferences || {};
   const jp = profile.jobPreferences;
-  jp.preferredRoles = withFirst(jp.preferredRoles || [], prefs.targetRole, previous.targetRole);
+  jp.preferredRoles = withAllFirst(jp.preferredRoles || [], roles, previousRoles);
   jp.employmentTypes = withFirst(jp.employmentTypes || [], prefs.jobType, previous.jobType);
   jp.preferredLocations = withFirst(jp.preferredLocations || [], prefs.location, previous.location);
   return profile;
@@ -203,6 +263,7 @@ const syncPreferencesFromLegacy = (profile) => {
   const jp = toPlain(profile).jobPreferences || {};
   profile.preferences = {
     targetRole: legacy.targetRole,
+    targetRoles: legacy.targetRoles,
     techStack: current.techStack || [],
     jobType: (jp.employmentTypes || []).includes(current.jobType) ? current.jobType : legacy.jobType,
     location: (jp.preferredLocations || []).includes(current.location) ? current.location : legacy.location,
@@ -219,14 +280,20 @@ const backfillPreferences = (profile, user) => {
   const current = toPlain(profile).preferences || {};
   const legacy = legacyPreferences(profile);
   const fromInterests = interestsToPreferences(user?.interests || []);
+  const currentRoles = targetRolesOf(current);
+  const targetRoles = currentRoles.length
+    ? currentRoles
+    : legacy.targetRoles.length ? legacy.targetRoles : fromInterests.targetRoles;
   const next = {
-    targetRole: clean(current.targetRole) || legacy.targetRole || fromInterests.targetRole,
+    targetRole: targetRoles[0] || "",
+    targetRoles,
     techStack: current.techStack?.length ? current.techStack : fromInterests.techStack,
     jobType: current.jobType || legacy.jobType,
     location: clean(current.location) || legacy.location,
   };
   const changed = JSON.stringify(next) !== JSON.stringify({
     targetRole: current.targetRole || "",
+    targetRoles: current.targetRoles || [],
     techStack: current.techStack || [],
     jobType: current.jobType || "",
     location: current.location || "",
@@ -255,6 +322,25 @@ const backfillPreferencesUpdate = (profile, user, now = new Date()) => {
     });
   }
   return { changed, set };
+};
+
+/**
+ * Profiles saved while only one target role was kept: the role, then every other role in
+ * the signup interests. Returns the $set to save, or null when there's nothing to fill
+ * (no role, or targetRoles already saved, so this runs once).
+ */
+const targetRolesUpdate = (profile, user) => {
+  const prefs = toPlain(profile).preferences || {};
+  if (!clean(prefs.targetRole) || prefs.targetRoles?.length) return null;
+  const roles = uniqueStrings([prefs.targetRole, ...interestsToPreferences(user?.interests || []).targetRoles], MAX_TARGET_ROLES);
+  profile.preferences.targetRoles = roles;
+  mirrorPreferencesToLegacy(profile, prefs);
+  const jp = toPlain(profile).jobPreferences || {};
+  return {
+    "preferences.targetRoles": roles,
+    targetRoles: [...(profile.targetRoles || [])],
+    "jobPreferences.preferredRoles": [...(jp.preferredRoles || [])],
+  };
 };
 
 /** All skill names on a fresher profile (categorised skills plus primarySkills), no duplicates. */
@@ -332,6 +418,9 @@ module.exports = {
   INTEREST_ROLES,
   findRoleKey,
   titleMatchesRole,
+  roleSkillKeys,
+  targetRolesOf,
+  targetRolesUpdate,
   normalizePreferences,
   interestsToPreferences,
   signupPreferenceFields,

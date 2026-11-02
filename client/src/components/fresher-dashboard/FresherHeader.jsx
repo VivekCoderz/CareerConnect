@@ -2,8 +2,9 @@ import { Link } from "react-router-dom";
 import { Briefcase, Clock, Layers, MapPin, Pencil, Plus, RotateCw } from "lucide-react";
 
 // Preference fields the banner shows as chips, in order. `label` is used in "+ Add {label}".
+// `values` is the key the chips read when it isn't `field` (one chip per target role).
 const PREFERENCE_FIELDS = [
-  { field: "targetRole", label: "target role", icon: Briefcase },
+  { field: "targetRole", values: "targetRoles", label: "target role", icon: Briefcase },
   { field: "techStack", label: "tech stack", icon: Layers },
   { field: "jobType", label: "job type", icon: Clock },
   { field: "location", label: "location", icon: MapPin },
@@ -14,8 +15,8 @@ const EDITABLE_FIELDS = new Set(PREFERENCE_FIELDS.map((f) => f.field));
 const buildChips = (preferences = {}) => {
   const seen = new Set();
   const chips = [];
-  for (const { field, label, icon } of PREFERENCE_FIELDS) {
-    const raw = preferences[field];
+  for (const { field, values: valuesKey, label, icon } of PREFERENCE_FIELDS) {
+    const raw = preferences[valuesKey]?.length ? preferences[valuesKey] : preferences[field];
     const values = (Array.isArray(raw) ? raw : [raw]).map((v) => (v || "").trim()).filter(Boolean);
     if (values.length === 0) {
       chips.push({ key: `add-${field}`, field, label: `Add ${label}`, empty: true });
@@ -115,6 +116,8 @@ const FresherHeader = ({ summary, loading, error, onRetry, onEditPreferences }) 
     profileViews,
   } = summary;
   const chips = buildChips(preferences);
+  const roles = preferences.targetRoles?.length ? preferences.targetRoles : [preferences.targetRole].filter(Boolean);
+  const rolesText = roles.length > 1 ? `${roles.slice(0, -1).join(", ")} aur ${roles[roles.length - 1]}` : roles[0];
   const percent = Math.min(100, Math.max(0, profileCompletion));
 
   return (
@@ -132,8 +135,8 @@ const FresherHeader = ({ summary, loading, error, onRetry, onEditPreferences }) 
           </h1>
 
           <p className="mt-2 max-w-xl text-sm text-indigo-200 sm:text-base">
-            {preferences.targetRole
-              ? `${newMatchedJobs} naye jobs aapke ${preferences.targetRole} profile se match karte hain.`
+            {rolesText
+              ? `${newMatchedJobs} naye jobs aapke ${rolesText} profile se match karte hain.`
               : "Apni preferences set karo, hum aapke liye jobs dhoondhenge."}
           </p>
 

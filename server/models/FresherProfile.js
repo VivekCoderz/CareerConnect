@@ -420,6 +420,14 @@ const fresherProfileSchema = new mongoose.Schema(
         maxlength: [100, "Target role cannot exceed 100 characters"],
         default: "",
       },
+      // Every role the fresher wants; targetRole is the first one.
+      targetRoles: [
+        {
+          type: String,
+          trim: true,
+          maxlength: [100, "Target role cannot exceed 100 characters"],
+        },
+      ],
       techStack: [
         {
           type: String,

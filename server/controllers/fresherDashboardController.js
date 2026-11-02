@@ -7,6 +7,8 @@ const {
   JOB_TYPES,
   ROLE_SKILLS,
   backfillPreferencesUpdate,
+  targetRolesOf,
+  targetRolesUpdate,
   profileSkills,
   skillKeySet,
   resumeUrlOf,
@@ -14,14 +16,16 @@ const {
   profileStrength,
   skillScoreFor,
 } = require("../utils/fresherPreferences");
-const { hasPreferences, scoredJobs, matchCounts, toCard, MATCH_THRESHOLD } = require("../services/fresherJobMatch");
+const { hasPreferences, scoredJobs, matchCounts, toCard, isMatch } = require("../services/fresherJobMatch");
 
 const MAX_LIMIT = 50;
 
 const preferencesOf = (profile) => {
   const prefs = profile.preferences || {};
+  const targetRoles = targetRolesOf(prefs);
   return {
-    targetRole: prefs.targetRole || "",
+    targetRole: targetRoles[0] || "",
+    targetRoles,
     techStack: [...(prefs.techStack || [])],
     jobType: prefs.jobType || "",
     location: prefs.location || "",
@@ -46,6 +50,8 @@ const loadProfile = async (user) => {
       { timestamps: false }
     );
   }
+  const rolesSet = targetRolesUpdate(profile, user);
+  if (rolesSet) await FresherProfile.updateOne({ _id: profile._id }, { $set: rolesSet }, { timestamps: false });
   return profile;
 };
 
@@ -109,7 +115,7 @@ module.exports.getRecommendedJobs = async (req, res, next) => {
     const scored = await scoredJobs({ prefs, skills: profileSkills(profile), type });
     const list = noPreferences
       ? scored.sort((a, b) => new Date(b.job.createdAt) - new Date(a.job.createdAt))
-      : scored.filter((s) => s.matchScore >= MATCH_THRESHOLD);
+      : scored.filter(isMatch);
 
     const total = list.length;
     const pageItems = list.slice((page - 1) * limit, page * limit);

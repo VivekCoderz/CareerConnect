@@ -20,7 +20,7 @@ export const getRecommendedJobs = async ({ page = 1, limit = 10, type } = {}) =>
   return response.data;
 };
 
-// Save { targetRole, techStack, jobType, location }; responds with the updated profile
+// Save { targetRoles, techStack, jobType, location }; responds with the updated profile
 export const updateFresherPreferences = async (preferences) => {
   const response = await api.put("/fresher/profile", { preferences });
   return response.data;
