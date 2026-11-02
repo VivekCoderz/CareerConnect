@@ -6,11 +6,13 @@ on:
       - main
       - develop
       - ram-mohan-code
+      - launch/job-portal
   push:
     branches:
       - main
       - develop
       - ram-mohan-code
+      - launch/job-portal
   workflow_dispatch:
 
 concurrency:
@@ -43,6 +45,10 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+        working-directory: client
+
+      - name: Lint client (new errors and new files over 500 lines fail)
+        run: npm run lint
         working-directory: client
 
       - name: Build production client
@@ -98,6 +104,10 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+        working-directory: server
+
+      - name: Lint server (new errors and new files over 500 lines fail)
+        run: npm run lint
         working-directory: server
 
       - name: Prepare isolated test database

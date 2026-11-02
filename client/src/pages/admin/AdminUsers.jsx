@@ -256,16 +256,15 @@ const AdminUsers = () => {
                 <tr>
                   <th className="px-5 py-3.5">User Profile</th>
                   <th className="px-5 py-3.5">Category / Role</th>
-                  <th className="px-5 py-3.5">Tenant Association</th>
                   <th className="px-5 py-3.5">Account Status</th>
                   <th className="px-5 py-3.5">Registered Date</th>
                   <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? (
+                {loading && users.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="py-12 text-center text-slate-400">
+                    <td colSpan="5" className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
                         <span>Querying real database records...</span>
@@ -274,7 +273,7 @@ const AdminUsers = () => {
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="py-12 text-center text-slate-400">
+                    <td colSpan="5" className="py-12 text-center text-slate-400">
                       0 users found matching your query criteria.
                     </td>
                   </tr>
@@ -308,16 +307,6 @@ const AdminUsers = () => {
                         </td>
 
                         <td className="px-5 py-3.5 whitespace-nowrap">{getRoleBadge(u)}</td>
-
-                        <td className="px-5 py-3.5 whitespace-nowrap">
-                          {u.companyId?.name ? (
-                            <span className="font-semibold text-slate-700">
-                              {u.companyId.name}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 text-[11px]">Platform Wide</span>
-                          )}
-                        </td>
 
                         <td className="px-5 py-3.5 whitespace-nowrap">
                           <button
@@ -361,7 +350,7 @@ const AdminUsers = () => {
           </div>
 
           {/* Dynamic Pagination Bar */}
-          {!loading && totalCount > 0 && (
+          {totalCount > 0 && (
             <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-slate-500">
               <div>
                 Showing <span className="font-bold text-slate-700">{startRecord}</span> to{" "}

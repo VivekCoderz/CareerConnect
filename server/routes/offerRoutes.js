@@ -7,6 +7,7 @@ const { requireEmployer } = require("../middleware/roleMiddleware");
 router.use(protect);
 
 router.get("/", offerController.getOffers);
+router.get("/:id/pdf", offerController.exportOfferPdf);
 router.post("/", requireEmployer, offerController.createOffer);
 router.patch("/:id/respond", offerController.respondToOffer);
 

@@ -519,7 +519,7 @@ const ATSResumeGenerator = () => {
             <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center gap-3">
               <span className="text-emerald-600 text-base sm:text-lg shrink-0">✅</span>
               <p className="text-xs font-semibold text-emerald-800">
-                Verified CareerConnect profile data has been automatically loaded. You may adjust any section below.
+                Verified E2Job profile data has been automatically loaded. You may adjust any section below.
               </p>
             </div>
           )}
@@ -537,7 +537,7 @@ const ATSResumeGenerator = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Full Name" value={rawData.personal.fullName} onChange={(v) => updatePersonal("fullName", v)} placeholder="e.g., Rahul Sharma" required />
               <Input label="Professional Email" value={rawData.personal.email} onChange={(v) => updatePersonal("email", v)} placeholder="e.g., rahul.sharma@email.com" required type="email" />
-              <Input label="Phone Number" value={rawData.personal.phone} onChange={(v) => updatePersonal("phone", v)} placeholder="e.g., +91 98765 43210" />
+              <Input label="Phone Number" value={rawData.personal.phone} onChange={(v) => updatePersonal("phone", v)} placeholder="Enter your phone number" />
               <Input label="Current Location" value={rawData.personal.location} onChange={(v) => updatePersonal("location", v)} placeholder="e.g., New Delhi, India" />
               <Input label="LinkedIn Profile URL" value={rawData.personal.linkedin} onChange={(v) => updatePersonal("linkedin", v)} placeholder="linkedin.com/in/username" />
               <Input label="GitHub Profile URL" value={rawData.personal.github} onChange={(v) => updatePersonal("github", v)} placeholder="github.com/username" />
@@ -607,7 +607,7 @@ const ATSResumeGenerator = () => {
                         label="Project Title"
                         value={proj.name}
                         onChange={(v) => updateProject(idx, "name", v)}
-                        placeholder="e.g., CareerConnect Placement Portal"
+                        placeholder="e.g., E2Job Placement Portal"
                       />
                       <Input
                         label="Technologies & Frameworks"
@@ -921,7 +921,8 @@ const ATSResumeGenerator = () => {
             <div className="max-w-5xl mx-auto space-y-5 px-2 sm:px-0">
               {/* ATS Score Card */}
               <ATSScoreCard
-                atsScore={generatedResume.atsScore || 0}
+                atsScore={generatedResume.atsScore ?? null}
+                scoreUnavailableReason={generatedResume.scoreUnavailableReason}
                 matchedKeywords={generatedResume.matchedKeywords || []}
                 missingKeywords={generatedResume.missingKeywords || []}
                 targetRole={generatedResume.tailoredMeta?.targetRole || jobDetails.jobTitle}

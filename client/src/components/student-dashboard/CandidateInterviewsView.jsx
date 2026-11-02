@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import JourneyLoader from "../common/JourneyLoader";
 import recruitmentService from "../../services/recruitmentService";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 const parseInterviewDateTime = (dateStr, timeStr) => {
   if (!dateStr) return null;
@@ -102,7 +103,29 @@ const getCountdownInfo = (interview) => {
   };
 };
 
-const CandidateInterviewsView = () => {
+// Text an interview can be found by: company, role, round and mode.
+const interviewSearchText = (item) =>
+  [
+    item.employerId?.companyName,
+    item.internshipId?.companyName,
+    item.applicationId?.companyName,
+    item.jobId?.title,
+    item.internshipId?.title,
+    item.roundName,
+    item.roundNumber ? `Round ${item.roundNumber}` : "",
+    item.meetingMode || item.interviewType,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+/**
+ * @param {string} [searchQuery] - search text from the dashboard header; when not given,
+ *   the view shows its own search box.
+ */
+const CandidateInterviewsView = ({ searchQuery }) => {
+  const [ownQuery, setOwnQuery] = useState("");
+  const query = (searchQuery ?? ownQuery).trim().toLowerCase();
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -164,6 +187,16 @@ const CandidateInterviewsView = () => {
       .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
   }, [interviews, historyFilter]);
 
+  // The lists below the tabs follow the search; counts and the banner don't.
+  const shownUpcoming = useMemo(
+    () => (query ? upcomingInterviews.filter((i) => interviewSearchText(i).includes(query)) : upcomingInterviews),
+    [upcomingInterviews, query]
+  );
+  const shownHistory = useMemo(
+    () => (query ? historyInterviews.filter((i) => interviewSearchText(i).includes(query)) : historyInterviews),
+    [historyInterviews, query]
+  );
+
   // Nearest upcoming interview for the countdown banner
   const nearestUpcoming = useMemo(() => {
     if (upcomingInterviews.length === 0) return null;
@@ -178,6 +211,22 @@ const CandidateInterviewsView = () => {
   }, [upcomingInterviews]);
 
   const nearestCountdown = nearestUpcoming ? getCountdownInfo(nearestUpcoming) : null;
+
+  const noMatch = (
+    <div className="p-10 text-center bg-white rounded-3xl border border-slate-200 shadow-2xs space-y-2">
+      <h3 className="text-sm font-bold text-slate-900">No interviews match “{query}”</h3>
+      <p className="text-xs text-slate-500">Try a company name, job title or round.</p>
+      {searchQuery === undefined && (
+        <button
+          type="button"
+          onClick={() => setOwnQuery("")}
+          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+        >
+          Clear search
+        </button>
+      )}
+    </div>
+  );
 
   // Metrics
   const totalUpcoming = upcomingInterviews.length;
@@ -200,36 +249,36 @@ const CandidateInterviewsView = () => {
       return {
         label: "Cancelled",
         cls: "bg-rose-50 text-rose-700 border-rose-200 font-bold",
-        icon: "Γ£ò",
+        icon: "✕",
       };
     }
 
     if (r === "selected") {
       return {
-        label: "Selected ≡ƒÅå",
+        label: "Selected 🏆",
         cls: "bg-emerald-100 text-emerald-900 border-emerald-300 font-bold",
-        icon: "≡ƒÅå",
+        icon: "🏆",
       };
     }
     if (r === "next_round") {
       return {
-        label: "Next Round Γ₧í∩╕Å",
+        label: "Next Round ➡️",
         cls: "bg-blue-50 text-blue-800 border-blue-200 font-bold",
-        icon: "Γ₧í∩╕Å",
+        icon: "➡️",
       };
     }
     if (r === "passed") {
       return {
-        label: "Round Cleared Γ£ô",
+        label: "Round Cleared ✓",
         cls: "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold",
-        icon: "Γ£ô",
+        icon: "✓",
       };
     }
     if (r === "rejected") {
       return {
         label: "Rejected",
         cls: "bg-rose-50 text-rose-700 border-rose-200 font-bold",
-        icon: "Γ£ò",
+        icon: "✕",
       };
     }
 
@@ -238,25 +287,25 @@ const CandidateInterviewsView = () => {
         return {
           label: "Scheduled",
           cls: "bg-blue-50 text-blue-700 border-blue-200 font-bold",
-          icon: "≡ƒôà",
+          icon: "📅",
         };
       case "rescheduled":
         return {
           label: "Rescheduled",
           cls: "bg-purple-50 text-purple-700 border-purple-200 font-bold",
-          icon: "≡ƒöä",
+          icon: "🔄",
         };
       case "completed":
         return {
           label: "Completed",
           cls: "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold",
-          icon: "Γ£ô",
+          icon: "✓",
         };
       default:
         return {
           label: status || "Scheduled",
           cls: "bg-slate-50 text-slate-700 border-slate-200 font-bold",
-          icon: "≡ƒôî",
+          icon: "📌",
         };
     }
   };
@@ -280,7 +329,7 @@ const CandidateInterviewsView = () => {
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-[#1e3a8a] to-blue-900 text-white p-6 sm:p-8 shadow-sm">
         <div className="relative z-10 space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-xs text-[11px] font-semibold tracking-wider uppercase text-blue-200 border border-white/10">
-            <span>≡ƒÄÖ∩╕Å</span> Campus Placement & Recruiter Interviews
+            <span>🎙️</span> Campus Placement & Recruiter Interviews
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
             My Interviews
@@ -331,7 +380,7 @@ const CandidateInterviewsView = () => {
                   : "bg-[#1e3a8a] text-white shadow-xs"
               }`}
             >
-              ΓÅ░
+              ⏰
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -352,7 +401,7 @@ const CandidateInterviewsView = () => {
                 {nearestCountdown.text}
               </h3>
               <p className="text-xs text-slate-600">
-                <strong className="text-slate-900">{getCompanyName(nearestUpcoming)}</strong> ΓÇó{" "}
+                <strong className="text-slate-900">{getCompanyName(nearestUpcoming)}</strong> •{" "}
                 {nearestUpcoming.roundName || `Round ${nearestUpcoming.roundNumber}`} ({nearestUpcoming.jobId?.title || nearestUpcoming.internshipId?.title || "Role"})
               </p>
             </div>
@@ -369,7 +418,7 @@ const CandidateInterviewsView = () => {
 
             {nearestUpcoming.meetingLink && (nearestUpcoming.meetingMode || nearestUpcoming.interviewType) !== "Offline" && (
               <a
-                href={nearestUpcoming.meetingLink}
+                href={safeHttpUrl(nearestUpcoming.meetingLink)}
                 target="_blank"
                 rel="noreferrer"
                 className={`px-5 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer ${
@@ -378,7 +427,7 @@ const CandidateInterviewsView = () => {
                     : "bg-[#1e3a8a] hover:bg-[#1e40af]"
                 }`}
               >
-                <span>≡ƒÄÑ</span>
+                <span>🎥</span>
                 <span>Join Interview</span>
               </a>
             )}
@@ -398,7 +447,7 @@ const CandidateInterviewsView = () => {
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            <span>≡ƒòÆ Upcoming Interviews</span>
+            <span>🕒 Upcoming Interviews</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-black ${
                 activeTab === "upcoming" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
@@ -417,7 +466,7 @@ const CandidateInterviewsView = () => {
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            <span>≡ƒô£ Past / Interview History</span>
+            <span>📜 Past / Interview History</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-black ${
                 activeTab === "history" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
@@ -461,12 +510,23 @@ const CandidateInterviewsView = () => {
             </div>
           )}
 
+          {searchQuery === undefined && (
+            <input
+              type="search"
+              value={ownQuery}
+              onChange={(e) => setOwnQuery(e.target.value)}
+              placeholder="Search company, role or round"
+              aria-label="Search interviews"
+              className="h-8 w-48 sm:w-56 px-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1e3a8a]"
+            />
+          )}
+
           <button
             type="button"
             onClick={fetchCandidateInterviews}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition shadow-2xs cursor-pointer"
           >
-            <span>≡ƒöä</span> Refresh
+            <span>🔄</span> Refresh
           </button>
         </div>
       </div>
@@ -493,16 +553,18 @@ const CandidateInterviewsView = () => {
         upcomingInterviews.length === 0 ? (
           <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-2xs space-y-3">
             <div className="w-14 h-14 rounded-3xl bg-blue-50 text-blue-600 text-2xl flex items-center justify-center mx-auto">
-              ≡ƒôà
+              📅
             </div>
             <h3 className="text-base font-bold text-slate-900">No Upcoming Interviews Scheduled</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
               You do not have any pending interview rounds scheduled at the moment. When employers shortlist your applications and schedule an interview slot, it will automatically appear here.
             </p>
           </div>
+        ) : shownUpcoming.length === 0 ? (
+          noMatch
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {upcomingInterviews.map((item) => {
+            {shownUpcoming.map((item) => {
               const companyName = getCompanyName(item);
               const companyLogo = getCompanyLogo(item);
               const roleTitle = item.jobId?.title || item.internshipId?.title || "Role";
@@ -551,7 +613,7 @@ const CandidateInterviewsView = () => {
                       </span>
                       {countdown && (
                         <span className={`text-[11px] font-bold ${countdown.urgent ? "text-amber-700 animate-pulse" : "text-slate-500"}`}>
-                          ΓÅ▒∩╕Å {countdown.text}
+                          ⏱️ {countdown.text}
                         </span>
                       )}
                     </div>
@@ -559,27 +621,27 @@ const CandidateInterviewsView = () => {
                     {/* Date, Time, Duration, Mode */}
                     <div className="p-3.5 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-2 text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-600">≡ƒôà Date:</span>
+                        <span className="font-semibold text-slate-600">📅 Date:</span>
                         <strong className="text-slate-900 font-bold">{item.scheduledDate}</strong>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-600">≡ƒòÆ Time Slot:</span>
+                        <span className="font-semibold text-slate-600">🕒 Time Slot:</span>
                         <strong className="text-slate-900 font-mono font-bold">
                           {item.startTime || item.scheduledTime}
                         </strong>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-600">Γî¢ Duration:</span>
+                        <span className="font-semibold text-slate-600">⌛ Duration:</span>
                         <span className="text-slate-800 font-medium">
                           {item.duration || item.durationMinutes || 45} Minutes
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-600">≡ƒôì Mode:</span>
+                        <span className="font-semibold text-slate-600">📍 Mode:</span>
                         <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold ${
                           isOffline ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-[#1e3a8a]"
                         }`}>
-                          {isOffline ? "≡ƒÅó Offline (In-Person)" : "≡ƒîÉ Online"}
+                          {isOffline ? "🏢 Offline (In-Person)" : "🌐 Online"}
                         </span>
                       </div>
                     </div>
@@ -612,23 +674,23 @@ const CandidateInterviewsView = () => {
                       onClick={() => setPrepareInterview(item)}
                       className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition cursor-pointer flex items-center gap-1"
                     >
-                      <span>≡ƒÆí</span>
+                      <span>💡</span>
                       <span>Prepare</span>
                     </button>
 
                     {!isOffline && item.meetingLink ? (
                       <a
-                        href={item.meetingLink}
+                        href={safeHttpUrl(item.meetingLink)}
                         target="_blank"
                         rel="noreferrer"
                         className="flex-1 py-2 px-3 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold text-center shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <span>≡ƒÄÑ</span>
+                        <span>🎥</span>
                         <span>Join Interview</span>
                       </a>
                     ) : isOffline ? (
                       <span className="flex-1 text-[11px] text-slate-500 font-medium text-right pr-1">
-                        ≡ƒÅó Physical venue
+                        🏢 Physical venue
                       </span>
                     ) : (
                       <span className="flex-1 text-[11px] text-slate-400 font-medium text-right pr-1">
@@ -646,16 +708,18 @@ const CandidateInterviewsView = () => {
         historyInterviews.length === 0 ? (
           <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-2xs space-y-3">
             <div className="w-14 h-14 rounded-3xl bg-slate-100 text-slate-600 text-2xl flex items-center justify-center mx-auto">
-              ≡ƒô£
+              📜
             </div>
             <h3 className="text-base font-bold text-slate-900">No Past Interviews Yet</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
               Completed and cancelled interview sessions and their evaluation outcomes will be archived here.
             </p>
           </div>
+        ) : shownHistory.length === 0 ? (
+          noMatch
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {historyInterviews.map((item) => {
+            {shownHistory.map((item) => {
               const companyName = getCompanyName(item);
               const companyLogo = getCompanyLogo(item);
               const roleTitle = item.jobId?.title || item.internshipId?.title || "Role";
@@ -707,8 +771,8 @@ const CandidateInterviewsView = () => {
                         <strong className="text-slate-800">{item.roundName || `Round ${item.roundNumber}`}</strong>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-600">≡ƒôà Date & Time:</span>
-                        <span className="text-slate-800 font-medium">{item.scheduledDate} ┬╖ {item.startTime || item.scheduledTime}</span>
+                        <span className="font-semibold text-slate-600">📅 Date & Time:</span>
+                        <span className="text-slate-800 font-medium">{item.scheduledDate} · {item.startTime || item.scheduledTime}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-slate-600">Interviewer:</span>
@@ -720,7 +784,7 @@ const CandidateInterviewsView = () => {
                     {isCancelled && (
                       <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 space-y-1">
                         <div className="flex items-center justify-between font-bold text-rose-900">
-                          <span>Γ£ò Interview Cancelled</span>
+                          <span>✕ Interview Cancelled</span>
                           {item.cancelledAt && (
                             <span className="text-[10px] text-rose-600 font-mono font-normal">
                               {new Date(item.cancelledAt).toLocaleDateString()}
@@ -751,7 +815,7 @@ const CandidateInterviewsView = () => {
                         {(scorecard.overallScore > 0 || feedback.rating > 0) && (
                           <div className="flex items-center gap-2">
                             <span className="text-amber-700 font-bold font-mono">
-                              Γÿà {scorecard.overallScore || feedback.rating}/5.0
+                              ★ {scorecard.overallScore || feedback.rating}/5.0
                             </span>
                             <span className="text-slate-500 text-[11px]">Overall Score</span>
                           </div>
@@ -799,7 +863,7 @@ const CandidateInterviewsView = () => {
                   {selectedInterview.roundName || `Round ${selectedInterview.roundNumber}`}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  {getCompanyName(selectedInterview)} ΓÇó {selectedInterview.jobId?.title || selectedInterview.internshipId?.title || "Role"}
+                  {getCompanyName(selectedInterview)} • {selectedInterview.jobId?.title || selectedInterview.internshipId?.title || "Role"}
                 </p>
               </div>
               <button
@@ -807,7 +871,7 @@ const CandidateInterviewsView = () => {
                 onClick={() => setSelectedInterview(null)}
                 className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-sm font-bold transition cursor-pointer"
               >
-                Γ£ò
+                ✕
               </button>
             </div>
 
@@ -864,7 +928,7 @@ const CandidateInterviewsView = () => {
                 <div>
                   <h4 className="font-bold text-slate-900 mb-1">Physical Venue / Location</h4>
                   <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-950 font-medium">
-                    ≡ƒôì {selectedInterview.location || "Office location will be shared by recruiter"}
+                    📍 {selectedInterview.location || "Office location will be shared by recruiter"}
                   </div>
                 </div>
               ) : selectedInterview.meetingLink ? (
@@ -873,12 +937,12 @@ const CandidateInterviewsView = () => {
                   <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center justify-between">
                     <span className="text-slate-700 truncate mr-2 font-mono text-[11px]">{selectedInterview.meetingLink}</span>
                     <a
-                      href={selectedInterview.meetingLink}
+                      href={safeHttpUrl(selectedInterview.meetingLink)}
                       target="_blank"
                       rel="noreferrer"
                       className="px-3 py-1.5 rounded-lg bg-[#1e3a8a] text-white font-bold hover:bg-[#1e40af] transition whitespace-nowrap cursor-pointer"
                     >
-                      Join Link ΓåÆ
+                      Join Link →
                     </a>
                   </div>
                 </div>
@@ -936,12 +1000,12 @@ const CandidateInterviewsView = () => {
                 selectedInterview.meetingLink && (
                   <div className="pt-2">
                     <a
-                      href={selectedInterview.meetingLink}
+                      href={safeHttpUrl(selectedInterview.meetingLink)}
                       target="_blank"
                       rel="noreferrer"
                       className="w-full py-2.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold text-center block shadow-xs transition cursor-pointer"
                     >
-                      Join Interview Room ΓåÆ
+                      Join Interview Room →
                     </a>
                   </div>
                 )}
@@ -958,13 +1022,13 @@ const CandidateInterviewsView = () => {
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-slide-in-top my-4">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-amber-50/90">
               <div className="flex items-center gap-2.5">
-                <span className="text-xl">≡ƒÆí</span>
+                <span className="text-xl">💡</span>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
                     Interview Preparation Guide
                   </h3>
                   <p className="text-xs text-slate-500">
-                    {prepareInterview.roundName || `Round ${prepareInterview.roundNumber}`} ΓÇó {getCompanyName(prepareInterview)}
+                    {prepareInterview.roundName || `Round ${prepareInterview.roundNumber}`} • {getCompanyName(prepareInterview)}
                   </p>
                 </div>
               </div>
@@ -973,7 +1037,7 @@ const CandidateInterviewsView = () => {
                 onClick={() => setPrepareInterview(null)}
                 className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-sm font-bold transition cursor-pointer"
               >
-                Γ£ò
+                ✕
               </button>
             </div>
 
@@ -991,19 +1055,19 @@ const CandidateInterviewsView = () => {
                 <h4 className="font-bold text-slate-900">Recommended Preparation Checklist</h4>
                 <ul className="space-y-2 text-slate-700">
                   <li className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-emerald-600 font-bold">Γ£ô</span>
+                    <span className="text-emerald-600 font-bold">✓</span>
                     <span>Review core concepts relevant to the role ({prepareInterview.jobId?.title || prepareInterview.internshipId?.title || "Position"}) and practice explaining past projects.</span>
                   </li>
                   <li className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-emerald-600 font-bold">Γ£ô</span>
+                    <span className="text-emerald-600 font-bold">✓</span>
                     <span>Ensure you have a quiet setting, stable high-speed internet, working webcam and microphone.</span>
                   </li>
                   <li className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-emerald-600 font-bold">Γ£ô</span>
+                    <span className="text-emerald-600 font-bold">✓</span>
                     <span>Join or arrive at least 5-10 minutes prior to the scheduled start time ({prepareInterview.startTime || prepareInterview.scheduledTime}).</span>
                   </li>
                   <li className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-emerald-600 font-bold">Γ£ô</span>
+                    <span className="text-emerald-600 font-bold">✓</span>
                     <span>Keep a digital copy of your resume and portfolio handy to share during the interview.</span>
                   </li>
                 </ul>

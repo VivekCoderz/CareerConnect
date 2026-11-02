@@ -47,3 +47,15 @@ The current MongoDB database-user password has been disclosed and must be rotate
 The public opportunity feed now has shared MongoDB request limits, a maximum of 24 concurrent distinct feed fetches per API process, same-query request coalescing, and a bounded 50-entry cache. Load-test these settings at expected peak traffic; put a rate limit at the reverse proxy or CDN as the first line of defense for a large audience.
 
 Existing pending OTPs are invalid after the schema change; users must request a fresh code. Previously shared notification read flags become per-user state, so a user may see an old announcement as unread once.
+
+### Credential rotation completed (Z03) - 28 Sep 2026, Vivek
+
+- MongoDB: new database user created and `MONGODB_URI` updated on Render. The old user's password was changed, so the disclosed connection string no longer works.
+- `JWT_SECRET`, `SESSION_SECRET`: regenerated (48 random bytes each) and set on Render.
+- `OTP_HASH_SECRET`: added on Render. Removed the unused `OTP_SECRET` variable (the code reads `OTP_HASH_SECRET`).
+- Razorpay test key: regenerated, old key deactivated immediately. This is Vivek's personal test account; replace it with the company account before payments are enabled.
+- `BREVO_API_KEY`, `CLOUDINARY_API_SECRET`, `FIREBASE_PRIVATE_KEY`, `GEMINI_API_KEY`: git history checked, only placeholder values were ever committed. Not rotated.
+- Firebase web key restricted to our domains, Firebase Auth authorized domains cleaned up, reCAPTCHA domains restricted.
+- CORS: confirmed `CLIENT_URL` on Render = `https://careerconnect-v1.vercel.app` (Google login was blocked until this was fixed).
+- Verified after deploy: `/health` OK, email login OK, Google login OK, OTP email OK.
+- Team: anyone using the production database locally needs the new `MONGODB_URI` in their `server/.env`, shared privately.

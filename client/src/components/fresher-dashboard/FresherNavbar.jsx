@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 
-const FresherNavbar = ({ user, onOpenMobileSidebar, onToggleSidebar, onLogout, onSearch }) => {
+const FresherNavbar = ({ user, onOpenMobileSidebar, onLogout }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -16,11 +15,6 @@ const FresherNavbar = ({ user, onOpenMobileSidebar, onToggleSidebar, onLogout, o
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (onSearch) onSearch(searchTerm);
-  };
-
   const displayName = user?.fullName || "Fresher Graduate";
   const userInitials = displayName
     .split(" ")
@@ -29,70 +23,26 @@ const FresherNavbar = ({ user, onOpenMobileSidebar, onToggleSidebar, onLogout, o
     .slice(0, 2)
     .toUpperCase();
 
-  const handleMenuClick = () => {
-    if (typeof window !== "undefined" && window.innerWidth < 1024) {
-      if (onOpenMobileSidebar) {
-        onOpenMobileSidebar();
-        return;
-      }
-    }
-    if (onToggleSidebar) {
-      onToggleSidebar();
-    } else if (onOpenMobileSidebar) {
-      onOpenMobileSidebar();
-    }
-  };
-
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Toggle & Search */}
-        <div className="flex items-center gap-3 flex-1 max-w-md">
+        {/* Opens the sidebar on phones. On desktop the sidebar is always shown and has its own collapse button. */}
+        <div className="flex items-center">
           <button
             type="button"
-            onClick={handleMenuClick}
-            className="p-2.5 -ml-1.5 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-blue-700 active:bg-slate-200 transition cursor-pointer flex items-center justify-center min-w-[40px] min-h-[40px]"
-            aria-label="Toggle navigation menu"
-            title="Toggle sidebar"
+            onClick={onOpenMobileSidebar}
+            className="lg:hidden p-2.5 -ml-1.5 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-blue-700 active:bg-slate-200 transition cursor-pointer flex items-center justify-center min-w-[40px] min-h-[40px]"
+            aria-label="Open navigation menu"
+            title="Open menu"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-
-          <form onSubmit={handleSearchSubmit} className="relative w-full">
-            <svg
-              className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search jobs, skills, companies..."
-              className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50/70 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100 transition"
-            />
-          </form>
         </div>
 
-        {/* Right Section: Notifications & User Profile */}
+        {/* Right Section: User Profile */}
         <div className="flex items-center gap-3">
-          {/* Notifications Button */}
-          <Link
-            to="/notifications"
-            className="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 relative transition"
-            aria-label="Notifications"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-2.5 right-2.5 ring-2 ring-white" />
-          </Link>
-
           {/* User Profile Dropdown */}
           <div className="relative" ref={dropdownRef}>
             <button
@@ -154,7 +104,7 @@ const FresherNavbar = ({ user, onOpenMobileSidebar, onToggleSidebar, onLogout, o
                     Edit Profile
                   </Link>
                   <Link
-                    to="/settings"
+                    to="/account"
                     onClick={() => setDropdownOpen(false)}
                     className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                   >

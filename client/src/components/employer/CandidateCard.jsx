@@ -1,7 +1,9 @@
 import React from "react";
+import { FEATURES } from "../../config/features";
 
 const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onViewDetails }) => {
-  const matchScore = candidate.matchPercentage || 85;
+  // null when there is nothing to match (no target job / no skills): no made-up percentage.
+  const matchScore = typeof candidate.matchPercentage === "number" ? candidate.matchPercentage : null;
 
   return (
     <div className="p-5 rounded-3xl bg-white border border-slate-200/80 hover:border-amber-300 shadow-2xs hover:shadow-xs transition space-y-4 flex flex-col justify-between">
@@ -16,23 +18,32 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
               <div className="flex items-center gap-2 flex-wrap">
                 <h4 className="text-sm font-bold text-slate-900">{candidate.fullName}</h4>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-[#92400e]">
-                  {candidate.userType || "Student"}
+                  {candidate.userType || "Not provided"}
                 </span>
               </div>
+              {candidate.jobTitle && (
+                <p className="text-xs text-slate-700 mt-0.5 font-semibold">{candidate.jobTitle}</p>
+              )}
               <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                {candidate.degree} · CGPA {candidate.cgpa}
+                {[candidate.degree, candidate.cgpa && `CGPA ${candidate.cgpa}`].filter(Boolean).join(" · ") || "Education not added"}
               </p>
               <p className="text-[11px] text-slate-400">
-                {candidate.institution} · Class of {candidate.graduationYear}
+                {[candidate.institution, candidate.graduationYear && `Class of ${candidate.graduationYear}`].filter(Boolean).join(" · ")}
               </p>
             </div>
           </div>
 
           {/* Match Score Badge */}
           <div className="text-right flex-shrink-0">
-            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold shadow-2xs">
-              <span>⚡</span> {matchScore}% Match
-            </div>
+            {matchScore === null ? (
+              <div className="inline-flex items-center px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-xs font-semibold" title={candidate.matchReason || "Not enough data"}>
+                Not enough data
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold shadow-2xs">
+                <span>⚡</span> {matchScore}% Match
+              </div>
+            )}
           </div>
         </div>
 
@@ -77,7 +88,7 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
       </div>
 
       {/* Action Buttons */}
-      <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
+            <div className={`pt-3 border-t border-slate-100 grid gap-2 ${FEATURES.assessments ? "grid-cols-2" : "grid-cols-1"}`}>
         <button
           type="button"
           onClick={() => onScheduleInterview(candidate)}
@@ -85,6 +96,7 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
         >
           <span>📅</span> Interview
         </button>
+        {FEATURES.assessments && (
         <button
           type="button"
           onClick={() => onAssignAssessment && onAssignAssessment(candidate)}
@@ -92,6 +104,7 @@ const CandidateCard = ({ candidate, onScheduleInterview, onAssignAssessment, onV
         >
           <span>📝</span> Test
         </button>
+        )}
       </div>
     </div>
   );

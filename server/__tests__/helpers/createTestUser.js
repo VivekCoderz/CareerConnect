@@ -1,4 +1,5 @@
 const User = require('../../models/User');
+const EmployerProfile = require('../../models/EmployerProfile');
 const jwt = require('jsonwebtoken');
 
 /**
@@ -77,8 +78,25 @@ const createEmployerWithToken = async (overrides = {}) => {
   return { user, token };
 };
 
+/**
+ * Creates an employer's company profile. Approved by default so the employer can post;
+ * pass { verificationStatus: 'pending' } (or 'rejected') to test verification.
+ */
+const createEmployerProfile = (userId, overrides = {}) => {
+  const verificationStatus = overrides.verificationStatus || 'approved';
+  return EmployerProfile.create({
+    userId,
+    companyName: 'Test Company',
+    industry: 'Technology',
+    verificationStatus,
+    verifiedAt: verificationStatus === 'approved' ? new Date() : null,
+    ...overrides,
+  });
+};
+
 module.exports = {
   createTestUser,
+  createEmployerProfile,
   createTestEmployer,
   createTestFresher,
   createTestProfessional,

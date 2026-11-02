@@ -19,6 +19,38 @@ describe('🔐 Auth Middleware — Unit Tests', () => {
       expect(body.code).toBe('NOT_AUTHENTICATED');
       expect(next).not.toHaveBeenCalled();
     });
+
+     it('should return 401 NOT_AUTHENTICATED for literal "null" bearer token, not a JWT error', async () => {
+      const req = httpMocks.createRequest({
+        cookies: {},
+        headers: { authorization: 'Bearer null' },
+      });
+      const res = httpMocks.createResponse();
+      const next = jest.fn();
+
+      await protect(req, res, next);
+
+      expect(res.statusCode).toBe(401);
+      const body = JSON.parse(res._getData());
+      expect(body.code).toBe('NOT_AUTHENTICATED');
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it('should return 401 NOT_AUTHENTICATED for literal "undefined" bearer token', async () => {
+      const req = httpMocks.createRequest({
+        cookies: {},
+        headers: { authorization: 'Bearer undefined' },
+      });
+      const res = httpMocks.createResponse();
+      const next = jest.fn();
+
+      await protect(req, res, next);
+
+      expect(res.statusCode).toBe(401);
+      const body = JSON.parse(res._getData());
+      expect(body.code).toBe('NOT_AUTHENTICATED');
+      expect(next).not.toHaveBeenCalled();
+    });
   });
 
   // ─── Valid JWT ─────────────────────────────────────────────────────────────

@@ -4,12 +4,12 @@ const platformSettingSchema = new mongoose.Schema(
   {
     platformName: {
       type: String,
-      default: "CareerConnect",
+      default: "E2Job",
       trim: true,
     },
     supportEmail: {
       type: String,
-      default: "support@careerconnect.com",
+      default: "support@e2job.com",
       trim: true,
       lowercase: true,
     },

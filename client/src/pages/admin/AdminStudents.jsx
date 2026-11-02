@@ -2,7 +2,7 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useCallback } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
 import { getAdminStudents, updateStudentStatus } from "../../services/adminService";
-import { getResumeHref } from "../../utils/resumeAccess";
+import { openResume } from "../../utils/resumeAccess";
 import {
   Users,
   Search,
@@ -137,9 +137,6 @@ const AdminStudents = () => {
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 Student & Candidate Management
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Page 25
-              </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Global directory of registered students, freshers, and working professionals across the platform.
@@ -476,15 +473,14 @@ const AdminStudents = () => {
                         </p>
                       </div>
                     </div>
-                    <a
-                      href={getResumeHref(selectedCandidate.resumeUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => openResume(selectedCandidate.resumeUrl)}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 transition"
                     >
                       <span>View</span>
                       <ExternalLink className="w-3 h-3" />
-                    </a>
+                    </button>
                   </div>
                 )}
               </div>

@@ -5,6 +5,9 @@
  * - Uses Google Gemini if GEMINI_API_KEY is set, otherwise uses improved smart mock
  */
 
+const { runWithGeminiCascade } = require("./geminiCascade");
+const { SCORE_UNAVAILABLE_REASON, normalize, phraseExists } = require("./atsScoringService");
+
 let genAI = null;
 let geminiModel = null;
 
@@ -26,7 +29,7 @@ try {
 }
 
 /**
- * Universal Gemini caller with multi-tier model cascade and automatic retry on transient spikes (503 / fetch failed)
+ * Universal Gemini caller: at most GEMINI_MAX_CALLS calls (configured model, then one retry or fallback)
  */
 async function callGeminiContent(prompt, timeoutMs = 30000) {
   if (!genAI) {
@@ -37,56 +40,25 @@ async function callGeminiContent(prompt, timeoutMs = 30000) {
     throw new Error("Gemini AI is not initialized");
   }
 
-  const configured = process.env.GEMINI_MODEL || "gemini-3.6-flash";
-
-  // Comprehensive multi-pool cascade:
-  // If flash experiences high demand spikes (503), flash-lite or preview pools immediately take over
-  const models = [
-    configured,
-    "gemini-3.6-flash",
-    "gemini-flash-lite-latest",
-    "gemini-3.5-flash-lite",
-    "gemini-3-flash-preview",
-    "gemini-flash-latest",
-    "gemini-3.8-flash",
-  ];
-  const uniqueModels = [...new Set(models.filter(Boolean))];
-
-  for (const modelName of uniqueModels) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          generationConfig: { temperature: 0.2 },
-        });
-
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Gemini ${modelName} timed out`)), timeoutMs)
-        );
-
-        const generatePromise = (async () => {
-          const result = await model.generateContent(prompt);
-          return result.response.text();
-        })();
-
-        const text = await Promise.race([generatePromise, timeoutPromise]);
-        if (text && text.trim()) {
-          return text.trim();
-        }
-      } catch (err) {
-        const isTransient = /503|fetch failed|terminated|high demand|overloaded|ECONNRESET|ETIMEDOUT/i.test(err.message);
-        if (isTransient && attempt < 2) {
-          console.warn(`Model ${modelName} attempt ${attempt} transient issue (${err.message}). Retrying in 1200ms...`);
-          await new Promise((r) => setTimeout(r, 1200));
-          continue;
-        }
-        console.warn(`Model ${modelName} attempt failed (${err.message}), trying next model in cascade...`);
-        break;
-      }
+  // At most GEMINI_MAX_CALLS (default 2) calls per action; see services/geminiCascade.js
+  return runWithGeminiCascade(async (modelName) => {
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: { temperature: 0.2 },
+    });
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Gemini ${modelName} timed out`)), timeoutMs);
+    });
+    try {
+      const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);
+      const text = result.response.text();
+      if (!text || !text.trim()) throw new Error(`Gemini ${modelName} returned an empty response`);
+      return text.trim();
+    } finally {
+      clearTimeout(timer);
     }
-  }
-
-  throw new Error("All Gemini models failed or timed out");
+  }, { label: "Resume AI" });
 }
 
 function cleanAndParseJson(text) {
@@ -111,6 +83,18 @@ const parseSkills = (str) => {
 };
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
+
+// Empty candidate in the shape normalizeResumeCandidateData returns.
+const EMPTY_RAW = {
+  personal: { fullName: "", email: "", phone: "", location: "", linkedin: "", github: "", portfolio: "" },
+  summary: "",
+  skills: { programmingLanguages: "", frameworks: "", tools: "", other: "" },
+  experience: [],
+  projects: [],
+  education: [],
+  certifications: [],
+  achievements: [],
+};
 
 const improveBullet = (text) => {
   if (!text || !text.trim()) return text;
@@ -813,6 +797,28 @@ const heuristicParseResume = (rawText) => {
 const mockTailor = (userData, opportunityData, template = "classic") => {
   const user = deepClone(userData || {});
   const opp = opportunityData || {};
+  const asArray = (value) => Array.isArray(value) ? value : [];
+  const uniqueEntries = (entries) => {
+    const seen = new Set();
+    return entries.filter((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const key = JSON.stringify(entry);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const entryDescription = (entry) => (
+    entry?.description
+    || entry?.bullets
+    || entry?.responsibilities
+    || entry?.highlights
+    || entry?.details
+    || []
+  );
+  const preserveDescription = (value) => (Array.isArray(value) ? value : String(value || "").split(/[\n•]+/))
+    .map((item) => String(item).replace(/^[-–*]\s*/, "").trim())
+    .filter(Boolean);
 
   // Extract all opportunity keywords from title, requiredSkills, preferredSkills, description
   const oppSkills = [
@@ -858,12 +864,22 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
     programmingLanguages: tailorSkillCategory(user.skills?.programmingLanguages),
     frameworks: tailorSkillCategory(user.skills?.frameworks),
     tools: tailorSkillCategory(user.skills?.tools),
-    other: tailorSkillCategory(user.skills?.other),
+    other: tailorSkillCategory([
+      ...parseSkills(Array.isArray(user.skills) ? user.skills : []),
+      ...parseSkills(user.skills?.other),
+      ...parseSkills(user.skills?.databases),
+      ...parseSkills(user.technicalSkills),
+      ...parseSkills(user.softSkills),
+    ]),
   };
 
   // Score projects by keyword overlap with opportunity, sort highest relevance first
-  const userProjects = (user.projects || []).map((p) => {
-    const pText = `${p.name || ""} ${p.technologies || ""} ${Array.isArray(p.description) ? p.description.join(" ") : p.description || ""}`.toLowerCase();
+  const userProjects = uniqueEntries([
+    ...asArray(user.projects),
+    ...asArray(user.academicProjects),
+  ]).map((p) => {
+    const description = entryDescription(p);
+    const pText = `${p.name || p.title || ""} ${p.technologies || p.techStack || ""} ${Array.isArray(description) ? description.join(" ") : description || ""}`.toLowerCase();
     let score = 0;
     for (const ms of matchedSkillsList) {
       if (pText.includes(ms.toLowerCase())) score += 2;
@@ -877,14 +893,22 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
   userProjects.sort((a, b) => b._score - a._score);
   const tailoredProjects = userProjects.map(({ _score, ...p }) => ({
     ...p,
-    description: Array.isArray(p.description)
-      ? p.description.map(improveBullet)
-      : improveDescriptionToBullets(p.description),
+    name: p.name || p.title || "",
+    technologies: p.technologies || p.techStack || p.skills || "",
+    description: preserveDescription(entryDescription(p)),
+    github: p.github || p.repository || p.repoUrl || "",
+    live: p.live || p.link || p.demoUrl || "",
   }));
 
   // Score experience entries
-  const userExp = (user.experience || user.workExperience || []).map((e) => {
-    const eText = `${e.role || ""} ${e.company || ""} ${Array.isArray(e.description) ? e.description.join(" ") : e.description || ""}`.toLowerCase();
+  const userExp = uniqueEntries([
+    ...asArray(user.experience),
+    ...asArray(user.workExperience),
+    ...asArray(user.internships),
+    ...asArray(user.professionalExperience),
+  ]).map((e) => {
+    const description = entryDescription(e);
+    const eText = `${e.role || e.jobTitle || e.title || ""} ${e.company || e.companyName || e.organization || ""} ${Array.isArray(description) ? description.join(" ") : description || ""}`.toLowerCase();
     let score = 0;
     for (const ms of matchedSkillsList) {
       if (eText.includes(ms.toLowerCase())) score += 2;
@@ -894,12 +918,11 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
 
   userExp.sort((a, b) => b._score - a._score);
   const tailoredExp = userExp.map(({ _score, ...e }) => ({
+    ...e,
     company: e.company || e.companyName || e.organization || "",
-    role: e.role || e.jobTitle || "",
-    duration: e.duration || "",
-    description: Array.isArray(e.description)
-      ? e.description.map(improveBullet)
-      : improveDescriptionToBullets(e.description),
+    role: e.role || e.jobTitle || e.title || e.position || "",
+    duration: e.duration || [e.startDate || e.startYear, e.endDate || e.endYear].filter(Boolean).join(" – "),
+    description: preserveDescription(entryDescription(e)),
   }));
 
   // Unique matched skills
@@ -913,12 +936,29 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
   const skillHighlights = uniqueMatchedSkills.slice(0, 5).join(", ");
   const skillClause = skillHighlights ? ` with hands-on proficiency in ${skillHighlights}` : "";
 
-  const tailoredSummary = `Results-oriented candidate tailored for the ${targetLabel} position${skillClause}. Demonstrates a proven track record in software engineering, modern development methodologies, and building dependable solutions. Committed to immediate high-impact contributions and continuous learning.`;
+  const originalSummary = String(user.summary || user.objective || "").trim();
+  const evidenceClause = tailoredExp.length
+    ? `${tailoredExp.length} verified experience entr${tailoredExp.length === 1 ? "y" : "ies"}`
+    : `${tailoredProjects.length} verified project${tailoredProjects.length === 1 ? "" : "s"}`;
+  const tailoredSummary = originalSummary
+    ? `${originalSummary}${skillHighlights ? ` Relevant strengths for ${oppTitle} include ${skillHighlights}.` : ""}`
+    : `Candidate for ${targetLabel}${skillClause}, supported by ${evidenceClause}.`;
 
   return {
-    personal: { ...user.personal },
+    ...user,
+    personal: {
+      ...(user.personal || {}),
+      fullName: user.personal?.fullName || user.fullName || user.name || "",
+      email: user.personal?.email || user.email || "",
+      phone: user.personal?.phone || user.phone || "",
+      location: user.personal?.location || user.location || user.city || "",
+      linkedin: user.personal?.linkedin || user.socialLinks?.linkedin || "",
+      github: user.personal?.github || user.socialLinks?.github || "",
+      portfolio: user.personal?.portfolio || user.socialLinks?.portfolio || "",
+    },
     summary: tailoredSummary,
     education: (user.education || []).map((edu) => ({
+      ...edu,
       college: edu.college || edu.institution || "",
       degree: edu.degree || "",
       branch: edu.branch || edu.fieldOfStudy || edu.specialization || "",
@@ -930,13 +970,15 @@ const mockTailor = (userData, opportunityData, template = "classic") => {
     projects: tailoredProjects,
     experience: tailoredExp,
     certifications: (user.certifications || []).map((c) => ({
-      name: c.name || "",
-      issuer: c.issuer || c.issuingOrganization || "",
-      year: c.year ? String(c.year) : c.issueDate ? String(new Date(c.issueDate).getFullYear()) : "",
+      ...(typeof c === "object" ? c : {}),
+      name: typeof c === "string" ? c : c.name || c.title || "",
+      issuer: typeof c === "object" ? c.issuer || c.issuingOrganization || "" : "",
+      year: typeof c === "object" && c.year ? String(c.year) : c?.issueDate ? String(new Date(c.issueDate).getFullYear()) : "",
     })),
     achievements: (user.achievements || []).map((a) => ({
-      title: a.title || "",
-      description: a.description ? improveBullet(a.description) : "",
+      ...(typeof a === "object" ? a : {}),
+      title: typeof a === "string" ? a : a.title || a.name || "",
+      description: typeof a === "object" && a.description ? String(a.description).trim() : "",
     })),
     template: template || user.template || "classic",
     tailoredMeta: {
@@ -1277,8 +1319,9 @@ const calculateATSScore = (rawData, jobDescription) => {
   const niceToHaveMissing = niceToHaveWords.filter(kw => !studentText.includes(kw));
 
   const weightedMatched = (mustHaveMatched.length * 2) + (niceToHaveMatched.length * 1);
-  const totalWeighted = ((mustHaveWords.length * 2) + (niceToHaveWords.length * 1)) || 1;
-  const score = Math.min(98, Math.max(30, Math.round((weightedMatched / totalWeighted) * 100)));
+  const totalWeighted = (mustHaveWords.length * 2) + (niceToHaveWords.length * 1);
+  // No keywords in the job description: nothing to score against, so no score.
+  const score = totalWeighted ? Math.round((weightedMatched / totalWeighted) * 100) : null;
 
   const matchedKeywords = [...mustHaveMatched, ...niceToHaveMatched];
   const missingKeywords = [...mustHaveMissing, ...niceToHaveMissing];
@@ -1490,6 +1533,7 @@ function assembleCompleteResume(parsed, rawData, jobDescription, companyName, te
     certifications,
     achievements,
     atsScore: finalScore,
+    ...(finalScore === null ? { scoreUnavailable: true, scoreUnavailableReason: SCORE_UNAVAILABLE_REASON } : {}),
     scoreBreakdown: finalScoreBreakdown,
     matchedKeywords: finalMatchedKeywords,
     missingKeywords: finalMissingKeywords,
@@ -1673,7 +1717,6 @@ function normalizeResumeCandidateData(resumeInput) {
  * Heuristic ATS Analyzer when Gemini is offline or fails
  */
 function heuristicAnalyzeATS(candidateData, jobDescription, targetRole = "", companyName = "") {
-  const jdLower = (jobDescription || "").toLowerCase();
   const allResumeText = JSON.stringify(candidateData).toLowerCase();
 
   // Known skill dictionaries
@@ -1686,8 +1729,9 @@ function heuristicAnalyzeATS(candidateData, jobDescription, targetRole = "", com
     "tailwind", "redux", "html5", "css3", "machine learning", "data structures", "algorithms"
   ];
 
-  // Detect which skills the JD mentions
-  const jdSkills = TECH_KEYWORDS.filter((skill) => jdLower.includes(skill));
+  // Detect which skills the JD mentions. Whole words only: "go" must not match "good".
+  const jdText = normalize(jobDescription || "");
+  const jdSkills = TECH_KEYWORDS.filter((skill) => phraseExists(jdText, skill));
   const candidateSkillsText = [
     candidateData.skills?.programmingLanguages,
     candidateData.skills?.frameworks,
@@ -1700,9 +1744,10 @@ function heuristicAnalyzeATS(candidateData, jobDescription, targetRole = "", com
   const matchingSkills = [];
   const missingSkills = [];
 
+  const candidateText = normalize(candidateSkillsText);
   jdSkills.forEach((skill) => {
     const formatted = skill.charAt(0).toUpperCase() + skill.slice(1);
-    if (candidateSkillsText.includes(skill)) {
+    if (phraseExists(candidateText, skill)) {
       matchingSkills.push({
         name: formatted,
         foundIn: candidateSkillsText.includes(skill) ? "Skills / Projects / Experience" : "Skills",
@@ -1847,30 +1892,37 @@ function heuristicAnalyzeATS(candidateData, jobDescription, targetRole = "", com
     });
   }
 
-  // Calculate realistic ATS score (0-100)
-  const skillMatchRatio = jdSkills.length > 0 ? matchingSkills.length / jdSkills.length : 0.7;
-  const keywordScore = Math.round(Math.min(95, Math.max(35, skillMatchRatio * 100)));
+  // ATS score (0-100) from what can actually be measured. Formatting isn't measured here,
+  // so it has no score. Without known skills in the job description there is nothing to
+  // match, so there is no score at all (never a default).
+  const skillMatchRatio = jdSkills.length > 0 ? matchingSkills.length / jdSkills.length : null;
+  const keywordScore = skillMatchRatio === null ? null : Math.round(skillMatchRatio * 100);
   const impactScore = Math.round(Math.max(40, 90 - mistakesAndIssues.filter((m) => m.issueType.includes("Metric")).length * 8));
-  const formattingScore = 88;
   const clarityScore = Math.round(Math.max(45, 92 - mistakesAndIssues.length * 5));
 
-  const overallAtsScore = Math.round(keywordScore * 0.4 + impactScore * 0.3 + formattingScore * 0.15 + clarityScore * 0.15);
+  const overallAtsScore = keywordScore === null
+    ? null
+    : Math.round((keywordScore * 0.4 + impactScore * 0.3 + clarityScore * 0.15) / 0.85);
 
-  let matchGrade = "Needs Improvement";
-  if (overallAtsScore >= 80) matchGrade = "Strong Match";
-  else if (overallAtsScore >= 68) matchGrade = "Good Match";
-  else if (overallAtsScore >= 50) matchGrade = "Moderate Match";
+  let matchGrade = "Score unavailable";
+  if (overallAtsScore !== null) {
+    matchGrade = "Needs Improvement";
+    if (overallAtsScore >= 80) matchGrade = "Strong Match";
+    else if (overallAtsScore >= 68) matchGrade = "Good Match";
+    else if (overallAtsScore >= 50) matchGrade = "Moderate Match";
+  }
 
   return {
     atsScore: overallAtsScore,
+    ...(overallAtsScore === null ? { scoreUnavailable: true, scoreUnavailableReason: SCORE_UNAVAILABLE_REASON } : {}),
     matchGrade,
     targetRole: targetRole || "Software Engineer",
     companyName: companyName || "",
     scoreBreakdown: {
       keywordMatch: keywordScore,
       experienceImpact: impactScore,
-      formattingAndClarity: formattingScore,
-      skillsCoverage: Math.round(skillMatchRatio * 100),
+      formattingAndClarity: null,
+      skillsCoverage: keywordScore,
     },
     skillGapAnalysis: {
       matchingSkills,
@@ -1882,7 +1934,7 @@ function heuristicAnalyzeATS(candidateData, jobDescription, targetRole = "", com
     mistakesAndIssues,
     sectionAudits: {
       summary: {
-        score: summaryText ? 75 : 30,
+        score: null, // presence is checked, quality isn't scored
         status: summaryText ? "Good foundation" : "Needs attention",
         feedback: summaryText ? "Summary present but can be sharper" : "No summary provided",
         suggestion: `Tailor opening line to '${targetRole || "Software Engineer"}' with 3 top technical competencies.`,
@@ -1894,13 +1946,13 @@ function heuristicAnalyzeATS(candidateData, jobDescription, targetRole = "", com
         suggestion: "Place job-matching skills at the very beginning of each category.",
       },
       experience: {
-        score: candidateData.experience?.length ? impactScore : 50,
+        score: candidateData.experience?.length ? impactScore : null,
         status: candidateData.experience?.length ? "Audited" : "Fresh graduate profile",
         feedback: "Action verbs and quantified outcomes evaluated.",
         suggestion: "Replace passive verbs with 'Engineered', 'Orchestrated', and add measurable metrics.",
       },
       projects: {
-        score: candidateData.projects?.length ? Math.min(95, 60 + candidateData.projects.length * 10) : 40,
+        score: candidateData.projects?.length ? Math.min(95, 60 + candidateData.projects.length * 10) : null,
         status: candidateData.projects?.length >= 2 ? "Strong" : "Needs more projects",
         feedback: `${candidateData.projects?.length || 0} project(s) analyzed.`,
         suggestion: "Ensure every project highlights the exact stack and measurable outcome.",
@@ -2007,15 +2059,25 @@ async function fixAndOptimizeResumeWithAI(candidateData, jobDescription, gapAnal
   const targetRole = gapAnalysis?.targetRole || "Software Professional";
   const companyName = gapAnalysis?.companyName || "";
 
-  if (!geminiModel) {
-    const fixed = mockATSGenerate(normalized, jobDescription, companyName, template);
+  // Both scores come from scanning the resume with the same scanner, before and after the
+  // fix. A score is never set or chosen; when it can't be computed it is null.
+  const scan = (resume) => heuristicAnalyzeATS(normalizeResumeCandidateData(resume), jobDescription, targetRole, companyName);
+  const previous = scan(normalized);
+  const fixResult = (fixedResume) => {
+    const improved = scan(fixedResume);
+    fixedResume.atsScore = improved.atsScore;
     return {
-      fixedResume: enforceGrounding(fixed, normalized),
-      previousAtsScore: gapAnalysis?.atsScore || 60,
-      improvedAtsScore: Math.min(96, Math.max(90, (gapAnalysis?.atsScore || 60) + 32)),
-      fixesAppliedCount: (gapAnalysis?.mistakesAndIssues?.length || 5) + 3,
+      fixedResume,
+      previousAtsScore: previous.atsScore,
+      improvedAtsScore: improved.atsScore,
+      ...(improved.atsScore === null ? { scoreUnavailable: true, scoreUnavailableReason: improved.scoreUnavailableReason } : {}),
+      fixesAppliedCount: gapAnalysis?.mistakesAndIssues?.length ?? null,
       template,
     };
+  };
+
+  if (!geminiModel) {
+    return fixResult(enforceGrounding(mockATSGenerate(normalized, jobDescription, companyName, template), normalized));
   }
 
   try {
@@ -2046,7 +2108,6 @@ ${JSON.stringify(normalized, null, 2)}
 2. ZERO DUMMY DATA:
    - Preserve candidate's real personal details (fullName, email, phone, location, links, college).
    - NEVER invent fake companies or dummy credentials. Upgrade the technical depth, phrasing, and metrics of their real experience and projects.
-3. Set "atsScore" in output between 92 and 96.
 
 Return strictly valid JSON matching this complete schema (no markdown, no backticks):
 {
@@ -2078,7 +2139,6 @@ Return strictly valid JSON matching this complete schema (no markdown, no backti
   "education": [ ... ],
   "certifications": [ ... ],
   "achievements": [ ... ],
-  "atsScore": 94,
   "matchedKeywords": ["..."],
   "missingKeywords": [],
   "honestSuggestions": [
@@ -2095,27 +2155,11 @@ Return strictly valid JSON matching this complete schema (no markdown, no backti
     }
 
     const assembled = assembleCompleteResume(parsed, normalized, jobDescription, companyName, template);
-    assembled.atsScore = parsed.atsScore || 94;
     assembled.template = template;
-
-    return {
-      fixedResume: assembled,
-      previousAtsScore: gapAnalysis?.atsScore || 60,
-      improvedAtsScore: assembled.atsScore || 94,
-      fixesAppliedCount: (gapAnalysis?.mistakesAndIssues?.length || 4) + 2,
-      template,
-    };
+    return fixResult(assembled);
   } catch (err) {
     console.warn("Gemini fixAndOptimizeResumeWithAI failed, falling back to mock:", err.message);
-    const fixed = mockATSGenerate(normalized, jobDescription, companyName, template);
-    fixed.atsScore = 93;
-    return {
-      fixedResume: fixed,
-      previousAtsScore: gapAnalysis?.atsScore || 60,
-      improvedAtsScore: 93,
-      fixesAppliedCount: (gapAnalysis?.mistakesAndIssues?.length || 4) + 2,
-      template,
-    };
+    return fixResult(mockATSGenerate(normalized, jobDescription, companyName, template));
   }
 }
 
@@ -2131,4 +2175,4 @@ module.exports = {
   mockTailor,
   heuristicParseResume,
   enforceGrounding,
-};
+};

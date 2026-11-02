@@ -312,28 +312,19 @@ interviewSchema.index({ applicationId: 1, roundNumber: 1 });
 interviewSchema.index({ employerId: 1, status: 1 });
 interviewSchema.index({ candidateId: 1, status: 1 });
 interviewSchema.index({ companyId: 1, status: 1, scheduledAt: 1 });
+// Interview sweep: active interviews whose start time has passed
+interviewSchema.index({ status: 1, scheduledAt: 1 });
 
-// Ensure scheduledAt is populated from scheduledDate + startTime if not explicitly provided
+// Keep scheduledAt (the start instant) in step with scheduledDate + start time: fill it when
+// missing and recompute it when the date/time changes (e.g. a reschedule), unless the caller
+// set scheduledAt explicitly. The interview sweep relies on it being current.
 interviewSchema.pre("save", function () {
-  if (!this.scheduledAt && this.scheduledDate) {
-    try {
-      const { getInterviewDateTimes } = require("../utils/interviewTimeUtils");
-      const times = getInterviewDateTimes(this);
-      if (times?.startDateTime) {
-        this.scheduledAt = times.startDateTime;
-      } else {
-        const parsed = new Date(this.scheduledDate);
-        if (!isNaN(parsed.getTime())) {
-          this.scheduledAt = parsed;
-        }
-      }
-    } catch {
-      const parsed = new Date(this.scheduledDate);
-      if (!isNaN(parsed.getTime())) {
-        this.scheduledAt = parsed;
-      }
-    }
-  }
+  const timeChanged = ["scheduledDate", "startTime", "scheduledTime"].some((path) => this.isModified(path));
+  if (!this.scheduledDate || this.isModified("scheduledAt")) return;
+  if (this.scheduledAt && !timeChanged) return;
+  const { computeScheduledAt } = require("../utils/interviewTimeUtils");
+  const startAt = computeScheduledAt(this);
+  if (startAt) this.scheduledAt = startAt;
 });
 
 module.exports = mongoose.model("Interview", interviewSchema);

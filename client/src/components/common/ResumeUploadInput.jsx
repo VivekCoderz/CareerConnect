@@ -4,7 +4,7 @@ import { uploadResumeAPI } from "../../services/resumeService";
 /**
  * Universal Resume Input Component
  * Supports both:
- * 1. "Upload Resume from Device" (PDF, DOC, DOCX <= 10MB) via Cloudinary API
+ * 1. "Upload Resume from Device" (PDF <= 10MB) via Cloudinary API
  * 2. "Paste Resume URL" (valid http/https links)
  */
 export default function ResumeUploadInput({
@@ -45,20 +45,10 @@ export default function ResumeUploadInput({
     if (!file) return "No file selected.";
 
     const originalName = (file.name || "").toLowerCase();
-    const isAllowedExt =
-      originalName.endsWith(".pdf") ||
-      originalName.endsWith(".doc") ||
-      originalName.endsWith(".docx");
-
-    const isAllowedMime = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/octet-stream",
-    ].includes(file.type);
-
-    if (!isAllowedExt && !isAllowedMime) {
-      return "Invalid file format. Only PDF, DOC, and DOCX files are allowed.";
+    // PDF only: resumes are parsed, ATS-checked and previewed as PDF
+    const isPdf = originalName.endsWith(".pdf") && ["application/pdf", "application/octet-stream", ""].includes(file.type);
+    if (!isPdf) {
+      return "Please upload your resume as a PDF file. You can save a Word document as PDF from File → Save As.";
     }
 
     const maxSize = 10 * 1024 * 1024; // 10MB
@@ -198,7 +188,7 @@ export default function ResumeUploadInput({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept=".pdf,application/pdf"
             onChange={handleFileChange}
             className="hidden"
             id="resume-device-file-input"
@@ -216,7 +206,7 @@ export default function ResumeUploadInput({
                 Click to browse or drop resume file
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Supported formats: <strong className="text-slate-700">PDF, DOC, DOCX</strong> (Up to 10 MB)
+                Supported format: <strong className="text-slate-700">PDF</strong> (Up to 10 MB)
               </p>
             </div>
           ) : (

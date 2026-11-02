@@ -6,7 +6,7 @@ const ExternalApplicationFollowupModal = ({
 }) => {
   if (!isOpen || !opportunity) return null;
 
-  const companyName = opportunity.company || opportunity.companyName || "Company";
+  const companyName = opportunity.company || opportunity.companyName || "";
 
   return (
     <div
@@ -27,10 +27,10 @@ const ExternalApplicationFollowupModal = ({
             External Application Tracking
           </span>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight pt-1">
-            Did you apply on {companyName}&apos;s portal?
+            {companyName ? <>Did you apply on {companyName}&apos;s portal?</> : "Did you apply on the company's portal?"}
           </h2>
           <p className="text-xs font-semibold text-slate-500">
-            {opportunity.title} · {companyName}
+            {[opportunity.title, companyName].filter(Boolean).join(" · ")}
           </p>
         </div>
 

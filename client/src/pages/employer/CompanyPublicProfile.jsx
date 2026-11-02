@@ -2,12 +2,21 @@ import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getPublicCompanyProfile, getEmployerProfile } from "../../services/employerService";
+import { getJobs } from "../../services/jobService";
+import { getInternships } from "../../services/internshipService";
+import useSeo from "../../hooks/useSeo";
+import BrandLogo from "../../components/common/BrandLogo";
+import CompanyListingsPanel from "../../components/employer-profile/CompanyListingsPanel";
+
+const LISTINGS_LIMIT = 50;
+const EMPTY_LISTINGS = { companyId: null, items: null, total: 0, error: false };
 
 const CompanyPublicProfile = () => {
   const { companyId } = useParams();
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState("about");
   const [isFollowing, setIsFollowing] = useState(false);
 
@@ -30,6 +39,8 @@ const CompanyPublicProfile = () => {
           }
         }
       } catch (err) {
+        // "Company Not Found" only when the server says there is no such company.
+        setNotFound(err.response?.status === 404);
         setError(err.response?.data?.message || "Failed to load company profile.");
       } finally {
         setLoading(false);
@@ -38,6 +49,45 @@ const CompanyPublicProfile = () => {
 
     fetchProfile();
   }, [companyId]);
+
+  const isPreview = !companyId || companyId === "preview";
+
+  // This company's open jobs and internships; the server filters them by ?company= (CC-01).
+  // Kept with the id they were loaded for, so another company's list never shows meanwhile.
+  const [jobsResult, setJobsResult] = useState(EMPTY_LISTINGS);
+  const [internshipsResult, setInternshipsResult] = useState(EMPTY_LISTINGS);
+  useEffect(() => {
+    if (isPreview) return;
+    let cancelled = false;
+    const load = (fetchList, listKey, setResult) =>
+      fetchList({ company: companyId, limit: LISTINGS_LIMIT })
+        .then((res) => {
+          if (cancelled) return;
+          const items = res?.[listKey] || [];
+          setResult({ companyId, items, total: res?.pagination?.total ?? items.length, error: false });
+        })
+        .catch(() => { if (!cancelled) setResult({ ...EMPTY_LISTINGS, companyId, error: true }); });
+    load(getJobs, "jobs", setJobsResult);
+    load(getInternships, "internships", setInternshipsResult);
+    return () => { cancelled = true; };
+  }, [companyId, isPreview]);
+  const forThisCompany = (result) => (result.companyId === companyId ? result : EMPTY_LISTINGS);
+  const jobs = forThisCompany(jobsResult);
+  const internships = forThisCompany(internshipsResult);
+
+  const seoHq = company?.headquarters;
+  const hqText = typeof seoHq === "string" ? seoHq : [seoHq?.city, seoHq?.state].filter(Boolean).join(", ");
+  useSeo({
+    title: company?.companyName
+      ? `${company.companyName}${hqText ? `, ${hqText}` : ""}: jobs and company profile`
+      : loading ? "Company profile" : "Company not found",
+    description: company?.companyName
+      ? `${company.companyName}${company.industry ? ` (${company.industry})` : ""} on E2Job. ${company.description || "See open jobs and internships and apply free."}`
+      : undefined,
+    path: `/companies/${companyId || ""}`,
+    // Search engines get only published, approved showcases (as in sitemap.xml).
+    noindex: isPreview || (!loading && !company) || company?.isShowcasePublic === false,
+  });
 
   if (loading) {
     return (
@@ -55,13 +105,15 @@ const CompanyPublicProfile = () => {
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
         <div className="text-center max-w-md space-y-4">
           <div className="text-5xl">🏢</div>
-          <h2 className="text-xl font-bold text-slate-900">Company Not Found</h2>
+          <h2 className="text-xl font-bold text-slate-900">
+            {notFound || !error ? "Company Not Found" : "Couldn't load this company"}
+          </h2>
           <p className="text-xs text-slate-500">{error || "This company profile is currently unavailable."}</p>
           <Link
             to="/home"
             className="inline-block px-5 py-2.5 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold transition"
           >
-            Back to CareerConnect
+            Back to E2Job
           </Link>
         </div>
       </div>
@@ -76,26 +128,26 @@ const CompanyPublicProfile = () => {
       {/* Top Header */}
       <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <Link to="/home" className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#92400e] to-[#b45309] text-white flex items-center justify-center font-bold text-xs shadow-sm">
-            CC
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-              CAREERCONNECT
-            </h1>
-            <p className="text-[10.5px] text-[#b45309] font-bold tracking-wide">
-              CareerConnect · Verified Employers
-            </p>
-          </div>
+          <BrandLogo markOnly className="h-8 w-10 sm:hidden" /><BrandLogo className="hidden h-8 w-36 sm:block" />
         </Link>
 
         <div className="flex items-center gap-3">
-          <Link
-            to="/home"
-            className="text-xs font-semibold text-slate-600 hover:text-slate-900"
-          >
-            Explore Opportunities
-          </Link>
+          {/* The employer previewing their own page (/employer/company) gets a way back. */}
+          {isPreview ? (
+            <Link
+              to="/employer/dashboard"
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+            >
+              ← Back to Dashboard
+            </Link>
+          ) : (
+            <Link
+              to="/home"
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+            >
+              Explore Opportunities
+            </Link>
+          )}
         </div>
       </header>
 
@@ -104,11 +156,14 @@ const CompanyPublicProfile = () => {
         {/* Banner Card with Logo and Header details */}
         <div className="rounded-3xl bg-white border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="h-44 bg-gradient-to-r from-[#92400e] via-[#b45309] to-[#d97706] relative p-6 text-white flex items-end">
-            <div className="absolute top-4 right-4 flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-bold text-amber-100 border border-white/20">
-                ✓ CareerConnect Partner
-              </span>
-            </div>
+            {/* Only admin-approved companies (an employer's own preview can still be pending). */}
+            {company.verificationStatus === "approved" && (
+              <div className="absolute top-4 right-4 flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-bold text-amber-100 border border-white/20">
+                  ✓ Verified employer
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="p-6 sm:p-8 pt-0 relative">
@@ -178,7 +233,11 @@ const CompanyPublicProfile = () => {
                 { id: "culture", label: "Culture & Perks" },
                 { id: "team", label: "Leadership & Team" },
                 { id: "hiring", label: "Hiring Criteria" },
-                { id: "jobs", label: "Open Positions" },
+                // The employer's own preview has no public listings to load.
+                ...(isPreview ? [] : [
+                  { id: "jobs", label: jobs.items ? `Jobs (${jobs.total})` : "Jobs" },
+                  { id: "internships", label: internships.items ? `Internships (${internships.total})` : "Internships" },
+                ]),
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -206,7 +265,7 @@ const CompanyPublicProfile = () => {
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
                 {company.description ||
-                  "This organization is partnering with CareerConnect CareerConnect to hire top emerging talent."}
+                  "This organization is partnering with E2Job E2Job to hire top emerging talent."}
               </p>
 
               {(company.mission || company.vision) && (
@@ -274,9 +333,11 @@ const CompanyPublicProfile = () => {
                 <h3 className="text-base font-bold text-slate-900">
                   Work Environment & Benefits
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Work mode: <strong className="text-amber-800">{company.culture?.workEnvironment || "Hybrid"}</strong>
-                </p>
+                {company.culture?.workEnvironment && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Work mode: <strong className="text-amber-800">{company.culture.workEnvironment}</strong>
+                  </p>
+                )}
               </div>
 
               {company.culture?.description && (
@@ -418,7 +479,7 @@ const CompanyPublicProfile = () => {
                   Target Candidate Types
                 </span>
                 <span className="text-xs font-bold text-slate-800">
-                  {(hiring.candidateTypes || []).join(", ") || "Students, Freshers"}
+                  {(hiring.candidateTypes || []).join(", ") || "Not specified"}
                 </span>
               </div>
 
@@ -427,7 +488,7 @@ const CompanyPublicProfile = () => {
                   Target Qualifications
                 </span>
                 <span className="text-xs font-bold text-slate-800">
-                  {(hiring.qualifications || []).join(", ") || "B.Tech, BCA, MCA, MBA"}
+                  {(hiring.qualifications || []).join(", ") || "Not specified"}
                 </span>
               </div>
             </div>
@@ -452,57 +513,26 @@ const CompanyPublicProfile = () => {
           </div>
         )}
 
-        {/* Tab 5: Open Positions */}
+        {/* Tab 5: Jobs */}
         {activeTab === "jobs" && (
-          <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">
-                Active Job & Internship Openings
-              </h3>
-              <span className="text-xs font-bold text-amber-700">
-                Direct Application via CareerConnect
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              <div className="p-4 rounded-2xl border border-slate-200 hover:border-amber-400 bg-slate-50/50 hover:bg-amber-50/20 transition flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">
-                    Software Development Engineer Intern
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {hq.city || "Gurugram / Hybrid"} · Internship · ₹25,000 - ₹35,000/mo
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => alert("Apply with CareerConnect verified profile")}
-                  className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition"
-                >
-                  Apply Now
-                </button>
-              </div>
-
-              <div className="p-4 rounded-2xl border border-slate-200 hover:border-amber-400 bg-slate-50/50 hover:bg-amber-50/20 transition flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">
-                    Associate Full Stack Engineer
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {hq.city || "Delhi NCR"} · Full-time · ₹6.0 - ₹9.5 LPA
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => alert("Apply with CareerConnect verified profile")}
-                  className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition"
-                >
-                  Apply Now
-                </button>
-              </div>
-            </div>
-          </div>
+          <CompanyListingsPanel
+            title={`Jobs at ${company.companyName}`}
+            result={jobs}
+            type="Job"
+            emptyText="No jobs posted yet"
+          />
         )}
+
+        {/* Tab 6: Internships */}
+        {activeTab === "internships" && (
+          <CompanyListingsPanel
+            title={`Internships at ${company.companyName}`}
+            result={internships}
+            type="Internship"
+            emptyText="No internships posted yet"
+          />
+        )}
+
       </main>
     </div>
   );

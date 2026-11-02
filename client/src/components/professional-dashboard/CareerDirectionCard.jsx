@@ -1,7 +1,7 @@
 const CareerDirectionCard = ({
-  currentRole = "Senior Software Engineer",
-  targetRole = "Engineering Lead",
-  focusAreas = ["System Design", "Cloud Architecture", "Leadership"],
+  currentRole = "Not set yet",
+  targetRole = "Not set yet",
+  focusAreas = [],
   onViewCareerPath,
 }) => {
   return (
@@ -41,7 +41,8 @@ const CareerDirectionCard = ({
           </div>
         </div>
 
-        {/* Focus Areas */}
+        {/* Focus Areas (top skills from the profile; hidden until there are some) */}
+        {focusAreas.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-semibold text-slate-500">Focus Areas:</span>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -57,6 +58,7 @@ const CareerDirectionCard = ({
             ))}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

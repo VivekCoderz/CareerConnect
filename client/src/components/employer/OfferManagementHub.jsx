@@ -10,7 +10,7 @@ const OfferManagementHub = ({
   jobs = [],
   onRefresh,
   showToast,
-  companyName = "CareerConnect Partner Organization",
+  companyName = "",
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -707,6 +707,7 @@ const OfferManagementHub = ({
         onClose={() => setIsCreateModalOpen(false)}
         onCreateOffer={handleCreateOffer}
         jobs={jobs}
+        companyName={companyName}
       />
 
       {/* 4. Edit Offer Modal */}
@@ -716,6 +717,7 @@ const OfferManagementHub = ({
         offerToEdit={editOffer}
         onUpdateOffer={handleUpdateOffer}
         jobs={jobs}
+        companyName={companyName}
       />
     </div>
   );

@@ -8,8 +8,8 @@ const PRESET_SKILLS = {
   devOps: ["Docker", "Kubernetes", "CI/CD (GitHub Actions)", "Terraform", "Jenkins", "Helm", "Prometheus"],
   tools: ["Git", "Postman", "Kafka", "RabbitMQ", "Datadog", "Grafana", "VS Code"],
   domain: ["FinTech & Payments", "SaaS Platforms", "High-Throughput Systems", "E-Commerce", "HealthTech"],
-  management: ["System Architecture", "Technical Mentorship", "Agile / Scrum Sprint Leadership", "Cross-Functional Delivery"],
-  softSkills: ["Stakeholder Management", "Strategic Communication", "Problem Solving", "Conflict Resolution"],
+  management: ["System Architecture", "Problem Solving", "Technical Mentorship", "Agile / Scrum Sprint Leadership", "Cross-Functional Delivery"],
+  softSkills: ["Stakeholder Management", "Strategic Communication", "Conflict Resolution"],
 };
 
 const CATEGORY_META = {

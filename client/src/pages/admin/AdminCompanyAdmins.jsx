@@ -33,6 +33,12 @@ const AdminCompanyAdmins = () => {
   if (!isSuperAdmin) {
     return <Navigate to="/admin/company" replace />;
   }
+
+  return <AdminCompanyAdminsContent />;
+};
+
+// Hooks live here so they always run in the same order; the guard above returns early.
+const AdminCompanyAdminsContent = () => {
   const [admins, setAdmins] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -217,7 +223,7 @@ const AdminCompanyAdmins = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? (
+                {loading && admins.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="py-12 text-center text-slate-400">
                       Loading Company Administrators...

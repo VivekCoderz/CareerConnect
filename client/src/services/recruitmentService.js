@@ -16,6 +16,12 @@ export const updateApplicationStatus = async (id, status) => {
   return res.data;
 };
 
+// Bulk shortlist / review / interview / reject (max 300 per request)
+export const bulkUpdateApplicationStatus = async (applicationIds, status) => {
+  const res = await api.patch("/applications/bulk-status", { applicationIds, status });
+  return res.data;
+};
+
 export const addApplicationNote = async (id, note) => {
   const res = await api.post(`/applications/${id}/notes`, { text: note });
   return res.data;
@@ -217,6 +223,13 @@ export const getEmployerAnalytics = async () => {
   return res.data;
 };
 
+export const downloadOfferPdf = async (offerId) => {
+  const res = await api.get(`/offers/${offerId}/pdf`, {
+    responseType: "blob",
+  });
+  return res.data;
+};
+
 export const downloadJobApplicantsPdf = async (jobId, stage = "All") => {
   const res = await api.get(`/applications/job/${jobId}/export-pdf`, {
     params: stage && stage !== "All" ? { stage } : {},
@@ -241,6 +254,7 @@ export default {
   getEmployerApplications,
   updateApplicationStage,
   updateApplicationStatus,
+  bulkUpdateApplicationStatus,
   addApplicationNote,
   rateApplication,
   moveToNextStage,
@@ -279,6 +293,7 @@ export default {
   sendOffer,
   withdrawOffer,
   respondToOffer,
+  downloadOfferPdf,
   getEmployerAnalytics,
   downloadJobApplicantsPdf,
   triggerPdfDownload,

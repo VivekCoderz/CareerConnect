@@ -107,3 +107,18 @@ export const countryCodes = [
 ];
 
 export const defaultCountry = countryCodes[0]; // India (+91)
+
+/**
+ * Error for an optional mobile number, or "" when it is empty or valid. +91 numbers are
+ * exactly 10 digits starting 6-9 (a leading 0 used to pass: QA bug 1); others 6-15 digits.
+ * @param {string} phone
+ * @param {string} countryCode
+ */
+export const optionalPhoneError = (phone, countryCode) => {
+  const digits = (phone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (countryCode === "+91") {
+    return /^[6-9]\d{9}$/.test(digits) ? "" : "Please enter a valid 10-digit mobile number";
+  }
+  return digits.length >= 6 && digits.length <= 15 ? "" : "Please enter a valid mobile number (6-15 digits)";
+};

@@ -16,6 +16,11 @@ import {
 import api from "../../api/api";
 import { getCaptchaToken } from "../../utils/captcha";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
+import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
+import PhoneInput from "../../components/common/PhoneInput";
+import { TERMS_VERSION } from "../../config/legal";
+import { needsOnboarding } from "../../utils/userRoles";
+import { optionalPhoneError } from "../../utils/countryCodes";
 
 // ======================================================
 // Helper: Generate Strong Password
@@ -123,6 +128,7 @@ const EmployerRegister = () => {
   // ======================================================
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaError, setCaptchaError] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [otp, setOtp] = useState("");
@@ -133,6 +139,8 @@ const EmployerRegister = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [otpSuccessMsg, setOtpSuccessMsg] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
+  // A code is valid for 60 seconds on the server, the same as the resend timer.
+  const otpExpired = otpSent && !emailVerified && resendCooldown === 0;
 
   // ======================================================
   // Form States
@@ -145,6 +153,7 @@ const EmployerRegister = () => {
   const [formData, setFormData] = useState({
     companyName: "",
     email: "",
+    countryCode: "+91",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -152,7 +161,7 @@ const EmployerRegister = () => {
     designation: "",
     website: "",
     companyType: "Private",
-    industry: "Information Technology",
+    industry: "",
     location: "",
   });
 
@@ -215,12 +224,8 @@ const EmployerRegister = () => {
       errors.email = "Please verify your official email before continuing";
     }
 
-    const cleanPhone = formData.phone.replace(/\D/g, "");
-    if (!formData.phone.trim()) {
-      errors.phone = "Mobile number is required";
-    } else if (!/^[6-9]\d{9}$/.test(cleanPhone.slice(-10)) || cleanPhone.length < 10) {
-      errors.phone = "Please enter a valid 10-digit mobile number";
-    }
+    const phoneError = optionalPhoneError(formData.phone, formData.countryCode);
+    if (phoneError) errors.phone = phoneError;
 
     if (!formData.password) {
       errors.password = "Password is required";
@@ -414,57 +419,9 @@ const EmployerRegister = () => {
     }
   };
 
-  const handleStep1Next = async () => {
-    // Step 1: Validate all form fields first
-    const isFieldsValid = validateStep1();
-    if (!isFieldsValid) return;
-
-    // Step 2: Ensure email verification
-    if (!emailVerified) {
-      const emailToVerify = formData.email.trim().toLowerCase();
-      const cleanOtp = otp.replace(/\D/g, "").slice(0, 6);
-
-      // If OTP was not sent yet, trigger sending OTP
-      if (!otpSent) {
-        await handleSendEmailOTP();
-        setFieldErrors((prev) => ({
-          ...prev,
-          email: "Verification code sent! Please enter the 6-digit OTP below.",
-        }));
-        return;
-      }
-
-      // If user typed 6-digit OTP and clicked Continue, verify it automatically
-      if (cleanOtp.length === 6) {
-        try {
-          setVerifyingOtp(true);
-          setOtpError("");
-          const response = await api.post("/auth/verify-otp", {
-            email: emailToVerify,
-            otp: cleanOtp,
-          });
-          if (response.data?.verificationToken) {
-            setVerificationToken(response.data.verificationToken);
-          }
-          setEmailVerified(true);
-          setOtpSent(false);
-          setOtp("");
-          setOtpSuccessMsg("Official email verified successfully!");
-          setFieldErrors({});
-          goNext(2);
-          return;
-        } catch (err) {
-          setOtpError(err.response?.data?.message || "Invalid or expired OTP");
-          return;
-        } finally {
-          setVerifyingOtp(false);
-        }
-      }
-
-      setOtpError("Please enter the 6-digit OTP sent to your email to continue.");
-      return;
-    }
-
+  // Step 2 opens only once every step 1 field is valid and the email is verified.
+  const handleStep1Next = () => {
+    if (!validateStep1()) return;
     goNext(2);
   };
 
@@ -486,6 +443,7 @@ const EmployerRegister = () => {
       setEmailVerified(false);
       setOtp("");
       setOtpError("");
+      setOtpSuccessMsg(`New OTP sent to ${formData.email.trim().toLowerCase()}`);
       startCooldown(60);
     } catch (err) {
       setOtpError(
@@ -555,7 +513,7 @@ const EmployerRegister = () => {
       if (requiresPasswordSetup || user.hasPassword === false) {
         // New employer Google user → set password → collect company details
         navigate("/set-password", { replace: true });
-      } else if (!user.phone?.trim() || !user.isProfileComplete) {
+      } else if (needsOnboarding(user)) {
         // Has password, but hasn't completed company details!
         navigate("/onboarding/employer", { replace: true });
       } else {
@@ -616,6 +574,10 @@ const EmployerRegister = () => {
       return;
     }
     setCaptchaError("");
+    if (!acceptedTerms) {
+      dispatch(signupFailure("Please agree to the Terms and Privacy Policy to create your account."));
+      return;
+    }
 
     dispatch(signupStart());
 
@@ -626,6 +588,7 @@ const EmployerRegister = () => {
         companyName: formData.companyName.trim(),
         email: formData.email.trim().toLowerCase(),
         verificationToken,
+        countryCode: formData.countryCode || "+91",
         phone: formData.phone.trim(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
@@ -639,6 +602,8 @@ const EmployerRegister = () => {
 
         keepSignedIn,
         captchaToken: finalCaptchaToken,
+        acceptedTerms: true,
+        termsVersion: TERMS_VERSION,
       };
 
       const res = await api.post(
@@ -662,6 +627,18 @@ const EmployerRegister = () => {
         "Registration failed. Please try again.";
 
       dispatch(signupFailure(message));
+
+      // The verified email token is single use and lasts 30 minutes; ask for a new code.
+      if (err.response?.status === 403 && /verify your email/i.test(message)) {
+        setEmailVerified(false);
+        setVerificationToken("");
+        setOtpSent(false);
+        setOtpSuccessMsg("");
+        setFieldErrors({ email: "Your email verification expired. Please verify your email again." });
+        setDirection("prev");
+        setStep(1);
+        return;
+      }
 
       if (err.response?.data?.field) {
         const f = err.response.data.field;
@@ -718,7 +695,7 @@ const EmployerRegister = () => {
           <h2 className="text-4xl font-bold leading-tight tracking-tight mb-4">
             Hire top talent on
             <br />
-            <span className="text-[#fde68a]">CareerConnect</span>
+            <span className="text-[#fde68a]">E2Job</span>
           </h2>
 
           <p className="text-amber-50/90 text-[15px] leading-relaxed max-w-sm">
@@ -805,7 +782,7 @@ const EmployerRegister = () => {
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1.5">
-                  Employer registration · CareerConnect
+                  Employer registration · E2Job
                 </p>
               </div>
 
@@ -912,8 +889,8 @@ const EmployerRegister = () => {
                         </span>
 
                         {resendCooldown > 0 ? (
-                          <span className="text-[11px] text-slate-400 font-medium">
-                            Resend in {resendCooldown}s
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            Code expires in {resendCooldown}s
                           </span>
                         ) : (
                           <button
@@ -954,6 +931,7 @@ const EmployerRegister = () => {
                           }
                           disabled={
                             verifyingOtp ||
+                            otpExpired ||
                             otp.length !== 6
                           }
                           className="h-10 px-4 rounded-lg bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-sm whitespace-nowrap"
@@ -964,6 +942,12 @@ const EmployerRegister = () => {
                         </button>
                       </div>
 
+                      {otpExpired && !otpError && (
+                        <p className="text-xs text-red-600 font-medium">
+                          This OTP has expired. Please click Resend OTP to get a new code.
+                        </p>
+                      )}
+
                       {otpError && (
                         <p className="text-xs text-red-600 font-medium">
                           {otpError}
@@ -971,7 +955,7 @@ const EmployerRegister = () => {
                       )}
 
                       {otpSuccessMsg &&
-                        !otpError && (
+                        !otpError && !otpExpired && (
                           <p className="text-xs text-emerald-600 font-medium">
                             {otpSuccessMsg}
                           </p>
@@ -1015,21 +999,24 @@ const EmployerRegister = () => {
 
                 {/* Phone */}
                 <div>
-
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                    Mobile
+                    Mobile <span className="text-slate-400 font-normal">(optional)</span>
                   </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+91 98765 43210"
-                    className={inputClass("phone")}
+                  <PhoneInput
+                    countryCode={formData.countryCode}
+                    onCountryCodeChange={(code) =>
+                      setFormData((prev) => ({ ...prev, countryCode: code }))
+                    }
+                    phone={formData.phone}
+                    onPhoneChange={(val) => {
+                      setFormData((prev) => ({ ...prev, phone: val }));
+                      if (fieldErrors.phone)
+                        setFieldErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
+                    error={fieldErrors.phone}
+                    placeholder="Enter your phone number"
+                    theme="amber"
                   />
-                  {fieldErrors.phone && (
-                    <p className="text-xs text-red-500 mt-1.5">{fieldErrors.phone}</p>
-                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1097,16 +1084,13 @@ const EmployerRegister = () => {
                   type="button"
                   onClick={handleStep1Next}
                   disabled={
+                    !emailVerified ||
                     checkingEmail ||
                     googleLoading
                   }
                   className="w-full h-11 mt-1 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm"
                 >
-                  {checkingEmail
-                    ? "Sending OTP..."
-                    : emailVerified
-                    ? "Continue to Next Step →"
-                    : "Continue →"}
+                  {emailVerified ? "Continue to Next Step →" : "Verify email to continue"}
                 </button>
 
                 <p className="text-center text-[11px] text-slate-500">
@@ -1407,10 +1391,12 @@ const EmployerRegister = () => {
                   />
                 </div>
 
+                <TermsConsentCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} />
+
                 {/* Submit */}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !acceptedTerms}
                   className="w-full h-11 mt-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm"
                 >
                   {loading ? (

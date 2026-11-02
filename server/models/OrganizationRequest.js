@@ -42,12 +42,12 @@ const organizationRequestSchema = new mongoose.Schema(
     industry: {
       type: String,
       trim: true,
-      default: "Information Technology",
+      default: "",
     },
     companySize: {
       type: String,
       trim: true,
-      default: "11-50",
+      default: "",
     },
     verificationDocument: {
       type: String,

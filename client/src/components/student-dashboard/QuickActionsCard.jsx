@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { FEATURES } from "../../config/features";
 
 const QuickActionsCard = ({ onNavigateTab }) => {
   const actions = [
@@ -8,7 +9,7 @@ const QuickActionsCard = ({ onNavigateTab }) => {
     { label: "📄 Build Resume", link: "/student/profile", color: "bg-amber-50 text-amber-800 hover:bg-amber-100 border-amber-100" },
     { label: "🔍 Find Internships", tab: "internships", color: "bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-100" },
     { label: "💼 Browse Jobs", tab: "jobs", color: "bg-cyan-50 text-cyan-800 hover:bg-cyan-100 border-cyan-100" },
-    { label: "📚 Explore Courses", tab: "courses", color: "bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-100" },
+    ...(FEATURES.courses ? [{ label: "📚 Explore Courses", tab: "courses", color: "bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-100" }] : []),
     { label: "✏️ Edit Profile", link: "/student/profile", color: "bg-slate-100 text-slate-800 hover:bg-slate-200 border-slate-200" },
   ];
 

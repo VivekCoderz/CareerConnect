@@ -237,6 +237,28 @@ const employerProfileSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    // Platform verification: only "approved" employers may post or re-open listings.
+    verificationStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+      index: true,
+    },
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      default: null,
+      trim: true,
+      maxlength: 1000,
+    },
   },
   {
     timestamps: true,

@@ -51,6 +51,11 @@ const AdminCompanies = () => {
     return <Navigate to="/admin/company" replace />;
   }
 
+  return <AdminCompaniesContent />;
+};
+
+// Hooks live here so they always run in the same order; the guard above returns early.
+const AdminCompaniesContent = () => {
   // Active Tab: "companies" | "requests"
   const [activeTab, setActiveTab] = useState("companies");
 
@@ -92,7 +97,7 @@ const AdminCompanies = () => {
 
   const initialForm = {
     name: "",
-    industry: "Information Technology",
+    industry: "",
     email: "",
     phone: "",
     website: "",
@@ -397,7 +402,7 @@ const AdminCompanies = () => {
             </div>
 
             {/* Companies Grid */}
-            {loadingCompanies ? (
+            {loadingCompanies && companies.length === 0 ? (
               <div className="py-16 text-center">
                 <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-xs text-slate-500">Querying live MongoDB company records...</p>
@@ -540,7 +545,7 @@ const AdminCompanies = () => {
             </div>
 
             {/* Requests Table / Cards */}
-            {loadingRequests ? (
+            {loadingRequests && orgRequests.length === 0 ? (
               <div className="py-16 text-center">
                 <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-xs text-slate-500">Retrieving organization requests from MongoDB...</p>

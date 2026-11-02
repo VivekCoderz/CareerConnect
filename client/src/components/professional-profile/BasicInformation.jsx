@@ -126,7 +126,7 @@ const BasicInformation = ({ profile, user, onChange }) => {
             required
             value={formData.phone}
             onChange={(e) => handleInputChange("phone", e.target.value)}
-            placeholder="+91 98765 43210"
+            placeholder="Enter your phone number"
             className="w-full h-11 px-4 rounded-xl border border-slate-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 text-sm outline-none transition"
           />
         </div>

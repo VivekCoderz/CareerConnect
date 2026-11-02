@@ -75,7 +75,7 @@ const generateJobApplicantsPdf = (job = {}, applications = [], options = {}) => 
         bufferPages: true,
         info: {
           Title: `${job.title || "Job"}_Applicants_Report`,
-          Author: options.generatedBy || "CareerConnect",
+          Author: options.generatedBy || "E2Job",
           Subject: "Job Applicants & Recruitment Rounds Report",
         },
       });
@@ -153,7 +153,7 @@ const generateJobApplicantsPdf = (job = {}, applications = [], options = {}) => 
 
       // Company & Job Meta
       const companyTitle =
-        options.companyName || job.companyName || "CareerConnect Partner Employer";
+        options.companyName || job.companyName || "E2Job Partner Employer";
       doc
         .font("Helvetica")
         .fontSize(9)
@@ -518,7 +518,7 @@ const generateJobApplicantsPdf = (job = {}, applications = [], options = {}) => 
           .fontSize(7.5)
           .fillColor("#94a3b8")
           .text(
-            "CareerConnect Enterprise  ·  Confidential Candidate Recruitment Document  ·  Internal Evaluation Only",
+            "E2Job Enterprise  ·  Confidential Candidate Recruitment Document  ·  Internal Evaluation Only",
             margin,
             pageHeight - margin + 8,
             { align: "left" }

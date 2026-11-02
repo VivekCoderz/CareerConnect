@@ -49,6 +49,11 @@ export const getEmployerDashboard = async () => {
   return response.data;
 };
 
+export const getPublicCompanyJobs = async (companyId) => {
+  const response = await api.get(`/companies/${companyId}/jobs`);
+  return response.data;
+};
+
 export const getPublicCompanyProfile = async (companyId) => {
   const response = await api.get(`/companies/${companyId}`);
   return response.data;
@@ -75,6 +80,7 @@ export default {
   deleteEmployerProfile,
   getEmployerDashboard,
   getPublicCompanyProfile,
+  getPublicCompanyJobs,
   getOrganizationStatus,
   requestCompanyApproval,
 };

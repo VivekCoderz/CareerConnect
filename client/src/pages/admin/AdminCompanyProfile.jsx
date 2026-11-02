@@ -12,6 +12,12 @@ const AdminCompanyProfile = () => {
   if (isSuperAdmin) {
     return <Navigate to="/admin/companies" replace />;
   }
+
+  return <AdminCompanyProfileContent />;
+};
+
+// Hooks live here so they always run in the same order; the guard above returns early.
+const AdminCompanyProfileContent = () => {
   const [company, setCompany] = useState(null);
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({ totalOpportunities: 0, totalApplications: 0 });

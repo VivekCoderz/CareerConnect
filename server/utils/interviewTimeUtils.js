@@ -1,6 +1,6 @@
 /**
  * interviewTimeUtils.js
- * Comprehensive date & time parser and validator for CareerConnect Interview Management.
+ * Comprehensive date & time parser and validator for E2Job Interview Management.
  * Handles ISO dates (YYYY-MM-DD), month name strings, 12h/24h time formats,
  * range strings ("02:00 PM - 02:45 PM"), and duration-based end time calculation.
  */
@@ -219,7 +219,24 @@ function isOngoingInterview(interview, referenceTime = new Date()) {
   return getInterviewTimeDetails(interview, referenceTime).isOngoing;
 }
 
+/**
+ * Start instant for an interview (scheduledDate + start time), falling back to the bare
+ * date. Returns null when the date can't be parsed. Used to fill Interview.scheduledAt.
+ */
+function computeScheduledAt(interview) {
+  if (!interview?.scheduledDate) return null;
+  try {
+    const times = getInterviewDateTimes(interview);
+    if (times?.startDateTime && !isNaN(times.startDateTime.getTime())) return times.startDateTime;
+  } catch {
+    // fall back to the bare date below
+  }
+  const parsed = new Date(interview.scheduledDate);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
 module.exports = {
+  computeScheduledAt,
   parseTimeString,
   parseDateParts,
   extractTimeStrings,

@@ -1,74 +1,140 @@
 const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
+const User = require("../models/User");
+const EmployerProfile = require("../models/EmployerProfile");
+const Interview = require("../models/Interview");
+const { parseClientUrls, isLocalDevOrigin } = require("../utils/clientOrigins");
 
 let io = null;
+
+const idOf = (value) => {
+  const id = value?._id || value;
+  return id ? String(id) : null;
+};
+
+const isEmployerUser = (user) =>
+  user.role === "employer" ||
+  user.userType === "employer" ||
+  user.role === "COMPANY_ADMIN" ||
+  user.adminLevel === "COMPANY_ADMIN";
+
+/**
+ * Only CLIENT_URL origins (plus localhost outside production) may open a socket.
+ * Browsers always send Origin on WebSocket and cross-origin polling requests,
+ * so a missing Origin is rejected as well.
+ */
+function createOriginCheck() {
+  const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+  const allowed = parseClientUrls();
+  return (origin) =>
+    Boolean(origin) && (allowed.includes(origin) || (!isProduction && isLocalDevOrigin(origin)));
+}
+
+function readCookie(cookieHeader, name) {
+  for (const part of String(cookieHeader || "").split(";")) {
+    const index = part.indexOf("=");
+    if (index === -1 || part.slice(0, index).trim() !== name) continue;
+    try {
+      return decodeURIComponent(part.slice(index + 1).trim());
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Handshake auth: same `token` cookie and checks as the JWT path of authMiddleware
+ * (signature, user exists, authVersion matches, account active).
+ */
+async function authenticateSocket(socket, next) {
+  try {
+    const token = readCookie(socket.handshake.headers.cookie, "token");
+    if (!token || token === "null" || token === "undefined" || !process.env.JWT_SECRET) {
+      return next(new Error("NOT_AUTHENTICATED"));
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select("_id role userType adminLevel authVersion isActive");
+    if (!user || (decoded.av || 0) !== (user.authVersion || 0) || user.isActive === false) {
+      return next(new Error("NOT_AUTHENTICATED"));
+    }
+
+    let employerProfileId = null;
+    if (isEmployerUser(user)) {
+      const profile = await EmployerProfile.findOne({ userId: user._id }).select("_id").lean();
+      employerProfileId = profile ? String(profile._id) : null;
+    }
+
+    socket.data.user = {
+      id: String(user._id),
+      role: user.role,
+      userType: user.userType,
+      isEmployer: isEmployerUser(user),
+      employerProfileId,
+    };
+    return next();
+  } catch {
+    return next(new Error("NOT_AUTHENTICATED"));
+  }
+}
+
+// Rooms a socket may join are derived from the authenticated user only.
+function ownRooms(user) {
+  const rooms = [`user_${user.id}`];
+  if (user.isEmployer) {
+    if (user.employerProfileId) rooms.push(`employer_${user.employerProfileId}`);
+    // Older interviews stored the employer's user id in employerId.
+    rooms.push(`employer_${user.id}`);
+  }
+  return rooms;
+}
+
+async function canJoinInterview(user, interviewId) {
+  if (!mongoose.isValidObjectId(interviewId)) return false;
+  const interview = await Interview.findById(interviewId).select("candidateId employerId").lean();
+  if (!interview) return false;
+
+  if (idOf(interview.candidateId) === user.id) return true;
+  const employerId = idOf(interview.employerId);
+  return Boolean(
+    user.isEmployer && employerId && (employerId === user.employerProfileId || employerId === user.id)
+  );
+}
 
 /**
  * Initialize Socket.IO with HTTP server instance
  */
 function init(httpServer) {
-  const allowedOrigins = [
-    process.env.CLIENT_URL,
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-  ].filter(Boolean);
+  const isAllowedOrigin = createOriginCheck();
 
   io = new Server(httpServer, {
+    // allowRequest covers every transport; cors only governs browser polling responses.
+    allowRequest: (req, callback) => callback(null, isAllowedOrigin(req.headers.origin)),
     cors: {
-      origin: (origin, callback) => {
-        // Allow requests with no origin (e.g. mobile apps, curl, or same origin)
-        if (!origin || allowedOrigins.includes(origin)) {
-          return callback(null, true);
-        }
-        return callback(null, true); // Permissive in dev to avoid disconnects
-      },
-      methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+      methods: ["GET", "POST"],
       credentials: true,
     },
     transports: ["websocket", "polling"],
   });
 
+  io.use(authenticateSocket);
+
   io.on("connection", (socket) => {
-    // console.log(`[Socket.IO] Client connected: ${socket.id}`);
+    const user = socket.data.user;
+    socket.join(ownRooms(user));
 
-    // Join candidate/user room
-    socket.on("join_user", (userId) => {
-      if (userId) {
-        const room = `user_${String(userId)}`;
-        socket.join(room);
-        // console.log(`[Socket.IO] Socket ${socket.id} joined ${room}`);
-      }
+    // Join an interview room only as its candidate or its employer; otherwise ignored.
+    socket.on("join_interview", async (interviewId, ack) => {
+      const joined = await canJoinInterview(user, interviewId).catch(() => false);
+      if (joined) socket.join(`interview_${String(interviewId)}`);
+      if (typeof ack === "function") ack({ joined });
     });
 
-    // Join candidate-specific room
-    socket.on("join_candidate", (candidateId) => {
-      if (candidateId) {
-        const room = `candidate_${String(candidateId)}`;
-        socket.join(room);
-        // console.log(`[Socket.IO] Socket ${socket.id} joined ${room}`);
-      }
-    });
-
-    // Join interview-specific room
-    socket.on("join_interview", (interviewId) => {
-      if (interviewId) {
-        const room = `interview_${String(interviewId)}`;
-        socket.join(room);
-        // console.log(`[Socket.IO] Socket ${socket.id} joined ${room}`);
-      }
-    });
-
-    // Leave rooms
     socket.on("leave_interview", (interviewId) => {
-      if (interviewId) {
-        socket.leave(`interview_${String(interviewId)}`);
-      }
-    });
-
-    socket.on("disconnect", () => {
-      // console.log(`[Socket.IO] Client disconnected: ${socket.id}`);
+      if (interviewId) socket.leave(`interview_${String(interviewId)}`);
     });
   });
 
@@ -83,106 +149,72 @@ function getIO() {
   return io;
 }
 
-/**
- * Emit an event to candidate rooms and interview room
- */
-function emitToCandidateAndInterview(candidateId, interviewId, eventName, payload) {
+function emitToRooms(rooms, eventName, payload) {
   if (!io) return;
+  const targets = [...new Set(rooms.filter(Boolean))];
+  if (targets.length === 0) return;
   try {
-    const candidateStr = candidateId ? String(candidateId) : null;
-    const interviewStr = interviewId ? String(interviewId) : null;
-
-    if (candidateStr) {
-      io.to(`user_${candidateStr}`).emit(eventName, payload);
-      io.to(`candidate_${candidateStr}`).emit(eventName, payload);
-    }
-    if (interviewStr) {
-      io.to(`interview_${interviewStr}`).emit(eventName, payload);
-    }
-    // Also emit broadcast event for any active dashboard listeners
-    io.emit(eventName, payload);
+    io.to(targets).emit(eventName, payload);
   } catch (err) {
     console.error(`Failed to emit socket event ${eventName}:`, err.message);
   }
 }
 
 /**
- * Notify that an interview has been rescheduled
+ * Interview events go to the candidate, the owning employer and the interview room.
+ * Payloads carry identifiers and status only; clients refetch details over the API.
  */
-function emitInterviewRescheduled(candidateId, interview) {
+function emitInterviewEvent(type, candidateId, interview) {
+  const interviewId = idOf(interview?._id);
+  if (!interviewId) return;
+  const candidate = idOf(candidateId) || idOf(interview.candidateId);
+  const employer = idOf(interview.employerId);
+
   const payload = {
-    type: "INTERVIEW_RESCHEDULED",
-    interviewId: interview._id,
-    candidateId: candidateId || interview.candidateId?._id || interview.candidateId,
-    interview,
+    type,
+    interviewId,
+    applicationId: idOf(interview.applicationId),
+    candidateId: candidate,
+    status: interview.status || null,
     timestamp: new Date().toISOString(),
   };
-  emitToCandidateAndInterview(payload.candidateId, interview._id, "INTERVIEW_RESCHEDULED", payload);
+  emitToRooms(
+    [candidate && `user_${candidate}`, employer && `employer_${employer}`, `interview_${interviewId}`],
+    type,
+    payload
+  );
 }
 
-/**
- * Notify that an interview has been cancelled
- */
-function emitInterviewCancelled(candidateId, interview) {
-  const payload = {
-    type: "INTERVIEW_CANCELLED",
-    interviewId: interview._id,
-    candidateId: candidateId || interview.candidateId?._id || interview.candidateId,
-    interview,
-    timestamp: new Date().toISOString(),
-  };
-  emitToCandidateAndInterview(payload.candidateId, interview._id, "INTERVIEW_CANCELLED", payload);
-}
+const emitInterviewRescheduled = (candidateId, interview) =>
+  emitInterviewEvent("INTERVIEW_RESCHEDULED", candidateId, interview);
+const emitInterviewCancelled = (candidateId, interview) =>
+  emitInterviewEvent("INTERVIEW_CANCELLED", candidateId, interview);
+const emitInterviewScheduled = (candidateId, interview) =>
+  emitInterviewEvent("INTERVIEW_SCHEDULED", candidateId, interview);
+const emitInterviewStatusUpdated = (candidateId, interview) =>
+  emitInterviewEvent("INTERVIEW_STATUS_UPDATED", candidateId, interview);
 
 /**
- * Notify that an interview has been scheduled
- */
-function emitInterviewScheduled(candidateId, interview) {
-  const payload = {
-    type: "INTERVIEW_SCHEDULED",
-    interviewId: interview._id,
-    candidateId: candidateId || interview.candidateId?._id || interview.candidateId,
-    interview,
-    timestamp: new Date().toISOString(),
-  };
-  emitToCandidateAndInterview(payload.candidateId, interview._id, "INTERVIEW_SCHEDULED", payload);
-}
-
-/**
- * Notify that an interview status has updated (e.g. completed, ongoing)
- */
-function emitInterviewStatusUpdated(candidateId, interview) {
-  const payload = {
-    type: "INTERVIEW_STATUS_UPDATED",
-    interviewId: interview._id,
-    candidateId: candidateId || interview.candidateId?._id || interview.candidateId,
-    interview,
-    timestamp: new Date().toISOString(),
-  };
-  emitToCandidateAndInterview(payload.candidateId, interview._id, "INTERVIEW_STATUS_UPDATED", payload);
-}
-
-/**
- * Notify that an application status or stage has updated
+ * Notify the candidate and the owning employer that an application status or stage changed
  */
 function emitApplicationUpdated(application) {
-  if (!io) return;
-  try {
-    const payload = {
-      type: "APPLICATION_UPDATED",
-      applicationId: application._id,
-      application,
-      timestamp: new Date().toISOString(),
-    };
-    if (application.candidateId) {
-      const candId = application.candidateId?._id || application.candidateId;
-      io.to(`user_${String(candId)}`).emit("APPLICATION_UPDATED", payload);
-      io.to(`candidate_${String(candId)}`).emit("APPLICATION_UPDATED", payload);
-    }
-    io.emit("APPLICATION_UPDATED", payload);
-  } catch (err) {
-    console.error("Failed to emit APPLICATION_UPDATED socket event:", err.message);
-  }
+  const applicationId = idOf(application?._id);
+  if (!applicationId) return;
+  const candidate = idOf(application.candidateId);
+  const employer = idOf(application.employerId);
+
+  const payload = {
+    type: "APPLICATION_UPDATED",
+    applicationId,
+    candidateId: candidate,
+    status: application.status || null,
+    timestamp: new Date().toISOString(),
+  };
+  emitToRooms(
+    [candidate && `user_${candidate}`, employer && `employer_${employer}`],
+    "APPLICATION_UPDATED",
+    payload
+  );
 }
 
 module.exports = {

@@ -166,4 +166,4 @@ const AdminKPICards = ({ overview = {}, users = {}, opportunities = {}, applicat
   );
 };
 
-export default AdminKPICards;
+export default React.memo(AdminKPICards);

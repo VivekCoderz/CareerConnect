@@ -14,7 +14,9 @@ const PersonalInfo = ({ profile, setProfile }) => {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Show the saved values, but don't wipe what's being typed when another section saves (FL-09).
   useEffect(() => {
+    if (editing) return;
     setForm({
       dateOfBirth: profile?.dateOfBirth
         ? profile.dateOfBirth.substring(0, 10)
@@ -25,7 +27,7 @@ const PersonalInfo = ({ profile, setProfile }) => {
       country: profile?.location?.country || "India",
       bio: profile?.bio || "",
     });
-  }, [profile]);
+  }, [profile, editing]);
 
   const handleChange = (e) => {
     setForm({

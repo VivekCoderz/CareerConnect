@@ -493,7 +493,7 @@ const ProfessionalProfile = () => {
             {activeCategoryId === "development" && (
               <div className="space-y-6 animate-fade-in">
                 <ProfessionalDevelopment
-                  development={profileData?.professionalDevelopment || {}}
+                  professionalDevelopment={profileData?.professionalDevelopment || []}
                   onChange={handleSectionChange}
                 />
                 <EducationSection
@@ -511,12 +511,14 @@ const ProfessionalProfile = () => {
                   onChange={handleSectionChange}
                 />
                 <JobPreferencesSection
-                  preferences={profileData?.jobPreferences || {}}
+                  jobPreferences={profileData?.jobPreferences || {}}
                   onChange={handleSectionChange}
                 />
                 <AvailabilityCompensationSection
                   availability={profileData?.availability || {}}
                   compensation={profileData?.compensation || {}}
+                  relocation={profileData?.relocation || {}}
+                  jobSearchStatus={profileData?.jobSearchStatus || "Open to Opportunities"}
                   onChange={handleSectionChange}
                 />
               </div>
@@ -527,7 +529,7 @@ const ProfessionalProfile = () => {
               <div className="space-y-6 animate-fade-in">
                 <RecruiterPreferencesSection
                   recruiterPreferences={profileData?.recruiterPreferences || {}}
-                  visibility={profileData?.profileVisibility || "recruiter-only"}
+                  profileVisibility={profileData?.profileVisibility || "recruiter-only"}
                   jobSearchStatus={profileData?.jobSearchStatus || "Open to Opportunities"}
                   onChange={handleSectionChange}
                 />

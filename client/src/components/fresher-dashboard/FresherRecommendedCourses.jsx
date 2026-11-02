@@ -144,7 +144,7 @@ const FresherRecommendedCourses = ({ courses = [], targetRole = "Full Stack Deve
           to="/courses"
           className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1e3a8a] hover:text-[#1e40af] hover:underline transition"
         >
-          Explore all courses on CareerConnect →
+          Explore all courses on E2Job →
         </Link>
       </div>
     </div>

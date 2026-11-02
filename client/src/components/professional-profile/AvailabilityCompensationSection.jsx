@@ -22,6 +22,12 @@ const NOTICE_PERIODS = [
 
 const RELOCATION_OPTIONS = ["Depends on Opportunity", "Yes", "No"];
 
+// Blank choices are left out, not sent as "": the server only accepts listed values.
+const withoutBlanks = (obj) => Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== ""));
+
+// Empty input stays empty instead of becoming 0.
+const salaryValue = (value) => (value === "" ? "" : Number(value));
+
 const AvailabilityCompensationSection = ({
   availability = {},
   compensation = {},
@@ -30,23 +36,23 @@ const AvailabilityCompensationSection = ({
   onChange,
 }) => {
   const [availState, setAvailState] = useState({
-    status: availability?.status || "Employed (Passive / Open)",
-    noticePeriod: availability?.noticePeriod || "30 Days",
+    status: availability?.status || "",
+    noticePeriod: availability?.noticePeriod || "",
     expectedJoiningDate: availability?.expectedJoiningDate
       ? availability.expectedJoiningDate.split("T")[0]
       : "",
   });
 
   const [compState, setCompState] = useState({
-    currentSalary: compensation?.currentSalary || 24,
-    expectedMinSalary: compensation?.expectedMinSalary || 32,
-    expectedMaxSalary: compensation?.expectedMaxSalary || 45,
+    currentSalary: compensation?.currentSalary || "",
+    expectedMinSalary: compensation?.expectedMinSalary || "",
+    expectedMaxSalary: compensation?.expectedMaxSalary || "",
     currency: compensation?.currency || "INR (LPA)",
     isCurrentSalaryConfidential: compensation?.isCurrentSalaryConfidential ?? true,
   });
 
   const [relocState, setRelocState] = useState({
-    willingToRelocate: relocation?.willingToRelocate || "Depends on Opportunity",
+    willingToRelocate: relocation?.willingToRelocate || "",
     preferredCities: relocation?.preferredCities || [],
   });
 
@@ -54,9 +60,9 @@ const AvailabilityCompensationSection = ({
 
   const notify = (av, co, rel, st) => {
     onChange({
-      availability: av,
-      compensation: co,
-      relocation: rel,
+      availability: withoutBlanks(av),
+      compensation: withoutBlanks(co),
+      relocation: withoutBlanks(rel),
       jobSearchStatus: st,
     });
   };
@@ -108,6 +114,7 @@ const AvailabilityCompensationSection = ({
             }}
             className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-emerald-500 font-medium"
           >
+            <option value="">Select notice period</option>
             {NOTICE_PERIODS.map((np) => (
               <option key={np} value={np}>
                 {np}
@@ -151,8 +158,9 @@ const AvailabilityCompensationSection = ({
               type="number"
               step="0.5"
               value={compState.currentSalary}
+              placeholder="Not set yet"
               onChange={(e) => {
-                const updated = { ...compState, currentSalary: Number(e.target.value) };
+                const updated = { ...compState, currentSalary: salaryValue(e.target.value) };
                 setCompState(updated);
                 notify(availState, updated, relocState, searchStatus);
               }}
@@ -168,8 +176,9 @@ const AvailabilityCompensationSection = ({
               type="number"
               step="0.5"
               value={compState.expectedMinSalary}
+              placeholder="Not set yet"
               onChange={(e) => {
-                const updated = { ...compState, expectedMinSalary: Number(e.target.value) };
+                const updated = { ...compState, expectedMinSalary: salaryValue(e.target.value) };
                 setCompState(updated);
                 notify(availState, updated, relocState, searchStatus);
               }}
@@ -185,8 +194,9 @@ const AvailabilityCompensationSection = ({
               type="number"
               step="0.5"
               value={compState.expectedMaxSalary}
+              placeholder="Not set yet"
               onChange={(e) => {
-                const updated = { ...compState, expectedMaxSalary: Number(e.target.value) };
+                const updated = { ...compState, expectedMaxSalary: salaryValue(e.target.value) };
                 setCompState(updated);
                 notify(availState, updated, relocState, searchStatus);
               }}
@@ -211,6 +221,7 @@ const AvailabilityCompensationSection = ({
             }}
             className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-emerald-500"
           >
+            <option value="">Select</option>
             {RELOCATION_OPTIONS.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}

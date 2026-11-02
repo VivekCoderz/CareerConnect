@@ -57,3 +57,6 @@ id_ed25519
 *.backup
 uploads/
 server/uploads/
+tmp/
+courses-links.txt
+*.pdf

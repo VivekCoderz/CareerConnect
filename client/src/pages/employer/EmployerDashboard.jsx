@@ -1,7 +1,13 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import React, { useState, useEffect, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import SupportTickets from "../../components/support/SupportTickets";
+import useTabInUrl from "../../hooks/useTabInUrl";
+import useLiveNotifications from "../../hooks/useLiveNotifications";
+import NotificationInbox from "../../components/notifications/NotificationInbox";
 import { useDispatch, useSelector } from "react-redux";
+import { FEATURES } from "../../config/features";
+import { POST_INTERNSHIP } from "../../utils/employerRoutes";
 
 // Services
 import {
@@ -21,6 +27,8 @@ import * as courseService from "../../services/courseService";
 import EmployerNavbar from "../../components/employer/EmployerNavbar";
 import EmployerSidebar from "../../components/employer/EmployerSidebar";
 import JobModal from "../../components/employer/JobModal";
+import VerificationBanner from "../../components/employer/VerificationBanner";
+import { canEmployerRepublish } from "../../utils/listingModeration";
 import ATSPipelineView from "../../components/employer/ATSPipelineView";
 import CandidateCard from "../../components/employer/CandidateCard";
 import AssessmentModal from "../../components/employer/AssessmentModal";
@@ -52,7 +60,25 @@ const EmployerDashboard = () => {
   const { user } = useSelector((state) => state.auth);
 
   // Layout & Tab State
-  const [activeTab, setActiveTab] = useState("overview");
+  // Open the tab named in ?tab= (kept in the URL by useTabInUrl, so a refresh stays put).
+  const [tabSearchParams] = useSearchParams();
+  // Internships live inside Job Management; old ?tab=internships links open that view.
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = tabSearchParams.get("tab") || "overview";
+    return tab === "internships" ? "jobs" : tab;
+  });
+  useTabInUrl(activeTab, "overview");
+  // Job Management shows jobs or internships (?view=internships opens the latter).
+  const [jobMgmtView, setJobMgmtView] = useState(() =>
+    tabSearchParams.get("view") === "internships" || tabSearchParams.get("tab") === "internships" ? "internships" : "jobs"
+  );
+  // Job the ATS tab opens filtered to ("All" = every job); set by "View applications".
+  const [atsJobId, setAtsJobId] = useState("All");
+  const selectTab = (tab) => {
+    setAtsJobId("All");
+    setActiveTab(tab);
+  };
+  const inbox = useLiveNotifications(selectTab);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -80,8 +106,8 @@ const EmployerDashboard = () => {
     companyName: "",
     officialCompanyEmail: "",
     companyWebsite: "",
-    industry: "Information Technology",
-    companySize: "11-50",
+    industry: "",
+    companySize: "",
     verificationDocument: "",
     verificationDocumentName: "",
     requestingEmployeeName: "",
@@ -133,10 +159,6 @@ const EmployerDashboard = () => {
     }
   };
 
-  // Internship View States
-  const [internshipView, setInternshipView] = useState("list"); // "list", "new", "edit"
-  const [internshipIdToEdit, setInternshipIdToEdit] = useState(null);
-
   const [toastMessage, setToastMessage] = useState(null);
 
   const showToast = (text, type = "success") => {
@@ -144,7 +166,21 @@ const EmployerDashboard = () => {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+    // Redirect away from tabs switched off by feature flags
+  const hiddenTabs = {
+    courses: !FEATURES.courses,
+    "manage-courses": !FEATURES.courses,
+    learning: !FEATURES.courses,
+    "my-learning": !FEATURES.courses,
+    training: !FEATURES.courses,
+    "skill-gaps": !FEATURES.courses,
+    assessments: !FEATURES.assessments,
+  };
+  const safeActiveTab = hiddenTabs[activeTab] ? "overview" : activeTab;
+
   // Initial Load
+
+
   useEffect(() => {
     const loadAllData = async () => {
       try {
@@ -173,16 +209,16 @@ const EmployerDashboard = () => {
           internshipService.getMyPosts().catch(() => ({ internships: [] })),
           recruitmentService.getEmployerApplications().catch(() => ({ applications: [] })),
           candidateService.searchCandidates().catch(() => ({ candidates: [] })),
-          recruitmentService.getAssessments().catch(() => ({ assessments: [] })),
+           FEATURES.assessments ? recruitmentService.getAssessments().catch(() => ({ assessments: [] })) : Promise.resolve({ assessments: [] }),
           recruitmentService.getInterviews().catch(() => ({ interviews: [] })),
           recruitmentService.getOffers().catch(() => ({ offers: [] })),
           organizationService.getEmployees().catch(() => ({ employees: [] })),
           organizationService.getDepartments().catch(() => ({ departments: [] })),
-          organizationService.getTrainingAssignments().catch(() => ({ assignments: [] })),
-          organizationService.getSkillGapAnalysis().catch(() => ({ skillGaps: [] })),
-          learningService.getCourseCatalog().catch(() => ({ courses: [] })),
-          courseService.getEmployerCourses().catch(() => ({ courses: [] })),
-          learningService.getMyLearning().catch(() => ({ enrollments: [] })),
+          FEATURES.courses ? organizationService.getTrainingAssignments().catch(() => ({ assignments: [] })) : Promise.resolve({ assignments: [] }),
+          FEATURES.courses ? organizationService.getSkillGapAnalysis().catch(() => ({ skillGaps: [] })) : Promise.resolve({ skillGaps: [] }),  
+          FEATURES.courses ? learningService.getCourseCatalog().catch(() => ({ courses: [] })) : Promise.resolve({ courses: [] }),
+          FEATURES.courses ? courseService.getEmployerCourses().catch(() => ({ courses: [] })) : Promise.resolve({ courses: [] }),
+          FEATURES.courses ? learningService.getMyLearning().catch(() => ({ enrollments: [] })) : Promise.resolve({ enrollments: [] }),
           recruitmentService.getEmployerAnalytics().catch(() => null),
           getOrganizationStatus().catch(() => null),
         ]);
@@ -333,18 +369,22 @@ const EmployerDashboard = () => {
       const res = await jobService.createJob(jobPayload);
       if (res?.success) {
         setJobs((prev) => [res.job, ...prev]);
-        showToast("New job posted to CareerConnect talent portal!");
+        showToast("Job submitted for approval. It will go live once an admin approves it.");
         refreshDashboardData();
       }
     }
   };
 
   const handleToggleJobStatus = async (jobId, newStatus) => {
-    const res = await jobService.updateJobStatus(jobId, newStatus);
-    if (res?.success) {
-      setJobs((prev) => prev.map((j) => (j._id === jobId ? res.job : j)));
-      showToast(`Job status changed to ${newStatus}`);
-      refreshDashboardData();
+    try {
+      const res = await jobService.updateJobStatus(jobId, newStatus);
+      if (res?.success) {
+        setJobs((prev) => prev.map((j) => (j._id === jobId ? res.job : j)));
+        showToast(`Job status changed to ${newStatus}`);
+        refreshDashboardData();
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to update job status", "error");
     }
   };
 
@@ -418,6 +458,35 @@ const EmployerDashboard = () => {
       }
     } catch (err) {
       showToast(err.response?.data?.message || "Failed to select candidate", "error");
+    }
+  };
+
+  // Bulk shortlist / review / interview / reject from the applicant list
+  const handleBulkStatus = async (applicationIds, status) => {
+    try {
+      // The server accepts up to 300 per request; send larger selections in batches.
+      const res = { success: true, updated: 0, skipped: 0 };
+      for (let i = 0; i < applicationIds.length; i += 300) {
+        const part = await recruitmentService.bulkUpdateApplicationStatus(applicationIds.slice(i, i + 300), status);
+        if (!part?.success) {
+          showToast(part?.message || "Bulk update failed", "error");
+          return false;
+        }
+        res.updated += part.updated || 0;
+        res.skipped += part.skipped || 0;
+      }
+      res.message = `${res.updated} application${res.updated === 1 ? "" : "s"} marked as ${status}`;
+      const chosen = new Set(applicationIds);
+      setApplications((prev) =>
+        prev.map((a) =>
+          chosen.has(a._id) && !["Withdrawn", "Hired"].includes(a.status) ? { ...a, status, stage: status } : a
+        )
+      );
+      showToast(res.skipped ? `${res.message} (${res.skipped} skipped)` : res.message);
+      return true;
+    } catch (err) {
+      showToast(err.response?.data?.message || "Bulk update failed", "error");
+      return false;
     }
   };
 
@@ -551,7 +620,12 @@ const EmployerDashboard = () => {
   };
 
   const profile = dashboardData?.profile || {};
-  const completion = dashboardData?.profileCompletion || profile.profileCompletion || 85;
+  // Unknown until the dashboard loads; only "approved" employers may post.
+  const employerVerificationStatus = dashboardData
+    ? dashboardData.employerVerification?.status || profile.verificationStatus || "pending"
+    : null;
+  const postingDisabled = Boolean(employerVerificationStatus) && employerVerificationStatus !== "approved";
+  const completion = dashboardData?.profileCompletion ?? profile.profileCompletion ?? 0;
 
   // Synchronize employer info & dynamic pre-fill into Connect Company form
   useEffect(() => {
@@ -587,13 +661,13 @@ const EmployerDashboard = () => {
         prev.industry ||
         pre.industry ||
         prof.industry ||
-        "Information Technology",
+        "",
       companySize:
         existingReq?.companySize ||
         prev.companySize ||
         pre.companySize ||
         prof.companySize ||
-        "11-50",
+        "",
       verificationDocument:
         existingReq?.verificationDocument ||
         prev.verificationDocument ||
@@ -919,7 +993,7 @@ const EmployerDashboard = () => {
         profileCompletion={dashboardData?.profileCompletion || completion}
         unreadNotifications={dashboardData?.unreadNotificationsCount || 0}
         activity={dashboardData?.activity || []}
-        onSelectTab={setActiveTab}
+        onSelectTab={selectTab}
       />
 
       {/* Main Container */}
@@ -927,26 +1001,33 @@ const EmployerDashboard = () => {
         {/* Sidebar */}
         <EmployerSidebar
           activeTab={activeTab}
-          onSelectTab={setActiveTab}
+          onSelectTab={selectTab}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           stats={stats}
+          unreadNotifications={inbox.unreadCount}
         />
 
         {/* Content Area */}
         <main className="flex-1 lg:pl-64 space-y-6">
+          <VerificationBanner
+            status={employerVerificationStatus}
+            rejectionReason={dashboardData?.employerVerification?.rejectionReason || profile.rejectionReason}
+          />
           {/* ======================================================== */}
           {/* TAB 1: OVERVIEW DASHBOARD                               */}
           {/* ======================================================== */}
-          {activeTab === "overview" && (
+          {safeActiveTab === "overview" && (
             <DashboardPage
               data={dashboardData}
               onPostJob={() => navigate("/employer/jobs/new")}
-              onPostInternship={() => {
-                setActiveTab("internships");
-                setInternshipView("new");
-              }}
+              postingDisabled={postingDisabled}
+              onPostInternship={() => navigate(POST_INTERNSHIP)}
               onViewApplications={() => setActiveTab("ats")}
+              onViewJobApplications={(jobId) => {
+                setAtsJobId(String(jobId));
+                setActiveTab("ats");
+              }}
               onScheduleInterview={() => {
                 setInterviewCandidate(null);
                 setIsInterviewModalOpen(true);
@@ -984,54 +1065,57 @@ const EmployerDashboard = () => {
           )}
 
           {/* ======================================================== */}
-          {/* TAB: INTERNSHIP MANAGEMENT                               */}
-          {/* ======================================================== */}
-          {activeTab === "internships" && (
-            <div className="space-y-5 animate-fade-in bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
-              {internshipView === "list" && (
-                <MyInternships
-                  onPostClick={() => setInternshipView("new")}
-                  onEditClick={(id) => {
-                    setInternshipIdToEdit(id);
-                    setInternshipView("edit");
-                  }}
-                />
-              )}
-              {internshipView === "new" && (
-                <PostInternship
-                  onCancel={() => setInternshipView("list")}
-                  onSuccess={() => setInternshipView("list")}
-                />
-              )}
-              {internshipView === "edit" && (
-                <EditInternship
-                  id={internshipIdToEdit}
-                  onCancel={() => setInternshipView("list")}
-                  onSuccess={() => setInternshipView("list")}
-                />
-              )}
-            </div>
-          )}
-
-          {/* ======================================================== */}
           {/* TAB 2: JOB MANAGEMENT                                    */}
           {/* ======================================================== */}
-          {activeTab === "jobs" && (
+          {safeActiveTab === "jobs" && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 tracking-tight">Job & Opportunity Management</h2>
-                  <p className="text-xs text-slate-500">Create, edit, pause and track vacancies</p>
+                  <p className="text-xs text-slate-500">Create, edit, pause and track jobs and internships</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate("/employer/jobs/create?type=job")}
-                  className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5"
+                  onClick={() => navigate(jobMgmtView === "internships" ? POST_INTERNSHIP : "/employer/jobs/create?type=job")}
+                  disabled={postingDisabled}
+                  title={postingDisabled ? "Your company is awaiting verification" : undefined}
+                  className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span>+</span> Post Opportunity
+                  <span>+</span> {jobMgmtView === "internships" ? "Post Internship" : "Post Job"}
                 </button>
               </div>
 
+              {/* Jobs | Internships */}
+              <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200" role="tablist">
+                {[
+                  { id: "jobs", label: "Jobs", count: jobs.length },
+                  { id: "internships", label: "Internships", count: internships.length },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={jobMgmtView === t.id}
+                    onClick={() => setJobMgmtView(t.id)}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                      jobMgmtView === t.id ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {t.label}
+                    <span className="px-1.5 py-0.5 rounded-md bg-slate-200/70 text-[10px] font-black text-slate-700">{t.count}</span>
+                  </button>
+                ))}
+              </div>
+
+              {jobMgmtView === "internships" && <MyInternships embedded onListChange={setInternships} />}
+
+              {jobMgmtView === "jobs" && jobs.length === 0 && (
+                <div className="text-center py-14 bg-white border border-slate-200 rounded-2xl">
+                  <p className="text-slate-600 font-semibold text-sm">No jobs yet</p>
+                </div>
+              )}
+
+              {jobMgmtView === "jobs" && (
               <div className="space-y-3">
                 {jobs.map((job) => (
                   <div
@@ -1048,7 +1132,9 @@ const EmployerDashboard = () => {
                             ? "bg-slate-100 text-slate-600"
                             : "bg-amber-50 text-amber-700"
                         }`}>
-                          {job.status}
+                          {job.isExpired || job.closedReason === "expired"
+                            ? "Expired"
+                            : job.status === "Pending Approval" ? "Pending approval" : job.status}
                         </span>
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10.5px] font-semibold">
                           {job.employmentType}
@@ -1079,13 +1165,15 @@ const EmployerDashboard = () => {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleJobStatus(job._id, job.status === "Published" ? "Paused" : "Published")}
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
-                      >
-                        {job.status === "Published" ? "Pause" : "Publish"}
-                      </button>
+                      {(job.status === "Published" || canEmployerRepublish(job)) && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleJobStatus(job._id, job.status === "Published" ? "Paused" : "Published")}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
+                        >
+                          {job.status === "Published" ? "Pause" : "Resume"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleDuplicateJob(job._id)}
@@ -1152,13 +1240,14 @@ const EmployerDashboard = () => {
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
 
           {/* ======================================================== */}
           {/* TAB 3: ATS APPLICANT PIPELINE                            */}
           {/* ======================================================== */}
-          {activeTab === "ats" && (
+          {safeActiveTab === "ats" && (
             <div className="space-y-5 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Applicant Tracking System</h2>
@@ -1166,9 +1255,10 @@ const EmployerDashboard = () => {
               </div>
 
               <ATSPipelineView
+                key={atsJobId}
+                initialJobId={atsJobId}
                 jobs={jobs}
                 applications={applications}
-                jobs={jobs}
                 onUpdateStage={handleUpdateAppStage}
                 onMoveNextStage={handleMoveNextStage}
                 onSelectCandidate={handleSelectCandidate}
@@ -1183,6 +1273,7 @@ const EmployerDashboard = () => {
                   setIsOfferModalOpen(true);
                 }}
                 onAddNote={handleAddAppNote}
+                onBulkStatus={handleBulkStatus}
               />
             </div>
           )}
@@ -1190,11 +1281,11 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 4: TALENT POOL & MATCHING ENGINE                     */}
           {/* ======================================================== */}
-          {activeTab === "candidates" && (
+          {safeActiveTab === "candidates" && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">CareerConnect Talent Pool</h2>
+                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">E2Job Talent Pool</h2>
                   <p className="text-xs text-slate-500">Live candidate matching with strong & missing skill analysis</p>
                 </div>
               </div>
@@ -1235,7 +1326,7 @@ const EmployerDashboard = () => {
                       setInterviewCandidate(c);
                       setIsInterviewModalOpen(true);
                     }}
-                    onAssignAssessment={() => setIsAssessmentModalOpen(true)}
+                    onAssignAssessment={FEATURES.assessments ? () => setIsAssessmentModalOpen(true) : undefined}
                   />
                 ))}
               </div>
@@ -1245,7 +1336,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 5: RECRUITMENT ASSESSMENTS                            */}
           {/* ======================================================== */}
-          {activeTab === "assessments" && (
+          {safeActiveTab === "assessments"  && FEATURES.assessments &&  (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -1286,7 +1377,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 6: INTERVIEWS                                        */}
           {/* ======================================================== */}
-          {activeTab === "interviews" && (
+          {safeActiveTab === "interviews" && (
             <InterviewManagementHub
               interviews={interviews}
               jobs={jobs}
@@ -1305,11 +1396,11 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 7: JOB OFFERS                                        */}
           {/* ======================================================== */}
-          {activeTab === "offers" && (
+          {safeActiveTab === "offers" && (
             <OfferManagementHub
               offers={offers}
               jobs={jobs}
-              companyName={user?.fullName || "CareerConnect Partner"}
+              companyName={profile.companyName || orgStatusData?.company?.name || ""}
               onRefresh={async () => {
                 const offersRes = await recruitmentService.getOffers().catch(() => ({ offers: [] }));
                 setOffers(offersRes?.offers || []);
@@ -1321,7 +1412,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB: UNIFIED COURSES & LEARNING HUB                      */}
           {/* ======================================================== */}
-          {(activeTab === "courses" || activeTab === "manage-courses" || activeTab === "learning" || activeTab === "my-learning") && (
+          {(safeActiveTab === "courses" || safeActiveTab === "manage-courses" || safeActiveTab === "learning" || safeActiveTab === "my-learning") && FEATURES.courses &&(
             <div className="space-y-6 animate-fade-in">
               {/* Top Courses Subtab Navigation */}
               <div className="p-1.5 bg-white border border-slate-200/90 rounded-2xl shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
@@ -1572,16 +1663,16 @@ const EmployerDashboard = () => {
           )}
 
           {/* ======================================================== */}
-          {/* TAB: CONNECT COMPANY WITH CAREERCONNECT                   */}
+          {/* TAB: CONNECT COMPANY WITH E2JOB                   */}
           {/* ======================================================== */}
-          {activeTab === "organization" && (
+          {safeActiveTab === "organization" && (
             <div className="space-y-6 animate-fade-in">
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                      Connect Company with CareerConnect
+                      Connect Company with E2Job
                     </h2>
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
@@ -1604,7 +1695,7 @@ const EmployerDashboard = () => {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Connect your organization to CareerConnect to unlock verified enterprise workspace status, post jobs, and manage candidates.
+                    Connect your organization to E2Job to unlock verified enterprise workspace status, post jobs, and manage candidates.
                   </p>
                 </div>
 
@@ -1712,13 +1803,13 @@ const EmployerDashboard = () => {
                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
                         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Industry</p>
                         <p className="text-sm font-bold text-slate-800 mt-1">
-                          {orgStatusData?.company?.industry || profile.industry || "Information Technology"}
+                          {orgStatusData?.company?.industry || profile.industry || "Not provided"}
                         </p>
                       </div>
                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
                         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Headquarters</p>
                         <p className="text-sm font-bold text-slate-800 mt-1">
-                          {orgStatusData?.company?.location || profile.headquarters?.city || "Gurugram, India"}
+                          {orgStatusData?.company?.location || profile.headquarters?.city || "Not provided"}
                         </p>
                       </div>
                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
@@ -1773,7 +1864,7 @@ const EmployerDashboard = () => {
                             </span>
                           </div>
                           <p className="text-xs text-amber-100/80 mt-1 max-w-xl">
-                            Your organization approval request was received and forwarded to the CareerConnect Super Admin team for compliance verification and enterprise tenant provisioning.
+                            Your organization approval request was received and forwarded to the E2Job Super Admin team for compliance verification and enterprise tenant provisioning.
                           </p>
                         </div>
                       </div>
@@ -1944,7 +2035,7 @@ const EmployerDashboard = () => {
                   <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h3 className="text-base font-bold text-slate-900">
-                        {isEditingOrgRequest ? "Update Company Connection Details" : "Connect Company with CareerConnect"}
+                        {isEditingOrgRequest ? "Update Company Connection Details" : "Connect Company with E2Job"}
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Submit your organization credentials below. Super Admin will verify and activate your enterprise connection.
@@ -2024,6 +2115,7 @@ const EmployerDashboard = () => {
                             onChange={(e) => setOrgForm({ ...orgForm, industry: e.target.value })}
                             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition bg-white"
                           >
+                            <option value="">Select industry</option>
                             <option value="Information Technology">Information Technology &amp; Software</option>
                             <option value="Financial Services">Financial Services &amp; Banking</option>
                             <option value="Healthcare">Healthcare &amp; Life Sciences</option>
@@ -2047,6 +2139,7 @@ const EmployerDashboard = () => {
                             onChange={(e) => setOrgForm({ ...orgForm, companySize: e.target.value })}
                             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition bg-white"
                           >
+                            <option value="">Select company size</option>
                             <option value="1-10">1-10 Employees (Seed / Early Stage)</option>
                             <option value="11-50">11-50 Employees (Small Business)</option>
                             <option value="51-200">51-200 Employees (Growth Scale)</option>
@@ -2208,7 +2301,7 @@ const EmployerDashboard = () => {
                             </>
                           ) : (
                             <>
-                              <span>Connect Company with CareerConnect</span>
+                              <span>Connect Company with E2Job</span>
                               <span>→</span>
                             </>
                           )}
@@ -2224,7 +2317,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 10: EMPLOYEE DIRECTORY & TEAMS                       */}
           {/* ======================================================== */}
-          {activeTab === "employees" && (
+          {safeActiveTab === "employees" && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -2285,7 +2378,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 11: ASSIGN TRAINING                                  */}
           {/* ======================================================== */}
-          {activeTab === "training" && (
+          {safeActiveTab === "training"  && FEATURES.courses && (
             <div className="space-y-5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
@@ -2324,7 +2417,7 @@ const EmployerDashboard = () => {
           {/* ======================================================== */}
           {/* TAB 12: SKILL GAP ANALYSIS                               */}
           {/* ======================================================== */}
-          {activeTab === "skill-gaps" && (
+          {safeActiveTab === "skill-gaps" && (
             <div className="space-y-5 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Organization Skill Gap Analysis</h2>
@@ -2339,26 +2432,55 @@ const EmployerDashboard = () => {
           )}
 
           {/* ======================================================== */}
+          {/* HELP & SUPPORT                                           */}
+          {/* ======================================================== */}
+          {safeActiveTab === "support" && <SupportTickets />}
+
+          {/* ======================================================== */}
+          {/* NOTIFICATIONS                                            */}
+          {/* ======================================================== */}
+          {safeActiveTab === "notifications" && (
+            <NotificationInbox
+              notifications={inbox.notifications}
+              unreadCount={inbox.unreadCount}
+              onNotificationClick={inbox.open}
+              onMarkAllRead={inbox.markAllRead}
+              onDeleteNotification={inbox.remove}
+              showCategories={false}
+            />
+          )}
+
+          {/* ======================================================== */}
           {/* TAB 13: HIRING & TRAINING ANALYTICS                      */}
           {/* ======================================================== */}
-          {activeTab === "analytics" && (
+          {safeActiveTab === "analytics" && (
             <div className="space-y-6 animate-fade-in">
+
               <div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Hiring & Learning Analytics</h2>
-                <p className="text-xs text-slate-500">Aggregate telemetry on hiring speed and employee learning hours</p>
+
+                                <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                  {FEATURES.courses ? "Hiring & Learning Analytics" : "Hiring Analytics"}
+                </h2>
+                <p className="text-xs text-slate-500">
+                  {FEATURES.courses
+                    ? "Aggregate telemetry on hiring speed and employee learning hours"
+                    : "Aggregate telemetry on hiring speed"}
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className={`grid grid-cols-1 gap-6 ${FEATURES.courses ? "lg:grid-cols-2" : ""}`}>
                 <HiringAnalyticsChart hiring={analyticsData?.hiring} />
-                <LearningAnalyticsChart learning={analyticsData?.learning} />
+                {FEATURES.courses && (
+                  <LearningAnalyticsChart learning={analyticsData?.learning} />
+                )}
               </div>
-            </div>
+               </div>  
           )}
 
           {/* ======================================================== */}
           {/* TAB 14: TEAM ROLES & SETTINGS                            */}
           {/* ======================================================== */}
-          {activeTab === "settings" && (
+          {safeActiveTab === "settings" && (
             <div className="space-y-5 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">Team Roles & Permission Settings</h2>
@@ -2373,7 +2495,10 @@ const EmployerDashboard = () => {
                     { role: "Technical Recruiter", access: "Post jobs, screen applications & candidate talent pool" },
                     { role: "Hiring Manager", access: "Review shortlisted candidates & submit interview scorecards" },
                     { role: "Learning & Development Manager", access: "Assign courses, analyze skill gaps & view learning telemetry" },
-                  ].map((r, idx) => (
+                    
+                  ]
+                  .filter((r) => FEATURES.courses || r.role !== "Learning & Development Manager")
+                  .map((r, idx) => (
                     <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between">
                       <div>
                         <h4 className="text-xs font-bold text-slate-900">{r.role}</h4>
@@ -2413,14 +2538,17 @@ const EmployerDashboard = () => {
         onCreateOffer={handleCreateOffer}
         application={offerApplication}
         jobs={jobs}
+        companyName={profile.companyName || orgStatusData?.company?.name || ""}
       />
 
+        {FEATURES.assessments && (
       <AssessmentModal
         isOpen={isAssessmentModalOpen}
         onClose={() => setIsAssessmentModalOpen(false)}
         onCreateAssessment={handleCreateAssessment}
         jobs={jobs}
       />
+        )}
 
       <AddEmployeeModal
         isOpen={isAddEmployeeModalOpen}
@@ -2444,7 +2572,7 @@ const EmployerDashboard = () => {
         jobs={jobs}
         applications={applications}
         initialJobId={exportJobId}
-        companyName={user?.companyName || dashboardData?.company?.name || user?.name || "CareerConnect Partner"}
+        companyName={user?.companyName || dashboardData?.company?.name || user?.name || "E2Job Partner"}
       />
     </div>
   );

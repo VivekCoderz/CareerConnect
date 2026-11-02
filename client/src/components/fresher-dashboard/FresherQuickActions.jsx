@@ -1,3 +1,5 @@
+import { FEATURES } from "../../config/features";
+
 const FresherQuickActions = ({ onSelectTab }) => {
   const actions = [
     {
@@ -18,12 +20,12 @@ const FresherQuickActions = ({ onSelectTab }) => {
       icon: "🎤",
       bg: "bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100",
     },
-    {
+    ...(FEATURES.courses ? [{
       label: "Courses",
       tab: "courses",
       icon: "🎓",
       bg: "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100",
-    },
+    }] : []),
     {
       label: "Upload Resume",
       tab: "resume",
@@ -49,7 +51,7 @@ const FresherQuickActions = ({ onSelectTab }) => {
         </p>
       </div>
 
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
+      <div className={`grid grid-cols-3 ${FEATURES.courses ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} gap-2.5`}>
         {actions.map((act, idx) => (
           <button
             key={idx}

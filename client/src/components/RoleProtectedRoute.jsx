@@ -2,6 +2,7 @@ import JourneyLoader from "./common/JourneyLoader";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getDashboardPath } from "../utils/dashboardRedirect";
+import { needsOnboarding } from "../utils/userRoles";
 
 /**
  * RoleProtectedRoute — guards routes based on user role/type.
@@ -44,7 +45,7 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
     user.role === "admin";
 
   // 1c. Incomplete profiles finish onboarding before entering a dashboard.
-  if (!isAdminRole && (!user.phone?.trim() || (user.role !== "employer" && !user.isProfileComplete))) {
+  if (needsOnboarding(user)) {
     if (user.role === "employer") {
       return <Navigate to="/onboarding/employer" replace />;
     }

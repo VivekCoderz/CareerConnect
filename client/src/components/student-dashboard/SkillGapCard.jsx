@@ -2,9 +2,9 @@ import { Link } from "react-router-dom";
 
 const SkillGapCard = ({ skillGap }) => {
   const targetRole = skillGap?.targetRole || "Full Stack Developer";
-  const mastered = skillGap?.mastered || ["JavaScript", "React", "Node.js"];
-  const recommendedToLearn = skillGap?.recommendedToLearn || ["TypeScript", "Docker", "Redux"];
-  const matchPercentage = skillGap?.matchPercentage ?? 60;
+  const mastered = skillGap?.mastered || [];
+  const recommendedToLearn = skillGap?.recommendedToLearn || [];
+  const matchPercentage = skillGap?.matchPercentage ?? 0;
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs">
@@ -77,10 +77,12 @@ const SkillGapCard = ({ skillGap }) => {
                   + {skill}
                 </span>
               ))
-            ) : (
+            ) : mastered.length > 0 ? (
               <p className="text-xs text-emerald-700 font-semibold">
                 You have mastered all standard skills for this role! 🎉
               </p>
+            ) : (
+              <p className="text-xs text-slate-500">Add skills to your profile to see your gap analysis.</p>
             )}
           </div>
         </div>

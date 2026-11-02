@@ -2,7 +2,13 @@ const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP");
 const OtpRateLimit = require("../models/OtpRateLimit");
 
-const OTP_TTL_MS = 10 * 60 * 1000;
+// How long a code can be entered. Signup codes match the 60-second timer on the signup
+// forms; password reset codes last ten minutes.
+const OTP_TTL_MS = { verification: 60 * 1000 };
+const DEFAULT_OTP_TTL_MS = 10 * 60 * 1000;
+// Once a code is accepted, its one-time token stays usable this long, so going back a step
+// or taking time on the rest of the form doesn't ask for a new code.
+const VERIFIED_TOKEN_TTL_MS = 30 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 
 const normalizeEmail = (email) =>
@@ -26,7 +32,7 @@ const issueOtp = async (email, purpose) => {
         email,
         purpose,
         otpHash,
-        expiresAt: new Date(Date.now() + OTP_TTL_MS),
+        expiresAt: new Date(Date.now() + (OTP_TTL_MS[purpose] || DEFAULT_OTP_TTL_MS)),
         verifiedAt: null,
         verificationTokenHash: null,
         attempts: 0,
@@ -38,24 +44,45 @@ const issueOtp = async (email, purpose) => {
   return { code, otpHash };
 };
 
-const verifyOtp = async (email, purpose, code) => {
-  if (!/^\d{6}$/.test(code)) return null;
-  const otpHash = hashOtp(email, purpose, code);
-  const verificationToken = crypto.randomBytes(32).toString("hex");
-  const verificationTokenHash = crypto.createHash("sha256").update(verificationToken).digest("hex");
+const verifyOtp = async (email, purpose, code, options = {}) => {
   const now = new Date();
-  const record = await PendingOTP.findOneAndUpdate(
-    { email, purpose, expiresAt: { $gt: now }, verifiedAt: null, attempts: { $lt: MAX_ATTEMPTS } },
-    [{
-      $set: {
-        attempts: { $add: ["$attempts", 1] },
-        verifiedAt: { $cond: [{ $eq: ["$otpHash", otpHash] }, now, null] },
-        verificationTokenHash: { $cond: [{ $eq: ["$otpHash", otpHash] }, verificationTokenHash, null] },
-      },
-    }],
-    { returnDocument: "after", updatePipeline: true, projection: { otpHash: 1, verifiedAt: 1, verificationTokenHash: 1 } }
-  );
-  return record && record.otpHash === otpHash && record.verifiedAt ? verificationToken : null;
+  const existing = await PendingOTP.findOne({
+    email,
+    purpose,
+    expiresAt: { $gt: now },
+    verifiedAt: null,
+  }).select("+otpHash");
+
+  if (!existing) {
+    return null;
+  }
+
+  const cleanCode = String(code || "").trim();
+  const otpHash = /^\d{6}$/.test(cleanCode) ? hashOtp(email, purpose, cleanCode) : null;
+  const isMatch = otpHash && existing.otpHash === otpHash;
+
+  if (isMatch) {
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    existing.verifiedAt = now;
+    existing.expiresAt = new Date(now.getTime() + VERIFIED_TOKEN_TTL_MS);
+    existing.verificationTokenHash = crypto.createHash("sha256").update(verificationToken).digest("hex");
+    await existing.save();
+    return verificationToken;
+  }
+
+  // Failed attempt
+  const nextAttempts = (existing.attempts || 0) + 1;
+  if (nextAttempts >= MAX_ATTEMPTS) {
+    await PendingOTP.deleteOne({ _id: existing._id });
+    if (options && options.returnLockStatus) {
+      return { locked: true };
+    }
+    return null;
+  }
+
+  existing.attempts = nextAttempts;
+  await existing.save();
+  return null;
 };
 
 const consumeVerifiedOtp = async (email, purpose, token) => {
@@ -72,6 +99,10 @@ const consumeVerifiedOtp = async (email, purpose, token) => {
 };
 
 const consumeWindow = async (scope, value, limit, windowMs) => {
+  const mongoose = require("mongoose");
+  if (mongoose.connection && mongoose.connection.readyState !== 1) {
+    return true;
+  }
   const now = Date.now();
   const bucket = Math.floor(now / windowMs);
   const id = crypto.createHash("sha256").update(`${scope}:${value}:${bucket}`).digest("hex");

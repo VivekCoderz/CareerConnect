@@ -1,4 +1,5 @@
 // server/middleware/roleMiddleware.js
+const { getActiveCompany } = require("../utils/employerOwnership");
 
 /**
  * Middleware to restrict access to users with role === 'employer'
@@ -155,6 +156,26 @@ const requireCompanyAdmin = (req, res, next) => {
 };
 
 /**
+ * A Company Admin loses all company access while the company is inactive or deleted
+ * (ADM-11/12). Other roles pass through.
+ */
+const requireActiveCompany = async (req, res, next) => {
+  try {
+    if (req.user?.role !== "COMPANY_ADMIN") return next();
+    if (!(await getActiveCompany(req.user))) {
+      return res.status(403).json({
+        success: false,
+        code: "COMPANY_INACTIVE",
+        message: "Your company account is not active. Please contact platform support.",
+      });
+    }
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
  * Strict Multi-Tenant Scoping Middleware:
  * - If SUPER_ADMIN: Allows global access or optional company filtering
  * - If COMPANY_ADMIN: Strictly forces query scope to req.user.companyId.
@@ -227,12 +248,41 @@ const scopeToCompany = (req, res, next) => {
   next();
 };
 
+// Candidates (job seekers) are students, freshers and professionals. userType defaults to
+// "student" and some admin accounts keep an old userType, so employer/admin roles are excluded.
+const CANDIDATE_USER_TYPES = ["student", "fresher", "professional"];
+const NON_CANDIDATE_ROLES = ["employer", "admin", "SUPER_ADMIN", "COMPANY_ADMIN"];
+
+const isCandidate = (user) =>
+  Boolean(user) &&
+  CANDIDATE_USER_TYPES.includes(user.userType) &&
+  !NON_CANDIDATE_ROLES.includes(user.role) &&
+  user.adminLevel !== "COMPANY_ADMIN";
+
+/**
+ * Restricts a route to candidates. Use after protect.
+ * @param {string} message - 403 message, e.g. "Only candidates can apply"
+ */
+const requireCandidate = (message = "Access restricted: Candidate account required") => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: "Authentication required" });
+  }
+  if (!isCandidate(req.user)) {
+    return res.status(403).json({ success: false, code: "CANDIDATE_ONLY", message });
+  }
+  next();
+};
+
 module.exports = {
+  CANDIDATE_USER_TYPES,
+  isCandidate,
+  requireCandidate,
   requireEmployer,
   requireRole,
   requireUserType,
   requireAdmin,
   requireSuperAdmin,
   requireCompanyAdmin,
+  requireActiveCompany,
   scopeToCompany,
 };

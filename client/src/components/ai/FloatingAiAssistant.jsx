@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { askAiAssistant, triggerAiRecommendationMail } from "../../services/aiAssistantService";
+import { askAiAssistant } from "../../services/aiAssistantService";
 
 const SUGGESTED_PROMPTS = [
   "🔥 Find best internships for my profile",
   "💼 Show top software engineer jobs hiring now",
   "📝 Review my resume and tell me missing skills",
   "📚 Recommend courses to learn Full Stack Web Dev",
-  "📩 Send me an AI recommendation in my Notification Inbox",
 ];
 
 const FloatingAiAssistant = () => {
@@ -21,7 +20,7 @@ const FloatingAiAssistant = () => {
       id: "welcome-msg",
       role: "ai",
       content:
-        "Hello! I am your **CareerConnect AI Assistant** 🤖.\n\nI can analyze your profile, search live jobs & internships, critique your resume, or recommend high-impact courses. What would you like to explore today?",
+        "Hello! I am your **E2Job AI Assistant** 🤖.\n\nI can analyze your profile, search live jobs & internships, critique your resume, or recommend high-impact courses. What would you like to explore today?",
       suggestedCards: [],
       timestamp: new Date(),
     },
@@ -74,24 +73,6 @@ const FloatingAiAssistant = () => {
     setIsLoading(true);
 
     try {
-      // Check if user specifically asks to send an email or inbox notification
-      if (/send.*notification|send.*mail|inbox|recommendation.*mail/i.test(text)) {
-        await triggerAiRecommendationMail();
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `ai-${Date.now()}`,
-            role: "ai",
-            content:
-              "✅ **Done!** I've matched a top personalized opportunity and sent a full mail notification to your **Notification Inbox**.\n\nClick on the notification bell at the top of your dashboard to read the full message and apply directly!",
-            suggestedCards: [],
-            timestamp: new Date(),
-          },
-        ]);
-        setIsLoading(false);
-        return;
-      }
-
       // Format conversation history
       const history = messages.slice(-4).map((m) => ({
         role: m.role,
@@ -171,7 +152,7 @@ const FloatingAiAssistant = () => {
               </div>
               <div>
                 <h3 className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
-                  <span>CareerConnect AI</span>
+                  <span>E2Job AI</span>
                   <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                     RAG Live
                   </span>

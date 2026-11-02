@@ -2,14 +2,16 @@ const express = require("express");
 const router = express.Router();
 const fresherController = require("../controllers/fresherController");
 const protect = require("../middleware/authMiddleware");
-const { requireUserType } = require("../middleware/roleMiddleware");
+const { requireCandidate, requireUserType } = require("../middleware/roleMiddleware");
 
 // Public route for viewing public profiles
 router.get("/public/:usernameOrId", fresherController.getPublicFresherProfile);
 
 // Authenticated Fresher-only routes
 router.use(protect);
-router.use(requireUserType("fresher"));
+// requireCandidate rejects employer/admin accounts that carry a leftover userType;
+// requireUserType then limits these routes to freshers.
+router.use(requireCandidate(), requireUserType("fresher"));
 
 // Profile endpoints
 router.get("/profile", fresherController.getFresherProfile);

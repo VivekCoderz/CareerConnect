@@ -117,4 +117,4 @@ const RequiresAttention = ({ attention = [] }) => {
   );
 };
 
-export default RequiresAttention;
+export default React.memo(RequiresAttention);

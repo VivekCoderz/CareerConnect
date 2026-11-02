@@ -33,6 +33,17 @@ async function cleanupLegacyIndexes(conn) {
         await conn.connection.db.collection(usersCollName).createIndex({ username: 1 }, { unique: true, sparse: true });
         console.log(` Replaced legacy users username_1 index with unique sparse index`);
       }
+
+      // Phone numbers used to be unique across every account; now only among candidates.
+      const legacyPhoneIdx = userIndexes.find((i) => i.name === "phone_1_countryCode_1" && !i.partialFilterExpression?.role);
+      if (legacyPhoneIdx) {
+        await conn.connection.db.collection(usersCollName).dropIndex("phone_1_countryCode_1");
+        await conn.connection.db.collection(usersCollName).createIndex(
+          { phone: 1, countryCode: 1 },
+          { unique: true, partialFilterExpression: { phone: { $type: "string", $gt: "" }, role: "user" } }
+        );
+        console.log(` Replaced users phone index: phone numbers are now unique among candidates only`);
+      }
     }
   } catch (idxErr) {}
 }
@@ -75,3 +86,4 @@ const connectDB = async (retryCount = 0) => {
 };
 
 module.exports = connectDB;
+module.exports.cleanupLegacyIndexes = cleanupLegacyIndexes;

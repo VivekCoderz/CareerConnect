@@ -1,11 +1,10 @@
 const request = require("supertest");
 const app = require("../../app");
 const Application = require("../../models/Application");
-const EmployerProfile = require("../../models/EmployerProfile");
 const Internship = require("../../models/Internship");
 const Job = require("../../models/Job");
 const { createTestJob } = require("../helpers/createTestJob");
-const { createUserWithToken, createEmployerWithToken } = require("../helpers/createTestUser");
+const { createUserWithToken, createEmployerWithToken, createEmployerProfile } = require("../helpers/createTestUser");
 
 describe("launch candidate journey (isolated MongoDB)", () => {
   let candidate;
@@ -20,11 +19,7 @@ describe("launch candidate journey (isolated MongoDB)", () => {
     otherCandidate = await createUserWithToken({ email: "qa-other@example.com" });
     employer = await createEmployerWithToken({ email: "qa-employer@example.com" });
     otherEmployer = await createEmployerWithToken({ email: "qa-other-employer@example.com" });
-    const profile = await EmployerProfile.create({
-      userId: employer.user._id,
-      companyName: "QA Employer",
-      industry: "Technology",
-    });
+    const profile = await createEmployerProfile(employer.user._id, { companyName: "QA Employer", industry: "Technology" });
     job = await createTestJob(profile._id, {
       title: "QA Launch Job",
       createdBy: employer.user._id,

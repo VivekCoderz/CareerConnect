@@ -1,6 +1,6 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getById } from "../../services/internshipService";
 import { applyToInternship, getMyAppliedIds } from "../../services/applicationService";
@@ -8,11 +8,25 @@ import TailoredResumeApplicationModal from "../../components/resume-builder/Tail
 import { getStudentProfile } from "../../services/studentProfileService";
 import ResumeUploadInput from "../../components/common/ResumeUploadInput";
 import BrandLogo from "../../components/common/BrandLogo";
+import ShareButtons from "../../components/common/ShareButtons";
+import ReportListingButton from "../../components/common/ReportListingButton";
+import { isCandidateUser } from "../../utils/userRoles";
+import useSeo from "../../hooks/useSeo";
+
+const OBJECT_ID = /^[a-f0-9]{24}$/i;
+const NOT_AVAILABLE = "This internship is closed or no longer available";
 
 export default function InternshipDetail({ id, onBack, embedded = false, isApplied = false, onAppliedSuccess }) {
   const { id: paramId } = useParams();
   const internshipId = id || paramId;
   const { user } = useSelector((state) => state.auth);
+  const isCandidate = isCandidateUser(user);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [shareNotice, setShareNotice] = useState("");
+  // Scraped listings get a new id on every request until I04, so the public page
+  // doesn't show them (the server would fall back to an unrelated listing).
+  const unlistedId = !embedded && !OBJECT_ID.test(String(internshipId || ""));
 
   const [internship, setInternship] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +42,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
   const [isTailorModalOpen, setIsTailorModalOpen] = useState(false);
 
   useEffect(() => {
-    if (embedded || !user?._id || !internshipId) return;
+    if (embedded || !isCandidate || !internshipId) return;
     let active = true;
     getMyAppliedIds()
       .then((response) => {
@@ -38,7 +52,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
       })
       .catch(() => {});
     return () => { active = false; };
-  }, [embedded, user?._id, internshipId]);
+  }, [embedded, isCandidate, user?._id, internshipId]);
 
   // Comprehensive student form fields
   const [formData, setFormData] = useState({
@@ -65,17 +79,19 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
         if (res.success) setInternship(res.internship);
         else setError(res.message || "Failed to load internship details");
       } catch (err) {
-        setError(err.response?.data?.message || "Failed to load internship details");
+        setError(err.response?.status === 404 && !embedded
+          ? NOT_AVAILABLE
+          : err.response?.data?.message || "Failed to load internship details");
       } finally {
         setLoading(false);
       }
     };
-    if (internshipId) fetchDetail();
-  }, [internshipId]);
+    if (internshipId && !unlistedId) fetchDetail();
+  }, [internshipId, unlistedId, embedded]);
 
-  // Prepopulate form data from user & profile
+  // Prepopulate form data from user & profile (candidates only; employers can view but not apply)
   useEffect(() => {
-    if (user) {
+    if (isCandidate) {
       setFormData((prev) => ({
         ...prev,
         fullName: prev.fullName || user.fullName || "",
@@ -95,7 +111,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
               email: prev.email || p.userId?.email || user.email || "",
               phone: prev.phone || p.userId?.phone || user.phone || "",
               education: prev.education || p.education?.[0]?.degree || "",
-              college: prev.college || p.education?.[0]?.institution || "CareerConnect",
+              college: prev.college || p.education?.[0]?.institution || "E2Job",
               graduationYear: prev.graduationYear || (p.education?.[0]?.endYear ? String(p.education[0].endYear) : ""),
               skills: prev.skills || (p.technicalSkills || []).join(", "),
               experience: prev.experience || (p.experience?.[0] ? `${p.experience[0].title || ""} - ${p.experience[0].company || ""}`.trim() : ""),
@@ -106,7 +122,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
         })
         .catch(() => {});
     }
-  }, [user]);
+  }, [user, isCandidate]);
 
   const handleChange = (field, val) => {
     setFormData((prev) => ({ ...prev, [field]: val }));
@@ -161,6 +177,52 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
     }
   };
 
+  const deadlinePassed = !embedded && internship && !internship.isExternal &&
+    internship.deadline && new Date(internship.deadline) < new Date();
+
+  // Page title and description for the shareable page only, not when embedded in a dashboard.
+  const listed = internship && !deadlinePassed && !unlistedId ? internship : null;
+  const internCompany = listed ? listed.companyName || listed.employerId?.companyName || "" : "";
+  const stillLoading = loading && !unlistedId;
+  useSeo({
+    enabled: !embedded,
+    title: listed
+      ? `${listed.title} internship${internCompany ? ` at ${internCompany}` : ""}${listed.location ? `, ${listed.location}` : ""}`
+      : stillLoading ? "Internship details" : "Internship not available",
+    description: listed
+      ? `${listed.title} internship${internCompany ? ` at ${internCompany}` : ""}${listed.stipend ? `, stipend ${listed.stipend}` : ""}${listed.duration ? `, ${listed.duration}` : ""}. ${listed.description || ""}`
+      : undefined,
+    path: `/internships/${internshipId}`,
+    type: listed ? "article" : "website",
+    noindex: !stillLoading && (!listed || listed.isExternal),
+  });
+
+  if (unlistedId || deadlinePassed) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center px-4 py-16">
+        <div className="max-w-md w-full text-center py-10 px-6 bg-white border border-slate-200 rounded-3xl space-y-3">
+          <h1 className="text-lg font-extrabold text-slate-900">{NOT_AVAILABLE}</h1>
+          <p className="text-sm text-slate-500">The employer may have filled the position or removed the listing.</p>
+          <Link
+            to="/internships"
+            className="inline-flex h-10 px-5 items-center rounded-xl bg-[#1e3a8a] text-white text-xs font-bold"
+          >
+            Browse open internships
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const handleLoginToApply = () =>
+    navigate(`/login?redirect=${encodeURIComponent(location.pathname)}`);
+
+  const shareUrl = `${window.location.origin}/internships/${internshipId}`;
+  const showShareNotice = (message) => {
+    setShareNotice(message);
+    setTimeout(() => setShareNotice(""), 3000);
+  };
+
   if (loading) {
     return (
       <div className={`flex flex-col items-center justify-center py-20 ${embedded ? "" : "min-h-screen bg-[#f8fafc]"}`}>
@@ -174,7 +236,11 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
     return (
       <div className={`flex items-center justify-center px-4 py-16 ${embedded ? "" : "min-h-screen bg-[#f8fafc]"}`}>
         <div className="max-w-md w-full text-center py-10 px-6 bg-white border border-slate-200 rounded-3xl">
-          <p className="text-sm font-semibold text-red-600 mb-4">{error}</p>
+          {error === NOT_AVAILABLE ? (
+            <h1 className="text-lg font-extrabold text-slate-900 mb-4">{error}</h1>
+          ) : (
+            <p className="text-sm font-semibold text-red-600 mb-4">{error}</p>
+          )}
           {onBack ? (
             <button
               type="button"
@@ -197,6 +263,11 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
   }
 
   if (!internship) return null;
+
+  const companyName = internship.companyName || internship.company || internship.employerId?.companyName;
+  const eligibility = internship.eligibility || internship.education;
+  const requiredSkills = [internship.requiredSkills, internship.skillsRequired, internship.skills].find((l) => Array.isArray(l) && l.length) || [];
+  const hasOverview = Boolean(internship.stipend || internship.duration || eligibility || internship.deadline);
 
   const body = (
     <>
@@ -229,15 +300,30 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
                 ✓ Campus Exclusive
               </span>
             )}
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/10 border border-white/15">
-              {internship.workMode}
-            </span>
+            {internship.workMode && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/10 border border-white/15">
+                {internship.workMode}
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{internship.title}</h1>
-          <p className="mt-2 text-base font-semibold text-blue-100">
-            {internship.companyName || internship.employerId?.companyName}
-          </p>
-          <p className="mt-1 text-sm text-blue-100/80">📍 {internship.location}</p>
+          {companyName && (
+            <p className="mt-2 text-base font-semibold text-blue-100">
+              {companyName}
+            </p>
+          )}
+          {internship.location && <p className="mt-1 text-sm text-blue-100/80">📍 {internship.location}</p>}
+          {!internship.isExternal && (
+            <>
+              <ShareButtons
+                className="mt-4"
+                url={shareUrl}
+                text={`${internship.title} internship${companyName ? ` at ${companyName}` : ""} – apply on E2Job: ${shareUrl}`}
+                onNotify={showShareNotice}
+              />
+              {shareNotice && <p role="status" className="mt-2 text-xs font-semibold text-blue-100">{shareNotice}</p>}
+            </>
+          )}
         </div>
       </div>
 
@@ -268,13 +354,13 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
             </section>
           )}
 
-          {internship.requiredSkills?.length > 0 && (
+          {requiredSkills.length > 0 && (
             <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
               <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-3">
                 Required skills
               </h2>
               <div className="flex flex-wrap gap-2">
-                {internship.requiredSkills.map((skill, i) => (
+                {requiredSkills.map((skill, i) => (
                   <span
                     key={i}
                     className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200"
@@ -288,51 +374,59 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
         </div>
 
         <div className="space-y-5 lg:sticky lg:top-20 lg:self-start">
+          {hasOverview && (
           <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
             <h3 className="text-sm font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
               Overview
             </h3>
             <dl className="space-y-4">
-              <div>
-                <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Stipend
-                </dt>
-                <dd className="text-sm font-bold text-[#1e3a8a] mt-0.5">
-                  {internship.stipend || "Not disclosed"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Duration
-                </dt>
-                <dd className="text-sm font-semibold text-slate-800 mt-0.5">
-                  {internship.duration || "N/A"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Eligibility
-                </dt>
-                <dd className="text-sm font-semibold text-slate-800 mt-0.5">
-                  {internship.eligibility || internship.education || "Open to students"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Deadline
-                </dt>
-                <dd className="text-sm font-semibold text-slate-800 mt-0.5">
-                  {internship.deadline
-                    ? new Date(internship.deadline).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "Open"}
-                </dd>
-              </div>
+              {internship.stipend && (
+                <div>
+                  <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Stipend
+                  </dt>
+                  <dd className="text-sm font-bold text-[#1e3a8a] mt-0.5">
+                    {internship.stipend}
+                  </dd>
+                </div>
+              )}
+              {internship.duration && (
+                <div>
+                  <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Duration
+                  </dt>
+                  <dd className="text-sm font-semibold text-slate-800 mt-0.5">
+                    {internship.duration}
+                  </dd>
+                </div>
+              )}
+              {eligibility && (
+                <div>
+                  <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Eligibility
+                  </dt>
+                  <dd className="text-sm font-semibold text-slate-800 mt-0.5">
+                    {eligibility}
+                  </dd>
+                </div>
+              )}
+              {internship.deadline && (
+                <div>
+                  <dt className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Deadline
+                  </dt>
+                  <dd className="text-sm font-semibold text-slate-800 mt-0.5">
+                    {new Date(internship.deadline).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </dd>
+                </div>
+              )}
             </dl>
           </section>
+          )}
 
           <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
             {(successMsg || isApplied || hasStandaloneApplied) && (
@@ -381,11 +475,25 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
                   Apply on company site ↗
                 </a>
               </div>
+            ) : !user ? (
+              <div className="text-center space-y-3">
+                <h4 className="text-sm font-bold text-slate-900">Apply via E2Job</h4>
+                <p className="text-xs text-slate-500">Log in or create a free account to apply. You'll come straight back here.</p>
+                <button
+                  type="button"
+                  onClick={handleLoginToApply}
+                  className="w-full h-11 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-bold shadow-xs transition"
+                >
+                  Log in to Apply
+                </button>
+              </div>
+            ) : !isCandidate ? (
+              <p className="text-xs text-slate-500 text-center">Only candidate accounts can apply to internships.</p>
             ) : (
               !successMsg && !isApplied && !hasStandaloneApplied && (
                 <form onSubmit={handleApply} className="space-y-4">
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">Apply via CareerConnect</h4>
+                    <h4 className="text-sm font-bold text-slate-900">Apply via E2Job</h4>
                     <p className="text-[11px] text-slate-500 mt-0.5">
                       Verify your details. Exact submitted data will be sent directly to the employer.
                     </p>
@@ -474,7 +582,7 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
                           type="text"
                           value={formData.college}
                           onChange={(e) => handleChange("college", e.target.value)}
-                          placeholder="CareerConnect"
+                          placeholder="E2Job"
                           className="w-full h-10 px-3 rounded-xl border border-slate-200 text-xs font-medium outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/10"
                         />
                       </div>
@@ -580,6 +688,15 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
               )
             )}
           </section>
+
+          {!internship.isExternal && (!user || isCandidate) && (
+            <div className="text-center space-y-1.5 px-2">
+              <p className="text-[11px] text-slate-400">
+                E2Job never asks candidates to pay. If an employer asks you for money, don't pay.
+              </p>
+              <ReportListingButton opportunityType="Internship" opportunityId={String(internship._id || internshipId)} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -609,9 +726,15 @@ export default function InternshipDetail({ id, onBack, embedded = false, isAppli
           <Link to="/home" className="flex items-center gap-2.5">
             <BrandLogo className="h-9 w-44" />
           </Link>
-          <Link to="/applications" className="text-xs font-bold text-[#1e3a8a]">
-            My Applications →
-          </Link>
+          {!user ? (
+            <Link to="/login" className="px-4 py-1.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-bold transition">
+              Log in
+            </Link>
+          ) : isCandidate ? (
+            <Link to="/applications" className="text-xs font-bold text-[#1e3a8a]">
+              My Applications →
+            </Link>
+          ) : null}
         </div>
       </header>
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">{body}</main>

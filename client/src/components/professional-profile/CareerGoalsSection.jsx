@@ -35,24 +35,19 @@ const CAREER_PATH_OPTIONS = [
 
 const CareerGoalsSection = ({ careerGoal = {}, onChange }) => {
   const [formData, setFormData] = useState({
-    goal:
-      careerGoal?.goal ||
-      "Transition into an Engineering Lead / Staff Architect role overseeing high-throughput cloud platforms.",
-    targetRole: careerGoal?.targetRole || "Engineering Lead / Staff Engineer",
-    targetSeniority: careerGoal?.targetSeniority || "Lead Level (L6 / Staff / Tech Lead)",
-    targetIndustry: careerGoal?.targetIndustry || "Information Technology & SaaS",
-    timeline: careerGoal?.timeline || "Next 6 Months",
-    interestedCareerPaths:
-      careerGoal?.interestedCareerPaths || [
-        "Individual Contributor (IC) Track (Staff → Principal)",
-        "Engineering Management Track (Lead → Manager → Director)",
-      ],
+    goal: careerGoal?.goal || "",
+    targetRole: careerGoal?.targetRole || "",
+    targetSeniority: careerGoal?.targetSeniority || "",
+    targetIndustry: careerGoal?.targetIndustry || "",
+    timeline: careerGoal?.timeline || "",
+    interestedCareerPaths: careerGoal?.interestedCareerPaths || [],
   });
 
   const handleFieldChange = (field, value) => {
     const updated = { ...formData, [field]: value };
     setFormData(updated);
-    onChange({ careerGoal: updated });
+    // An unchosen timeline is left out: the server only accepts listed timelines.
+    onChange({ careerGoal: { ...updated, timeline: updated.timeline || undefined } });
   };
 
   const handleTogglePath = (path) => {
@@ -103,6 +98,7 @@ const CareerGoalsSection = ({ careerGoal = {}, onChange }) => {
               onChange={(e) => handleFieldChange("targetRole", e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-purple-500 font-medium"
             >
+              <option value="">Select target role</option>
               {TARGET_ROLES.map((role) => (
                 <option key={role} value={role}>
                   {role}
@@ -120,6 +116,7 @@ const CareerGoalsSection = ({ careerGoal = {}, onChange }) => {
               onChange={(e) => handleFieldChange("targetSeniority", e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-purple-500 font-medium"
             >
+              <option value="">Select seniority</option>
               {TARGET_SENIORITIES.map((sn) => (
                 <option key={sn} value={sn}>
                   {sn}
@@ -152,6 +149,7 @@ const CareerGoalsSection = ({ careerGoal = {}, onChange }) => {
               onChange={(e) => handleFieldChange("timeline", e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-purple-500"
             >
+              <option value="">Select timeline</option>
               {TIMELINES.map((tl) => (
                 <option key={tl} value={tl}>
                   {tl}

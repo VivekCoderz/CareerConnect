@@ -1,0 +1,95 @@
+name: MongoDB Nightly Backup
+
+on:
+  schedule:
+    # 20:30 UTC = 2:00 AM IST
+    - cron: "30 20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install MongoDB Database Tools
+        run: |
+          curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-8.0.gpg
+
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" \
+            | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+
+          sudo apt-get update
+          sudo apt-get install -y mongodb-database-tools
+
+          mongodump --version
+
+      - name: Install GPG and AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg awscli
+
+          gpg --version
+          aws --version
+
+      - name: Create MongoDB dump
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          BACKUP_NAME="careerconnect-$(date -u +'%Y-%m-%dT%H-%M-%SZ').archive.gz"
+
+          echo "BACKUP_NAME=$BACKUP_NAME" >> "$GITHUB_ENV"
+
+          mongodump \
+            --uri="$MONGODB_URI" \
+            --archive="$RUNNER_TEMP/$BACKUP_NAME" \
+            --gzip
+
+          test -s "$RUNNER_TEMP/$BACKUP_NAME"
+
+          echo "MongoDB backup created successfully."
+
+      - name: Encrypt backup
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          printf '%s' "$BACKUP_PASSPHRASE" | \
+            gpg \
+              --batch \
+              --yes \
+              --pinentry-mode loopback \
+              --passphrase-fd 0 \
+              --symmetric \
+              --cipher-algo AES256 \
+              --output "$RUNNER_TEMP/$BACKUP_NAME.gpg" \
+              "$RUNNER_TEMP/$BACKUP_NAME"
+
+          test -s "$RUNNER_TEMP/$BACKUP_NAME.gpg"
+
+          echo "Backup encrypted successfully."
+
+      - name: Upload encrypted backup to Backblaze B2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
+          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
+        run: |
+          aws s3 cp \
+            "$RUNNER_TEMP/$BACKUP_NAME.gpg" \
+            "s3://$B2_BUCKET_NAME/nightly/$BACKUP_NAME.gpg" \
+            --endpoint-url "$B2_ENDPOINT"
+
+          echo "Encrypted backup uploaded to Backblaze B2 successfully."
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/$BACKUP_NAME"
+          rm -f "$RUNNER_TEMP/$BACKUP_NAME.gpg"

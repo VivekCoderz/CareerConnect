@@ -8,16 +8,20 @@ const OpportunityDetailModal = ({ isOpen, onClose, opportunity, onApply }) => {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                {opportunity.matchPercentage || 92}% Match
+                {typeof opportunity.matchPercentage === "number" ? `${opportunity.matchPercentage}% Match` : "Not enough data"}
               </span>
-              <span className="text-xs font-semibold text-slate-500">{opportunity.location}</span>
+              {opportunity.location && (
+                <span className="text-xs font-semibold text-slate-500">{opportunity.location}</span>
+              )}
             </div>
             <h3 className="text-lg font-bold text-slate-900 leading-tight">
               {opportunity.title}
             </h3>
-            <p className="text-sm font-semibold text-purple-700 mt-0.5">
-              {opportunity.company}
-            </p>
+            {opportunity.company && (
+              <p className="text-sm font-semibold text-purple-700 mt-0.5">
+                {opportunity.company}
+              </p>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -27,37 +31,45 @@ const OpportunityDetailModal = ({ isOpen, onClose, opportunity, onApply }) => {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 text-xs">
-          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/70">
-            <span className="text-slate-400 font-medium block">Compensation</span>
-            <span className="font-bold text-slate-900">{opportunity.salary}</span>
+        {(opportunity.salary || opportunity.experience) && (
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            {opportunity.salary && (
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/70">
+                <span className="text-slate-400 font-medium block">Compensation</span>
+                <span className="font-bold text-slate-900">{opportunity.salary}</span>
+              </div>
+            )}
+            {opportunity.experience && (
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/70">
+                <span className="text-slate-400 font-medium block">Experience</span>
+                <span className="font-bold text-slate-900">{opportunity.experience}</span>
+              </div>
+            )}
           </div>
-          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/70">
-            <span className="text-slate-400 font-medium block">Experience</span>
-            <span className="font-bold text-slate-900">{opportunity.experience}</span>
-          </div>
-        </div>
+        )}
 
-        <div>
-          <span className="text-xs font-bold text-slate-900 block mb-2">Required Core Skills</span>
-          <div className="flex flex-wrap gap-1.5">
-            {opportunity.tags?.map((tag, idx) => (
-              <span
-                key={idx}
-                className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 text-xs font-semibold border border-purple-200/60"
-              >
-                {tag}
-              </span>
-            ))}
+        {opportunity.tags?.length > 0 && (
+          <div>
+            <span className="text-xs font-bold text-slate-900 block mb-2">Required Core Skills</span>
+            <div className="flex flex-wrap gap-1.5">
+              {opportunity.tags.map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 text-xs font-semibold border border-purple-200/60"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="text-xs text-slate-600 space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-          <p className="font-semibold text-slate-900">About this Leadership Opening:</p>
-          <p className="leading-relaxed">
-            Leading architectural decisions, overseeing distributed microservices, and collaborating closely with engineering leadership to drive platform reliability and scalability.
-          </p>
-        </div>
+        {opportunity.description && (
+          <div className="text-xs text-slate-600 space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+            <p className="font-semibold text-slate-900">About this role:</p>
+            <p className="leading-relaxed">{opportunity.description}</p>
+          </div>
+        )}
 
         <div className="pt-2 flex items-center justify-end gap-2.5">
           <button

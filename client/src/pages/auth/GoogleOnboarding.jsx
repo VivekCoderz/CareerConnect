@@ -6,6 +6,8 @@ import { auth } from "../../config/firebase";
 import api from "../../api/api";
 import { updateUserProfile, logout } from "../../redux/features/authSlice";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
+import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
+import { TERMS_VERSION } from "../../config/legal";
 
 const POPULAR_LANGUAGES = [
   "English",
@@ -93,6 +95,7 @@ const GoogleOnboarding = () => {
   const [cancelling, setCancelling] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const handleCancelAndGoHome = async () => {
     setCancelling(true);
@@ -267,7 +270,8 @@ const GoogleOnboarding = () => {
     } else {
       const digits = formData.phone.replace(/\D/g, "");
       if (formData.countryCode === "+91") {
-        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
+        // Exactly 10 digits starting 6-9 (an extra leading 0 used to pass: QA bug 1).
+        if (!/^[6-9]\d{9}$/.test(digits)) {
           errors.phone = "Please enter a valid 10-digit mobile number";
         }
       } else if (digits.length < 6 || digits.length > 15) {
@@ -302,6 +306,10 @@ const GoogleOnboarding = () => {
   // Step 2 Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!acceptedTerms) {
+      setSubmitError("Please agree to the Terms and Privacy Policy to continue.");
+      return;
+    }
     setLoading(true);
     setSubmitError("");
 
@@ -326,6 +334,8 @@ const GoogleOnboarding = () => {
         interests: formData.interests,
         linkedin: formData.linkedin?.trim() || "",
         github: formData.github?.trim() || "",
+        acceptedTerms: true,
+        termsVersion: TERMS_VERSION,
       };
 
       const res = await api.post("/auth/google-onboarding", payload);
@@ -354,6 +364,8 @@ const GoogleOnboarding = () => {
   const [resumeError, setResumeError] = useState("");
   const [resumeSuccess, setResumeSuccess] = useState(false);
   const [parsedSkillsCount, setParsedSkillsCount] = useState(0);
+  // false when the upload worked but the AI was busy, so nothing was filled in automatically
+  const [resumeAutoFilled, setResumeAutoFilled] = useState(true);
 
   const handleResumeFileSelect = (e) => {
     const file = e.target.files?.[0];
@@ -392,6 +404,8 @@ const GoogleOnboarding = () => {
 
       if (res.data?.success) {
         setResumeSuccess(true);
+        const autoFilled = res.data?.aiParsed !== false;
+        setResumeAutoFilled(autoFilled);
         if (res.data?.user) {
           dispatch(updateUserProfile(res.data.user));
         }
@@ -401,9 +415,10 @@ const GoogleOnboarding = () => {
           (res.data?.parsedData?.skills?.tools?.length || 0);
         setParsedSkillsCount(extractedSkills);
 
+        // Leave time to read the "AI busy" note before redirecting.
         setTimeout(() => {
           handleSkipToDashboard();
-        }, 1200);
+        }, autoFilled ? 1200 : 4000);
       } else {
         handleSkipToDashboard();
       }
@@ -1052,6 +1067,8 @@ const GoogleOnboarding = () => {
                   </button>
                 </form>
 
+                <TermsConsentCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} className="pt-2" />
+
                 {/* Submit button */}
                 <div className="pt-3 flex items-center justify-between">
                   <button
@@ -1065,7 +1082,7 @@ const GoogleOnboarding = () => {
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={loading}
+                    disabled={loading || !acceptedTerms}
                     className="h-11 px-8 rounded-lg bg-[#008bdc] hover:bg-[#0077ba] disabled:bg-blue-300 text-white text-sm font-semibold transition shadow-sm flex items-center gap-2"
                   >
                     {loading ? (
@@ -1096,7 +1113,7 @@ const GoogleOnboarding = () => {
                   Upload Your Resume
                 </h2>
                 <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
-                  Our CareerConnect AI will automatically parse your skills, experience, projects, and education into your profile in seconds!
+                  Our E2Job AI will automatically parse your skills, experience, projects, and education into your profile in seconds!
                 </p>
               </div>
 
@@ -1112,12 +1129,14 @@ const GoogleOnboarding = () => {
                     ✓
                   </div>
                   <h3 className="text-lg font-bold text-slate-900">
-                    Resume Parsed & Synced Successfully!
+                    {resumeAutoFilled ? "Resume Parsed & Synced Successfully!" : "Resume Uploaded"}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    {parsedSkillsCount > 0
-                      ? `AI extracted ${parsedSkillsCount} skills and filled your profile details.`
-                      : "Your profile has been populated with your resume details."}
+                    {!resumeAutoFilled
+                      ? "Our AI is busy right now, so your profile was not filled in automatically. You can add your skills and education from your profile page."
+                      : parsedSkillsCount > 0
+                        ? `AI extracted ${parsedSkillsCount} skills and filled your profile details.`
+                        : "Your profile has been populated with your resume details."}
                   </p>
                   <p className="text-xs font-semibold text-[#008bdc]">
                     Redirecting to your dashboard...
@@ -1236,7 +1255,7 @@ const GoogleOnboarding = () => {
       </div>
 
       <footer className="py-4 text-center text-xs text-slate-400">
-        CareerConnect · All rights reserved
+        E2Job · All rights reserved
       </footer>
     </div>
   );

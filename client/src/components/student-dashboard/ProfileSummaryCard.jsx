@@ -8,19 +8,14 @@ const ProfileSummaryCard = ({ user, profile }) => {
   const profileImage = user?.profileImage || profile?.userId?.profileImage;
   const initial = studentName.charAt(0).toUpperCase();
 
-  const primaryEducation = profile?.education?.[0] || {
-    institution: "CareerConnect",
-    degree: "B.Tech",
-    fieldOfStudy: "Computer Science",
-    startYear: 2024,
-    endYear: 2028,
-  };
+  // Empty profiles show prompts instead of sample data.
+  const primaryEducation = profile?.education?.[0] || { institution: "Add your college", degree: "" };
 
   const location = profile?.location?.city
     ? `${profile.location.city}${profile.location.state ? `, ${profile.location.state}` : ""}`
     : "India";
-  const careerGoal = profile?.careerGoal || "Full Stack Developer";
-  const bio = profile?.bio || "Enthusiastic Computer Science student passionate about building modern web applications.";
+  const careerGoal = profile?.careerGoal || "Not set yet";
+  const bio = profile?.bio || "Add a short bio so recruiters know what you're looking for.";
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs">
@@ -77,7 +72,7 @@ const ProfileSummaryCard = ({ user, profile }) => {
 
         <div>
           <span className="text-slate-400 font-medium block mb-1">Graduation Year</span>
-          <p className="font-semibold text-slate-800">{primaryEducation.endYear || "2028"}</p>
+          <p className="font-semibold text-slate-800">{primaryEducation.endYear || "—"}</p>
         </div>
 
         <div>

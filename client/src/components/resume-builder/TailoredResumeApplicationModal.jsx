@@ -10,7 +10,7 @@ import {
 import { applyToInternship, applyToJob } from "../../services/applicationService";
 import ResumePreview from "./ResumePreview";
 import { RESUME_TEMPLATES } from "../../data/templates";
-import { getResumeHref } from "../../utils/resumeAccess";
+import { openResume } from "../../utils/resumeAccess";
 
 export default function TailoredResumeApplicationModal({
   isOpen,
@@ -447,13 +447,13 @@ export default function TailoredResumeApplicationModal({
                       Use My Own Resume
                     </h4>
                     <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                      Select one of your existing saved resumes from CareerConnect or upload a new PDF resume from your computer.
+                      Select one of your existing saved resumes from E2Job or upload a new PDF resume from your computer.
                     </p>
 
                     <div className="mt-4 space-y-2 pt-3 border-t border-slate-100 text-[11px] text-slate-600">
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500 font-bold">•</span>
-                        <span>Select from your saved CareerConnect resumes</span>
+                        <span>Select from your saved E2Job resumes</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500 font-bold">•</span>
@@ -553,14 +553,13 @@ export default function TailoredResumeApplicationModal({
                         {isEditing ? "👁️ Preview Resume" : "✏️ Edit Summary"}
                       </button>
                       {tailoredResume.resumeUrl && (
-                        <a
-                          href={getResumeHref(tailoredResume.resumeUrl)}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openResume(tailoredResume.resumeUrl)}
                           className="px-3 py-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-xl transition shadow-2xs"
                         >
                           ⬇ Download PDF
-                        </a>
+                        </button>
                       )}
                       <button
                         type="button"
@@ -825,7 +824,7 @@ export default function TailoredResumeApplicationModal({
                                 {user.resumeName || "Main Profile Resume"}
                               </h5>
                               <p className="text-[11px] text-slate-500">
-                                Attached to your CareerConnect profile
+                                Attached to your E2Job profile
                               </p>
                             </div>
                             <input
@@ -838,15 +837,13 @@ export default function TailoredResumeApplicationModal({
                           </div>
 
                           <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
-                            <a
-                              href={getResumeHref(user.resumeUrl)}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(e) => e.stopPropagation()}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openResume(user.resumeUrl); }}
                               className="text-blue-600 hover:underline font-semibold"
                             >
                               View PDF ↗
-                            </a>
+                            </button>
                             <span className="text-slate-400">Ready</span>
                           </div>
                         </div>
@@ -888,7 +885,7 @@ export default function TailoredResumeApplicationModal({
                                   </span>
                                 </div>
                                 <h5 className="text-xs font-bold text-slate-900 mt-1">
-                                  {resume.title || "CareerConnect Resume"}
+                                  {resume.title || "E2Job Resume"}
                                 </h5>
                                 <p className="text-[11px] text-slate-500">
                                   Updated: {new Date(resume.updatedAt || resume.createdAt).toLocaleDateString()}
@@ -905,15 +902,13 @@ export default function TailoredResumeApplicationModal({
 
                             <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
                               {resume.resumeUrl ? (
-                                <a
-                                  href={getResumeHref(resume.resumeUrl)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); openResume(resume.resumeUrl); }}
                                   className="text-blue-600 hover:underline font-semibold"
                                 >
                                   View PDF ↗
-                                </a>
+                                </button>
                               ) : (
                                 <span className="text-slate-400">PDF compiling</span>
                               )}
@@ -946,14 +941,13 @@ export default function TailoredResumeApplicationModal({
                         <span>✓</span>
                         <span>"{selectedOwnResume.title}" uploaded & selected!</span>
                       </div>
-                      <a
-                        href={getResumeHref(selectedOwnResume.resumeUrl)}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => openResume(selectedOwnResume.resumeUrl)}
                         className="text-xs font-bold text-emerald-800 underline"
                       >
                         Preview PDF ↗
-                      </a>
+                      </button>
                     </div>
                   )}
 
@@ -1024,14 +1018,13 @@ export default function TailoredResumeApplicationModal({
                     </p>
                   </div>
                   {selectedOwnResume.resumeUrl && (
-                    <a
-                      href={getResumeHref(selectedOwnResume.resumeUrl)}
-                      target="_blank"
-                      rel="noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => openResume(selectedOwnResume.resumeUrl)}
                       className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl shadow-2xs transition"
                     >
                       Preview Resume ↗
-                    </a>
+                    </button>
                   )}
                 </div>
               )}
@@ -1101,14 +1094,13 @@ export default function TailoredResumeApplicationModal({
 
               {submittedData?.resumeUrl && (
                 <div className="pt-2">
-                  <a
-                    href={getResumeHref(submittedData.resumeUrl)}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => openResume(submittedData.resumeUrl)}
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
                   >
                     <span>📄 View Submitted Resume PDF ↗</span>
-                  </a>
+                  </button>
                 </div>
               )}
 

@@ -24,8 +24,27 @@ export const getAdminMe = async () => {
   return response.data;
 };
 
-export const getAdminDashboard = async (range = "30d") => {
-  const response = await api.get(`/admin/dashboard?range=${range}`);
+const clientDashboardCache = new Map();
+const CLIENT_CACHE_TTL_MS = 60 * 1000;
+
+export const getCachedAdminDashboard = (range = "30d") => {
+  const cached = clientDashboardCache.get(range);
+  if (cached && Date.now() - cached.timestamp < CLIENT_CACHE_TTL_MS) {
+    return cached.data;
+  }
+  return null;
+};
+
+export const getAdminDashboard = async (range = "30d", forceRefresh = false) => {
+  const cached = clientDashboardCache.get(range);
+  if (!forceRefresh && cached && Date.now() - cached.timestamp < CLIENT_CACHE_TTL_MS) {
+    return { success: true, data: cached.data, cached: true };
+  }
+
+  const response = await api.get(`/admin/dashboard?range=${range}${forceRefresh ? "&refresh=true" : ""}`);
+  if (response.data?.success && response.data?.data) {
+    clientDashboardCache.set(range, { data: response.data.data, timestamp: Date.now() });
+  }
   return response.data;
 };
 
@@ -139,6 +158,12 @@ export const getAdminEmployers = async (params = {}) => {
   return response.data;
 };
 
+// Platform admins only: status is "approved" or "rejected"; id is the EmployerProfile id
+export const setEmployerVerification = async (id, status, reason = "") => {
+  const response = await api.patch(`/admin/employers/${id}/verification`, { status, reason });
+  return response.data;
+};
+
 export const updateEmployerStatus = async (id, status) => {
   const response = await api.patch(`/admin/employers/${id}/status`, { status });
   return response.data;
@@ -149,6 +174,12 @@ export const updateEmployerStatus = async (id, status) => {
 // ==========================================
 export const getAdminOpportunities = async (params = {}) => {
   const response = await api.get("/admin/opportunities", { params });
+  return response.data;
+};
+
+// Super Admin: post a job or internship on behalf of an approved employer
+export const createOpportunityForEmployer = async (payload) => {
+  const response = await api.post("/admin/opportunities", payload);
   return response.data;
 };
 
@@ -249,6 +280,12 @@ export const dismissAdminReport = async (id, dismissalReason) => {
 // ==========================================
 // SETTINGS
 // ==========================================
+/** Monitoring check (I08): the backend throws a test error that should appear in Sentry. */
+export const triggerBackendSentryTest = async () => {
+  const response = await api.post("/admin/debug/sentry-test");
+  return response.data;
+};
+
 export const getAdminSettings = async () => {
   const response = await api.get("/admin/settings");
   return response.data;
@@ -343,6 +380,7 @@ export default {
   getAdminStudents,
   updateStudentStatus,
   getAdminEmployers,
+  setEmployerVerification,
   updateEmployerStatus,
   getAdminOpportunities,
   updateOpportunityStatus,

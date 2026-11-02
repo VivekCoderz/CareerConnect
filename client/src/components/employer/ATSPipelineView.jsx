@@ -1,13 +1,17 @@
 import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import ApplicantExportModal from "./ApplicantExportModal";
+import { openResume, downloadResume } from "../../utils/resumeAccess";
+import BulkActionBar from "./BulkActionBar";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 // Helper for professional role casing
 const formatRoleTitle = (str) => {
   if (!str) return "Candidate Role";
   return str
     .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    // Only raise the first letter, so acronyms like LAP, HR or SBFC stay as typed.
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 };
 
@@ -28,11 +32,15 @@ const ATSPipelineView = ({
   onScheduleInterview,
   onCreateOffer,
   onAddNote,
+  onBulkStatus,
+  initialJobId = "All", // open filtered to one job, e.g. from "View applications" on the dashboard
 }) => {
   // State
-  const [selectedJobId, setSelectedJobId] = useState("All");
+  const [selectedJobId, setSelectedJobId] = useState(initialJobId ? String(initialJobId) : "All");
   const [activeStageFilter, setActiveStageFilter] = useState("All");
   const [viewMode, setViewMode] = useState("list"); // "list" | "kanban"
+  const [checkedIds, setCheckedIds] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedApp, setSelectedApp] = useState(null);
   const [viewingApp, setViewingApp] = useState(null);
@@ -75,8 +83,8 @@ const ATSPipelineView = ({
     const email = app.studentEmail || appData.email || cand.email || "N/A";
     const phone = app.studentPhone || appData.phone || cand.phone || "N/A";
     const address = appData.address || "N/A";
-    const education = app.education || appData.education || appData.degree || "B.Tech CSE";
-    const college = appData.college || "CareerConnect";
+    const education = app.education || appData.education || appData.degree || "Not provided";
+    const college = appData.college || "Not provided";
     const graduationYear = appData.graduationYear || "";
 
     let skillsList = [];
@@ -90,7 +98,7 @@ const ATSPipelineView = ({
       skillsList = app.skills.split(",").map((s) => s.trim());
     }
 
-    const experience = app.experience || appData.experience || "Fresher";
+    const experience = app.experience || appData.experience || "Not provided";
     const portfolioUrl = app.portfolioUrl || appData.portfolioUrl || "";
     const resumeUrl = app.resumeUrl || appData.resumeUrl || "";
     const coverLetter = app.coverLetter || app.coverNote || appData.coverLetter || appData.coverNote || "";
@@ -126,8 +134,11 @@ const ATSPipelineView = ({
   // Helper to determine candidate stage index & current stage object
   const getCandidateStageData = (app) => {
     let stages = DEFAULT_STAGES;
-    if (app.jobId?.recruitmentStages && app.jobId.recruitmentStages.length > 0) {
-      stages = [...app.jobId.recruitmentStages].sort((a, b) => a.order - b.order);
+    const listingStages = app.jobId?.recruitmentStages?.length
+      ? app.jobId.recruitmentStages
+      : app.internshipId?.recruitmentStages;
+    if (listingStages && listingStages.length > 0) {
+      stages = [...listingStages].sort((a, b) => a.order - b.order);
     }
 
     let currentIndex = -1;
@@ -196,6 +207,32 @@ const ATSPipelineView = ({
       );
     });
   }, [jobFilteredApps, activeStageFilter, searchQuery]);
+
+  // Kanban: each in-progress candidate goes in exactly one column (QA bug 11).
+  // Default stages have no _id, so ids are only compared when both exist; repeated stage
+  // names are told apart by the candidate's round number.
+  const kanbanColumns = useMemo(() => {
+    const columns = activeStages.map(() => []);
+    jobFilteredApps.forEach((app) => {
+      const stageData = getCandidateStageData(app);
+      if (stageData.isSelected || stageData.isRejected) return;
+      const current = stageData.currentStage;
+      const currentId = current?._id?.toString();
+      let col = currentId ? activeStages.findIndex((s) => s._id && s._id.toString() === currentId) : -1;
+      if (col === -1) {
+        const name = (current?.name || app.stage || "").toLowerCase();
+        const samePosition = activeStages[stageData.currentIndex];
+        col = samePosition && samePosition.name.toLowerCase() === name
+          ? stageData.currentIndex
+          : activeStages.findIndex((s) => s.name.toLowerCase() === name);
+      }
+      // A stage this view has no column for (e.g. "All jobs"): keep the candidate visible by round number.
+      if (col === -1) col = Math.max(0, Math.min(stageData.currentIndex, activeStages.length - 1));
+      // Guard: a bad stored index or a view without columns must not crash the board.
+      if (columns[col]) columns[col].push(app);
+    });
+    return columns;
+  }, [jobFilteredApps, activeStages]);
 
   // Stage counts for tab badges
   const stageCounts = useMemo(() => {
@@ -474,23 +511,14 @@ const ATSPipelineView = ({
       {/* 3. KANBAN BOARD VIEW                                     */}
       {/* ======================================================== */}
       {viewMode === "kanban" && filteredApps.length > 0 && (
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin items-start">
+        <div className="flex gap-4 pb-4 items-start w-full overflow-x-auto custom-scrollbar pt-1">
           {activeStages.map((stage, sIdx) => {
-            const stageApps = jobFilteredApps.filter((app) => {
-              const stageData = getCandidateStageData(app);
-              return (
-                !stageData.isSelected &&
-                !stageData.isRejected &&
-                (stageData.currentStage?.name === stage.name ||
-                  stageData.currentStage?._id?.toString() === stage._id?.toString() ||
-                  app.stage === stage.name)
-              );
-            });
+            const stageApps = kanbanColumns[sIdx];
 
             return (
               <div
                 key={sIdx}
-                className="w-72 flex-shrink-0 bg-slate-100/70 rounded-3xl border border-slate-200/80 p-3.5 space-y-3 flex flex-col max-h-[78vh]"
+                className="flex-1 min-w-[240px] max-w-[340px] flex-shrink-0 bg-slate-100/70 rounded-3xl border border-slate-200/80 p-3.5 space-y-3 flex flex-col max-h-[78vh]"
               >
                 {/* Column Header */}
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
@@ -508,7 +536,7 @@ const ATSPipelineView = ({
                 </div>
 
                 {/* Candidate Cards Column */}
-                <div className="space-y-2.5 overflow-y-auto flex-1 scrollbar-thin pr-1">
+                <div className="space-y-2.5 overflow-y-auto flex-1 custom-scrollbar pr-1">
                   {stageApps.length === 0 ? (
                     <div className="py-8 text-center text-slate-400 text-xs font-medium">
                       No candidates in this round
@@ -642,7 +670,7 @@ const ATSPipelineView = ({
           })}
 
           {/* Kanban Selected Column */}
-          <div className="w-72 flex-shrink-0 bg-emerald-50/60 rounded-3xl border border-emerald-200 p-3.5 space-y-3 flex flex-col max-h-[78vh]">
+          <div className="flex-1 min-w-[240px] max-w-[340px] flex-shrink-0 bg-emerald-50/60 rounded-3xl border border-emerald-200 p-3.5 space-y-3 flex flex-col max-h-[78vh]">
             <div className="flex items-center justify-between border-b border-emerald-200 pb-2.5">
               <div className="flex items-center gap-1.5">
                 <span className="text-emerald-700 font-bold text-xs">★ Selected Candidates</span>
@@ -651,7 +679,7 @@ const ATSPipelineView = ({
                 {stageCounts.Selected || 0}
               </span>
             </div>
-            <div className="space-y-2.5 overflow-y-auto flex-1 scrollbar-thin pr-1">
+            <div className="space-y-2.5 overflow-y-auto flex-1 custom-scrollbar pr-1">
               {jobFilteredApps
                 .filter((a) => getCandidateStageData(a).isSelected)
                 .map((app) => {
@@ -698,6 +726,26 @@ const ATSPipelineView = ({
       {/* ======================================================== */}
       {/* 4. LIST VIEW: COMPLETE PIPELINE PER CANDIDATE            */}
       {/* ======================================================== */}
+      {viewMode === "list" && filteredApps.length > 0 && onBulkStatus && (
+        <BulkActionBar
+          selectedCount={checkedIds.size}
+          visibleCount={filteredApps.length}
+          allVisibleSelected={filteredApps.every((a) => checkedIds.has(a._id))}
+          busy={bulkBusy}
+          onToggleAll={() =>
+            setCheckedIds((prev) =>
+              filteredApps.every((a) => prev.has(a._id)) ? new Set() : new Set(filteredApps.map((a) => a._id))
+            )
+          }
+          onClear={() => setCheckedIds(new Set())}
+          onApply={async (status) => {
+            setBulkBusy(true);
+            const ok = await onBulkStatus([...checkedIds], status);
+            setBulkBusy(false);
+            if (ok) setCheckedIds(new Set());
+          }}
+        />
+      )}
       {viewMode === "list" && filteredApps.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           {/* Main List of Candidates */}
@@ -720,6 +768,23 @@ const ATSPipelineView = ({
                   {/* Candidate Header Row */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3.5">
+                      {onBulkStatus && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${info.name}`}
+                          className="mt-3.5"
+                          checked={checkedIds.has(app._id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() =>
+                            setCheckedIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(app._id)) next.delete(app._id);
+                              else next.add(app._id);
+                              return next;
+                            })
+                          }
+                        />
+                      )}
                       {/* Sleek Initial Avatar */}
                       <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-sm flex-shrink-0 border border-indigo-100 shadow-2xs">
                         {info.name[0]?.toUpperCase() || "C"}
@@ -907,7 +972,7 @@ const ATSPipelineView = ({
                       </div>
                       {app.latestInterview.meetingLink && (
                         <a
-                          href={app.latestInterview.meetingLink}
+                          href={safeHttpUrl(app.latestInterview.meetingLink)}
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -1386,14 +1451,22 @@ const ATSPipelineView = ({
                       </h4>
                       <div className="flex items-center gap-3 flex-wrap">
                         {info.resumeUrl ? (
-                          <a
-                            href={info.resumeUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5"
-                          >
-                            <span>📄</span> View Student Resume ↗
-                          </a>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openResume(info.resumeUrl)}
+                              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5"
+                            >
+                              <span>📄</span> View Student Resume ↗
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadResume(info.resumeUrl, info.name)}
+                              className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-xs flex items-center gap-1.5"
+                            >
+                              <span>⬇</span> Download Resume
+                            </button>
+                          </>
                         ) : (
                           <span className="text-xs text-slate-400">No resume attached</span>
                         )}

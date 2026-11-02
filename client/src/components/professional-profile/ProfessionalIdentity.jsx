@@ -30,18 +30,19 @@ const ProfessionalIdentity = ({ profile, onChange }) => {
   const [headline, setHeadline] = useState(profile?.professionalHeadline || "");
   const [summary, setSummary] = useState(profile?.professionalSummary || "");
   const [specialization, setSpecialization] = useState(
-    profile?.careerSpecialization || "Full Stack & Cloud Architecture"
+    profile?.careerSpecialization || ""
   );
-  const [currentLevel, setCurrentLevel] = useState(profile?.currentLevel || "Senior");
-  const [targetLevel, setTargetLevel] = useState(profile?.targetLevel || "Lead / Staff");
+  const [currentLevel, setCurrentLevel] = useState(profile?.currentLevel || "");
+  const [targetLevel, setTargetLevel] = useState(profile?.targetLevel || "");
 
   const notify = (h, s, spec, curLvl, tgtLvl) => {
     onChange({
       professionalHeadline: h,
       professionalSummary: s,
       careerSpecialization: spec,
-      currentLevel: curLvl,
-      targetLevel: tgtLvl,
+      // Unchosen levels are left out: the server only accepts listed levels.
+      currentLevel: curLvl || undefined,
+      targetLevel: tgtLvl || undefined,
     });
   };
 
@@ -111,6 +112,7 @@ const ProfessionalIdentity = ({ profile, onChange }) => {
             }}
             className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-purple-500 font-medium"
           >
+            <option value="">Select level</option>
             {CAREER_LEVELS.map((lvl) => (
               <option key={lvl} value={lvl}>
                 {lvl}
@@ -131,6 +133,7 @@ const ProfessionalIdentity = ({ profile, onChange }) => {
             }}
             className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-purple-500 font-medium"
           >
+            <option value="">Select level</option>
             {CAREER_LEVELS.map((lvl) => (
               <option key={lvl} value={lvl}>
                 {lvl}

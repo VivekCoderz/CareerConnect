@@ -5,12 +5,15 @@ const sanitizeEmployerUpdate = (body) => {
   const data = sanitizeProfileUpdate(body);
   delete data.__v;
   delete data.isPublished;
+  delete data.verifiedAt;
+  delete data.verifiedBy;
   return data;
 };
 // server/controllers/employerController.js
 const EmployerProfile = require("../models/EmployerProfile");
 const User = require("../models/User");
 const Company = require("../models/Company");
+const { escapeRegex } = require("../utils/listingSecurity");
 const OrganizationRequest = require("../models/OrganizationRequest");
 const AuditLog = require("../models/AuditLog");
 const Job = require("../models/Job");
@@ -21,6 +24,15 @@ const Employee = require("../models/Employee");
 const TeamMember = require("../models/TeamMember");
 const Course = require("../models/Course");
 const { getEmployerDashboardData } = require("../services/employerDashboardService");
+const { findCompanyPage, getActiveCompany, listingOwnerClauses } = require("../utils/employerOwnership");
+const { openListingQuery } = require("../utils/listingExpiry");
+const { ipKeyGenerator } = require("express-rate-limit");
+
+// Company size options offered by the connect-company form (EmployerDashboard).
+const ORG_COMPANY_SIZES = ["1-10", "11-50", "51-200", "201-500", "500+"];
+
+// The employer profile stores sizes with an en dash ("11–50"); the request form uses a hyphen.
+const normalizeCompanySize = (size) => String(size || "").trim().replace(/[–—]/g, "-");
 
 /**
  * Dynamic calculation of Employer Profile Completion (0 - 100%)
@@ -344,8 +356,8 @@ exports.getEmployerDashboard = async (req, res, next) => {
       });
     }
 
-    // Resolve effective companyId
-    let effectiveCompanyId = req.user.companyId || null;
+    // The company's jobs and applicants only count while it is active (ADM-11/12, FL-01).
+    const effectiveCompanyId = (await getActiveCompany(req.user))?._id || null;
 
     let profile = await EmployerProfile.findOne({ userId });
     if (!profile) {
@@ -360,20 +372,9 @@ exports.getEmployerDashboard = async (req, res, next) => {
       });
     }
 
-    if (!effectiveCompanyId) {
-      // Check if Company exists matching profile or user
-      const matchedCompany = await Company.findOne({
-        $or: [
-          { email: profile.officialEmail || req.user.email },
-          { name: profile.companyName },
-        ],
-      });
-      if (matchedCompany) {
-        effectiveCompanyId = matchedCompany._id;
-        req.user.companyId = matchedCompany._id;
-        await User.findByIdAndUpdate(userId, { companyId: matchedCompany._id });
-      }
-    }
+    // An employer joins a company only through a Super Admin-approved organization request
+    // or a company admin's invite. Matching by company name or email let anyone attach
+    // themselves to another company and read its applicants.
 
     const completion = calculateEmployerCompletion(profile, req.user);
 
@@ -451,9 +452,9 @@ exports.getEmployerDashboard = async (req, res, next) => {
       type: app.opportunityType || (app.internshipId ? "Internship" : "Full-time"),
       status: app.status || "Reviewing",
       appliedDate: app.createdAt ? new Date(app.createdAt).toISOString().split("T")[0] : "Recent",
-      matchScore: app.matchScore || 85,
-      cgpa: app.cgpa || "8.5",
-      degree: app.degree || "Geeta University Student",
+      matchScore: app.matchScore ?? null,
+      cgpa: app.cgpa || "",
+      degree: app.degree || "",
     }));
 
     const activeListings = [
@@ -489,28 +490,58 @@ exports.getEmployerDashboard = async (req, res, next) => {
   }
 };
 
+// The approved company behind /companies/:companyId, or null: the same rule as the company
+// page itself (basics even before the profile is published; pending or rejected never).
+const findPublicCompanyProfile = async (companyId) => {
+  const page = await findCompanyPage(companyId);
+  if (!page || page.profile.verificationStatus !== "approved") return null;
+  return { profile: page.profile, activeCompany: page.company };
+};
+
 /**
  * GET /api/companies/:companyId
  * Public company profile for candidates & students
  */
 exports.getPublicCompanyProfile = async (req, res, next) => {
   try {
-    const { companyId } = req.params;
-
-    let profile = null;
-
-    const isObjectId = /^[0-9a-fA-F]{24}$/.test(companyId);
-
-    if (isObjectId) {
-      profile = await EmployerProfile.findOne({
-        $or: [{ _id: companyId }, { userId: companyId }],
-      }).populate("userId", "fullName email profileImage");
-    }
-
-    if (!profile) {
+    // "Not found" only when there is no such company, or it is inactive or deleted (ADM-11/12).
+    const page = await findCompanyPage(req.params.companyId);
+    if (!page) {
       return res.status(404).json({
         success: false,
         message: "Company profile not found",
+      });
+    }
+    const { profile, company } = page;
+    // Only companies the E2Job team approved get a page at all: a pending or rejected
+    // employer must not get an e2job.com URL showing its name, logo and website.
+    if (profile.verificationStatus !== "approved") {
+      return res.status(404).json({
+        success: false,
+        message: "Company profile not found",
+      });
+    }
+
+    // CC-01: the job page links here for every approved employer, so an unpublished
+    // profile still shows the basics its job pages already show (filled in from the linked
+    // Company when empty). The rest of the showcase stays private until it is published
+    // and approved. The Company's email, phone, contact person and address are never shown.
+    const isShowcasePublic = profile.isPublished === true;
+    if (!isShowcasePublic) {
+      const hq = profile.headquarters || {};
+      return res.status(200).json({
+        success: true,
+        company: {
+          _id: profile._id,
+          companyName: profile.companyName || company?.name || "",
+          logo: profile.logo || company?.logo || profile.userId?.profileImage || "",
+          industry: profile.industry || company?.industry || "",
+          website: profile.website || company?.website || "",
+          description: profile.description || company?.description || "",
+          headquarters: hq.city || !company?.location ? hq : { city: company.location },
+          verificationStatus: profile.verificationStatus,
+          isShowcasePublic: false,
+        },
       });
     }
 
@@ -551,6 +582,8 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
         locations: profile.hiringPreferences?.locations || [],
       },
       isPublished: profile.isPublished,
+      verificationStatus: profile.verificationStatus,
+      isShowcasePublic: true,
       createdAt: profile.createdAt,
     };
 
@@ -558,6 +591,39 @@ exports.getPublicCompanyProfile = async (req, res, next) => {
       success: true,
       company: publicProfile,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Fields a company page's job list shows; moderation and internal fields stay out.
+const COMPANY_JOB_FIELDS =
+  "title employmentType workMode location city state salaryRange stipend deadline createdAt openings";
+const COMPANY_JOBS_MAX = 50;
+
+/**
+ * GET /api/companies/:companyId/jobs
+ * Open jobs of one company only (FL-01/02): the jobs this employer posted plus, while their
+ * Company is active, the jobs posted under it by colleagues. Same "not found" rule as the
+ * profile itself.
+ */
+exports.getPublicCompanyJobs = async (req, res, next) => {
+  try {
+    const found = await findPublicCompanyProfile(req.params.companyId);
+    if (!found) {
+      return res.status(404).json({ success: false, message: "Company profile not found" });
+    }
+
+    const { profile, activeCompany } = found;
+    const scope = { userId: profile.userId?._id || profile.userId, profileId: profile._id, companyId: activeCompany?._id || null };
+    const filter = openListingQuery({ $and: [{ $or: listingOwnerClauses(scope) }] });
+
+    const [jobs, total] = await Promise.all([
+      Job.find(filter).select(COMPANY_JOB_FIELDS).sort({ createdAt: -1, _id: -1 }).limit(COMPANY_JOBS_MAX).lean(),
+      Job.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({ success: true, jobs, total });
   } catch (error) {
     next(error);
   }
@@ -629,8 +695,8 @@ exports.getOrganizationStatus = async (req, res, next) => {
       companyName: profile?.companyName || user?.companyName || "",
       officialCompanyEmail: profile?.officialEmail || "",
       companyWebsite: profile?.website || "",
-      industry: profile?.industry || "Information Technology",
-      companySize: profile?.companySize || profile?.employeesCount || "11-50",
+      industry: profile?.industry || "",
+      companySize: normalizeCompanySize(profile?.companySize || profile?.employeesCount),
       requestingEmployeeName: req.user.fullName || profile?.contactPerson || "",
       employeeDesignation: req.user.designation || profile?.designation || "Talent Acquisition / HR",
       officialEmployeeEmail: req.user.email || "",
@@ -652,8 +718,8 @@ exports.getOrganizationStatus = async (req, res, next) => {
           officialEmail: orgRequest.officialEmail,
           companyWebsite: orgRequest.website,
           website: orgRequest.website,
-          industry: orgRequest.industry || "Information Technology",
-          companySize: orgRequest.companySize || "11-50",
+          industry: orgRequest.industry || "",
+          companySize: orgRequest.companySize || "",
           verificationDocument: orgRequest.verificationDocument || "",
           requestingEmployeeName: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
           contactPerson: orgRequest.requestingEmployeeName || orgRequest.contactPerson,
@@ -707,8 +773,8 @@ exports.requestCompanyApproval = async (req, res, next) => {
     const trimmedCompanyName = (companyName || organizationName || "").trim();
     const cleanCompanyEmail = (officialCompanyEmail || officialEmail || "").trim().toLowerCase();
     const cleanWebsite = (companyWebsite || website || "").trim();
-    const cleanIndustry = (industry || "Information Technology").trim();
-    const cleanCompanySize = (companySize || "11-50").trim();
+    const cleanIndustry = String(industry || "").trim();
+    const cleanCompanySize = normalizeCompanySize(companySize);
     const cleanVerificationDoc = (verificationDocument || "").trim();
     const cleanEmployeeName = (requestingEmployeeName || contactPerson || req.user.fullName || "").trim();
     const cleanDesignation = (employeeDesignation || designation || req.user.designation || "").trim();
@@ -729,6 +795,12 @@ exports.requestCompanyApproval = async (req, res, next) => {
     }
     if (!cleanCompanySize) {
       return res.status(400).json({ success: false, message: "Company size is required." });
+    }
+    if (!ORG_COMPANY_SIZES.includes(cleanCompanySize)) {
+      return res.status(400).json({
+        success: false,
+        message: `Company size must be one of: ${ORG_COMPANY_SIZES.join(", ")}.`,
+      });
     }
     if (!cleanVerificationDoc) {
       return res.status(400).json({
@@ -759,19 +831,17 @@ exports.requestCompanyApproval = async (req, res, next) => {
     const existingActiveCompany = await Company.findOne({
       $or: [
         { email: cleanCompanyEmail },
-        { name: { $regex: `^${trimmedCompanyName}$`, $options: "i" } },
+        { name: { $regex: `^${escapeRegex(trimmedCompanyName)}$`, $options: "i" } },
       ],
       status: "active",
     });
 
     if (existingActiveCompany) {
-      req.user.companyId = existingActiveCompany._id;
-      await req.user.save();
-      return res.status(200).json({
-        success: true,
-        status: "APPROVED",
-        message: `Your company "${existingActiveCompany.name}" is already verified on CareerConnect! Your account is connected.`,
-        company: existingActiveCompany,
+      // Never connect automatically: a matching name or email doesn't prove the person works there.
+      return res.status(409).json({
+        success: false,
+        status: "COMPANY_EXISTS",
+        message: "This company is already on E2Job. Ask your company admin to invite you, or contact support.",
       });
     }
 
@@ -862,7 +932,7 @@ exports.requestCompanyApproval = async (req, res, next) => {
         module: "Settings",
         target: trimmedCompanyName,
         details: `Employee ${cleanEmployeeName} (${cleanEmployeeEmail}) submitted connection request for "${trimmedCompanyName}" (${cleanCompanyEmail}).`,
-        ipAddress: req.ip || req.headers["x-forwarded-for"] || "127.0.0.1",
+        ipAddress: ipKeyGenerator(req.ip || "127.0.0.1"),
       });
     } catch (auditErr) {
       console.warn("AuditLog warning:", auditErr.message);

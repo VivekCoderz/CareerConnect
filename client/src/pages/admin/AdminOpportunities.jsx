@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { Link, useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/admin/AdminLayout";
+import PostForEmployerModal from "../../components/admin/PostForEmployerModal";
+import { useSelector } from "react-redux";
 import {
   getAdminOpportunities,
   getAdminOpportunitiesCompanies,
@@ -111,6 +113,10 @@ const AdminOpportunities = () => {
   }, []);
 
   // Fetch opportunities from server with all filters & real stats
+  const { user: adminUser } = useSelector((state) => state.auth);
+  const isSuperAdmin = adminUser?.role === "SUPER_ADMIN" || (adminUser?.role === "admin" && !adminUser?.companyId);
+  const [showPostForEmployer, setShowPostForEmployer] = useState(false);
+
   const fetchOpportunities = useCallback(
     async (page = 1) => {
       setLoading(true);
@@ -331,6 +337,11 @@ const AdminOpportunities = () => {
 
   return (
     <AdminLayout onRefresh={() => fetchOpportunities(pagination.page)} isRefreshing={loading}>
+      <PostForEmployerModal
+        open={showPostForEmployer}
+        onClose={() => setShowPostForEmployer(false)}
+        onPosted={() => fetchOpportunities(1)}
+      />
       <div className="space-y-6">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -348,6 +359,15 @@ const AdminOpportunities = () => {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => setShowPostForEmployer(true)}
+                className="px-3.5 py-2 text-xs font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-xs transition cursor-pointer"
+              >
+                + Post for an employer
+              </button>
+            )}
             <button
               type="button"
               onClick={() => fetchOpportunities(pagination.page)}
@@ -375,7 +395,7 @@ const AdminOpportunities = () => {
             <p className="text-2xl font-black text-slate-900 mt-2">{stats.total || 0}</p>
             <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
               <span>{stats.totalJobs || 0} Jobs</span>
-              <span>ΓÇó</span>
+              <span>•</span>
               <span>{stats.totalInternships || 0} Internships</span>
             </div>
           </div>
@@ -468,13 +488,13 @@ const AdminOpportunities = () => {
         <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             {/* Search Input */}
-            <div className="relative flex-1">
+            <div className="relative flex-1 lg:min-w-[280px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search title, company, location, city..."
+                placeholder="Search title, organization, location, city..."
                 className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition"
               />
               {search && (
@@ -522,7 +542,7 @@ const AdminOpportunities = () => {
                 onChange={(e) => setSelectedCompanyId(e.target.value)}
                 className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 truncate"
               >
-                <option value="">All Companies</option>
+                <option value="">All Organizations</option>
                 {companiesList.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.name}
@@ -573,7 +593,7 @@ const AdminOpportunities = () => {
             OPPORTUNITIES TABLE (Real MongoDB Records)
         ================================================== */}
         <div className="rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden">
-          {loading ? (
+          {loading && opportunities.length === 0 ? (
             <div className="p-16 text-center text-slate-400 flex flex-col items-center justify-center">
               <JourneyLoader variant="admin" size="sm" className="mb-2" />
               <p className="text-xs font-bold text-slate-700">Querying database opportunities...</p>
@@ -595,7 +615,7 @@ const AdminOpportunities = () => {
                 <thead>
                   <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3.5 px-4">Opportunity</th>
-                    <th className="py-3.5 px-4">Company</th>
+                    <th className="py-3.5 px-4">Organization</th>
                     <th className="py-3.5 px-4">Type</th>
                     <th className="py-3.5 px-4">Status</th>
                     <th className="py-3.5 px-4">Applications</th>
@@ -624,7 +644,7 @@ const AdminOpportunities = () => {
                               </span>
                               {opp.department && (
                                 <>
-                                  <span>ΓÇó</span>
+                                  <span>•</span>
                                   <span>{opp.department}</span>
                                 </>
                               )}
@@ -896,7 +916,7 @@ const AdminOpportunities = () => {
                       <Building2 className="w-3.5 h-3.5 text-slate-400" />
                       <span>{selectedOpportunity.companyId?.name || selectedOpportunity.companyName}</span>
                       {selectedOpportunity.companyId?.isVerified && (
-                        <span className="text-emerald-600 text-[10px] font-bold">Verified Company</span>
+                        <span className="text-emerald-600 text-[10px] font-bold">Verified Organization</span>
                       )}
                     </p>
                   </div>

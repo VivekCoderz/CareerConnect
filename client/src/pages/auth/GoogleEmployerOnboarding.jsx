@@ -8,6 +8,10 @@ import api from "../../api/api";
 import { updateUserProfile, logout } from "../../redux/features/authSlice";
 import PhoneInput from "../../components/common/PhoneInput";
 import GoogleAccountAvatar from "../../components/common/GoogleAccountAvatar";
+import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
+import { TERMS_VERSION } from "../../config/legal";
+import { optionalPhoneError } from "../../utils/countryCodes";
+import { needsOnboarding } from "../../utils/userRoles";
 const inputCls = (err) =>
   `w-full h-11 rounded-xl border bg-white px-4 text-sm outline-none transition focus:ring-4 ${
     err
@@ -31,6 +35,7 @@ const GoogleEmployerOnboarding = () => {
   const [cancelling, setCancelling] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const handleCancelAndGoHome = async () => {
     setCancelling(true);
@@ -59,7 +64,7 @@ const GoogleEmployerOnboarding = () => {
     designation: "",
     website: "",
     companyType: "Private",
-    industry: "Information Technology",
+    industry: "",
     location: "",
   });
 
@@ -73,8 +78,7 @@ const GoogleEmployerOnboarding = () => {
       navigate("/set-password", { replace: true });
       return;
     }
-    // If already has phone → already onboarded
-    if (user.phone?.trim()) {
+    if (!needsOnboarding(user)) {
       navigate("/employer/dashboard", { replace: true });
     }
   }, [user, navigate]);
@@ -90,18 +94,8 @@ const GoogleEmployerOnboarding = () => {
 
   const validate = () => {
     const errors = {};
-    if (!formData.phone.trim()) {
-      errors.phone = "Mobile number is required";
-    } else {
-      const digits = formData.phone.replace(/\D/g, "");
-      if (formData.countryCode === "+91") {
-        if (!/^[6-9]\d{9}$/.test(digits.slice(-10)) || digits.length < 10) {
-          errors.phone = "Please enter a valid 10-digit mobile number";
-        }
-      } else if (digits.length < 6 || digits.length > 15) {
-        errors.phone = "Please enter a valid mobile number (6-15 digits)";
-      }
-    }
+    const phoneError = optionalPhoneError(formData.phone, formData.countryCode);
+    if (phoneError) errors.phone = phoneError;
     if (!formData.companyName.trim()) errors.companyName = "Company name is required";
     if (!contactPerson.trim()) errors.contactPerson = "Contact person is required";
     if (!formData.designation.trim()) errors.designation = "Designation is required";
@@ -113,6 +107,10 @@ const GoogleEmployerOnboarding = () => {
 
   const handleSubmit = async () => {
     if (!validate()) return;
+    if (!acceptedTerms) {
+      setSubmitError("Please agree to the Terms and Privacy Policy to continue.");
+      return;
+    }
     setLoading(true);
     setSubmitError("");
 
@@ -127,6 +125,8 @@ const GoogleEmployerOnboarding = () => {
         companyType: formData.companyType,
         industry: formData.industry.trim(),
         location: formData.location.trim(),
+        acceptedTerms: true,
+        termsVersion: TERMS_VERSION,
       });
 
       if (res.data.user) {
@@ -242,7 +242,7 @@ const GoogleEmployerOnboarding = () => {
             {/* Phone */}
             <div>
               <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                Mobile Number <span className="text-red-500">*</span>
+                Mobile Number <span className="text-slate-400 font-normal">(optional)</span>
               </label>
               <PhoneInput
                 countryCode={formData.countryCode}
@@ -318,7 +318,7 @@ const GoogleEmployerOnboarding = () => {
                   name="industry"
                   value={formData.industry}
                   onChange={handleChange}
-                  placeholder="Information Technology"
+                  placeholder="e.g. IT, FinTech"
                   className={inputCls(fieldErrors.industry)}
                 />
                 {fieldErrors.industry && (
@@ -378,9 +378,11 @@ const GoogleEmployerOnboarding = () => {
               />
             </div>
 
+            <TermsConsentCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} />
+
             <button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || !acceptedTerms}
               className="w-full h-11 mt-2 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-amber-300 text-white text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm"
             >
               {loading ? (

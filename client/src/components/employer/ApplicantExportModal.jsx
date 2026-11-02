@@ -8,7 +8,7 @@ export default function ApplicantExportModal({
   applications = [],
   initialJobId = "All",
   initialStage = "All",
-  companyName = "CareerConnect Employer",
+  companyName = "E2Job Employer",
 }) {
   const [selectedJobId, setSelectedJobId] = useState(initialJobId || "All");
   const [selectedStage, setSelectedStage] = useState(initialStage || "All");
@@ -59,9 +59,9 @@ export default function ApplicantExportModal({
     const name = app.studentName || appData.fullName || cand.fullName || "Candidate";
     const email = app.studentEmail || appData.email || cand.email || "N/A";
     const phone = app.studentPhone || appData.phone || cand.phone || "N/A";
-    const college = appData.college || "CareerConnect Partner Campus";
-    const education = app.education || appData.education || appData.degree || "B.Tech / Graduate";
-    const experience = app.experience || appData.experience || "Fresher";
+    const college = appData.college || "Not provided";
+    const education = app.education || appData.education || appData.degree || "Not provided";
+    const experience = app.experience || appData.experience || "Not provided";
 
     let skillsStr = "";
     if (Array.isArray(app.skills)) {
@@ -504,7 +504,7 @@ export default function ApplicantExportModal({
                     Candidate Evaluation & Applicant Roster
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    {companyName} • CareerConnect Recruitment Intelligence
+                    {companyName} • E2Job Recruitment Intelligence
                   </p>
                 </div>
                 <div className="text-right">
@@ -596,7 +596,7 @@ export default function ApplicantExportModal({
               {/* Printable Footer */}
               <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-400">
                 <span>Confidential • For Internal Hiring Evaluation Only</span>
-                <span>Page 1 of 1 • CareerConnect Enterprise</span>
+                <span>Page 1 of 1 • E2Job Enterprise</span>
               </div>
             </div>
           )}

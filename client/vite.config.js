@@ -1,7 +1,12 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:5000'
+  const socketProxyTarget = env.VITE_SOCKET_PROXY_TARGET || apiProxyTarget
+
+  return {
   plugins: [
     tailwindcss(),
   ],
@@ -11,12 +16,13 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:5000',
+        target: apiProxyTarget,
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://127.0.0.1:5000',
+        target: socketProxyTarget,
         ws: true,
+        changeOrigin: true,
       },
     },
   },
@@ -47,4 +53,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })

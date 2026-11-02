@@ -17,7 +17,7 @@ const notificationSchema = new mongoose.Schema(
     },
     sender: {
       type: String,
-      default: "CareerConnect AI Assistant",
+      default: "E2Job",
     },
     senderId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -27,7 +27,7 @@ const notificationSchema = new mongoose.Schema(
     senderRole: {
       type: String,
       enum: ["ai", "employer", "system", "admin"],
-      default: "ai",
+      default: "system",
     },
     senderAvatar: {
       type: String,
@@ -52,9 +52,10 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // "job" / "internship" / "course" for listing alerts; everything else is a platform notice.
     category: {
       type: String,
-      default: "ai_recommendation",
+      default: "system",
       index: true,
     },
     notificationType: {
@@ -66,6 +67,10 @@ const notificationSchema = new mongoose.Schema(
         "INTERVIEW_COMPLETED",
         "INTERVIEW_RESULT",
         "APPLICATION_STATUS",
+        "COMPANY_VERIFICATION",
+        "LISTING_STATUS",
+        "OFFER",
+        "SUPPORT_TICKET",
         "GENERAL",
       ],
       default: "GENERAL",
@@ -133,5 +138,7 @@ notificationSchema.pre("save", function () {
 
 notificationSchema.index({ recipient: 1, createdAt: -1 });
 notificationSchema.index({ recipientId: 1, isRead: 1, createdAt: -1 });
+// Daily application digest looks up pending summary emails
+notificationSchema.index({ "metadata.emailDigest": 1, "metadata.digestSent": 1, recipient: 1 });
 
 module.exports = mongoose.model("Notification", notificationSchema);

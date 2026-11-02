@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import ModerationBadge from "./ModerationBadge";
+import { EMPTY_LISTING_FORM, listingFormError, experiencePayload } from "../../utils/listingForm";
 
 const STAGE_TYPES = [
   "Resume Screening",
@@ -35,37 +37,10 @@ const DEFAULT_STAGES = [
 ];
 
 const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
+  const navigate = useNavigate();
   const [stages, setStages] = useState(DEFAULT_STAGES);
   const [expandedStageIdx, setExpandedStageIdx] = useState(null);
-  const [formData, setFormData] = useState({
-    title: "",
-    category: "Web Development",
-    subCategory: "Frontend Development",
-    department: "Engineering",
-    employmentType: "Full-time",
-    workMode: "Remote",
-    location: "Bangalore",
-    city: "Bangalore",
-    country: "India",
-    isPaid: true,
-    hasJobOffer: true,
-    isInternational: false,
-    salaryMin: "600000",
-    salaryMax: "1200000",
-    currency: "INR",
-    experienceLevel: "Fresher / Entry-Level",
-    minYears: 0,
-    maxYears: 1,
-    education: "B.Tech / BCA / MCA / Any Graduate",
-    description: "",
-    responsibilities: "",
-    requiredSkills: "React, JavaScript, Tailwind CSS",
-    preferredSkills: "Redux, TypeScript",
-    bonusSkills: "Next.js, Git",
-    openings: 2,
-    deadline: "",
-    status: "Published",
-  });
+  const [formData, setFormData] = useState({ ...EMPTY_LISTING_FORM });
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -74,13 +49,13 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
     if (jobToEdit) {
       setFormData({
         title: jobToEdit.title || "",
-        category: jobToEdit.category || "Web Development",
-        subCategory: jobToEdit.subCategory || "Frontend Development",
-        department: jobToEdit.department || "Engineering",
-        employmentType: jobToEdit.employmentType || "Full-time",
-        workMode: jobToEdit.workMode || "Remote",
-        location: jobToEdit.location || "Bangalore",
-        city: jobToEdit.city || "Bangalore",
+        category: jobToEdit.category || "",
+        subCategory: jobToEdit.subCategory || "",
+        department: jobToEdit.department || "",
+        employmentType: jobToEdit.employmentType || "",
+        workMode: jobToEdit.workMode || "",
+        location: jobToEdit.location || "",
+        city: jobToEdit.city || "",
         country: jobToEdit.country || "India",
         isPaid: jobToEdit.isPaid !== false,
         hasJobOffer: !!jobToEdit.hasJobOffer,
@@ -88,18 +63,18 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         salaryMin: jobToEdit.salaryRange?.min || "",
         salaryMax: jobToEdit.salaryRange?.max || "",
         currency: jobToEdit.salaryRange?.currency || "INR",
-        experienceLevel: jobToEdit.experience?.level || "Fresher / Entry-Level",
-        minYears: jobToEdit.experience?.minYears || 0,
-        maxYears: jobToEdit.experience?.maxYears || 1,
-        education: jobToEdit.education || "B.Tech / BCA / MCA",
+        experienceLevel: jobToEdit.experience?.level || "",
+        minYears: jobToEdit.experience?.minYears ?? "",
+        maxYears: jobToEdit.experience?.maxYears ?? "",
+        education: jobToEdit.education || "",
         description: jobToEdit.description || "",
         responsibilities: (jobToEdit.responsibilities || []).join("\n"),
         requiredSkills: (jobToEdit.requiredSkills || []).join(", "),
         preferredSkills: (jobToEdit.preferredSkills || []).join(", "),
         bonusSkills: (jobToEdit.bonusSkills || []).join(", "),
-        openings: jobToEdit.openings || 1,
+        openings: jobToEdit.openings || "",
         deadline: jobToEdit.deadline ? jobToEdit.deadline.split("T")[0] : "",
-        status: jobToEdit.status || "Published",
+        status: jobToEdit.status || "",
       });
 
       if (Array.isArray(jobToEdit.recruitmentStages) && jobToEdit.recruitmentStages.length > 0) {
@@ -122,35 +97,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         setStages(DEFAULT_STAGES);
       }
     } else {
-      setFormData({
-        title: "",
-        category: "Web Development",
-        subCategory: "Frontend Development",
-        department: "Engineering",
-        employmentType: "Full-time",
-        workMode: "Remote",
-        location: "Bangalore",
-        city: "Bangalore",
-        country: "India",
-        isPaid: true,
-        hasJobOffer: true,
-        isInternational: false,
-        salaryMin: "600000",
-        salaryMax: "1200000",
-        currency: "INR",
-        experienceLevel: "Fresher / Entry-Level",
-        minYears: 0,
-        maxYears: 1,
-        education: "B.Tech / BCA / MCA / Any Graduate",
-        description: "",
-        responsibilities: "",
-        requiredSkills: "React, JavaScript, Tailwind CSS",
-        preferredSkills: "Redux, TypeScript",
-        bonusSkills: "Next.js, Git",
-        openings: 2,
-        deadline: "",
-        status: "Published",
-      });
+      setFormData({ ...EMPTY_LISTING_FORM });
       setStages(DEFAULT_STAGES);
     }
     setError("");
@@ -319,8 +266,11 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.description.trim() || !formData.location.trim()) {
-      setError("Please fill all required fields (Title, Location, Description)");
+    const formError = listingFormError(formData, [
+      "title", "category", "employmentType", "workMode", "location", "description", "requiredSkills", "openings",
+    ]);
+    if (formError) {
+      setError(formError);
       return;
     }
 
@@ -352,11 +302,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
           currency: formData.currency,
           isNegotiable: !formData.salaryMin && !formData.salaryMax,
         },
-        experience: {
-          level: formData.experienceLevel,
-          minYears: Number(formData.minYears) || 0,
-          maxYears: Number(formData.maxYears) || 2,
-        },
+        experience: experiencePayload(formData),
         education: formData.education,
         description: formData.description.trim(),
         responsibilities: formData.responsibilities
@@ -371,9 +317,8 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         bonusSkills: formData.bonusSkills
           ? formData.bonusSkills.split(",").map((s) => s.trim()).filter(Boolean)
           : [],
-        openings: Number(formData.openings) || 1,
+        openings: Number(formData.openings),
         deadline: formData.deadline || null,
-        status: formData.status,
         recruitmentStages: stages.map((s, idx) => ({
           name: (s.name || `Stage ${idx + 1}`).trim(),
           type: s.type || "Custom",
@@ -424,11 +369,12 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div>
-            <h3 className="text-base font-bold text-slate-900">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               {jobToEdit ? "Edit Opportunity" : "Post Job / Internship Opportunity"}
+              {jobToEdit && <ModerationBadge status={jobToEdit.status} />}
             </h3>
             <p className="text-xs text-slate-500">
-              Auto-discoverable in Category & City Discovery Hubs
+              New listings go live after admin approval
             </p>
           </div>
           <button
@@ -474,6 +420,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                 onChange={handleChange}
                 className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
               >
+                <option value="">Select category</option>
                 <option value="Web Development">Web Development</option>
                 <option value="App Development">App Development (Mobile)</option>
                 <option value="Software Development">Software Development</option>
@@ -499,6 +446,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                 onChange={handleChange}
                 className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
               >
+                <option value="">Select employment type</option>
                 <option value="Internship">Internship</option>
                 <option value="Full-time">Full-time Job</option>
                 <option value="Part-time">Part-time</option>
@@ -516,6 +464,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                 onChange={handleChange}
                 className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
               >
+                <option value="">Select work mode</option>
                 <option value="Remote">Work From Home (Remote)</option>
                 <option value="Hybrid">Hybrid</option>
                 <option value="On-site">On-site</option>
@@ -532,6 +481,7 @@ const JobModal = ({ isOpen, onClose, onSave, jobToEdit = null }) => {
                 onChange={handleChange}
                 className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium outline-none focus:border-[#f59e0b]"
               >
+                <option value="">Select city</option>
                 <option value="Bangalore">Bangalore</option>
                 <option value="Delhi">Delhi / NCR</option>
                 <option value="Gurugram">Gurugram</option>

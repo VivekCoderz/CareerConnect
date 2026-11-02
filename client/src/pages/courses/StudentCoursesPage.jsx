@@ -28,7 +28,7 @@ import PaymentReceiptModal from "../../components/courses/PaymentReceiptModal";
 /**
  * StudentCoursesPage
  * Clean Student LMS Dashboard & Catalog component.
- * Integrates directly inside the existing CareerConnect Student Dashboard framework.
+ * Integrates directly inside the existing E2Job Student Dashboard framework.
  * (No duplicate inner navbar, notification bell, profile header, or logout button).
  */
 const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = false }) => {
@@ -183,13 +183,13 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
       }
 
       const options = {
-        key: orderRes.keyId || "rzp_test_TbSS4kb8G70xwq",
+        key: orderRes.keyId,
         amount: orderRes.amount,
         currency: orderRes.currency || "INR",
-        name: "CareerConnect",
+        name: "E2Job",
         description: `Enrollment: ${course.title}`,
         image: "/favicon.svg",
-        ...(orderRes.isSimulated ? {} : { order_id: orderRes.orderId }),
+        order_id: orderRes.orderId,
         handler: async function (response) {
           try {
             const verifyRes = await verifyCoursePayment({
@@ -514,7 +514,7 @@ const StudentCoursesPage = ({ onViewDetails, onNavigateToMyCourses, embedded = f
         <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(270px,0.75fr)] lg:items-end">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-indigo-100">
-              <Sparkles size={14} className="text-amber-300" /> CareerConnect learning
+              <Sparkles size={14} className="text-amber-300" /> E2Job learning
             </span>
             <h1 className="mt-5 text-3xl font-black leading-tight tracking-tight sm:text-4xl lg:text-[44px]">
               Build the skills for your next opportunity.

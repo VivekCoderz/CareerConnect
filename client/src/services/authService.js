@@ -42,7 +42,7 @@ export const googleAuth = async (idToken, keepSignedIn = false) => {
 
 /**
  * Firebase Login — called after signInWithEmailAndPassword on the frontend.
- * Sends the Firebase ID token to get a CareerConnect JWT.
+ * Sends the Firebase ID token to get a E2Job JWT.
  *
  * @param {string} idToken - Firebase ID token
  * @param {boolean} keepSignedIn - Session duration preference

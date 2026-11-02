@@ -4,13 +4,13 @@ const CareerPathModal = ({ isOpen, onClose, currentRole, targetRole, focusAreas 
   const milestones = [
     {
       title: "Current Foundation",
-      role: currentRole || "Senior Software Engineer",
+      role: currentRole || "Not set yet",
       status: "Completed",
       highlights: ["High-concurrency microservices", "Multi-tenant API architecture", "Deep backend mastery"],
     },
     {
       title: "Target Transition",
-      role: targetRole || "Engineering Lead",
+      role: targetRole || "Not set yet",
       status: "In Progress",
       highlights: ["System Design & Cloud Architecture", "Tech Leadership & Sprint Direction", "Cross-functional Strategy"],
     },

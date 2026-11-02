@@ -104,9 +104,9 @@ const CustomCountrySelect = ({
       </select>
 
       {/* Flag icon */}
-      {selectedOption && Icon && (
+      {value && Icon && (
         <div className="shrink-0 flex items-center">
-          <Icon aria-hidden country={value} label={selectedOption.label} />
+          <Icon aria-hidden country={value} label={selectedOption?.label || value} />
         </div>
       )}
 
@@ -133,7 +133,7 @@ const PhoneInput = ({
   phone = "",
   onPhoneChange,
   error = "",
-  placeholder = "98765 43210",
+  placeholder = "Enter your phone number",
   disabled = false,
   required = true,
   name = "phone",
@@ -150,8 +150,27 @@ const PhoneInput = ({
   // Combine country code and phone for react-phone-number-input
   const combinedValue = useMemo(() => {
     if (!phone) return "";
-    const cleanDigits = String(phone).replace(/\D/g, "");
+    const raw = String(phone).trim();
+    if (!raw) return "";
+
+    // If phone already starts with '+', use directly
+    if (raw.startsWith("+")) {
+      return raw;
+    }
+
+    const cleanDigits = raw.replace(/\D/g, "");
     if (!cleanDigits) return "";
+
+    const activeCallingDigits = (countryCode || "+91").replace(/\D/g, "");
+    // If digits already include the calling code prefix and length indicates full international number
+    if (
+      activeCallingDigits &&
+      cleanDigits.startsWith(activeCallingDigits) &&
+      cleanDigits.length > 10
+    ) {
+      return `+${cleanDigits}`;
+    }
+
     const activeCode = countryCode || "+91";
     return `${activeCode}${cleanDigits}`;
   }, [countryCode, phone]);
@@ -180,7 +199,13 @@ const PhoneInput = ({
       // Fallback
     }
 
-    const digits = val.replace(/\D/g, "");
+    // Fallback for partial numbers where parsePhoneNumber returns undefined
+    // Strip active country code digits so national number doesn't accidentally retain dial code
+    const activeCallingDigits = (countryCode || "+91").replace(/\D/g, "");
+    let digits = val.replace(/\D/g, "");
+    if (activeCallingDigits && digits.startsWith(activeCallingDigits)) {
+      digits = digits.slice(activeCallingDigits.length);
+    }
     if (onPhoneChange) {
       onPhoneChange(digits);
     }
@@ -207,15 +232,14 @@ const PhoneInput = ({
   return (
     <div className={`relative w-full ${className}`}>
       <div
-        className={`career-connect-phone-container flex items-center w-full px-3 py-1.5 rounded-xl bg-slate-50 border transition-all ${
+        className={`career-connect-phone-container flex items-center w-full min-h-[44px] px-3 py-1 rounded-xl bg-white border transition-all ${
           error
             ? "border-red-400 bg-red-50/20"
             : `border-slate-200 hover:border-slate-300 ${ringFocusClass}`
         } ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
       >
         <RPNInput
-          international
-          countryCallingCodeEditable={false}
+          international={false}
           defaultCountry="IN"
           country={currentCountry}
           onCountryChange={handleCountryChange}

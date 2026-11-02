@@ -1,10 +1,14 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import SupportTickets from "../../components/support/SupportTickets";
+import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
+import useLiveNotifications from "../../hooks/useLiveNotifications";
 import { getFresherDashboardData } from "../../services/fresherDashboardService";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { FEATURES } from "../../config/features";
 
 // Fresher Dashboard Components
 import FresherSidebar from "../../components/fresher-dashboard/FresherSidebar";
@@ -29,13 +33,16 @@ import StudentCoursesPage from "../courses/StudentCoursesPage";
 import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
 import CourseDetailsPage from "../courses/CourseDetailsPage";
 import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
+import NotificationInbox from "../../components/notifications/NotificationInbox";
 
 const FresherDashboard = () => {
-  const navigate = useNavigate();
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // Start on the tab named in ?tab= (email links open e.g. ?tab=applications).
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "dashboard");
+  useTabInUrl(activeTab, "dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
@@ -83,12 +90,6 @@ const FresherDashboard = () => {
     logout();
   };
 
-  const handleSearch = (term) => {
-    if (term.trim()) {
-      navigate(`/jobs?search=${encodeURIComponent(term.trim())}`);
-    }
-  };
-
   const handleSelectTab = (tab) => {
     setActiveTab(tab);
     if (tab === "internships") {
@@ -102,6 +103,8 @@ const FresherDashboard = () => {
     setMobileSidebarOpen(false);
   };
 
+  const inbox = useLiveNotifications(handleSelectTab);
+
   const handleApply = (item) => {
     setSelectedOpportunityForTailoring({
       _id: item._id || item.id,
@@ -109,12 +112,12 @@ const FresherDashboard = () => {
       title: item.title,
       company: item.company || item.companyName,
       companyName: item.company || item.companyName,
-      type: item.type || "Job",
+      type: item.type || null,
       opportunityType:
-        item.type?.toLowerCase().includes("intern") ? "Internship" : "Job",
+        `${item.opportunityType || ""} ${item.type || ""}`.toLowerCase().includes("intern") ? "Internship" : "Job",
       description: item.description || item.aboutRole || "",
       requirements: item.requirements || [],
-      skillsRequired: item.skillsRequired || item.skills || [],
+      skillsRequired: [item.skillsRequired, item.skills, item.requiredSkills].find((l) => Array.isArray(l) && l.length) || [],
     });
     setIsTailoredModalOpen(true);
   };
@@ -136,14 +139,16 @@ const FresherDashboard = () => {
   // ─── Derived data ──────────────────────────────────────────────────────
   const currentUser = dashboardData?.user || user;
   const profile = dashboardData?.profile || {};
-  const completion = dashboardData?.profileCompletion ?? 80;
+  const completion = dashboardData?.profileCompletion ?? 0;
+  // Only what the fresher actually set; empty values show as "not set" in the UI.
   const careerTarget = dashboardData?.careerTarget || {
-    targetRole: profile.targetRole || "Full Stack Developer",
-    jobType: "Full-time opportunities",
-    workMode: "Remote / Hybrid",
-    preferredLocations: ["Bangalore", "Pune", "Remote"],
-    careerGoal: "Get my first job",
+    targetRole: profile.targetRole || "",
+    jobType: "",
+    workMode: "",
+    preferredLocations: [],
+    careerGoal: "",
   };
+  const targetRoleLabel = careerTarget.targetRole || "your target role";
 
   const recommendedJobs = dashboardData?.recommendedJobs || [];
   const skillDev = dashboardData?.skillDevelopment || {
@@ -185,6 +190,7 @@ const FresherDashboard = () => {
         onLogout={handleLogout}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+        unreadNotifications={inbox.unreadCount}
       />
 
       {/* Main Content Area */}
@@ -197,9 +203,7 @@ const FresherDashboard = () => {
         <FresherNavbar
           user={currentUser}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onLogout={handleLogout}
-          onSearch={handleSearch}
         />
 
         {/* Workspace Body */}
@@ -228,21 +232,25 @@ const FresherDashboard = () => {
 
               {/* 2-Column: Skills & Career Recommendations */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <FresherSkillDevelopment
-                  userSkills={skillDev.userSkills}
-                  recommendedSkills={skillDev.recommendedSkills}
-                  targetRole={careerTarget.targetRole}
-                />
+                {FEATURES.courses && (
+                  <FresherSkillDevelopment
+                    userSkills={skillDev.userSkills}
+                    recommendedSkills={skillDev.recommendedSkills}
+                    targetRole={targetRoleLabel}
+                  />
+                )}
                 <FresherCareerRecommendations
                   recommendations={careerRecommendations}
                 />
               </div>
 
               {/* Recommended Courses */}
-              <FresherRecommendedCourses
-                courses={recommendedCourses}
-                targetRole={careerTarget.targetRole}
-              />
+              {FEATURES.courses && (
+                <FresherRecommendedCourses
+                  courses={recommendedCourses}
+                  targetRole={targetRoleLabel}
+                />
+              )}
 
               {/* 2-Column: Resume & Experience */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -319,8 +327,19 @@ const FresherDashboard = () => {
             </div>
           )}
 
+          {/* ==================== NOTIFICATIONS ==================== */}
+          {activeTab === "notifications" && (
+            <NotificationInbox
+              notifications={inbox.notifications}
+              unreadCount={inbox.unreadCount}
+              onNotificationClick={inbox.open}
+              onMarkAllRead={inbox.markAllRead}
+              onDeleteNotification={inbox.remove}
+            />
+          )}
+
           {/* ==================== COURSES ==================== */}
-          {activeTab === "courses" && (
+          {activeTab === "courses" && FEATURES.courses && (
             <div className="animate-fade-in">
               {coursesView === "catalog" && (
                 <StudentCoursesPage
@@ -352,18 +371,20 @@ const FresherDashboard = () => {
           )}
 
           {/* ==================== SKILLS ==================== */}
-          {activeTab === "skills" && (
+
+
+          {activeTab === "skills" && FEATURES.courses && (
             <div className="space-y-6 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Skill Development</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Your skill profile and gap analysis for {careerTarget.targetRole}
+                  Your skill profile and gap analysis for {targetRoleLabel}
                 </p>
               </div>
               <FresherSkillDevelopment
                 userSkills={skillDev.userSkills}
                 recommendedSkills={skillDev.recommendedSkills}
-                targetRole={careerTarget.targetRole}
+                targetRole={targetRoleLabel}
               />
             </div>
           )}
@@ -443,7 +464,7 @@ const FresherDashboard = () => {
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Career Recommendations</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  AI-powered career advice tailored for {careerTarget.targetRole}
+                  AI-powered career advice tailored for {targetRoleLabel}
                 </p>
               </div>
               <FresherCareerRecommendations
@@ -466,6 +487,9 @@ const FresherDashboard = () => {
               </div>
             </div>
           )}
+
+          {/* ================= HELP & SUPPORT ================= */}
+          {activeTab === "support" && <SupportTickets />}
 
           {/* ==================== CERTIFICATIONS ==================== */}
           {activeTab === "certifications" && (
@@ -496,12 +520,15 @@ const FresherDashboard = () => {
                     <p className="text-xs text-slate-500 max-w-sm mx-auto">
                       Certifications from Coursera, Google, or AWS can increase your profile views by 3×.
                     </p>
+                     
+                     {FEATURES.courses && (
                     <a
                       href="/courses"
                       className="inline-block mt-2 px-5 py-2 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold hover:bg-[#1e40af] transition shadow-sm"
                     >
                       Browse Certification Courses
                     </a>
+                     )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -525,6 +525,9 @@ studentProfileSchema.index({
   technicalSkills: 1,
 });
 
+// Resume file cleanup checks whether this still uses a resume file
+studentProfileSchema.index({ "resume.resumeUrl": 1 });
+
 module.exports = mongoose.model(
   "StudentProfile",
   studentProfileSchema

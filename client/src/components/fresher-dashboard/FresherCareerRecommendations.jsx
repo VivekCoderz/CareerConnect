@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { FEATURES } from "../../config/features";
 
 const FresherCareerRecommendations = ({ recommendations = [] }) => {
   const STATIC_FALLBACK = [
@@ -56,8 +57,13 @@ const FresherCareerRecommendations = ({ recommendations = [] }) => {
     profile: "bg-slate-50 border-slate-200 text-slate-800",
   };
 
-  const displayItems =
+    const baseItems =
     recommendations.length > 0 ? recommendations : STATIC_FALLBACK;
+
+  // Courses feature off hone par course-type recommendations hide karo
+  const displayItems = FEATURES.courses
+    ? baseItems
+    : baseItems.filter((rec) => rec.type !== "course");
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">

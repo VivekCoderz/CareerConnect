@@ -19,9 +19,9 @@ const CurrentEmployment = ({ currentEmployment = {}, onChange }) => {
   const [formData, setFormData] = useState({
     company: currentEmployment?.company || "",
     jobTitle: currentEmployment?.jobTitle || "",
-    department: currentEmployment?.department || "Engineering",
+    department: currentEmployment?.department || "",
     employmentType: currentEmployment?.employmentType || "Full-time",
-    industry: currentEmployment?.industry || "Information Technology & Services",
+    industry: currentEmployment?.industry || "",
     location: currentEmployment?.location || "",
     workMode: currentEmployment?.workMode || "Hybrid",
     joiningDate: currentEmployment?.joiningDate ? currentEmployment.joiningDate.split("T")[0] : "",
@@ -96,6 +96,7 @@ const CurrentEmployment = ({ currentEmployment = {}, onChange }) => {
             onChange={(e) => handleFieldChange("industry", e.target.value)}
             className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-indigo-500"
           >
+            <option value="">Select industry</option>
             {INDUSTRIES.map((ind) => (
               <option key={ind} value={ind}>
                 {ind}

@@ -647,3 +647,48 @@ CAREER
 ### CareerConnect
 
 **Discover → Learn → Build → Apply → Grow 🚀**
+
+
+
+## Hosting & Service Plans
+
+CareerConnect uses the following services for production hosting, database,
+media storage, and email communication.
+
+| Service | Plan | Production Details |
+|---|---|---|
+| **Render** | Free | Backend hosting with sleep/cold-start behavior |
+| **MongoDB Atlas** | Free | Free database cluster |
+| **Cloudinary** | Free | Media and file storage |
+| **Brevo** | Free | Email service with a limit of 300 emails/day |
+
+### Production Backend Deployment
+
+- **Platform:** Render
+- **Backend Service:** CareerConnect
+- **Runtime:** Node.js
+- **Deployed Branch:** `main`
+- **Auto Deploy:** Enabled
+- **Sleep / Cold Start:** Enabled
+- **Production Environment:** Render Production
+
+### Database
+
+- **Service:** MongoDB Atlas
+- **Plan:** Free
+- **Usage:** Production database for CareerConnect
+
+### Media Storage
+
+- **Service:** Cloudinary
+- **Plan:** Free
+- **Usage:** Image/media storage and management
+
+### Email Service
+
+- **Service:** Brevo
+- **Plan:** Free
+- **Email Limit:** 300 emails per day
+
+> **Note:** Service limits and quotas are subject to change according to
+> the respective provider's current free-tier policies.

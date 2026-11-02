@@ -78,7 +78,7 @@ const CourseRecommendationsCard = ({
                     {crs.title}
                   </h3>
                   <p className="text-xs text-slate-500 line-clamp-2">
-                    {crs.description || `${crs.provider || "CareerConnect"} • ${crs.duration || "Self-Paced"}`}
+                    {crs.description || `${crs.provider || "E2Job"} • ${crs.duration || "Self-Paced"}`}
                   </p>
 
                   {(crs.skillsCovered || crs.skills) && (

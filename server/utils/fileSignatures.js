@@ -1,18 +1,12 @@
 const isPdf = (buffer) => buffer?.subarray(0, 5).toString("ascii") === "%PDF-";
-const isDoc = (buffer) => buffer?.subarray(0, 8).equals(Buffer.from("d0cf11e0a1b11ae1", "hex"));
-const isDocx = (buffer) =>
-  buffer?.subarray(0, 4).equals(Buffer.from("504b0304", "hex")) &&
-  buffer.includes(Buffer.from("[Content_Types].xml")) &&
-  buffer.includes(Buffer.from("word/document.xml"));
 const isMp4 = (buffer) => buffer?.subarray(4, 8).toString("ascii") === "ftyp";
 const isWebm = (buffer) => buffer?.subarray(0, 4).equals(Buffer.from("1a45dfa3", "hex"));
 
+// Resumes are PDF only (G10): the content must really be a PDF, whatever the name says.
 const isResumeFile = (file) => {
   const name = (file?.originalname || "").toLowerCase();
   const buffer = file?.buffer;
   if (name.endsWith(".pdf")) return isPdf(buffer);
-  if (name.endsWith(".docx")) return isDocx(buffer);
-  if (name.endsWith(".doc")) return isDoc(buffer);
   return false;
 };
 

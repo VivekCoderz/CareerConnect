@@ -2,9 +2,11 @@ const mongoose = require("mongoose");
 const Notification = require("../models/Notification");
 const NotificationUserState = require("../models/NotificationUserState");
 const NotificationReadCursor = require("../models/NotificationReadCursor");
-const { registerSseClient, seedWelcomeNotificationsIfEmpty } = require("../services/notificationService");
+const { registerSseClient } = require("../services/notificationService");
 
 const accessible = (userId) => ({ $or: [{ recipient: userId }, { recipient: null }] });
+// AI bot mails (the old welcome mail and "AI picks") are no longer shown in the inbox.
+const NOT_AI = { senderRole: { $ne: "ai" }, category: { $ne: "ai_recommendation" } };
 const notFound = (res) => res.status(404).json({ success: false, message: "Notification not found." });
 
 const loadAccessible = (id, userId) => {
@@ -39,13 +41,12 @@ const markBroadcastRead = async (notification, userId) => {
 exports.getNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
-    await seedWelcomeNotificationsIfEmpty(userId);
     const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
     const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit, 10) || 20));
     const cursor = await NotificationReadCursor.findOne({ userId }).lean();
     const cutoff = cursor?.broadcastReadBefore || new Date(0);
     const pipeline = [
-      { $match: accessible(userId) },
+      { $match: { ...accessible(userId), ...NOT_AI } },
       { $lookup: {
         from: NotificationUserState.collection.name,
         let: { notificationId: "$_id" },

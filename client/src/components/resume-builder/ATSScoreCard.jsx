@@ -5,7 +5,8 @@ import React from "react";
  * Shows circular progress, weighted score breakdown (2x must-have vs 1x nice-to-have), matched keywords (green), missing keywords (amber)
  */
 const ATSScoreCard = ({
-  atsScore = 0,
+  atsScore = null,
+  scoreUnavailableReason = "",
   matchedKeywords = [],
   missingKeywords = [],
   targetRole = "",
@@ -13,10 +14,13 @@ const ATSScoreCard = ({
   scoreBreakdown = null,
   honestSuggestions = [],
 }) => {
-  const score = Math.min(100, Math.max(0, Math.round(atsScore)));
+  // The server returns null when it can't compute a real score; never show a made-up number.
+  const hasScore = typeof atsScore === "number" && Number.isFinite(atsScore);
+  const score = hasScore ? Math.min(100, Math.max(0, Math.round(atsScore))) : 0;
 
-  const scoreColor =
-    score >= 80
+  const scoreColor = !hasScore
+    ? { ring: "#cbd5e1", bg: "bg-slate-50", text: "text-slate-600", label: "Score unavailable", border: "border-slate-200" }
+    : score >= 80
       ? { ring: "#22c55e", bg: "bg-emerald-50", text: "text-emerald-700", label: "Excellent ATS Match", border: "border-emerald-200" }
       : score >= 60
       ? { ring: "#f59e0b", bg: "bg-amber-50", text: "text-amber-700", label: "Good ATS Match", border: "border-amber-200" }
@@ -80,8 +84,14 @@ const ATSScoreCard = ({
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-black text-slate-800">{score}%</span>
-                <span className="text-[10px] font-semibold text-slate-400">ATS Score</span>
+                {hasScore ? (
+                  <>
+                    <span className="text-2xl font-black text-slate-800">{score}%</span>
+                    <span className="text-[10px] font-semibold text-slate-400">ATS Score</span>
+                  </>
+                ) : (
+                  <span className="px-2 text-center text-xs font-bold text-slate-500">Score unavailable</span>
+                )}
               </div>
             </div>
             <div
@@ -89,6 +99,9 @@ const ATSScoreCard = ({
             >
               {scoreColor.label}
             </div>
+            {!hasScore && scoreUnavailableReason && (
+              <p className="mt-2 max-w-[11rem] text-center text-[11px] text-slate-500">{scoreUnavailableReason}</p>
+            )}
           </div>
 
           {/* Keywords & Breakdown */}

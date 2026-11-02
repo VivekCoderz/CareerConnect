@@ -1,11 +1,68 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
-import React, { useState, useEffect, useMemo } from "react";
+import { FEATURES } from "../../config/features";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import jobService from "../../services/jobService";
-import { applyOpportunity, saveOpportunity } from "../../services/studentDashboardService";
+import { saveOpportunity } from "../../services/studentDashboardService";
+import { applyToOpportunity } from "../../utils/opportunityApply";
+import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
+import ViewDetailsButton from "../../components/common/ViewDetailsButton";
+import useSeo from "../../hooks/useSeo";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
+import BrandLogo from "../../components/common/BrandLogo";
+import { getDashboardPath } from "../../utils/dashboardRedirect";
+
+const CATEGORIES_LIST = [
+  "Software Development",
+  "Data Science",
+  "Machine Learning & AI",
+  "Web Development",
+  "DevOps & Cloud",
+  "UI/UX Design",
+  "Digital Marketing",
+  "Finance & Accounting",
+  "Human Resources (HR)",
+  "Sales & Business Dev",
+];
+
+const CITIES_LIST = [
+  "All",
+  "Bangalore",
+  "Delhi NCR",
+  "Mumbai",
+  "Hyderabad",
+  "Pune",
+  "Chennai",
+  "Remote",
+];
+
+const normalizeCity = (param) => {
+  if (!param) return "All";
+  const cleaned = param.replace(/-/g, " ").trim().toLowerCase();
+  const matched = CITIES_LIST.find(
+    (c) => c.toLowerCase() === cleaned || c.toLowerCase().includes(cleaned) || cleaned.includes(c.toLowerCase())
+  );
+  if (matched) return matched;
+  return cleaned
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+};
+
+const normalizeCategory = (param) => {
+  if (!param) return "All";
+  const cleaned = param.replace(/-/g, " ").trim().toLowerCase();
+  const matched = CATEGORIES_LIST.find(
+    (c) => c.toLowerCase() === cleaned || c.toLowerCase().includes(cleaned) || cleaned.includes(c.toLowerCase())
+  );
+  if (matched) return matched;
+  return cleaned
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+};
 
 const JobDiscoveryPage = () => {
   const { city: cityParam, category: categoryParam } = useParams();
@@ -29,8 +86,10 @@ const JobDiscoveryPage = () => {
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCity, setSelectedCity] = useState(cityParam ? cityParam.replace(/-/g, " ") : "All");
-  const [selectedCategory, setSelectedCategory] = useState(categoryParam ? categoryParam.replace(/-/g, " ") : "All");
+  // The search actually applied (on submit), so paging never picks up unsubmitted text.
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [selectedCity, setSelectedCity] = useState(cityParam ? normalizeCity(cityParam) : "All");
+  const [selectedCategory, setSelectedCategory] = useState(categoryParam ? normalizeCategory(categoryParam) : "All");
   const [selectedWorkMode, setSelectedWorkMode] = useState(isWorkFromHome ? "Remote" : "All");
   const [selectedEmpType, setSelectedEmpType] = useState("All");
   const [sortBy, setSortBy] = useState("latest");
@@ -40,19 +99,27 @@ const JobDiscoveryPage = () => {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Sync state when URL params change
+  // Sync state when URL params change. The dropdowns navigate with fromFilters so the
+  // other filters stay applied (a city route has no category and vice versa); menu
+  // links and typed URLs start from the URL alone.
+  const fromFilters = Boolean(location.state?.fromFilters);
   useEffect(() => {
-    if (cityParam) setSelectedCity(cityParam.replace(/-/g, " "));
-    else if (!pathname.includes("/in/")) setSelectedCity("All");
+    if (cityParam) setSelectedCity(normalizeCity(cityParam));
+    else if (!pathname.includes("/in/") && !fromFilters) setSelectedCity("All");
 
-    if (categoryParam) setSelectedCategory(categoryParam.replace(/-/g, " "));
-    else if (!pathname.includes("/category/")) setSelectedCategory("All");
+    if (categoryParam) setSelectedCategory(normalizeCategory(categoryParam));
+    else if (!pathname.includes("/category/") && !fromFilters) setSelectedCategory("All");
 
     if (isWorkFromHome) setSelectedWorkMode("Remote");
-  }, [pathname, cityParam, categoryParam, isWorkFromHome]);
+  }, [pathname, cityParam, categoryParam, isWorkFromHome, fromFilters]);
+
+  // Only the latest request may update the list, so a slow older response can't
+  // replace results for newer filters or another page.
+  const latestRequest = useRef(0);
 
   // Fetch Jobs
   const fetchJobs = async (pageToFetch = currentPage) => {
+    const requestId = ++latestRequest.current;
     try {
       setLoading(true);
       const params = {
@@ -61,13 +128,14 @@ const JobDiscoveryPage = () => {
         limit: 10,
       };
 
-      if (searchQuery.trim()) params.search = searchQuery.trim();
+      if (appliedSearch) params.search = appliedSearch;
       if (selectedCity !== "All") params.city = selectedCity;
       if (selectedCategory !== "All") params.category = selectedCategory;
       if (selectedWorkMode !== "All") params.workMode = selectedWorkMode;
       if (selectedEmpType !== "All") params.employmentType = selectedEmpType;
 
       const res = await jobService.getJobs(params);
+      if (requestId !== latestRequest.current) return;
       if (res?.success) {
         const jobList = res.jobs || res.data || [];
         setJobs(jobList);
@@ -76,19 +144,20 @@ const JobDiscoveryPage = () => {
         setTotalPages(res.pagination?.totalPages || Math.ceil(total / 10) || 1);
       }
     } catch (err) {
+      if (requestId !== latestRequest.current) return;
       console.error("Failed to load jobs:", err);
       setJobs([]);
       setTotalCount(0);
       setTotalPages(1);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     setCurrentPage(1);
     fetchJobs(1);
-  }, [selectedCity, selectedCategory, selectedWorkMode, selectedEmpType, sortBy]);
+  }, [appliedSearch, selectedCity, selectedCategory, selectedWorkMode, selectedEmpType, sortBy]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
@@ -100,8 +169,22 @@ const JobDiscoveryPage = () => {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    setCurrentPage(1);
-    fetchJobs(1);
+    const term = searchQuery.trim();
+    if (term !== appliedSearch) {
+      setAppliedSearch(term); // the filter effect refetches page 1
+    } else {
+      setCurrentPage(1);
+      fetchJobs(1);
+    }
+  };
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setAppliedSearch("");
+    setSelectedCity("All");
+    setSelectedCategory("All");
+    setSelectedWorkMode("All");
+    setSelectedEmpType("All");
   };
 
   // Quick Apply
@@ -112,13 +195,11 @@ const JobDiscoveryPage = () => {
     }
 
     try {
-      const res = await applyOpportunity({
-        opportunityId: jobItem._id || jobItem.id,
-        jobId: jobItem._id || jobItem.id,
-        title: jobItem.title,
-        company: jobItem.company || jobItem.companyName,
-        type: "Job",
-      });
+      const res = await applyToOpportunity(jobItem, "Job");
+      if (res.external) {
+        if (!res.opened) showToast("This listing has no apply link.", "error");
+        return;
+      }
 
       if (res?.success) {
         showToast(res.message || `Application submitted for "${jobItem.title}"!`, "success");
@@ -160,29 +241,11 @@ const JobDiscoveryPage = () => {
     return "Explore All Jobs & Openings";
   }, [isWorkFromHome, isLatest, cityParam, categoryParam]);
 
-  const categoriesList = [
-    "Software Development",
-    "Data Science",
-    "Machine Learning & AI",
-    "Web Development",
-    "DevOps & Cloud",
-    "UI/UX Design",
-    "Digital Marketing",
-    "Finance & Accounting",
-    "Human Resources (HR)",
-    "Sales & Business Dev",
-  ];
-
-  const citiesList = [
-    "All",
-    "Bangalore",
-    "Delhi NCR",
-    "Mumbai",
-    "Hyderabad",
-    "Pune",
-    "Chennai",
-    "Remote",
-  ];
+  useSeo({
+    title: pageHeading === "Explore All Jobs & Openings" ? "Jobs for freshers and students in India" : pageHeading,
+    description: `${pageHeading} on E2Job: verified openings from real employers in India. Apply free and track every application. Employers never charge candidates.`,
+    path: pathname,
+  });
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col text-slate-800">
@@ -204,17 +267,7 @@ const JobDiscoveryPage = () => {
       <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center gap-4">
           <Link to="/home" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-              CC
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-                CAREERCONNECT
-              </h1>
-              <p className="text-[10px] text-blue-600 font-bold tracking-wide uppercase mt-0.5">
-                CareerConnect · Jobs Hub
-              </p>
-            </div>
+            <BrandLogo markOnly className="h-8 w-10 sm:hidden" /><BrandLogo className="hidden h-8 w-36 sm:block" />
           </Link>
 
           <div className="hidden sm:flex items-center gap-2 ml-3">
@@ -256,6 +309,17 @@ const JobDiscoveryPage = () => {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1 space-y-6">
+        {/* Signed-in users get a way back to their own dashboard; visitors have none. */}
+        {user && (
+          <Link
+            to={getDashboardPath(user.userType || user.role, user)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition shadow-2xs"
+          >
+            <span aria-hidden="true">←</span>
+            <span>Back to Dashboard</span>
+          </Link>
+        )}
+
         {/* Banner */}
         <div className="rounded-3xl bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#2563eb] text-white p-6 sm:p-10 relative overflow-hidden shadow-lg">
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-400/15 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
@@ -269,7 +333,7 @@ const JobDiscoveryPage = () => {
               {pageHeading}
             </h2>
             <p className="text-sm text-blue-100/90 leading-relaxed">
-              Discover verified full-time and fresher job openings from partner employers, LinkedIn, Remotive, and Arbeitnow.
+              Full-time and fresher openings from employers on E2Job, plus remote roles from top job boards.
             </p>
           </div>
         </div>
@@ -305,11 +369,19 @@ const JobDiscoveryPage = () => {
               </label>
               <select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCategory(val);
+                  if (val === "All") {
+                    if (pathname.includes("/category/")) navigate("/jobs", { state: { fromFilters: true } });
+                  } else {
+                    navigate(`/jobs/category/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, { state: { fromFilters: true } });
+                  }
+                }}
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:border-blue-500"
               >
                 <option value="All">All Categories</option>
-                {categoriesList.map((c) => (
+                {CATEGORIES_LIST.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -323,10 +395,18 @@ const JobDiscoveryPage = () => {
               </label>
               <select
                 value={selectedCity}
-                onChange={(e) => setSelectedCity(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCity(val);
+                  if (val === "All") {
+                    if (pathname.includes("/in/")) navigate("/jobs", { state: { fromFilters: true } });
+                  } else {
+                    navigate(`/jobs/in/${val.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, { state: { fromFilters: true } });
+                  }
+                }}
                 className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:border-blue-500"
               >
-                {citiesList.map((c) => (
+                {CITIES_LIST.map((c) => (
                   <option key={c} value={c}>
                     {c === "All" ? "All Locations" : c}
                   </option>
@@ -346,7 +426,8 @@ const JobDiscoveryPage = () => {
                 <option value="All">All Modes</option>
                 <option value="Remote">Remote / WFH</option>
                 <option value="Hybrid">Hybrid</option>
-                <option value="On-Site">On-Site</option>
+                {/* Must match the Job.workMode value ("On-site"); the API matches it exactly. */}
+                <option value="On-site">On-Site</option>
               </select>
             </div>
 
@@ -385,8 +466,11 @@ const JobDiscoveryPage = () => {
           <div className="space-y-4">
             {jobs.map((jobItem) => {
               const isSaved = savedIds.includes(jobItem.id || jobItem._id);
-              const compName = jobItem.employerId?.companyName || jobItem.company || jobItem.companyName || "Partner Employer";
-              const salaryStr = jobItem.salary || (jobItem.salaryRange?.min ? `₹${(jobItem.salaryRange.min / 100000).toFixed(1)}L - ₹${(jobItem.salaryRange.max / 100000).toFixed(1)}L / yr` : "Competitive Package");
+              const compName = jobItem.employerId?.companyName || jobItem.company || jobItem.companyName;
+              // The server formats salary; missing salary stays hidden.
+              const salaryStr = jobItem.salary;
+              const employmentType = jobItem.employmentType || jobItem.type;
+              const jobSkills = [jobItem.requiredSkills, jobItem.skillsRequired, jobItem.skills].find((l) => Array.isArray(l) && l.length) || [];
 
               return (
                 <div
@@ -397,16 +481,24 @@ const JobDiscoveryPage = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       {jobItem.platformSource && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200">
-                          {jobItem.platformSource}
+                          {jobItem.platformSource === "CareerConnect" ? "E2Job" : jobItem.platformSource}
                         </span>
                       )}
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                        {jobItem.employmentType || "Full-Time"}
-                      </span>
-                      <h3 className="text-base font-bold text-slate-900">{jobItem.title}</h3>
-                      <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
-                        {jobItem.workMode}
-                      </span>
+                      {employmentType && (
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                          {employmentType}
+                        </span>
+                      )}
+                      <h3 className="text-base font-bold text-slate-900">
+                        <OpportunityTitleLink item={jobItem} type="Job" className="hover:text-blue-700 hover:underline">
+                          {jobItem.title}
+                        </OpportunityTitleLink>
+                      </h3>
+                      {jobItem.workMode && (
+                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
+                          {jobItem.workMode}
+                        </span>
+                      )}
                       {jobItem.category && (
                         <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
                           {jobItem.category}
@@ -414,20 +506,28 @@ const JobDiscoveryPage = () => {
                       )}
                     </div>
 
-                    <p className="text-xs font-medium text-slate-600">
-                      <span className="font-bold text-slate-900">{compName}</span> • 📍 {jobItem.location || "Multiple Locations"}
-                    </p>
+                    {(compName || jobItem.location) && (
+                      <p className="text-xs font-medium text-slate-600">
+                        {compName && <span className="font-bold text-slate-900">{compName}</span>}
+                        {compName && jobItem.location ? " • " : ""}
+                        {jobItem.location && <>📍 {jobItem.location}</>}
+                      </p>
+                    )}
 
-                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-100">
-                        {salaryStr}
-                      </span>
-                      {jobItem.postedAt && <span>• Posted: {jobItem.postedAt}</span>}
-                    </div>
+                    {(salaryStr || jobItem.postedAt) && (
+                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                        {salaryStr && (
+                          <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-100">
+                            {salaryStr}
+                          </span>
+                        )}
+                        {jobItem.postedAt && <span>{salaryStr ? "• " : ""}Posted: {jobItem.postedAt}</span>}
+                      </div>
+                    )}
 
-                    {jobItem.requiredSkills && jobItem.requiredSkills.length > 0 && (
+                    {jobSkills.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-1">
-                        {jobItem.requiredSkills.map((skill, sIdx) => (
+                        {jobSkills.map((skill, sIdx) => (
                           <span
                             key={sIdx}
                             className="px-2 py-0.5 bg-slate-50 text-slate-700 text-[10.5px] font-medium rounded-md border border-slate-200"
@@ -441,17 +541,22 @@ const JobDiscoveryPage = () => {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-                    <button
-                      onClick={() => handleSaveToggle(jobItem)}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
-                        isSaved
-                          ? "bg-amber-50 border-amber-300 text-amber-600"
-                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                      title={isSaved ? "Saved" : "Save Job"}
-                    >
-                      {isSaved ? "★ Saved" : "☆ Save"}
-                    </button>
+                    {/* Saving isn't stored yet (/api/student/save returns 501) */}
+                    {FEATURES.savedJobs && (
+                      <button
+                        onClick={() => handleSaveToggle(jobItem)}
+                        className={`p-2.5 rounded-xl border text-xs font-semibold transition ${
+                          isSaved
+                            ? "bg-amber-50 border-amber-300 text-amber-600"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                        }`}
+                        title={isSaved ? "Saved" : "Save Job"}
+                      >
+                        {isSaved ? "★ Saved" : "☆ Save"}
+                      </button>
+                    )}
+
+                    <ViewDetailsButton item={jobItem} type="Job" />
 
                     {jobItem.applyLink ? (
                       <a
@@ -549,6 +654,7 @@ const JobDiscoveryPage = () => {
             <div className="pt-2">
               <Link
                 to="/jobs"
+                onClick={clearAllFilters}
                 className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-block shadow-xs transition"
               >
                 Explore All Jobs
