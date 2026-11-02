@@ -230,7 +230,7 @@ const FresherSidebar = ({
 
             {/* Settings */}
             <Link
-              to="/settings"
+              to="/account"
               onClick={onCloseMobile}
               title={collapsed ? "Settings" : undefined}
               className={`flex items-center ${
@@ -244,9 +244,16 @@ const FresherSidebar = ({
               {!collapsed && <span>Settings</span>}
             </Link>
 
+            {/* Same page as the "Help & Support" tab above; pages without tabs open it on the dashboard. */}
             <Link
-              to="/help"
-              onClick={onCloseMobile}
+              to="/fresher/dashboard?tab=support"
+              onClick={(event) => {
+                if (onSelectTab) {
+                  event.preventDefault();
+                  onSelectTab("support");
+                }
+                onCloseMobile();
+              }}
               title={collapsed ? "Help & Support" : undefined}
               className={`flex items-center ${
                 collapsed ? "justify-center px-2 py-2" : "gap-3 px-3.5 py-2"
