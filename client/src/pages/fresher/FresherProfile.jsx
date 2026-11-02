@@ -290,7 +290,13 @@ const FresherProfile = () => {
                 degree: e.degree || "",
                 specialization: e.specialization || "",
                 institution: e.institution || "",
-                startYear: e.startYear || "",
+                // Profiles made at signup before startYear was stored: the signup years
+                // are on the account, so use them for the same (highest) degree.
+                startYear:
+                  e.startYear ||
+                  (e.isHighest && user?.startYear && Number(e.graduationYear) === Number(user?.endYear)
+                    ? user.startYear
+                    : ""),
                 graduationYear: e.graduationYear || "",
                 percentageOrCgpa: e.percentageOrCgpa || "",
               }))
