@@ -15,6 +15,7 @@ const { validateEmail, maskEmail } = require("../services/emailValidationService
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
 const { deleteAccount } = require("../services/accountDeletion.js");
 const { CONSENT_REQUIRED, readConsent } = require("../utils/consent.js");
+const { FRESHER_EXPERIENCE_ERROR, isWorkExperienceAllowed } = require("../utils/workExperience.js");
 
 // ==========================================
 // PASSWORD VALIDATION & HELPERS
@@ -475,6 +476,11 @@ module.exports.registerUser = async (req, res, next) => {
 
     if (!["student", "fresher", "professional"].includes(resolvedUserType)) {
       resolvedUserType = "student";
+    }
+
+    // Checked before the email verification token is used up, so the user can fix it and resubmit.
+    if (!isWorkExperienceAllowed(resolvedUserType, workExperience || experienceYears || "0 years")) {
+      return res.status(400).json(FRESHER_EXPERIENCE_ERROR);
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -1849,6 +1855,10 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
 
     if (!["student", "fresher", "professional"].includes(resolvedUserType)) {
       resolvedUserType = "student";
+    }
+
+    if (!isWorkExperienceAllowed(resolvedUserType, workExperience || experienceYears || "0 years")) {
+      return res.status(400).json(FRESHER_EXPERIENCE_ERROR);
     }
 
     const endYearNum =
