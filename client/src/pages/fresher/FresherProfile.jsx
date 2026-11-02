@@ -59,6 +59,7 @@ const POPULAR_SOFT_SKILLS = [
 ];
 
 const TARGET_ROLE_OPTIONS = [
+  "Web Developer",
   "Software Developer",
   "Frontend Developer",
   "Backend Developer",
@@ -236,11 +237,10 @@ const FresherProfile = () => {
           }
 
           // Preferences
-          if (p.targetRoles && p.targetRoles.length > 0) {
-            setTargetRoles(p.targetRoles);
-          } else if (p.targetRole) {
-            setTargetRoles([p.targetRole]);
-          }
+          // Saved roles use the option's spelling, so "web developer" selects "Web Developer".
+          const savedRoles = p.targetRoles?.length ? p.targetRoles : [p.targetRole].filter(Boolean);
+          const asOption = (role) => TARGET_ROLE_OPTIONS.find((o) => o.toLowerCase() === role.trim().toLowerCase()) || role.trim();
+          if (savedRoles.length > 0) setTargetRoles([...new Set(savedRoles.map(asOption))]);
 
           if (p.jobPreferences?.employmentTypes?.length > 0) {
             const types = p.jobPreferences.employmentTypes;
@@ -1363,7 +1363,8 @@ const FresherProfile = () => {
                   <span className="text-xs text-slate-400">Selected: {targetRoles.length}</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                  {TARGET_ROLE_OPTIONS.map((role) => {
+                  {/* Roles saved at signup or on the dashboard show here too, even if not in the list. */}
+                  {[...TARGET_ROLE_OPTIONS, ...targetRoles.filter((r) => !TARGET_ROLE_OPTIONS.includes(r))].map((role) => {
                     const isSelected = targetRoles.includes(role);
                     return (
                       <button

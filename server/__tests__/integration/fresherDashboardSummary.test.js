@@ -23,9 +23,34 @@ describe("signup interests become dashboard preferences", () => {
   test("interest names map to a role, anything else is tech stack", () => {
     expect(interestsToPreferences(["Full Stack (MERN/Java)", "MERN", "mern"])).toEqual({
       targetRole: "Full Stack Developer",
+      targetRoles: ["Full Stack Developer"],
       techStack: ["MERN"],
     });
     expect(interestsToPreferences(["Full Stack", "MERN"]).targetRole).toBe("Full Stack Developer");
+    // Every interest that names a role is kept, in the order picked.
+    expect(interestsToPreferences(["Web Development", "Full Stack (MERN/Java)"])).toMatchObject({
+      targetRole: "Web Developer",
+      targetRoles: ["Web Developer", "Full Stack Developer"],
+    });
+  });
+
+  test("a fresher saved with one role gets the other roles from their interests, once", async () => {
+    const fresher = await createFresher({ interests: ["Web Development", "Full Stack (MERN/Java)"] });
+    await FresherProfile.collection.insertOne({
+      userId: fresher.user._id,
+      preferences: { targetRole: "Web Developer", techStack: ["MERN"], jobType: "", location: "" },
+      preferencesSyncedAt: new Date(),
+    });
+
+    const { data } = (await summary(fresher).expect(200)).body;
+    expect(data.preferences.targetRoles).toEqual(["Web Developer", "Full Stack Developer"]);
+    const profile = await FresherProfile.findOne({ userId: fresher.user._id }).lean();
+    expect(profile.targetRoles).toEqual(["Web Developer", "Full Stack Developer"]);
+
+    // Removing a role sticks: it isn't filled back in from the interests.
+    await savePreferences(fresher, { targetRoles: ["Full Stack Developer"] }).expect(200);
+    const after = (await summary(fresher).expect(200)).body.data.preferences;
+    expect(after).toMatchObject({ targetRole: "Full Stack Developer", targetRoles: ["Full Stack Developer"] });
   });
 
   test("a fresher whose role was only saved as signup interests sees it (not 'Not set yet')", async () => {
@@ -36,6 +61,7 @@ describe("signup interests become dashboard preferences", () => {
     expect(res.body.data.firstName).toBe("Asha");
     expect(res.body.data.preferences).toEqual({
       targetRole: "Full Stack Developer",
+      targetRoles: ["Full Stack Developer"],
       techStack: ["MERN"],
       jobType: "",
       location: "",
@@ -145,8 +171,24 @@ describe("saving preferences", () => {
     }).expect(200);
     const { data } = (await summary(fresher).expect(200)).body;
     expect(data.preferences).toEqual({
-      targetRole: "Backend Developer", techStack: ["React", "Tailwind"], jobType: "Part-time", location: "Pune",
+      targetRole: "Backend Developer", targetRoles: ["Backend Developer"], techStack: ["React", "Tailwind"], jobType: "Part-time", location: "Pune",
     });
+  });
+
+  test("several target roles: first is targetRole, old fields follow, and removed ones go", async () => {
+    const fresher = await createFresher();
+    const res = await savePreferences(fresher, {
+      targetRoles: ["Web Developer", " Full Stack Developer ", "web developer"],
+    }).expect(200);
+    expect(res.body.profile.preferences).toMatchObject({
+      targetRole: "Web Developer", targetRoles: ["Web Developer", "Full Stack Developer"],
+    });
+    expect(res.body.profile.targetRoles).toEqual(["Web Developer", "Full Stack Developer"]);
+    expect(res.body.profile.jobPreferences.preferredRoles).toEqual(["Web Developer", "Full Stack Developer"]);
+
+    const res2 = await savePreferences(fresher, { targetRoles: ["Full Stack Developer"] }).expect(200);
+    expect(res2.body.profile.targetRole).toBe("Full Stack Developer");
+    expect(res2.body.profile.targetRoles).toEqual(["Full Stack Developer"]);
   });
 
   test("an unknown job type is not saved", async () => {
@@ -173,6 +215,11 @@ describe("GET /api/jobs/recommended", () => {
       title: "MERN Full Stack Developer", requiredSkills: ["React", "Node.js", "MongoDB", "SQL"], createdAt: daysAgo(3),
     });
     const skillsOnly = await createTestJob(employer.user._id, {
+      title: "Software Engineer", requiredSkills: ["SQL", "Express", "React", "MongoDB"], employmentType: "Internship",
+      location: "Delhi", city: "Delhi", workMode: "On-site",
+    });
+    // Only two Full Stack skills (SQL isn't one), so not for this fresher.
+    await createTestJob(employer.user._id, {
       title: "Data Engineer", requiredSkills: ["SQL", "Express", "React"], employmentType: "Internship", location: "Delhi", city: "Delhi",
       workMode: "On-site",
     });
@@ -186,11 +233,48 @@ describe("GET /api/jobs/recommended", () => {
     const res = await recommended(fresher).expect(200);
     const { jobs, noPreferences, total } = res.body.data;
     expect(noPreferences).toBe(false);
-    expect(total).toBe(2); // the accountant job doesn't match; the junior job isn't fresher-eligible
+    expect(total).toBe(2); // data engineer and accountant aren't the role; the junior job isn't fresher-eligible
     expect(jobs[0]).toMatchObject({ id: String(best._id), matchScore: 100, hasApplied: false });
     expect(jobs[0].matchedSkills).toEqual(["React", "Node.js", "MongoDB", "SQL"]);
-    // Three skills (SQL from the profile, Express and React from MERN), nothing else.
+    // Skills cap at 30 (SQL from the profile; Express, React, MongoDB from MERN), nothing else.
     expect(jobs[1]).toMatchObject({ id: String(skillsOnly._id), matchScore: 30 });
+  });
+
+  test("only jobs for the fresher's role: job type, remote and generic skills don't make a match", async () => {
+    const fresher = await createFresher();
+    await FresherProfile.create({
+      userId: fresher.user._id,
+      skills: { programmingLanguages: [{ name: "C++" }, { name: "Java" }], technical: [{ name: "HTML" }, { name: "CSS" }, { name: "Git" }] },
+    });
+    await savePreferences(fresher, {
+      targetRole: "Web Developer", techStack: ["MERN"], jobType: "Full-time", location: "Panipat, Haryana",
+    }).expect(200);
+
+    const fullStack = await createTestJob(employer.user._id, { title: "Full-stack Developer (MERN)", workMode: "Remote", location: "Remote" });
+    const local = await createTestJob(employer.user._id, { title: "React Developer", location: "Panipat, Haryana", city: "Panipat" });
+    const remote = { workMode: "Remote", location: "Worldwide", city: "" };
+    await createTestJob(employer.user._id, { ...remote, title: "Remote Office Assistant", requiredSkills: ["CSS", "Excel", "Git", "HTML"] });
+    await createTestJob(employer.user._id, { ...remote, title: "Software Engineer, AI Coding Tasks", requiredSkills: ["C++", "Docker", "Git", "Java"] });
+    await createTestJob(employer.user._id, { ...remote, title: "Senior React Full-stack Developer" });
+
+    const { jobs, total } = (await recommended(fresher).expect(200)).body.data;
+    expect(total).toBe(2);
+    expect(jobs.map((j) => j.id)).toEqual([String(local._id), String(fullStack._id)]);
+    // Role 40 + React, JavaScript, HTML (cap 30) + Full-time 15 + Panipat 15.
+    expect(jobs[0].matchScore).toBe(100);
+    // A remote job doesn't get the location points when the fresher asked for Panipat.
+    expect(jobs[1].matchScore).toBe(85);
+  });
+
+  test("a job for any of the fresher's target roles matches", async () => {
+    const fresher = await createFresher();
+    await savePreferences(fresher, { targetRoles: ["Data Analyst", "QA Engineer"] }).expect(200);
+    const analyst = await createTestJob(employer.user._id, { title: "Data Analyst", requiredSkills: [] });
+    const qa = await createTestJob(employer.user._id, { title: "QA Engineer", requiredSkills: [] });
+    await createTestJob(employer.user._id, { title: "Graphic Designer", requiredSkills: [] });
+
+    const { jobs } = (await recommended(fresher).expect(200)).body.data;
+    expect(jobs.map((j) => j.id).sort()).toEqual([String(analyst._id), String(qa._id)].sort());
   });
 
   test("filter chips, paging, and the applied flag", async () => {
@@ -241,6 +325,39 @@ describe("profile views", () => {
   });
 });
 
+describe("GET /api/recommendations (career recommendations page)", () => {
+  test("recommends only jobs and internships for the fresher's chosen roles", async () => {
+    const employer = await createUserWithToken({ role: "employer", userType: "employer" });
+    const fresher = await createFresher({ interests: ["Web Development", "Full Stack (MERN/Java)"] });
+    await FresherProfile.create({
+      userId: fresher.user._id,
+      ...require("../../utils/fresherPreferences").signupPreferenceFields(["Web Development", "Full Stack (MERN/Java)"]),
+    });
+
+    const web = await createTestJob(employer.user._id, { title: "Frontend Developer" });
+    const fullStack = await createTestJob(employer.user._id, { title: "Full Stack Developer", requiredSkills: ["Java"] });
+    await createTestJob(employer.user._id, { title: "Accountant", requiredSkills: ["Tally"] });
+    await createTestJob(employer.user._id, { title: "Remote Office Assistant", requiredSkills: ["Excel", "HTML"] });
+    await createTestJob(employer.user._id, { title: "Senior React Developer" });
+
+    const res = await request(app).get("/api/recommendations").set(auth(fresher)).expect(200);
+    const ids = res.body.data.recommendedJobs.map((j) => String(j.id));
+    expect(ids.sort()).toEqual([String(web._id), String(fullStack._id)].sort());
+    const fullStackJob = res.body.data.recommendedJobs.find((j) => String(j.id) === String(fullStack._id));
+    expect(fullStackJob.reasons.join(" ")).toMatch(/target role "Full Stack Developer"/);
+  });
+
+  test("a fresher with no role or stack still sees jobs", async () => {
+    const employer = await createUserWithToken({ role: "employer", userType: "employer" });
+    const fresher = await createFresher();
+    await FresherProfile.create({ userId: fresher.user._id, preferencesSyncedAt: new Date() });
+    await createTestJob(employer.user._id, { title: "Accountant", requiredSkills: ["Tally"] });
+
+    const res = await request(app).get("/api/recommendations").set(auth(fresher)).expect(200);
+    expect(res.body.data.recommendedJobs).toHaveLength(1);
+  });
+});
+
 describe("migrate-fresher-preferences script", () => {
   test("fills preferences from old fields and interests, once", async () => {
     const legacy = await createFresher();
@@ -260,7 +377,9 @@ describe("migrate-fresher-preferences script", () => {
     const applied = await migrateFresherPreferences({ apply: true, log: () => {} });
     expect(applied.updated).toBe(2);
     const a = await FresherProfile.findOne({ userId: legacy.user._id }).lean();
-    expect(a.preferences).toEqual({ targetRole: "Data Analyst", techStack: [], jobType: "Internship", location: "Noida" });
+    expect(a.preferences).toEqual({
+      targetRole: "Data Analyst", targetRoles: ["Data Analyst"], techStack: [], jobType: "Internship", location: "Noida",
+    });
     const b = await FresherProfile.findOne({ userId: viaInterests.user._id }).lean();
     expect(b.preferences).toMatchObject({ targetRole: "DevOps Engineer", techStack: ["AWS"] });
     expect(b.targetRole).toBe("DevOps Engineer");
