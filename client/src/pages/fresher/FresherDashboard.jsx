@@ -8,6 +8,7 @@ import useLogout from "../../hooks/useLogout";
 import useLiveNotifications from "../../hooks/useLiveNotifications";
 import { getFresherDashboardData } from "../../services/fresherDashboardService";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { openExternalApply } from "../../utils/opportunityApply";
 import { FEATURES } from "../../config/features";
 
 // Fresher Dashboard Components
@@ -106,6 +107,12 @@ const FresherDashboard = () => {
   const inbox = useLiveNotifications(handleSelectTab);
 
   const handleApply = (item) => {
+    // External listings are applied to on the employer's site, not through E2Job.
+    const external = openExternalApply(item);
+    if (external) {
+      if (!external.opened) showToast("This listing has no apply link.", "error");
+      return;
+    }
     setSelectedOpportunityForTailoring({
       _id: item._id || item.id,
       id: item._id || item.id,
