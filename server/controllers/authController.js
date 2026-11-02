@@ -1,6 +1,7 @@
 const User = require("../models/User.js");
 const StudentProfile = require("../models/StudentProfile.js");
 const FresherProfile = require("../models/FresherProfile.js");
+const { signupPreferenceFields } = require("../utils/fresherPreferences");
 const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const jwt = require("jsonwebtoken");
 const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies.js");
@@ -601,6 +602,8 @@ module.exports.registerUser = async (req, res, next) => {
       } else if (resolvedUserType === "fresher") {
         await FresherProfile.create({
           userId: user._id,
+          // The role and stack the fresher picked as interests, under the keys the dashboard reads.
+          ...signupPreferenceFields(userData.interests),
           gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
             ? gender
             : "",
@@ -1963,6 +1966,7 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
         if (!existing) {
           await FresherProfile.create({
             userId,
+            ...signupPreferenceFields(updateData.interests),
             gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
               ? gender
               : "",

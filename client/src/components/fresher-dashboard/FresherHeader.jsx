@@ -1,76 +1,210 @@
 import { Link } from "react-router-dom";
+import { Briefcase, Clock, Layers, MapPin, Pencil, Plus, RotateCw } from "lucide-react";
 
-const FresherHeader = ({ user, careerTarget, profileCompletion = 0 }) => {
-  const firstName = user?.fullName ? user.fullName.split(" ")[0] : "Graduate";
-  // Show only what the fresher set; prompt them to fill in the rest.
-  const targetRole = careerTarget?.targetRole || "Not set yet";
-  const jobType = careerTarget?.jobType || "Not set yet";
-  const workMode = careerTarget?.workMode || "Not set yet";
+// Preference fields the banner shows as chips, in order. `label` is used in "+ Add {label}".
+const PREFERENCE_FIELDS = [
+  { field: "targetRole", label: "target role", icon: Briefcase },
+  { field: "techStack", label: "tech stack", icon: Layers },
+  { field: "jobType", label: "job type", icon: Clock },
+  { field: "location", label: "location", icon: MapPin },
+];
+const EDITABLE_FIELDS = new Set(PREFERENCE_FIELDS.map((f) => f.field));
 
+/** One chip per filled value (no two with the same text), and an "Add" chip per empty field. */
+const buildChips = (preferences = {}) => {
+  const seen = new Set();
+  const chips = [];
+  for (const { field, label, icon } of PREFERENCE_FIELDS) {
+    const raw = preferences[field];
+    const values = (Array.isArray(raw) ? raw : [raw]).map((v) => (v || "").trim()).filter(Boolean);
+    if (values.length === 0) {
+      chips.push({ key: `add-${field}`, field, label: `Add ${label}`, empty: true });
+      continue;
+    }
+    for (const value of values) {
+      const key = value.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      chips.push({ key: `${field}-${key}`, field, label: value, icon });
+    }
+  }
+  return chips;
+};
+
+const PreferenceChip = ({ chip, onClick }) => {
+  const Icon = chip.icon;
   return (
-    <div className="bg-gradient-to-r from-[#1e3a8a] via-[#1e40af] to-[#172554] rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden shadow-lg shadow-blue-950/10">
-      {/* Background ambient elements */}
-      <div className="absolute top-0 right-0 w-80 h-80 bg-[#f59e0b]/15 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-      <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+    <button
+      type="button"
+      onClick={() => onClick(chip.field)}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/20 ${
+        chip.empty ? "border border-dashed border-white/50 bg-transparent" : "border border-white/25 bg-white/10"
+      }`}
+    >
+      {chip.empty ? <Plus className="h-3.5 w-3.5" aria-hidden /> : <Icon className="h-3.5 w-3.5" aria-hidden />}
+      {chip.label}
+    </button>
+  );
+};
 
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[11px] font-semibold text-blue-100">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Fresher Career Hub
-          </div>
+const Stat = ({ label, children }) => (
+  <div className="min-w-0">
+    <p className="text-xs text-indigo-200">{label}</p>
+    <p className="mt-1 truncate text-2xl font-semibold text-white">{children}</p>
+  </div>
+);
 
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-white">
-            Hi, {firstName} 👋
-          </h1>
-          <p className="text-blue-100/90 text-sm max-w-xl leading-relaxed">
-            Take the next step toward your career. Your tailored jobs, skill benchmarks, and active recommendations are ready.
-          </p>
+const SkeletonBlock = ({ className }) => <div className={`rounded-lg bg-white/15 animate-pulse ${className}`} />;
 
-          {/* User's Career Target Pill */}
-          <div className="pt-2 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-xs border border-white/15 px-3.5 py-1.5 rounded-xl text-xs">
-              <span className="text-blue-200">Target Role:</span>
-              <span className="font-bold text-white">{targetRole}</span>
-            </div>
-
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-xs border border-white/15 px-3.5 py-1.5 rounded-xl text-xs">
-              <span className="text-blue-200">Looking for:</span>
-              <span className="font-semibold text-white">{jobType}</span>
-            </div>
-
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-xs border border-white/15 px-3.5 py-1.5 rounded-xl text-xs">
-              <span className="text-blue-200">Preferred:</span>
-              <span className="font-semibold text-white">{workMode}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right CTA Button */}
-        <div className="flex flex-col sm:flex-row md:flex-col items-start md:items-end justify-center gap-3 shrink-0">
-          <Link
-            to="/fresher/profile?step=5"
-            className="px-5 py-2.5 rounded-xl bg-white text-[#1e3a8a] hover:bg-blue-50 font-bold text-xs transition shadow-md shadow-black/10 flex items-center gap-2"
-          >
-            <svg className="w-4 h-4 text-[#1e3a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            Edit Preferences
-          </Link>
-
-          <Link
-            to="/fresher/profile"
-            className="text-xs text-blue-100 hover:text-white underline font-semibold flex items-center gap-1"
-          >
-            Profile Completion: {profileCompletion}% →
-          </Link>
-
-          <Link to="/account" className="text-xs text-blue-100 hover:text-white underline font-semibold">
-            Account settings
-          </Link>
+const HeaderSkeleton = () => (
+  <section className="rounded-2xl bg-[#1e3a8a] p-7 text-white" aria-busy="true" aria-label="Loading your dashboard">
+    <div className="flex flex-col gap-6 lg:flex-row lg:justify-between">
+      <div className="flex-1 space-y-4">
+        <SkeletonBlock className="h-6 w-40 rounded-full" />
+        <SkeletonBlock className="h-10 w-56" />
+        <SkeletonBlock className="h-4 w-full max-w-md" />
+        <div className="flex flex-wrap gap-2">
+          {["w-28", "w-20", "w-16", "w-24"].map((width) => (
+            <SkeletonBlock key={width} className={`h-8 ${width} rounded-full`} />
+          ))}
         </div>
       </div>
+      <SkeletonBlock className="h-44 w-full rounded-2xl lg:w-80" />
     </div>
+    <div className="mt-7 grid grid-cols-2 gap-4 border-t border-white/15 pt-6 md:grid-cols-4">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="space-y-2">
+          <SkeletonBlock className="h-3 w-20" />
+          <SkeletonBlock className="h-7 w-14" />
+        </div>
+      ))}
+    </div>
+  </section>
+);
+
+const FresherHeader = ({ summary, loading, error, onRetry, onEditPreferences }) => {
+  if (loading && !summary) return <HeaderSkeleton />;
+
+  if (!summary) {
+    return (
+      <section className="flex flex-col items-start gap-3 rounded-2xl bg-[#1e3a8a] p-7 text-white sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-indigo-100">{error || "Dashboard load nahi ho paya."}</p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[#1e3a8a] hover:bg-indigo-50"
+        >
+          <RotateCw className="h-4 w-4" aria-hidden />
+          Retry
+        </button>
+      </section>
+    );
+  }
+
+  const {
+    firstName,
+    preferences = {},
+    profileCompletion = 0,
+    nextStep,
+    nextStepHint,
+    matchedJobs,
+    newMatchedJobs,
+    applications,
+    skillScore,
+    skillScoreStatus,
+    profileViews,
+  } = summary;
+  const chips = buildChips(preferences);
+  const percent = Math.min(100, Math.max(0, profileCompletion));
+
+  return (
+    <section className="rounded-2xl bg-[#1e3a8a] p-7 text-white">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        {/* Left: greeting, match count, preference chips */}
+        <div className="min-w-0 flex-1">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-indigo-100">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+            Fresher career hub
+          </span>
+
+          <h1 className="mt-4 text-4xl font-semibold tracking-tight">
+            {firstName ? `Hi, ${firstName}` : "Hi"}
+          </h1>
+
+          <p className="mt-2 max-w-xl text-sm text-indigo-200 sm:text-base">
+            {preferences.targetRole
+              ? `${newMatchedJobs} naye jobs aapke ${preferences.targetRole} profile se match karte hain.`
+              : "Apni preferences set karo, hum aapke liye jobs dhoondhenge."}
+          </p>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            {chips.map((chip) => (
+              <PreferenceChip key={chip.key} chip={chip} onClick={onEditPreferences} />
+            ))}
+          </div>
+        </div>
+
+        {/* Right: profile strength */}
+        <div className="w-full shrink-0 rounded-2xl border border-white/10 bg-white/10 p-5 lg:w-80">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-indigo-100">Profile strength</span>
+            <span className="font-semibold">{percent}%</span>
+          </div>
+          <div
+            className="mt-3 h-2 overflow-hidden rounded-full bg-white/20"
+            role="progressbar"
+            aria-valuenow={percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Profile strength"
+          >
+            <div className="h-full rounded-full bg-[#5DCAA5] transition-all duration-500" style={{ width: `${percent}%` }} />
+          </div>
+
+          {nextStepHint &&
+            (EDITABLE_FIELDS.has(nextStep) ? (
+              <button
+                type="button"
+                onClick={() => onEditPreferences(nextStep)}
+                className="mt-3 text-left text-xs text-indigo-100 underline-offset-2 hover:underline"
+              >
+                {nextStepHint}
+              </button>
+            ) : (
+              <Link to="/fresher/profile" className="mt-3 block text-xs text-indigo-100 underline-offset-2 hover:underline">
+                {nextStepHint}
+              </Link>
+            ))}
+
+          <button
+            type="button"
+            onClick={() => onEditPreferences()}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1e3a8a] transition hover:bg-indigo-50"
+          >
+            <Pencil className="h-4 w-4" aria-hidden />
+            Edit preferences
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom: counts */}
+      <div className="mt-7 grid grid-cols-2 gap-4 border-t border-white/15 pt-6 md:grid-cols-4">
+        <Stat label="Matched jobs">{matchedJobs}</Stat>
+        <Stat label="Applications">{applications}</Stat>
+        <Stat label="Skill score">
+          {skillScore != null ? (
+            `${skillScore}/100`
+          ) : skillScoreStatus === "no_role" ? (
+            <button type="button" onClick={() => onEditPreferences("targetRole")} className="hover:underline">
+              Set role
+            </button>
+          ) : (
+            <span title="Is role ke liye skill benchmark abhi available nahi hai">—</span>
+          )}
+        </Stat>
+        <Stat label="Profile views">{profileViews}</Stat>
+      </div>
+    </section>
   );
 };
 

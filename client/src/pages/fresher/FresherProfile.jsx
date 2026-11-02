@@ -159,6 +159,8 @@ const FresherProfile = () => {
   // Career Preferences
   const [targetRoles, setTargetRoles] = useState([]);
   const [jobType, setJobType] = useState(""); // "Full Time", "Internship", "Both"; "" = not chosen
+  // Types this form has no option for (e.g. Part-time from the dashboard), kept on save.
+  const [otherEmploymentTypes, setOtherEmploymentTypes] = useState([]);
   const [workModes, setWorkModes] = useState([]);
   const [preferredLocations, setPreferredLocations] = useState([]);
   const [careerGoal, setCareerGoal] = useState("");
@@ -245,6 +247,7 @@ const FresherProfile = () => {
             if (types.includes("Full-time") && types.includes("Internship")) setJobType("Both");
             else if (types.includes("Full-time")) setJobType("Full Time");
             else if (types.includes("Internship")) setJobType("Internship");
+            setOtherEmploymentTypes(types.filter((t) => t !== "Full-time" && t !== "Internship"));
           }
 
           if (p.jobPreferences?.workMode?.length > 0) {
@@ -522,14 +525,16 @@ const FresherProfile = () => {
         primarySkills: primarySkills.length > 0 ? primarySkills : technicalSkills.slice(0, 3),
         jobPreferences: {
           preferredRoles: targetRoles,
-          employmentTypes:
-            jobType === "Both"
+          employmentTypes: [
+            ...(jobType === "Both"
               ? ["Full-time", "Internship"]
               : jobType === "Full Time"
                 ? ["Full-time"]
                 : jobType === "Internship"
                   ? ["Internship"]
-                  : [],
+                  : []),
+            ...otherEmploymentTypes,
+          ],
           preferredLocations,
           workMode: workModes,
         },
