@@ -664,7 +664,6 @@ module.exports.registerUser = async (req, res, next) => {
     return res.status(201).json({
       success: true,
       message: "Account created successfully",
-      token,
       user: userPayload(user),
     });
   } catch (error) {
@@ -749,7 +748,6 @@ module.exports.loginUser = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Login successful",
-      token,
       sessionExpiresInMs: req.session?.cookie?.maxAge || null,
       user: userPayload(user),
     });
@@ -872,7 +870,6 @@ module.exports.firebaseLogin = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Login successful",
-      token,
       user: userPayload(user),
     });
   } catch (error) {
@@ -1098,7 +1095,6 @@ module.exports.googleAuth = async (req, res, next) => {
       message: isNewUser
         ? "Google account connected successfully"
         : "Login successful",
-      token,
       user: userPayload(user),
       requiresPasswordSetup,
       isNewUser,
@@ -1247,7 +1243,6 @@ module.exports.completePasswordSetup = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Password set successfully! You can now sign in with Google or email + password.",
-      token,
       user: userPayload(user),
     });
   } catch (error) {
@@ -1724,7 +1719,6 @@ module.exports.registerEmployer = async (req, res, next) => {
     return res.status(201).json({
       success: true,
       message: "Employer account created successfully",
-      token,
       user: {
         _id: user._id,
         id: user._id,

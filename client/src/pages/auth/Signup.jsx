@@ -392,8 +392,8 @@ const Signup = () => {
         captchaToken,
       });
 
-      const { user, requiresPasswordSetup, token } = response.data;
-      dispatch(loginSuccess({ user, token }));
+      const { user, requiresPasswordSetup } = response.data;
+      dispatch(loginSuccess({ user }));
 
       if (requiresPasswordSetup || user.hasPassword === false) {
         navigate("/set-password", { replace: true });
@@ -656,7 +656,7 @@ const Signup = () => {
       };
 
       const res = await api.post("/auth/register", payload);
-      dispatch(signupSuccess({ user: res.data.user, token: res.data.token }));
+      dispatch(signupSuccess({ user: res.data.user }));
 
       // Account created! Proceed to Step 4 for Resume Upload & AI Parsing
       setStep(4);
