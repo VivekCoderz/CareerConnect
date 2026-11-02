@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { updateUserProfile } from "../../redux/features/authSlice";
 import BrandLogo from "../../components/common/BrandLogo";
+import AccountDetailsCard from "../../components/fresher-profile/AccountDetailsCard";
 import {
   getFresherProfile,
   updateFresherProfile,
@@ -179,7 +180,13 @@ const FresherProfile = () => {
                 degree: e.degree || "",
                 specialization: e.specialization || "",
                 institution: e.institution || "",
-                startYear: e.startYear || "",
+                // Profiles made at signup before startYear was stored: the signup years
+                // are on the account, so use them for the same (highest) degree.
+                startYear:
+                  e.startYear ||
+                  (e.isHighest && user?.startYear && Number(e.graduationYear) === Number(user?.endYear)
+                    ? user.startYear
+                    : ""),
                 graduationYear: e.graduationYear || "",
                 percentageOrCgpa: e.percentageOrCgpa || "",
               }))
@@ -587,6 +594,8 @@ const FresherProfile = () => {
 
       {/* Main Container */}
       <main className="max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 flex-1">
+        <AccountDetailsCard />
+
         {/* Progress Stepper */}
         <div className="mb-8">
           <div className="flex items-center justify-between max-w-2xl mx-auto">

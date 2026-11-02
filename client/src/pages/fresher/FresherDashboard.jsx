@@ -232,13 +232,11 @@ const FresherDashboard = () => {
 
               {/* 2-Column: Skills & Career Recommendations */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {FEATURES.courses && (
-                  <FresherSkillDevelopment
-                    userSkills={skillDev.userSkills}
-                    recommendedSkills={skillDev.recommendedSkills}
-                    targetRole={targetRoleLabel}
-                  />
-                )}
+                <FresherSkillDevelopment
+                  userSkills={skillDev.userSkills}
+                  recommendedSkills={skillDev.recommendedSkills}
+                  targetRole={targetRoleLabel}
+                />
                 <FresherCareerRecommendations
                   recommendations={careerRecommendations}
                 />
@@ -371,9 +369,8 @@ const FresherDashboard = () => {
           )}
 
           {/* ==================== SKILLS ==================== */}
-
-
-          {activeTab === "skills" && FEATURES.courses && (
+          {/* Not behind the courses flag: skills are profile data, and the card hides its own course links. */}
+          {activeTab === "skills" && (
             <div className="space-y-6 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Skill Development</h2>

@@ -398,8 +398,18 @@ module.exports.updateFresherProfile = async (req, res, next) => {
 
     // Synchronize basic user fields if present in updateData
     const userUpdateFields = {};
-    if (updateData.fullName)
-      userUpdateFields.fullName = updateData.fullName.trim();
+    if (updateData.fullName !== undefined) {
+      const fullName = typeof updateData.fullName === "string"
+        ? updateData.fullName.trim().replace(/\s+/g, " ")
+        : "";
+      if (fullName.length < 2 || fullName.length > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Name must be 2 to 100 characters",
+        });
+      }
+      userUpdateFields.fullName = fullName;
+    }
     if (updateData.phone !== undefined && String(updateData.phone).trim()) {
       const cleanPhone = String(updateData.phone).replace(/\D/g, "");
       const countryCode = updateData.countryCode?.trim() || "+91";
@@ -450,7 +460,9 @@ module.exports.updateFresherProfile = async (req, res, next) => {
     await profile.save();
 
     userUpdateFields.profileCompletion = completion;
-    userUpdateFields.isProfileComplete = isComplete;
+    // On the account, isProfileComplete means onboarding is done (the client sends users
+    // back to onboarding when it is false), so a sparse profile must never reset it.
+    if (isComplete) userUpdateFields.isProfileComplete = true;
 
     if (Object.keys(userUpdateFields).length > 0) {
       await User.findByIdAndUpdate(userId, { $set: userUpdateFields });

@@ -1006,9 +1006,6 @@
   "src/pages/fresher/FresherProfile.jsx": {
     "max-lines": {
       "count": 1
-    },
-    "no-unused-vars": {
-      "count": 1
     }
   },
   "src/pages/internships/InternshipDiscoveryPage.jsx": {
