@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "lint:prune": "eslint . --prune-suppressions",
     "test": "vitest run",
+    "test:flows": "vitest run flow.test --no-file-parallelism",
     "test:watch": "vitest"
   },
   "dependencies": {

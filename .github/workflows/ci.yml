@@ -53,8 +53,14 @@ jobs:
         run: npm run lint
         working-directory: client
 
+      # Login, signup with consent, apply to job and employer bulk shortlist/reject,
+      # rendered with React Testing Library against a mocked API client.
+      - name: Run front-end flow tests
+        run: npm run test:flows
+        working-directory: client
+
       - name: Run client tests
-        run: npm test
+        run: npm test -- --exclude "**/*.flow.test.jsx"
         working-directory: client
 
       - name: Build production client
@@ -121,6 +127,12 @@ jobs:
         working-directory: server
         timeout-minutes: 5
 
+      # Login, signup with consent, apply to job and employer bulk shortlist/reject,
+      # run end to end over HTTP against the isolated in-memory MongoDB.
+      - name: Run end-to-end flow tests
+        run: npm run test:flows -- --ci
+        working-directory: server
+
       - name: Run complete server test suite
-        run: npm test -- --ci
+        run: npm test -- --ci --testPathIgnorePatterns=/__tests__/flows/
         working-directory: server
