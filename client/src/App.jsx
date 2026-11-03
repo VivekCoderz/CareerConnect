@@ -447,10 +447,12 @@ function AppRoutes() {
                 path="/fresher/profile/setup"
                 element={<FresherProfile />}
               />
-              <Route
-                path="/fresher/career-recommendations"
-                element={<CareerRecommendationsPage />}
-              />
+              {FEATURES.careerAdvice && (
+                <Route
+                  path="/fresher/career-recommendations"
+                  element={<CareerRecommendationsPage />}
+                />
+              )}
             </Route>
 
             {/* =================================================
