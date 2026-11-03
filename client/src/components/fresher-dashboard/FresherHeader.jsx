@@ -117,7 +117,12 @@ const FresherHeader = ({ summary, loading, error, onRetry, onEditPreferences }) 
   } = summary;
   const chips = buildChips(preferences);
   const roles = preferences.targetRoles?.length ? preferences.targetRoles : [preferences.targetRole].filter(Boolean);
-  const rolesText = roles.length > 1 ? `${roles.slice(0, -1).join(", ")} aur ${roles[roles.length - 1]}` : roles[0];
+  const rolesText = roles.length > 1 ? `${roles.slice(0, -1).join(", ")} and ${roles[roles.length - 1]}` : roles[0];
+  const subtitle = !rolesText
+    ? "Set your job preferences and we'll find roles that fit you."
+    : newMatchedJobs > 0
+      ? `${newMatchedJobs} new ${newMatchedJobs === 1 ? "job matches" : "jobs match"} your ${rolesText} profile. Take a look and apply early.`
+      : `No new matches for your ${rolesText} profile yet. We'll keep looking and update you here.`;
   const percent = Math.min(100, Math.max(0, profileCompletion));
 
   return (
@@ -135,9 +140,7 @@ const FresherHeader = ({ summary, loading, error, onRetry, onEditPreferences }) 
           </h1>
 
           <p className="mt-2 max-w-xl text-sm text-indigo-200 sm:text-base">
-            {rolesText
-              ? `${newMatchedJobs} naye jobs aapke ${rolesText} profile se match karte hain.`
-              : "Apni preferences set karo, hum aapke liye jobs dhoondhenge."}
+            {subtitle}
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">

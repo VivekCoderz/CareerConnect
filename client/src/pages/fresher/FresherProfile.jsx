@@ -3,7 +3,35 @@ import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { updateUserProfile } from "../../redux/features/authSlice";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Briefcase,
+  Check,
+  ChevronDown,
+  Code,
+  GraduationCap,
+  LoaderCircle,
+  Plus,
+  Search,
+  Star,
+  Target,
+  Trash2,
+  Zap,
+} from "lucide-react";
 import BrandLogo from "../../components/common/BrandLogo";
+import AccountDetailsCard from "../../components/fresher-profile/AccountDetailsCard";
+import {
+  card,
+  chip,
+  errorBanner,
+  fieldError,
+  input,
+  label,
+  outlineButton,
+  primaryButton,
+  textarea,
+} from "../../components/fresher-profile/profileUi";
 import {
   getFresherProfile,
   updateFresherProfile,
@@ -96,13 +124,90 @@ const CAREER_GOALS = [
   "Start a career in a new field",
 ];
 
-const STEPS = [
-  { id: 1, label: "Education", icon: "🎓" },
-  { id: 2, label: "Internship", icon: "🏢" },
-  { id: 3, label: "Projects", icon: "🚀" },
-  { id: 4, label: "Skills", icon: "⚡" },
-  { id: 5, label: "Career Preferences", icon: "🎯" },
+const QUALIFICATION_OPTIONS = [
+  ["B.Tech", "B.Tech / B.E."],
+  ["BCA", "BCA"],
+  ["MCA", "MCA"],
+  ["B.Sc", "B.Sc Computer Science / IT"],
+  ["M.Sc", "M.Sc Computer Science / IT"],
+  ["M.Tech", "M.Tech"],
+  ["Diploma", "Diploma in Engineering"],
+  ["Other", "Other Graduate Degree"],
 ];
+
+const STEPS = [
+  { id: 1, label: "Education", icon: GraduationCap },
+  { id: 2, label: "Internship", icon: Briefcase },
+  { id: 3, label: "Projects", icon: Code },
+  { id: 4, label: "Skills", icon: Zap },
+  { id: 5, label: "Preferences", icon: Target },
+];
+
+// One-line summary of an education record for its collapsed header.
+const educationSummary = (edu) => {
+  const years =
+    edu.startYear && edu.graduationYear
+      ? `${edu.startYear} – ${edu.graduationYear}`
+      : edu.graduationYear
+        ? `Class of ${edu.graduationYear}`
+        : "";
+  const score = edu.percentageOrCgpa ? `Score ${edu.percentageOrCgpa}` : "";
+  return [edu.institution, years, score].filter(Boolean).join(" · ");
+};
+
+const StepHeading = ({ title, subtitle }) => (
+  <div>
+    <h2 className="text-xl font-semibold text-neutral-100 tracking-tight">{title}</h2>
+    <p className="text-sm text-neutral-400 mt-1">{subtitle}</p>
+  </div>
+);
+
+const ChoiceButton = ({ selected, onClick, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex-1 py-3 px-4 rounded-lg border text-sm font-semibold transition flex items-center justify-center gap-2 ${
+      selected
+        ? "border-[#1e3a8a] bg-[#1e3a8a]/20 text-blue-100 ring-2 ring-[#1e3a8a]/30"
+        : "border-neutral-800 bg-neutral-950 text-neutral-300 hover:border-neutral-600"
+    }`}
+  >
+    <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center">
+      {selected && <span className="w-2 h-2 rounded-full bg-current" />}
+    </span>
+    {children}
+  </button>
+);
+
+const RecordCard = ({ title, onRemove, removeLabel, children }) => (
+  <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 space-y-4">
+    <div className="flex items-center justify-between">
+      <span className="text-xs font-semibold text-blue-300 bg-[#1e3a8a]/25 px-2 py-0.5 rounded-md">{title}</span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={removeLabel}
+          className="p-1.5 rounded-md text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+    {children}
+  </div>
+);
+
+const AddButton = ({ onClick, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-neutral-700 text-neutral-300 hover:border-[#1e3a8a] hover:text-blue-300 hover:bg-[#1e3a8a]/10 text-sm font-medium transition"
+  >
+    <Plus className="w-4 h-4" />
+    {children}
+  </button>
+);
 
 const FresherProfile = () => {
   const navigate = useNavigate();
@@ -133,6 +238,9 @@ const FresherProfile = () => {
       percentageOrCgpa: "",
     },
   ]);
+
+  // Which education card is expanded (UI only).
+  const [openEducation, setOpenEducation] = useState(0);
 
   const [hasInternship, setHasInternship] = useState(false);
   const [internshipList, setInternshipList] = useState([]);
@@ -559,31 +667,43 @@ const FresherProfile = () => {
     }
   };
 
+  // When Continue finds a new problem in an education card, open that card. Typing only
+  // clears errors, so it never moves the open card.
+  const [checkedErrors, setCheckedErrors] = useState(fieldErrors);
+  if (checkedErrors !== fieldErrors) {
+    setCheckedErrors(fieldErrors);
+    const newErrorKeys = Object.keys(fieldErrors).filter((key) => fieldErrors[key] && !checkedErrors[key]);
+    const failed = educationList.findIndex((_, idx) => newErrorKeys.some((key) => key.startsWith(`edu_${idx}_`)));
+    if (failed !== -1) setOpenEducation(failed);
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
         <JourneyLoader variant="profile" size="hero" className="mb-4" />
-        <h2 className="text-base font-bold text-slate-800">Setting up Fresher Workspace...</h2>
+        <h2 className="text-base font-semibold text-slate-900">Setting up Fresher Workspace...</h2>
         <p className="text-xs text-slate-500 mt-1">Loading your profile preferences</p>
       </div>
     );
   }
 
+  const percentComplete = Math.round(((currentStep - 1) / STEPS.length) * 100);
+  const currentYear = new Date().getFullYear();
+  const goToStep = (stepId) => {
+    setCurrentStep(stepId);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col justify-between">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col justify-between">
       {/* Top Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+      <header className="bg-neutral-900 border-b border-neutral-800 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link to="/fresher/dashboard" className="flex items-center gap-2">
-            <BrandLogo className="h-9 w-44" />
-            <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase bg-blue-100 text-blue-800 rounded-md">
-              Fresher Profile
-            </span>
-          </Link>
+          <BrandLogo className="h-9 w-44" />
 
           <Link
             to="/fresher/dashboard"
-            className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition px-3 py-1.5 rounded-lg hover:bg-slate-100"
+            className="text-xs font-semibold text-neutral-400 hover:text-neutral-100 transition px-3 py-1.5 rounded-lg hover:bg-neutral-800"
           >
             Skip to Dashboard →
           </Link>
@@ -592,232 +712,273 @@ const FresherProfile = () => {
 
       {/* Main Container */}
       <main className="max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 flex-1">
+        <AccountDetailsCard />
+
         {/* Progress Stepper */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between max-w-2xl mx-auto">
-            {STEPS.map((step) => {
-              const isDone = currentStep > step.id;
-              const isCurrent = currentStep === step.id;
-              return (
-                <div key={step.id} className="flex-1 flex flex-col items-center relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCurrentStep(step.id);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-sm cursor-pointer ${
-                      isDone
-                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                        : isCurrent
-                        ? "bg-[#1e3a8a] text-white ring-4 ring-blue-100"
-                        : "bg-slate-200 text-slate-500 hover:bg-slate-300"
-                    }`}
-                  >
-                    {isDone ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      step.id
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCurrentStep(step.id);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    className={`mt-2 text-[12px] font-semibold text-center transition cursor-pointer ${
-                      isCurrent ? "text-[#1e3a8a]" : isDone ? "text-slate-700 hover:text-[#1e3a8a]" : "text-slate-400 hover:text-slate-600"
-                    }`}
-                  >
-                    {step.label}
-                  </button>
-                </div>
-              );
-            })}
+        <section className={`${card} mb-6`}>
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-neutral-200">
+              Step {currentStep} of {STEPS.length}
+            </span>
+            <span className="text-neutral-400">{percentComplete}% complete</span>
           </div>
-          <div className="w-full bg-slate-200 h-1.5 rounded-full mt-4 max-w-2xl mx-auto overflow-hidden">
-            <div
-              className="bg-[#1e3a8a] h-full transition-all duration-300 rounded-full"
-              style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
-            />
+
+          <div className="relative mt-5">
+            {/* Connecting line, filled up to the active step */}
+            <div className="absolute left-5 right-5 top-5 h-0.5 bg-neutral-800 rounded-full">
+              <div
+                className="h-full bg-[#1e3a8a] rounded-full transition-all duration-300"
+                style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
+              />
+            </div>
+
+            <ol className="relative flex justify-between">
+              {STEPS.map((step) => {
+                const isDone = currentStep > step.id;
+                const isCurrent = currentStep === step.id;
+                const StepIcon = step.icon;
+                return (
+                  <li key={step.id} className="flex flex-col items-center w-16 sm:w-20">
+                    <button
+                      type="button"
+                      onClick={() => goToStep(step.id)}
+                      aria-current={isCurrent ? "step" : undefined}
+                      aria-label={`${step.label}${isDone ? " (completed)" : ""}`}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
+                        isDone
+                          ? "bg-[#5DCAA5] text-neutral-950 hover:brightness-110"
+                          : isCurrent
+                            ? "bg-[#1e3a8a] text-white ring-4 ring-[#1e3a8a]/30"
+                            : "bg-neutral-900 text-neutral-500 border border-neutral-700 hover:border-neutral-500"
+                      }`}
+                    >
+                      {isDone ? <Check className="w-5 h-5" strokeWidth={2.5} /> : <StepIcon className="w-[18px] h-[18px]" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => goToStep(step.id)}
+                      className={`mt-2 text-[11px] sm:text-xs font-medium text-center transition ${
+                        isCurrent ? "text-neutral-100" : isDone ? "text-neutral-300 hover:text-white" : "text-neutral-500 hover:text-neutral-300"
+                      }`}
+                    >
+                      {step.label}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
           </div>
-        </div>
+        </section>
 
         {/* Global Error Notice */}
         {fieldErrors.submit && (
-          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
-            {fieldErrors.submit}
-          </div>
+          <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{fieldErrors.submit}</div>
         )}
 
         {/* Step Content Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
+        <div className={`${card} sm:p-6`}>
           {/* ============================================================
               STEP 1: EDUCATION
           ============================================================ */}
           {currentStep === 1 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Tell us about your education 🎓
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Add your recent degree, university, and graduation year to unlock eligible graduate roles.
-                </p>
-              </div>
+              <StepHeading
+                title="Tell us about your education"
+                subtitle="Add your recent degree, university, and graduation year to unlock eligible graduate roles."
+              />
 
-              <div className="space-y-6">
-                {educationList.map((edu, idx) => (
-                  <div
-                    key={idx}
-                    className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 relative space-y-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-[#1e3a8a] bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">
-                        {idx === 0 ? "Primary Qualification" : `Education Record #${idx + 1}`}
+              {/* Timeline of education records */}
+              <ol className="relative space-y-4">
+                <span className="absolute left-[15px] top-4 bottom-4 w-px bg-neutral-800" aria-hidden="true" />
+                {educationList.map((edu, idx) => {
+                  const isOpen = openEducation === idx;
+                  const hasErrors = ["degree", "institution", "graduationYear"].some((f) => fieldErrors[`edu_${idx}_${f}`]);
+                  const qualificationLabel = QUALIFICATION_OPTIONS.find(([value]) => value === edu.qualificationType)?.[1];
+                  const status = edu.graduationYear ? (edu.graduationYear > currentYear ? "Pursuing" : "Completed") : null;
+                  const summary = educationSummary(edu);
+                  return (
+                    <li key={idx} className="relative pl-11">
+                      <span
+                        className={`absolute left-0 top-3 w-8 h-8 rounded-full flex items-center justify-center border ${
+                          isOpen ? "bg-[#1e3a8a] border-[#1e3a8a] text-white" : "bg-neutral-900 border-neutral-700 text-neutral-400"
+                        }`}
+                        aria-hidden="true"
+                      >
+                        <GraduationCap className="w-4 h-4" />
                       </span>
-                      {educationList.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveEducation(idx)}
-                          className="text-xs font-semibold text-red-500 hover:text-red-700 hover:underline"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Highest Qualification
-                        </label>
-                        <select
-                          value={edu.qualificationType}
-                          onChange={(e) => handleEducationChange(idx, "qualificationType", e.target.value)}
-                          className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
-                        >
-                          <option value="B.Tech">B.Tech / B.E.</option>
-                          <option value="BCA">BCA</option>
-                          <option value="MCA">MCA</option>
-                          <option value="B.Sc">B.Sc Computer Science / IT</option>
-                          <option value="M.Sc">M.Sc Computer Science / IT</option>
-                          <option value="M.Tech">M.Tech</option>
-                          <option value="Diploma">Diploma in Engineering</option>
-                          <option value="Other">Other Graduate Degree</option>
-                        </select>
-                      </div>
+                      <div
+                        className={`rounded-xl border transition ${
+                          isOpen
+                            ? "border-[#1e3a8a] ring-4 ring-[#1e3a8a]/20 bg-neutral-950/40"
+                            : hasErrors
+                              ? "border-red-500/60 bg-neutral-950/40"
+                              : "border-neutral-800 bg-neutral-950/40 hover:border-neutral-700"
+                        }`}
+                      >
+                        {/* Collapsed header */}
+                        <div className="flex items-center gap-2 p-4">
+                          <button
+                            type="button"
+                            onClick={() => setOpenEducation(isOpen ? -1 : idx)}
+                            aria-expanded={isOpen}
+                            className="flex-1 min-w-0 text-left"
+                          >
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="font-semibold text-sm text-neutral-100 truncate">
+                                {edu.degree || qualificationLabel || "New qualification"}
+                              </span>
+                              {idx === 0 && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-[#1e3a8a]/30 text-blue-200 text-[10px] font-semibold">
+                                  Primary
+                                </span>
+                              )}
+                              {status && (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
+                                    status === "Pursuing" ? "bg-amber-500/15 text-amber-300" : "bg-[#5DCAA5]/15 text-[#5DCAA5]"
+                                  }`}
+                                >
+                                  {status}
+                                </span>
+                              )}
+                            </div>
+                            <p className={`text-xs mt-1 truncate ${hasErrors && !isOpen ? "text-red-400" : "text-neutral-400"}`}>
+                              {hasErrors && !isOpen ? "Some required details are missing" : summary || "Add your details"}
+                            </p>
+                          </button>
 
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Degree / Certificate Title *
-                        </label>
-                        <input
-                          type="text"
-                          value={edu.degree}
-                          onChange={(e) => handleEducationChange(idx, "degree", e.target.value)}
-                          placeholder="e.g. B.Tech"
-                          className={`w-full h-11 px-3.5 rounded-xl border bg-white text-sm outline-none focus:ring-2 ${
-                            fieldErrors[`edu_${idx}_degree`]
-                              ? "border-red-400 focus:ring-red-100"
-                              : "border-slate-200 focus:border-[#1e3a8a] focus:ring-blue-100"
-                          }`}
-                        />
-                        {fieldErrors[`edu_${idx}_degree`] && (
-                          <p className="text-xs text-red-500 mt-1">{fieldErrors[`edu_${idx}_degree`]}</p>
+                          {educationList.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleRemoveEducation(idx);
+                                setOpenEducation((open) => (open === idx ? -1 : open > idx ? open - 1 : open));
+                              }}
+                              aria-label="Delete qualification"
+                              className="p-1.5 rounded-md text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setOpenEducation(isOpen ? -1 : idx)}
+                            aria-label={isOpen ? "Collapse qualification" : "Expand qualification"}
+                            className="p-1.5 rounded-md text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 transition"
+                          >
+                            <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                          </button>
+                        </div>
+
+                        {isOpen && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-4 pb-4 pt-1 border-t border-neutral-800">
+                            <div className="pt-3">
+                              <label className={label}>Highest Qualification</label>
+                              <select
+                                value={edu.qualificationType}
+                                onChange={(e) => handleEducationChange(idx, "qualificationType", e.target.value)}
+                                className={input()}
+                              >
+                                {QUALIFICATION_OPTIONS.map(([value, text]) => (
+                                  <option key={value} value={value}>
+                                    {text}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="sm:pt-3">
+                              <label className={label}>Degree / Certificate Title *</label>
+                              <input
+                                type="text"
+                                value={edu.degree}
+                                onChange={(e) => handleEducationChange(idx, "degree", e.target.value)}
+                                placeholder="e.g. B.Tech"
+                                className={input(fieldErrors[`edu_${idx}_degree`])}
+                              />
+                              {fieldErrors[`edu_${idx}_degree`] && (
+                                <p className={fieldError}>{fieldErrors[`edu_${idx}_degree`]}</p>
+                              )}
+                            </div>
+
+                            <div>
+                              <label className={label}>Specialization / Branch</label>
+                              <input
+                                type="text"
+                                value={edu.specialization}
+                                onChange={(e) => handleEducationChange(idx, "specialization", e.target.value)}
+                                placeholder="e.g. Computer Science & Engineering"
+                                className={input()}
+                              />
+                            </div>
+
+                            <div>
+                              <label className={label}>College / University *</label>
+                              <input
+                                type="text"
+                                value={edu.institution}
+                                onChange={(e) => handleEducationChange(idx, "institution", e.target.value)}
+                                placeholder="e.g. E2Job / ABC Institute"
+                                className={input(fieldErrors[`edu_${idx}_institution`])}
+                              />
+                              {fieldErrors[`edu_${idx}_institution`] && (
+                                <p className={fieldError}>{fieldErrors[`edu_${idx}_institution`]}</p>
+                              )}
+                            </div>
+
+                            <div>
+                              <label className={label}>Start Year</label>
+                              <input
+                                type="number"
+                                value={edu.startYear || ""}
+                                onChange={(e) => handleEducationChange(idx, "startYear", parseInt(e.target.value, 10))}
+                                placeholder="e.g. 2022"
+                                className={input()}
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className={label}>Graduation Year *</label>
+                                <input
+                                  type="number"
+                                  value={edu.graduationYear || ""}
+                                  onChange={(e) => handleEducationChange(idx, "graduationYear", parseInt(e.target.value, 10))}
+                                  placeholder="e.g. 2026"
+                                  className={input(fieldErrors[`edu_${idx}_graduationYear`])}
+                                />
+                                {fieldErrors[`edu_${idx}_graduationYear`] && (
+                                  <p className={fieldError}>{fieldErrors[`edu_${idx}_graduationYear`]}</p>
+                                )}
+                              </div>
+                              <div>
+                                <label className={label}>CGPA / %</label>
+                                <input
+                                  type="text"
+                                  value={edu.percentageOrCgpa}
+                                  onChange={(e) => handleEducationChange(idx, "percentageOrCgpa", e.target.value)}
+                                  placeholder="e.g. 8.2"
+                                  className={input()}
+                                />
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </div>
+                    </li>
+                  );
+                })}
+              </ol>
 
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Specialization / Branch
-                        </label>
-                        <input
-                          type="text"
-                          value={edu.specialization}
-                          onChange={(e) => handleEducationChange(idx, "specialization", e.target.value)}
-                          placeholder="e.g. Computer Science & Engineering"
-                          className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          College / University *
-                        </label>
-                        <input
-                          type="text"
-                          value={edu.institution}
-                          onChange={(e) => handleEducationChange(idx, "institution", e.target.value)}
-                          placeholder="e.g. E2Job / ABC Institute"
-                          className={`w-full h-11 px-3.5 rounded-xl border bg-white text-sm outline-none focus:ring-2 ${
-                            fieldErrors[`edu_${idx}_institution`]
-                              ? "border-red-400 focus:ring-red-100"
-                              : "border-slate-200 focus:border-[#1e3a8a] focus:ring-blue-100"
-                          }`}
-                        />
-                        {fieldErrors[`edu_${idx}_institution`] && (
-                          <p className="text-xs text-red-500 mt-1">{fieldErrors[`edu_${idx}_institution`]}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Start Year
-                        </label>
-                        <input
-                          type="number"
-                          value={edu.startYear || ""}
-                          onChange={(e) => handleEducationChange(idx, "startYear", parseInt(e.target.value, 10))}
-                          placeholder="e.g. 2022"
-                          className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Graduation Year *
-                          </label>
-                          <input
-                            type="number"
-                            value={edu.graduationYear || ""}
-                            onChange={(e) => handleEducationChange(idx, "graduationYear", parseInt(e.target.value, 10))}
-                            placeholder="e.g. 2026"
-                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            CGPA / %
-                          </label>
-                          <input
-                            type="text"
-                            value={edu.percentageOrCgpa}
-                            onChange={(e) => handleEducationChange(idx, "percentageOrCgpa", e.target.value)}
-                            placeholder="e.g. 8.2"
-                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={handleAddEducation}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[#1e3a8a] text-[#1e3a8a] hover:bg-blue-50 font-semibold text-xs transition"
+              <AddButton
+                onClick={() => {
+                  handleAddEducation();
+                  setOpenEducation(educationList.length);
+                }}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                </svg>
-                + Add Another Education Record
-              </button>
+                Add another qualification
+              </AddButton>
             </div>
           )}
 
@@ -826,141 +987,96 @@ const FresherProfile = () => {
           ============================================================ */}
           {currentStep === 2 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Do you have any internship experience? 🏢
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Internships demonstrate practical work readiness. If you have not done an internship yet, you can skip this step.
-                </p>
-              </div>
+              <StepHeading
+                title="Do you have any internship experience?"
+                subtitle="Internships demonstrate practical work readiness. If you have not done an internship yet, you can skip this step."
+              />
 
               {/* Yes / No Toggle Buttons */}
-              <div className="flex gap-4">
-                <button
-                  type="button"
+              <div className="flex flex-col sm:flex-row gap-3">
+                <ChoiceButton
+                  selected={hasInternship}
                   onClick={() => {
                     setHasInternship(true);
                     if (internshipList.length === 0) handleAddInternship();
                   }}
-                  className={`flex-1 py-3 px-4 rounded-xl border-2 font-bold text-sm transition flex items-center justify-center gap-2 ${
-                    hasInternship
-                      ? "border-[#1e3a8a] bg-blue-50 text-[#1e3a8a]"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                  }`}
                 >
-                  <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center">
-                    {hasInternship && <span className="w-2 h-2 rounded-full bg-[#1e3a8a]" />}
-                  </span>
                   Yes, I have internship experience
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setHasInternship(false)}
-                  className={`flex-1 py-3 px-4 rounded-xl border-2 font-bold text-sm transition flex items-center justify-center gap-2 ${
-                    !hasInternship
-                      ? "border-[#1e3a8a] bg-blue-50 text-[#1e3a8a]"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                  }`}
-                >
-                  <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center">
-                    {!hasInternship && <span className="w-2 h-2 rounded-full bg-[#1e3a8a]" />}
-                  </span>
+                </ChoiceButton>
+                <ChoiceButton selected={!hasInternship} onClick={() => setHasInternship(false)}>
                   No internship experience yet
-                </button>
+                </ChoiceButton>
               </div>
 
               {!hasInternship ? (
-                <div className="p-8 text-center rounded-2xl bg-slate-50 border border-slate-200">
-                  <div className="w-12 h-12 rounded-full bg-blue-100 text-[#1e3a8a] mx-auto flex items-center justify-center text-xl mb-3">
-                    💼
+                <div className="p-8 text-center rounded-xl bg-neutral-950/40 border border-neutral-800">
+                  <div className="w-12 h-12 rounded-full bg-[#1e3a8a]/30 text-blue-300 mx-auto flex items-center justify-center mb-3">
+                    <Briefcase className="w-5 h-5" />
                   </div>
-                  <h3 className="text-base font-bold text-slate-800">No internship experience yet</h3>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                  <h3 className="text-base font-semibold text-neutral-100">No internship experience yet</h3>
+                  <p className="text-xs text-neutral-400 max-w-md mx-auto mt-1">
                     No problem at all! You can showcase your personal/academic projects in the next step to demonstrate your skills.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   {internshipList.map((item, idx) => (
-                    <div
+                    <RecordCard
                       key={idx}
-                      className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-4"
+                      title={`Internship #${idx + 1}`}
+                      onRemove={() => handleRemoveInternship(idx)}
+                      removeLabel="Delete internship"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#1e3a8a] bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">
-                          Internship #{idx + 1}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveInternship(idx)}
-                          className="text-xs font-semibold text-red-500 hover:text-red-700"
-                        >
-                          Remove
-                        </button>
-                      </div>
-
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Company Name *
-                          </label>
+                          <label className={label}>Company Name *</label>
                           <input
                             type="text"
                             value={item.companyName}
                             onChange={(e) => handleInternshipChange(idx, "companyName", e.target.value)}
                             placeholder="e.g. Infosys, StartUp Inc."
-                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                            className={input()}
                           />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Internship Role *
-                          </label>
+                          <label className={label}>Internship Role *</label>
                           <input
                             type="text"
                             value={item.role}
                             onChange={(e) => handleInternshipChange(idx, "role", e.target.value)}
                             placeholder="e.g. Frontend Intern, Software Trainee"
-                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                            className={input()}
                           />
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                              Start Date
-                            </label>
+                            <label className={label}>Start Date</label>
                             <input
                               type="month"
                               value={item.startDate}
                               onChange={(e) => handleInternshipChange(idx, "startDate", e.target.value)}
-                              className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                              className={input()}
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                              End Date
-                            </label>
+                            <label className={label}>End Date</label>
                             <input
                               type="month"
                               value={item.endDate}
                               onChange={(e) => handleInternshipChange(idx, "endDate", e.target.value)}
-                              className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                              className={input()}
                             />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Work Mode
-                          </label>
+                          <label className={label}>Work Mode</label>
                           <select
                             value={item.workMode}
                             onChange={(e) => handleInternshipChange(idx, "workMode", e.target.value)}
-                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                            className={input()}
                           >
                             <option value="Remote">Remote</option>
                             <option value="Hybrid">Hybrid</option>
@@ -970,40 +1086,30 @@ const FresherProfile = () => {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Description of Work
-                        </label>
+                        <label className={label}>Description of Work</label>
                         <textarea
                           rows={3}
                           value={item.description}
                           onChange={(e) => handleInternshipChange(idx, "description", e.target.value)}
                           placeholder="Briefly describe what you built, features developed, or tools you used during the internship..."
-                          className="w-full p-3 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                          className={textarea()}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Skills / Technologies Used (comma separated)
-                        </label>
+                        <label className={label}>Skills / Technologies Used (comma separated)</label>
                         <input
                           type="text"
                           value={item.skillsInput || ""}
                           onChange={(e) => handleInternshipChange(idx, "skillsInput", e.target.value)}
                           placeholder="e.g. React, Redux, REST API, Git"
-                          className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                          className={input()}
                         />
                       </div>
-                    </div>
+                    </RecordCard>
                   ))}
 
-                  <button
-                    type="button"
-                    onClick={handleAddInternship}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[#1e3a8a] text-[#1e3a8a] hover:bg-blue-50 font-semibold text-xs transition"
-                  >
-                    + Add Another Internship
-                  </button>
+                  <AddButton onClick={handleAddInternship}>Add another internship</AddButton>
                 </div>
               )}
             </div>
@@ -1014,102 +1120,57 @@ const FresherProfile = () => {
           ============================================================ */}
           {currentStep === 3 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Showcase your projects 🚀
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Projects are strongly encouraged for freshers because they prove practical coding ability to recruiters.
-                </p>
-              </div>
+              <StepHeading
+                title="Showcase your projects"
+                subtitle="Projects are strongly encouraged for freshers because they prove practical coding ability to recruiters."
+              />
 
               {/* Yes / No Toggle */}
-              <div className="flex gap-4">
-                <button
-                  type="button"
+              <div className="flex flex-col sm:flex-row gap-3">
+                <ChoiceButton
+                  selected={hasProjects}
                   onClick={() => {
                     setHasProjects(true);
                     if (projectList.length === 0) handleAddProject();
                   }}
-                  className={`flex-1 py-3 px-4 rounded-xl border-2 font-bold text-sm transition flex items-center justify-center gap-2 ${
-                    hasProjects
-                      ? "border-[#1e3a8a] bg-blue-50 text-[#1e3a8a]"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                  }`}
                 >
-                  <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center">
-                    {hasProjects && <span className="w-2 h-2 rounded-full bg-[#1e3a8a]" />}
-                  </span>
                   Yes, I have projects to add
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setHasProjects(false)}
-                  className={`flex-1 py-3 px-4 rounded-xl border-2 font-bold text-sm transition flex items-center justify-center gap-2 ${
-                    !hasProjects
-                      ? "border-[#1e3a8a] bg-blue-50 text-[#1e3a8a]"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                  }`}
-                >
-                  <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center">
-                    {!hasProjects && <span className="w-2 h-2 rounded-full bg-[#1e3a8a]" />}
-                  </span>
+                </ChoiceButton>
+                <ChoiceButton selected={!hasProjects} onClick={() => setHasProjects(false)}>
                   I will add projects later
-                </button>
+                </ChoiceButton>
               </div>
 
               {hasProjects && (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   {projectList.map((proj, idx) => (
-                    <div
+                    <RecordCard
                       key={idx}
-                      className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-4"
+                      title={`Project #${idx + 1}`}
+                      onRemove={projectList.length > 1 ? () => handleRemoveProject(idx) : null}
+                      removeLabel="Delete project"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#1e3a8a] bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">
-                          Project #{idx + 1}
-                        </span>
-                        {projectList.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveProject(idx)}
-                            className="text-xs font-semibold text-red-500 hover:text-red-700"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Project Name *
-                          </label>
+                          <label className={label}>Project Name *</label>
                           <input
                             type="text"
                             value={proj.title}
                             onChange={(e) => handleProjectChange(idx, "title", e.target.value)}
                             placeholder="e.g. E2Job Job Portal, E-Commerce App"
-                            className={`w-full h-11 px-3.5 rounded-xl border bg-white text-sm outline-none focus:ring-2 ${
-                              fieldErrors[`proj_${idx}_title`]
-                                ? "border-red-400 focus:ring-red-100"
-                                : "border-slate-200 focus:border-[#1e3a8a] focus:ring-blue-100"
-                            }`}
+                            className={input(fieldErrors[`proj_${idx}_title`])}
                           />
                           {fieldErrors[`proj_${idx}_title`] && (
-                            <p className="text-xs text-red-500 mt-1">{fieldErrors[`proj_${idx}_title`]}</p>
+                            <p className={fieldError}>{fieldErrors[`proj_${idx}_title`]}</p>
                           )}
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Project Type
-                          </label>
+                          <label className={label}>Project Type</label>
                           <select
                             value={proj.projectType}
                             onChange={(e) => handleProjectChange(idx, "projectType", e.target.value)}
-                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                            className={input()}
                           >
                             <option value="Personal">Personal Project</option>
                             <option value="Academic">Academic / Capstone Project</option>
@@ -1121,74 +1182,58 @@ const FresherProfile = () => {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Short Description *
-                        </label>
+                        <label className={label}>Short Description *</label>
                         <textarea
                           rows={3}
                           value={proj.description}
                           onChange={(e) => handleProjectChange(idx, "description", e.target.value)}
                           placeholder="Briefly explain what the project does, key problem it solves, and your contribution..."
-                          className={`w-full p-3 rounded-xl border bg-white text-sm outline-none focus:ring-2 ${
-                            fieldErrors[`proj_${idx}_description`]
-                              ? "border-red-400 focus:ring-red-100"
-                              : "border-slate-200 focus:border-[#1e3a8a] focus:ring-blue-100"
-                          }`}
+                          className={textarea(fieldErrors[`proj_${idx}_description`])}
                         />
                         {fieldErrors[`proj_${idx}_description`] && (
-                          <p className="text-xs text-red-500 mt-1">{fieldErrors[`proj_${idx}_description`]}</p>
+                          <p className={fieldError}>{fieldErrors[`proj_${idx}_description`]}</p>
                         )}
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Technologies / Tech Stack (comma separated)
-                        </label>
+                        <label className={label}>Technologies / Tech Stack (comma separated)</label>
                         <input
                           type="text"
                           value={proj.techInput || ""}
                           onChange={(e) => handleProjectChange(idx, "techInput", e.target.value)}
                           placeholder="e.g. React, Node.js, Express, MongoDB, Tailwind CSS"
-                          className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                          className={input()}
                         />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            GitHub Repository URL
-                          </label>
+                          <label className={label}>GitHub Repository URL</label>
                           <input
                             type="url"
                             value={proj.githubUrl}
                             onChange={(e) => handleProjectChange(idx, "githubUrl", e.target.value)}
                             placeholder="https://github.com/username/project"
-                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                            className={input()}
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            Live Demo URL <span className="text-slate-400 font-normal">(Optional)</span>
+                          <label className={label}>
+                            Live Demo URL <span className="text-neutral-600">(Optional)</span>
                           </label>
                           <input
                             type="url"
                             value={proj.liveUrl}
                             onChange={(e) => handleProjectChange(idx, "liveUrl", e.target.value)}
                             placeholder="https://myproject.vercel.app"
-                            className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                            className={input()}
                           />
                         </div>
                       </div>
-                    </div>
+                    </RecordCard>
                   ))}
 
-                  <button
-                    type="button"
-                    onClick={handleAddProject}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[#1e3a8a] text-[#1e3a8a] hover:bg-blue-50 font-semibold text-xs transition"
-                  >
-                    + Add Another Project
-                  </button>
+                  <AddButton onClick={handleAddProject}>Add another project</AddButton>
                 </div>
               )}
             </div>
@@ -1199,38 +1244,23 @@ const FresherProfile = () => {
           ============================================================ */}
           {currentStep === 4 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  What skills do you have? ⚡
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Select your core technical & soft skills. We’ll match your profile with relevant openings and provide personalized skill gap insights.
-                </p>
-              </div>
+              <StepHeading
+                title="What skills do you have?"
+                subtitle="Select your core technical & soft skills. We’ll match your profile with relevant openings and provide personalized skill gap insights."
+              />
 
-              {fieldErrors.skills && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-semibold text-red-600">
-                  {fieldErrors.skills}
-                </div>
-              )}
+              {fieldErrors.skills && <div className={errorBanner}>{fieldErrors.skills}</div>}
 
               {/* Search & Custom Add */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
-                  <svg
-                    className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500" />
                   <input
                     type="text"
                     value={skillSearch}
                     onChange={(e) => setSkillSearch(e.target.value)}
                     placeholder="Search technical skills..."
-                    className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                    className={`${input()} pl-10`}
                   />
                 </div>
 
@@ -1240,22 +1270,18 @@ const FresherProfile = () => {
                     value={customSkillInput}
                     onChange={(e) => setCustomSkillInput(e.target.value)}
                     placeholder="Add custom skill"
-                    className="h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100"
+                    className={`${input()} sm:w-48`}
                   />
-                  <button
-                    type="submit"
-                    className="h-11 px-4 bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-xs font-semibold rounded-xl transition shadow-sm"
-                  >
-                    + Add
+                  <button type="submit" className={`${primaryButton} h-11 px-4 text-xs shrink-0`}>
+                    <Plus className="w-4 h-4" />
+                    Add
                   </button>
                 </form>
               </div>
 
               {/* Technical Skills Catalog */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2.5">
-                  Technical Skills (Click to select)
-                </label>
+                <span className={`${label} mb-2.5`}>Technical Skills (Click to select)</span>
                 <div className="flex flex-wrap gap-2">
                   {filteredCatalogSkills.map((skill) => {
                     const isSelected = technicalSkills.includes(skill);
@@ -1264,13 +1290,10 @@ const FresherProfile = () => {
                         key={skill}
                         type="button"
                         onClick={() => toggleTechnicalSkill(skill)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition border ${
-                          isSelected
-                            ? "bg-[#1e3a8a] text-white border-[#1e3a8a] shadow-xs"
-                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                        }`}
+                        className={`${chip(isSelected)} inline-flex items-center gap-1`}
                       >
-                        {isSelected ? `✓ ${skill}` : `+ ${skill}`}
+                        {isSelected ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                        {skill}
                       </button>
                     );
                   })}
@@ -1279,9 +1302,7 @@ const FresherProfile = () => {
 
               {/* Soft Skills */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2.5">
-                  Soft Skills
-                </label>
+                <span className={`${label} mb-2.5`}>Soft Skills</span>
                 <div className="flex flex-wrap gap-2">
                   {POPULAR_SOFT_SKILLS.map((skill) => {
                     const isSelected = softSkills.includes(skill);
@@ -1290,13 +1311,10 @@ const FresherProfile = () => {
                         key={skill}
                         type="button"
                         onClick={() => toggleSoftSkill(skill)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition border ${
-                          isSelected
-                            ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                        }`}
+                        className={`${chip(isSelected, "success")} inline-flex items-center gap-1`}
                       >
-                        {isSelected ? `✓ ${skill}` : `+ ${skill}`}
+                        {isSelected ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                        {skill}
                       </button>
                     );
                   })}
@@ -1305,13 +1323,13 @@ const FresherProfile = () => {
 
               {/* Primary / Strongest Skills Selection */}
               {technicalSkills.length > 0 && (
-                <div className="p-5 rounded-2xl bg-blue-50/70 border border-blue-200 space-y-3">
-                  <div className="flex items-center justify-between">
+                <div className="p-4 rounded-xl bg-[#1e3a8a]/10 border border-[#1e3a8a]/40 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-900">Which skills are your strongest?</h4>
-                      <p className="text-xs text-slate-500">Pick up to 3–5 primary skills you excel at.</p>
+                      <h4 className="text-sm font-semibold text-neutral-100">Which skills are your strongest?</h4>
+                      <p className="text-xs text-neutral-400">Pick up to 3–5 primary skills you excel at.</p>
                     </div>
-                    <span className="text-xs font-bold text-[#1e3a8a] bg-white px-2.5 py-1 rounded-full border border-blue-200">
+                    <span className="shrink-0 text-xs font-semibold text-blue-200 bg-[#1e3a8a]/30 px-2.5 py-1 rounded-full">
                       {primarySkills.length}/5 Selected
                     </span>
                   </div>
@@ -1324,13 +1342,10 @@ const FresherProfile = () => {
                           key={skill}
                           type="button"
                           onClick={() => togglePrimarySkill(skill)}
-                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition border ${
-                            isPrimary
-                              ? "bg-[#1e3a8a] text-white border-[#1e3a8a] shadow-xs"
-                              : "bg-white text-slate-700 border-blue-200 hover:border-[#1e3a8a]"
-                          }`}
+                          className={`${chip(isPrimary)} inline-flex items-center gap-1`}
                         >
-                          {isPrimary ? `★ ${skill}` : skill}
+                          {isPrimary && <Star className="w-3.5 h-3.5 fill-current" />}
+                          {skill}
                         </button>
                       );
                     })}
@@ -1345,24 +1360,20 @@ const FresherProfile = () => {
           ============================================================ */}
           {currentStep === 5 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  What kind of opportunity are you looking for? 🎯
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Configure your target roles, job preferences, and availability to receive tailored recommendations.
-                </p>
-              </div>
+              <StepHeading
+                title="What kind of opportunity are you looking for?"
+                subtitle="Configure your target roles, job preferences, and availability to receive tailored recommendations."
+              />
+
+              {fieldErrors.targetRoles && <div className={errorBanner}>{fieldErrors.targetRoles}</div>}
 
               {/* Target Role (Multi-select) */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Target Role (Select multiple) *
-                  </label>
-                  <span className="text-xs text-slate-400">Selected: {targetRoles.length}</span>
+                  <span className={`${label} mb-0`}>Target Role (Select multiple) *</span>
+                  <span className="text-xs text-neutral-500">Selected: {targetRoles.length}</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {/* Roles saved at signup or on the dashboard show here too, even if not in the list. */}
                   {[...TARGET_ROLE_OPTIONS, ...targetRoles.filter((r) => !TARGET_ROLE_OPTIONS.includes(r))].map((role) => {
                     const isSelected = targetRoles.includes(role);
@@ -1371,13 +1382,14 @@ const FresherProfile = () => {
                         key={role}
                         type="button"
                         onClick={() => toggleTargetRole(role)}
-                        className={`p-3 rounded-xl border text-left text-xs font-semibold transition ${
+                        className={`p-3 rounded-lg border text-left text-xs font-semibold transition flex items-center gap-1.5 ${
                           isSelected
-                            ? "border-[#1e3a8a] bg-blue-50/80 text-[#1e3a8a] font-bold shadow-xs"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                            ? "border-[#1e3a8a] bg-[#1e3a8a]/20 text-blue-100 ring-2 ring-[#1e3a8a]/30"
+                            : "border-neutral-800 bg-neutral-950 text-neutral-300 hover:border-neutral-600"
                         }`}
                       >
-                        {isSelected ? `✓ ${role}` : role}
+                        {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                        {role}
                       </button>
                     );
                   })}
@@ -1387,20 +1399,14 @@ const FresherProfile = () => {
               {/* Job Type & Work Mode */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                    Job Type
-                  </label>
+                  <span className={label}>Job Type</span>
                   <div className="grid grid-cols-3 gap-2">
                     {["Full Time", "Internship", "Both"].map((type) => (
                       <button
                         key={type}
                         type="button"
                         onClick={() => setJobType(type)}
-                        className={`py-2.5 rounded-xl border text-xs font-bold transition text-center ${
-                          jobType === type
-                            ? "border-[#1e3a8a] bg-[#1e3a8a] text-white shadow-xs"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                        }`}
+                        className={`${chip(jobType === type)} py-2.5 text-center`}
                       >
                         {type}
                       </button>
@@ -1409,9 +1415,7 @@ const FresherProfile = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                    Work Mode
-                  </label>
+                  <span className={label}>Work Mode</span>
                   <div className="grid grid-cols-3 gap-2">
                     {["On-site", "Hybrid", "Remote"].map((mode) => {
                       const isSelected = workModes.includes(mode);
@@ -1420,13 +1424,9 @@ const FresherProfile = () => {
                           key={mode}
                           type="button"
                           onClick={() => toggleWorkMode(mode)}
-                          className={`py-2.5 rounded-xl border text-xs font-bold transition text-center ${
-                            isSelected
-                              ? "border-[#1e3a8a] bg-[#1e3a8a] text-white shadow-xs"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                          }`}
+                          className={`${chip(isSelected)} py-2.5 text-center`}
                         >
-                          {isSelected ? `✓ ${mode}` : mode}
+                          {mode}
                         </button>
                       );
                     })}
@@ -1436,9 +1436,7 @@ const FresherProfile = () => {
 
               {/* Preferred Location */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                  Preferred Location (Select multiple)
-                </label>
+                <span className={label}>Preferred Location (Select multiple)</span>
                 <div className="flex flex-wrap gap-2">
                   {LOCATION_OPTIONS.map((loc) => {
                     const isSelected = preferredLocations.includes(loc);
@@ -1447,13 +1445,10 @@ const FresherProfile = () => {
                         key={loc}
                         type="button"
                         onClick={() => toggleLocation(loc)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition border ${
-                          isSelected
-                            ? "bg-[#1e3a8a] text-white border-[#1e3a8a] shadow-xs"
-                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
-                        }`}
+                        className={`${chip(isSelected)} inline-flex items-center gap-1`}
                       >
-                        {isSelected ? `✓ ${loc}` : loc}
+                        {isSelected && <Check className="w-3.5 h-3.5" />}
+                        {loc}
                       </button>
                     );
                   })}
@@ -1461,16 +1456,10 @@ const FresherProfile = () => {
               </div>
 
               {/* Career Goal & Actively Looking */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                    Career Goal
-                  </label>
-                  <select
-                    value={careerGoal}
-                    onChange={(e) => setCareerGoal(e.target.value)}
-                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-blue-100 font-medium text-slate-800"
-                  >
+                  <label className={label}>Career Goal</label>
+                  <select value={careerGoal} onChange={(e) => setCareerGoal(e.target.value)} className={input()}>
                     <option value="">Select a career goal</option>
                     {CAREER_GOALS.map((goal) => (
                       <option key={goal} value={goal}>
@@ -1481,28 +1470,23 @@ const FresherProfile = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                    Are you actively looking for opportunities?
-                  </label>
+                  <span className={label}>Are you actively looking for opportunities?</span>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setActivelyLooking(true)}
-                      className={`h-11 rounded-xl border font-bold text-xs transition ${
-                        activelyLooking
-                          ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                      }`}
+                      className={`${chip(activelyLooking, "success")} h-11 inline-flex items-center justify-center gap-1`}
                     >
-                      ✓ Yes, Actively Looking
+                      {activelyLooking && <Check className="w-3.5 h-3.5" />}
+                      Yes, Actively Looking
                     </button>
                     <button
                       type="button"
                       onClick={() => setActivelyLooking(false)}
-                      className={`h-11 rounded-xl border font-bold text-xs transition ${
+                      className={`h-11 rounded-lg border text-xs font-semibold transition ${
                         !activelyLooking
-                          ? "border-slate-700 bg-slate-800 text-white shadow-xs"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                          ? "border-neutral-500 bg-neutral-800 text-neutral-100"
+                          : "border-neutral-800 bg-neutral-950 text-neutral-300 hover:border-neutral-600"
                       }`}
                     >
                       Not Right Now
@@ -1514,60 +1498,64 @@ const FresherProfile = () => {
           )}
 
           {/* Navigation Controls */}
-          <div className="flex items-center justify-between pt-8 mt-8 border-t border-slate-100">
-            {currentStep > 1 ? (
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-6 mt-8 border-t border-neutral-800">
+            <p className="text-xs text-neutral-500">
+              {currentStep < 5 ? "Your profile is saved when you finish step 5." : "Review your choices, then finish."}
+            </p>
+            <div className="flex gap-3">
+              {currentStep > 1 && (
+                <button type="button" onClick={handleBack} className={`${outlineButton} flex-1 sm:flex-none`}>
+                  <ArrowLeft className="w-4 h-4" />
+                  Back
+                </button>
+              )}
               <button
                 type="button"
-                onClick={handleBack}
-                className="px-6 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm transition"
+                onClick={handleNext}
+                disabled={saving}
+                className={`${primaryButton} flex-1 sm:flex-none`}
               >
-                ← Back
+                {saving ? (
+                  <>
+                    <LoaderCircle className="w-4 h-4 animate-spin" />
+                    Saving Profile...
+                  </>
+                ) : currentStep === 5 ? (
+                  <>
+                    Save and finish
+                    <Check className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
-            ) : (
-              <div />
-            )}
-
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={saving}
-              className="px-8 py-2.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] disabled:bg-blue-300 text-white font-semibold text-sm transition flex items-center gap-2 shadow-sm"
-            >
-              {saving ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  Saving Profile...
-                </>
-              ) : currentStep === 5 ? (
-                "Complete Profile 🎉"
-              ) : (
-                "Continue →"
-              )}
-            </button>
+            </div>
           </div>
         </div>
       </main>
 
       {/* Success Modal */}
       {showSuccessModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl border border-slate-100 animate-fadeIn">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl mx-auto mb-4">
-              🎉
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl animate-fadeIn">
+            <div className="w-16 h-16 rounded-full bg-[#5DCAA5]/15 text-[#5DCAA5] flex items-center justify-center mx-auto mb-4">
+              <Check className="w-8 h-8" strokeWidth={2.5} />
             </div>
-            <h3 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Your E2Job profile is ready!
-            </h3>
-            <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+            <h3 className="text-2xl font-semibold text-neutral-100 tracking-tight">Your E2Job profile is ready!</h3>
+            <p className="text-sm text-neutral-400 mt-2 leading-relaxed">
               We’ll use your profile to personalize jobs, skills and career recommendations.
             </p>
 
             <button
               type="button"
               onClick={() => navigate("/fresher/dashboard", { replace: true })}
-              className="w-full mt-6 py-3.5 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white font-bold text-sm transition shadow-md shadow-blue-900/20"
+              className={`${primaryButton} w-full mt-6 py-3`}
             >
-              Go to Dashboard →
+              Go to Dashboard
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>

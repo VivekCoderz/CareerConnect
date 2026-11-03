@@ -46,8 +46,26 @@ exports.updateProfile = async (req, res, next) => {
       profileImage,
     } = req.body;
 
+    const nameFields = { fullName, firstName, lastName };
+    for (const [field, value] of Object.entries(nameFields)) {
+      if (value !== undefined && (typeof value !== "string" || /[<>]/.test(value))) {
+        return res.status(400).json({ success: false, field, message: "Name can only contain letters, spaces and punctuation." });
+      }
+    }
+
     const updates = {};
-    if (fullName !== undefined) updates.fullName = fullName.trim();
+    if (fullName !== undefined) {
+      updates.fullName = fullName.trim().replace(/\s+/g, " ");
+      if (updates.fullName.length < 2 || updates.fullName.length > 50) {
+        return res.status(400).json({ success: false, field: "fullName", message: "Name must be 2 to 50 characters." });
+      }
+      // A full name on its own also replaces the first/last name split.
+      if (firstName === undefined && lastName === undefined) {
+        const [first, ...rest] = updates.fullName.split(" ");
+        updates.firstName = first;
+        updates.lastName = rest.join(" ");
+      }
+    }
     if (firstName !== undefined) updates.firstName = firstName.trim();
     if (lastName !== undefined) updates.lastName = lastName.trim();
     if (phone !== undefined) updates.phone = phone.trim();
@@ -60,7 +78,7 @@ exports.updateProfile = async (req, res, next) => {
     if (linkedinUrl !== undefined) updates.linkedinUrl = linkedinUrl;
     if (profileImage !== undefined) updates.profileImage = profileImage;
 
-    const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true, runValidators: true }).select(
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { returnDocument: "after", runValidators: true }).select(
       "-password"
     );
 

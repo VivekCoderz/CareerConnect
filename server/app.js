@@ -16,6 +16,7 @@ const { parseClientUrls, isLocalDevOrigin } = require("./utils/clientOrigins");
 
 const authRoutes = require("./routes/authRoutes.js");
 const userRoutes = require("./routes/userRoutes.js");
+const accountRoutes = require("./routes/accountRoutes.js");
 const skillRoutes = require("./routes/skillRoutes.js");
 const studentRoutes = require("./routes/studentRoutes.js");
 const fresherRoutes = require("./routes/fresherRoutes.js");
@@ -149,6 +150,7 @@ app.use(["/api/jobs", "/api/internships", "/api/applications", "/api/admin", "/a
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/account", accountRoutes);
 app.use("/api/skills", skillRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/profile/student", studentRoutes);
