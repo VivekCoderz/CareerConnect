@@ -515,26 +515,8 @@ const Signup = () => {
       return;
     }
 
-    // Check duplicate phone number
-    try {
-      const checkRes = await api.post("/auth/check-phone", {
-        phone: formData.phone.trim(),
-        countryCode: formData.countryCode || "+91",
-      });
-
-      if (checkRes.data?.exists) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          phone:
-            "This mobile number is already registered with another account",
-        }));
-
-        return;
-      }
-    } catch (err) {
-      console.warn("Phone check warning:", err.message);
-    }
-
+    // A number already in use is reported by /auth/register (field "phone"), which brings
+    // the user back to this step; there is no separate check endpoint.
     setFieldErrors({});
     setStep(3);
     window.scrollTo({ top: 0, behavior: "smooth" });
