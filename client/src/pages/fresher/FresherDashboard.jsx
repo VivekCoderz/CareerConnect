@@ -298,9 +298,11 @@ const FresherDashboard = () => {
                     targetRole={targetRoleLabel}
                   />
                 )}
-                <FresherCareerRecommendations
-                  recommendations={careerRecommendations}
-                />
+                {FEATURES.careerAdvice && (
+                  <FresherCareerRecommendations
+                    recommendations={careerRecommendations}
+                  />
+                )}
               </div>
 
               {/* Recommended Courses */}
@@ -520,7 +522,7 @@ const FresherDashboard = () => {
           )}
 
           {/* ==================== CAREER ADVICE ==================== */}
-          {activeTab === "recommendations" && (
+          {activeTab === "recommendations" && FEATURES.careerAdvice && (
             <div className="space-y-6 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Career Recommendations</h2>
