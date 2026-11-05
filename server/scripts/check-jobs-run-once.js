@@ -126,8 +126,12 @@ if (process.argv[2] === "child") {
     process.exit(1);
   });
 } else {
-  main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+  // Exit explicitly: Agenda leaves setTimeouts for jobs due soon (drain() only clears its
+  // polling interval), which would keep Node alive for up to the longest job interval.
+  main()
+    .then(() => process.exit(process.exitCode || 0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }
