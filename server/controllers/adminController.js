@@ -55,8 +55,8 @@ const sendAdminTokenResponse = (user, statusCode, res, populatedCompany = null) 
     { expiresIn: "7d" }
   );
 
-  // Same options as the candidate/employer cookies (SameSite=None + Secure in production,
-  // because the client and API are on different sites).
+  // Same options as the candidate/employer cookies (SameSite=Lax + Secure in production;
+  // see utils/authCookies.js).
   const cookieOptions = authCookieOptions(ADMIN_SESSION_MS);
   res.cookie("admin_token", token, cookieOptions);
   res.cookie("token", token, cookieOptions); // Read by the general auth middleware

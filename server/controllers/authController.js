@@ -1280,9 +1280,8 @@ module.exports.deleteMyAccount = async (req, res, next) => {
 
     await deleteAccount(user);
 
-    const cookieOptions = { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax" };
-    res.clearCookie("token", cookieOptions);
-    res.clearCookie("sid", { ...cookieOptions, path: "/" });
+    res.clearCookie("token", authCookieBaseOptions());
+    res.clearCookie("sid", authCookieBaseOptions());
     if (req.session) req.session.destroy(() => {});
 
     return res.status(200).json({ success: true, message: "Your account and personal data have been deleted." });

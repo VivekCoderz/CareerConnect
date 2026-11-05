@@ -89,11 +89,11 @@ describe("admin JWT and cookies (S09)", () => {
   });
 
   describe("cookie options", () => {
-    it("uses SameSite=None, Secure and HttpOnly in production", async () => {
+    it("uses SameSite=Lax, Secure and HttpOnly in production (H08: client and API share e2job.com)", async () => {
       await expect(withEnv({ NODE_ENV: "production" }, () => authCookieOptions(1000))).resolves.toMatchObject({
         httpOnly: true,
         secure: true,
-        sameSite: "none",
+        sameSite: "lax",
         path: "/",
       });
 
@@ -103,9 +103,27 @@ describe("admin JWT and cookies (S09)", () => {
         const cookie = cookieNamed(res, name);
         expect(cookie).toMatch(/HttpOnly/i);
         expect(cookie).toMatch(/Secure/i);
-        expect(cookie).toMatch(/SameSite=None/i);
+        expect(cookie).toMatch(/SameSite=Lax/i);
         expect(cookie).toMatch(/Path=\//);
       }
+    });
+
+    it("switches back to SameSite=None + Secure with AUTH_COOKIE_SAMESITE=none", async () => {
+      await expect(
+        withEnv({ NODE_ENV: "production", AUTH_COOKIE_SAMESITE: "none" }, () => authCookieBaseOptions())
+      ).resolves.toEqual({ httpOnly: true, secure: true, sameSite: "none", path: "/" });
+
+      // None without Secure is dropped by browsers, so it is Secure even outside production.
+      await expect(withEnv({ AUTH_COOKIE_SAMESITE: "none" }, () => authCookieBaseOptions())).resolves.toMatchObject({
+        secure: true,
+        sameSite: "none",
+      });
+    });
+
+    it("ignores an unknown AUTH_COOKIE_SAMESITE value", async () => {
+      await expect(
+        withEnv({ NODE_ENV: "production", AUTH_COOKIE_SAMESITE: "sometimes" }, () => authCookieBaseOptions())
+      ).resolves.toMatchObject({ sameSite: "lax" });
     });
 
     it("uses SameSite=Lax without Secure in development", async () => {
@@ -127,14 +145,14 @@ describe("admin JWT and cookies (S09)", () => {
         expect(cookie).toBeDefined();
         expect(cookie).toMatch(/Expires=Thu, 01 Jan 1970/);
         expect(cookie).toMatch(/Path=\//);
-        expect(cookie).toMatch(/SameSite=None/i);
+        expect(cookie).toMatch(/SameSite=Lax/i);
         expect(cookie).toMatch(/Secure/i);
         expect(cookie).toMatch(/HttpOnly/i);
       }
       await expect(withEnv({ NODE_ENV: "production" }, () => authCookieBaseOptions())).resolves.toEqual({
         httpOnly: true,
         secure: true,
-        sameSite: "none",
+        sameSite: "lax",
         path: "/",
       });
     });
