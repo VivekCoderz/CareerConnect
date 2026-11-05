@@ -1130,11 +1130,6 @@
       "count": 1
     }
   },
-  "src/services/notificationService.js": {
-    "no-unused-vars": {
-      "count": 4
-    }
-  },
   "src/utils/latexResumeGenerator.js": {
     "no-useless-escape": {
       "count": 1

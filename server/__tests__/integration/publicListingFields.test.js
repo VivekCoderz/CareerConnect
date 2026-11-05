@@ -18,7 +18,7 @@ describe("public listing detail pages", () => {
     expect(publicRes.body.job.adminNote).toBeUndefined();
     expect(publicRes.body.job.rejectionReason).toBeUndefined();
 
-    const ownerRes = await request(app).get(`/api/jobs/${job._id}`).set("Authorization", `Bearer ${employer.token}`);
+    const ownerRes = await request(app).get(`/api/jobs/${job._id}`).set("Cookie", `token=${employer.token}`);
     expect(ownerRes.body.job.adminNote).toBe("internal: checked GST");
   });
 

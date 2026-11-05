@@ -17,7 +17,7 @@ const {
 } = require("../helpers/createTestUser");
 
 const AWAITING = "Your company is awaiting verification";
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 const jobPayload = (overrides = {}) => ({
   title: "Verified Backend Developer",
