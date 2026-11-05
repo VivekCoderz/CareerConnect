@@ -115,6 +115,12 @@ jobs:
         working-directory: server
         timeout-minutes: 5
 
+      # Two workers on one in-memory database: each scheduled job runs once per interval.
+      - name: Check scheduled jobs run once across workers
+        run: npm run test:scheduler
+        working-directory: server
+        timeout-minutes: 3
+
       - name: Run complete server test suite
         run: npm test -- --ci
         working-directory: server
