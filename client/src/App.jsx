@@ -33,7 +33,6 @@ const AdminSentryTest = lazyWithRetry(() => import("./pages/admin/AdminSentryTes
 
 // Global Rate Limit Warning Modal
 import RateLimitWarningModal from "./components/RateLimitWarningModal";
-import FloatingAiAssistant from "./components/ai/FloatingAiAssistant";
 
 // Lazy-loaded Pages: Public & Discovery
 const Home = lazyWithRetry(() => import("./pages/Home.jsx"));
@@ -570,7 +569,6 @@ function App() {
   return (
     <BrowserRouter>
       <RateLimitWarningModal />
-      <FloatingAiAssistant />
       <AuthInitializer>
         <AppRoutes />
       </AuthInitializer>

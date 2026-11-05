@@ -1,6 +1,6 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
@@ -36,7 +36,6 @@ import CandidateInterviewsView from "../../components/student-dashboard/Candidat
 import NotificationInbox from "../../components/notifications/NotificationInbox";
 
 const FresherDashboard = () => {
-  const navigate = useNavigate();
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
@@ -89,12 +88,6 @@ const FresherDashboard = () => {
 
   const handleLogout = () => {
     logout();
-  };
-
-  const handleSearch = (term) => {
-    if (term.trim()) {
-      navigate(`/jobs?search=${encodeURIComponent(term.trim())}`);
-    }
   };
 
   const handleSelectTab = (tab) => {
@@ -210,9 +203,7 @@ const FresherDashboard = () => {
         <FresherNavbar
           user={currentUser}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onLogout={handleLogout}
-          onSearch={handleSearch}
         />
 
         {/* Workspace Body */}
