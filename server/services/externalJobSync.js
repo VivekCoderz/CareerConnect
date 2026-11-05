@@ -376,7 +376,10 @@ const getLastSyncedAt = async () => {
   return times.length ? new Date(Math.max(...times)) : null;
 };
 
-/** Runs the sync only when the last one is older than the interval (restarts don't refetch). */
+/**
+ * Runs the sync only when the last one is older than the interval (restarts don't refetch).
+ * The worker calls this every 30 minutes (jobs/scheduledJobs.js).
+ */
 const runScheduledSyncIfDue = async () => {
   try {
     const last = await getLastSyncedAt();
@@ -388,20 +391,6 @@ const runScheduledSyncIfDue = async () => {
   }
 };
 
-/**
- * Starts the background schedule (called from server.js). Set ENABLE_EXTERNAL_JOB_SYNC=false
- * to turn it off. Checks every 30 minutes and syncs when the interval has passed.
- */
-const startExternalJobSyncSchedule = () => {
-  if (String(process.env.ENABLE_EXTERNAL_JOB_SYNC).toLowerCase() === "false") {
-    console.log("[job-sync] scheduled external job sync is disabled");
-    return null;
-  }
-  // unref: the HTTP server keeps the process alive; these timers alone shouldn't.
-  setTimeout(runScheduledSyncIfDue, 60 * 1000).unref();
-  return setInterval(runScheduledSyncIfDue, 30 * 60 * 1000).unref();
-};
-
 module.exports = {
   APPROVED_SOURCES,
   normalizeFeedJob,
@@ -409,6 +398,5 @@ module.exports = {
   runExternalJobSync,
   deleteOldClosedFeedListings,
   runScheduledSyncIfDue,
-  startExternalJobSyncSchedule,
   getSyncIntervalMs,
 };

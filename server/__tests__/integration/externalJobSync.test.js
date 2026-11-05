@@ -9,9 +9,9 @@ const {
   runExternalJobSync,
   deleteOldClosedFeedListings,
   runScheduledSyncIfDue,
-  startExternalJobSyncSchedule,
   getSyncIntervalMs,
 } = require("../../services/externalJobSync");
+const { enabledJobs } = require("../../jobs/scheduledJobs");
 const { clearSearchCache } = require("../../services/jobScraperService");
 const { createUserWithToken } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
@@ -461,21 +461,11 @@ describe("I04 scheduled external job feed sync", () => {
       process.env.EXTERNAL_JOB_SYNC_INTERVAL_HOURS = "0"; // below the 1-hour floor: default
       expect(getSyncIntervalMs()).toBe(6 * 60 * 60 * 1000);
 
+      // The worker schedules it unless ENABLE_EXTERNAL_JOB_SYNC=false.
+      const scheduled = () => enabledJobs().map((job) => job.name);
+      expect(scheduled()).toContain("external-job-sync");
       process.env.ENABLE_EXTERNAL_JOB_SYNC = "false";
-      expect(startExternalJobSyncSchedule()).toBeNull();
-    });
-
-    it("unrefs both schedule timers so they don't keep the process alive", () => {
-      const timeout = jest.spyOn(global, "setTimeout");
-      const interval = startExternalJobSyncSchedule();
-      const first = timeout.mock.results[timeout.mock.calls.findIndex(([fn]) => fn === runScheduledSyncIfDue)].value;
-      try {
-        expect(interval.hasRef()).toBe(false);
-        expect(first.hasRef()).toBe(false);
-      } finally {
-        clearInterval(interval);
-        clearTimeout(first);
-      }
+      expect(scheduled()).not.toContain("external-job-sync");
     });
   });
 
