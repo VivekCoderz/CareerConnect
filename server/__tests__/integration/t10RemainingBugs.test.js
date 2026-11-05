@@ -17,7 +17,7 @@ const {
 } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
-const as = (token, method, path) => request(app)[method](path).set("Authorization", `Bearer ${token}`);
+const as = (token, method, path) => request(app)[method](path).set("Cookie", `token=${token}`);
 const daysFromNow = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 
 let seq = 0;

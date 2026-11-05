@@ -72,7 +72,7 @@ describe("signup with consent flow", () => {
 
     const login = await request(app).post("/api/auth/login").send({ emailOrUsername: email, password: PASSWORD });
     expect(login.status).toBe(200);
-    const me = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${login.body.token}`);
+    const me = await request(app).get("/api/auth/me").set("Cookie", [].concat(login.headers["set-cookie"] || []).find((c) => c.startsWith("token=")).split(";")[0]);
     expect(me.status).toBe(200);
     expect(me.body.user.email).toBe(email);
   });

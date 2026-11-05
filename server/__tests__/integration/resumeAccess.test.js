@@ -23,7 +23,7 @@ describe('authenticated resume access', () => {
     await ResumeAsset.create({ user: owner._id, publicId: 'careerconnect/resumes/resume_test.pdf', url: assetUrl });
 
     const ownerResponse = await request(app).get('/api/resume/download')
-      .query({ url: assetUrl }).set('Authorization', `Bearer ${generateToken(owner._id)}`);
+      .query({ url: assetUrl }).set("Cookie", `token=${generateToken(owner._id)}`);
     expect(ownerResponse.status).toBe(302);
     expect(ownerResponse.headers.location).toBe('https://api.cloudinary.com/test-signed-download');
     expect(ownerResponse.headers['cache-control']).toBe('private, no-store');
@@ -33,7 +33,7 @@ describe('authenticated resume access', () => {
     );
 
     const otherResponse = await request(app).get('/api/resume/download')
-      .query({ url: assetUrl }).set('Authorization', `Bearer ${generateToken(other._id)}`);
+      .query({ url: assetUrl }).set("Cookie", `token=${generateToken(other._id)}`);
     expect(otherResponse.status).toBe(403);
     expect(signedUrl).toHaveBeenCalledTimes(1);
   });
@@ -54,11 +54,11 @@ describe('authenticated resume access', () => {
     });
 
     const allowed = await request(app).get('/api/resume/download')
-      .query({ url: assetUrl }).set('Authorization', `Bearer ${generateToken(employer._id)}`);
+      .query({ url: assetUrl }).set("Cookie", `token=${generateToken(employer._id)}`);
     expect(allowed.status).toBe(302);
 
     const denied = await request(app).get('/api/resume/download')
-      .query({ url: assetUrl }).set('Authorization', `Bearer ${generateToken(stranger._id)}`);
+      .query({ url: assetUrl }).set("Cookie", `token=${generateToken(stranger._id)}`);
     expect(denied.status).toBe(403);
   });
 

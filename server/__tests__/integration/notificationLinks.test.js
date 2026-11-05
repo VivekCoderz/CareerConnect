@@ -86,7 +86,7 @@ describe("notification links per type", () => {
     const student = await createUserWithToken({ email: "links-welcome@example.com" });
     const res = await request(app)
       .get("/api/notifications")
-      .set("Authorization", `Bearer ${student.token}`);
+      .set("Cookie", `token=${student.token}`);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.notifications).toEqual([]);
@@ -106,7 +106,7 @@ describe("notification links per type", () => {
 
     const res = await request(app)
       .get("/api/notifications")
-      .set("Authorization", `Bearer ${student.token}`);
+      .set("Cookie", `token=${student.token}`);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.notifications).toHaveLength(1);
@@ -122,7 +122,7 @@ describe("notification links per type", () => {
     const student = await createUserWithToken({ email: "links-ai-endpoint@example.com" });
     const res = await request(app)
       .post("/api/ai/send-recommendation-mail")
-      .set("Authorization", `Bearer ${student.token}`);
+      .set("Cookie", `token=${student.token}`);
     expect(res.statusCode).toBe(404);
   });
 });

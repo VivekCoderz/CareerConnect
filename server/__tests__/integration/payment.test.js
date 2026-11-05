@@ -14,7 +14,7 @@ const TEST_KEY_SECRET = "unit-test-razorpay-secret";
 const sign = (orderId, paymentId, secret = TEST_KEY_SECRET) =>
   crypto.createHmac("sha256", secret).update(`${orderId}|${paymentId}`).digest("hex");
 
-const as = (token, path) => request(app).post(path).set("Authorization", `Bearer ${token}`);
+const as = (token, path) => request(app).post(path).set("Cookie", `token=${token}`);
 
 const setup = async () => {
   const owner = await createEmployerWithToken({ email: `pay-owner-${Date.now()}@example.com` });

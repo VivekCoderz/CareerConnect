@@ -6,7 +6,7 @@ const { createUserWithToken, createEmployerWithToken } = require("../helpers/cre
 const { createTestJob } = require("../helpers/createTestJob");
 const { isHttpUrl } = require("../../middleware/textFields");
 
-const as = (token) => (method, path) => request(app)[method](path).set("Authorization", `Bearer ${token}`);
+const as = (token) => (method, path) => request(app)[method](path).set("Cookie", `token=${token}`);
 
 describe("non-text values in text fields return 400, not 500", () => {
   let admin;

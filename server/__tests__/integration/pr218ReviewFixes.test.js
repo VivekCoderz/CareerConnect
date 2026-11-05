@@ -11,7 +11,7 @@ const {
 } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
-const as = (token, method, path) => request(app)[method](path).set("Authorization", `Bearer ${token}`);
+const as = (token, method, path) => request(app)[method](path).set("Cookie", `token=${token}`);
 let seq = 0;
 const uniq = (label) => `${label}-${Date.now()}-${++seq}`;
 const phone = (lead) => `${lead}${String(Date.now() + ++seq).slice(-9)}`;
