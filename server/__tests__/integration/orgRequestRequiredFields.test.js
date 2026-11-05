@@ -30,7 +30,7 @@ describe("POST /api/employer/request-company-approval requires industry and comp
   const submit = (body) =>
     request(app)
       .post("/api/employer/request-company-approval")
-      .set("Authorization", `Bearer ${employer.token}`)
+      .set("Cookie", `token=${employer.token}`)
       .send(body);
 
   const expectNothingSaved = async () => {
@@ -111,7 +111,7 @@ describe("POST /api/employer/request-company-approval requires industry and comp
   it("the status endpoint does not prefill a fake industry or size", async () => {
     const res = await request(app)
       .get("/api/employer/organization-status")
-      .set("Authorization", `Bearer ${employer.token}`);
+      .set("Cookie", `token=${employer.token}`);
     expect(res.statusCode).toBe(200);
     expect(res.body.prefill).toMatchObject({ industry: "", companySize: "" });
   });
@@ -149,7 +149,7 @@ describe("other organization/company create paths do not invent an industry or s
 
     const res = await request(app)
       .patch(`/api/admin/organization-requests/${orgRequest._id}/approve`)
-      .set("Authorization", `Bearer ${admin.token}`);
+      .set("Cookie", `token=${admin.token}`);
     expect(res.statusCode).toBe(200);
     const company = await Company.findOne({ name: "Fakeorg Approval Testing" }).lean();
     expect(company.industry).toBe("");
@@ -159,7 +159,7 @@ describe("other organization/company create paths do not invent an industry or s
     const admin = await createUserWithToken({ email: "root2@fake-admin.test", role: "SUPER_ADMIN", userType: "admin" });
     const res = await request(app)
       .post("/api/admin/companies")
-      .set("Authorization", `Bearer ${admin.token}`)
+      .set("Cookie", `token=${admin.token}`)
       .send({ name: "Fakeorg Admin Created" });
     expect(res.statusCode).toBe(201);
     const company = await Company.findOne({ name: "Fakeorg Admin Created" }).lean();

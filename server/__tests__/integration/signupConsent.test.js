@@ -7,7 +7,7 @@ const { createUserWithToken, createEmployerProfile } = require("../helpers/creat
 
 // G05: new accounts must agree to the Terms and Privacy Policy, and the server stores it.
 const CONSENT = { acceptedTerms: true, termsVersion: "2026-10-01" };
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 let seq = 0;
 const verifiedEmail = async (prefix) => {

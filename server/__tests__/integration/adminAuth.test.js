@@ -37,7 +37,7 @@ describe("admin JWT and cookies (S09)", () => {
 
   const login = (user) =>
     request(app).post("/api/admin/login").send({ email: user.email, password: PASSWORD });
-  const me = (token) => request(app).get("/api/admin/me").set("Authorization", `Bearer ${token}`);
+  const me = (token) => request(app).get("/api/admin/me").set("Cookie", `token=${token}`);
   const meWithCookie = (token) => request(app).get("/api/admin/me").set("Cookie", `token=${token}`);
 
   const resetPassword = async (user) => {

@@ -44,7 +44,7 @@ describe('I06 performance: compression, Cache-Control, indexes, search', () => {
     it('does not publicly cache the employer\'s own job list', async () => {
       const res = await request(app)
         .get('/api/jobs?myJobs=true')
-        .set('Authorization', `Bearer ${employer.token}`);
+        .set("Cookie", `token=${employer.token}`);
 
       expect(res.statusCode).toBe(200);
       expect(res.headers['cache-control'] || '').not.toContain('public');

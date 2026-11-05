@@ -8,7 +8,7 @@ const { createUserWithToken, createEmployerWithToken, createEmployerProfile } = 
 const { createTestJob } = require("../helpers/createTestJob");
 const { clearSearchCache } = require("../../services/jobScraperService");
 
-const as = (token, method, path) => request(app)[method](path).set("Authorization", `Bearer ${token}`);
+const as = (token, method, path) => request(app)[method](path).set("Cookie", `token=${token}`);
 
 const jobBody = (overrides = {}) => ({
   title: "Backend Developer",
