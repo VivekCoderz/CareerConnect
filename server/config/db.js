@@ -48,41 +48,42 @@ async function cleanupLegacyIndexes(conn) {
   } catch (idxErr) {}
 }
 
-const connectDB = async (retryCount = 0) => {
-  const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/careerconnect";
-  try {
-    const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
-    });
-    console.log(`MongoDB Connected successfully 🎉 (${conn.connection.host})`);
-    await cleanupLegacyIndexes(conn);
-  } catch (error) {
-    console.error("MongoDB connection failed:", error.message);
-    
-    // Fallback to local MongoDB if Atlas SRV fails
-    if (uri.startsWith("mongodb+srv://")) {
-      console.log("🔄 Attempting fallback to local MongoDB (mongodb://127.0.0.1:27017/careerconnect)...");
-      try {
-        const localConn = await mongoose.connect("mongodb://127.0.0.1:27017/careerconnect", {
-          serverSelectionTimeoutMS: 5000,
-        });
-        console.log(`✅ Local MongoDB Connected successfully 🎉 (${localConn.connection.host})`);
-        await cleanupLegacyIndexes(localConn);
-        return;
-      } catch (localErr) {
-        console.error("Local MongoDB fallback also failed:", localErr.message);
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 5000;
+
+// Connects to MONGODB_URI only (no local fallback). If every attempt fails the
+// process exits, so the host restarts it and UptimeRobot sees the outage.
+const connectDB = async () => {
+  const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+  let uri = process.env.MONGODB_URI;
+  if (!uri) {
+    if (isProduction) {
+      console.error("FATAL: MONGODB_URI environment variable is not set.");
+      process.exit(1);
+    }
+    uri = "mongodb://localhost:27017/careerconnect";
+  }
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const conn = await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 30000,
+        socketTimeoutMS: 45000,
+      });
+      console.log(`MongoDB Connected successfully 🎉 (${conn.connection.host})`);
+      await cleanupLegacyIndexes(conn);
+      return conn;
+    } catch (error) {
+      console.error("MongoDB connection failed:", error.message);
+      if (attempt < MAX_RETRIES) {
+        console.log(`🔄 Retrying MongoDB connection in 5 seconds (Attempt ${attempt + 1}/${MAX_RETRIES})...`);
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
       }
     }
-
-    if (retryCount < 3) {
-      console.log(`🔄 Retrying MongoDB connection in 5 seconds (Attempt ${retryCount + 1}/3)...`);
-      setTimeout(() => connectDB(retryCount + 1), 5000);
-      return;
-    }
-
-    console.error("❌ Max connection retries reached. Please check your internet connection or MongoDB Atlas IP Whitelist (https://cloud.mongodb.com -> Network Access).");
   }
+
+  console.error("FATAL: Max MongoDB connection retries reached. Check MONGODB_URI and the Atlas IP allowlist (https://cloud.mongodb.com -> Network Access).");
+  process.exit(1);
 };
 
 module.exports = connectDB;

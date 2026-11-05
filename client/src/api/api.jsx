@@ -15,17 +15,7 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor — attaches Bearer token from localStorage as fallback for cookies
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("careerconnect_token");
-    if (token && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+// Auth is the httpOnly cookie only (sent by withCredentials). No Bearer header.
 
 /**
  * Response interceptor — handles 401 Unauthorized globally.
