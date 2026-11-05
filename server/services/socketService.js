@@ -217,9 +217,26 @@ function emitApplicationUpdated(application) {
   );
 }
 
+/**
+ * In-app notifications (H17): a notification with a recipient goes only to that user's
+ * room; one without a recipient is a broadcast to every signed-in user.
+ */
+function emitNotification(notification, targetUserId = null) {
+  if (!io || !notification) return;
+  const recipient = idOf(notification.recipient) || idOf(targetUserId);
+  const payload = typeof notification.toJSON === "function" ? notification.toJSON() : notification;
+  try {
+    if (recipient) io.to(`user_${recipient}`).emit("notification", payload);
+    else io.emit("notification", payload);
+  } catch (err) {
+    console.error("Failed to emit notification:", err.message);
+  }
+}
+
 module.exports = {
   init,
   getIO,
+  emitNotification,
   emitInterviewRescheduled,
   emitInterviewCancelled,
   emitInterviewScheduled,

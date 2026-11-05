@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 const Notification = require("../models/Notification");
 const NotificationUserState = require("../models/NotificationUserState");
 const NotificationReadCursor = require("../models/NotificationReadCursor");
-const { registerSseClient } = require("../services/notificationService");
 
 const accessible = (userId) => ({ $or: [{ recipient: userId }, { recipient: null }] });
 // AI bot mails (the old welcome mail and "AI picks") are no longer shown in the inbox.
@@ -173,13 +172,3 @@ exports.deleteNotification = async (req, res) => {
   }
 };
 
-exports.streamNotifications = (req, res) => {
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-transform",
-    "X-Accel-Buffering": "no",
-    Connection: "keep-alive",
-  });
-  res.flushHeaders?.();
-  registerSseClient(req.user._id, res);
-};
