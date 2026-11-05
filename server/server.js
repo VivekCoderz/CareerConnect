@@ -50,6 +50,14 @@ const { clearSearchCache } = require("./services/jobScraperService");
 
 const PORT = process.env.PORT || 5000;
 
+// Staging must use its own database and production must never use it (H02, docs/staging.md).
+try {
+  require("./config/environment").assertDatabaseMatchesEnvironment(process.env.MONGODB_URI);
+} catch (error) {
+  console.error(`❌ ${error.message}`);
+  process.exit(1);
+}
+
 // Connect Database
 connectDB();
 
