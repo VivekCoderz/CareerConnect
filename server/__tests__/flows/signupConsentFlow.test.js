@@ -72,7 +72,8 @@ describe("signup with consent flow", () => {
 
     const login = await request(app).post("/api/auth/login").send({ emailOrUsername: email, password: PASSWORD });
     expect(login.status).toBe(200);
-    const me = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${login.body.token}`);
+    // The session is the httpOnly cookie set by login (H07).
+    const me = await request(app).get("/api/auth/me").set("Cookie", login.headers["set-cookie"]);
     expect(me.status).toBe(200);
     expect(me.body.user.email).toBe(email);
   });
