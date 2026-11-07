@@ -2,7 +2,7 @@
 
 [![CareerConnect CI](https://github.com/VivekCoderz/CareerConnect/actions/workflows/ci.yml/badge.svg)](https://github.com/VivekCoderz/CareerConnect/actions/workflows/ci.yml)
 
-**CareerConnect** is a job and internship platform for students, freshers and working professionals, with a hiring workspace for employers. It combines opportunity discovery, an AI resume builder and ATS checker, skill-gap based recommendations, and an applications → interviews → offers pipeline.
+**CareerConnect** is a job and internship platform for students, freshers and working professionals, with a hiring workspace for employers. It combines opportunity discovery, an AI resume builder and ATS checker, personalised job recommendations, and an applications → interviews → offers pipeline.
 
 This README lists what is **built and wired up today**. Features that exist in code but are switched off by default are listed separately, as is what is not built yet.
 
@@ -21,9 +21,10 @@ This README lists what is **built and wired up today**. Features that exist in c
 
 Each seeker type has its own profile and dashboard (`/student/*`, `/fresher/*`, `/professional/*`).
 
-* **Accounts** — email + password sign-up with email OTP verification, Google sign-in (Firebase), forgot/reset password via OTP, CAPTCHA on sign-up and login, JWT in an httpOnly cookie, account deletion
+* **Accounts** — email + password sign-up with email OTP verification, Google sign-in (Firebase), forgot/reset password via OTP, CAPTCHA on sign-up and login, JWT in an httpOnly cookie, OTP-verified email change, account deletion
 * **Profile** — skills, education, experience, career goal; fresher profiles have a setup wizard and a public profile page
-* **Apply** — save and apply to jobs/internships, track application status (`/applications`), respond to offers
+* **Fresher dashboard** — profile strength, counts and "Jobs for you" scored against the fresher's preferences
+* **Apply** — apply to jobs/internships, track application status (`/applications`), respond to offers
 * **Resume tools** (`/resume-builder`)
   * Build a resume from profile data, or upload a PDF and have it parsed into the profile
   * AI resume generation and ATS-format generation
@@ -31,10 +32,8 @@ Each seeker type has its own profile and dashboard (`/student/*`, `/fresher/*`, 
   * Tailor a resume to a specific job or internship
   * Keep several resumes, set a primary one, download it
   * Shareable live resume link (`/live-resume/:id`)
-* **Career recommendations** (`/fresher/career-recommendations`) — recommended jobs, internships, courses and projects, skill-gap analysis against the target role, career paths and an action plan, from `server/services/recommendationEngine.js`
 * **Skills** — skill catalogue and trending skills (`/api/skills`, `/api/skills/trending`)
 * **Market insights** for professionals — market analytics and company details
-* **AI assistant** — chat endpoint (`/api/ai/chat`) backed by Gemini with retrieval over platform data
 * **Notifications** — in-app (live via Socket.IO / server-sent events) and email, with read tracking and email digests
 * **Support** — raise support tickets, report a job or internship listing
 
@@ -73,8 +72,14 @@ These are behind feature flags and are **disabled unless the flag is set to `tru
 | Courses (catalogue, enrolment, lessons, progress, employer course authoring) | `ENABLE_COURSES` | `VITE_ENABLE_COURSES` |
 | Paid courses via Razorpay | `ENABLE_PAYMENTS` | `VITE_ENABLE_PAYMENTS` |
 | Employer skill assessments | `ENABLE_ASSESSMENTS` | `VITE_ENABLE_ASSESSMENTS` |
+| Career recommendations page (`/fresher/career-recommendations`) — skill-gap analysis, recommended courses and projects, career paths, action plan | — (API always on) | `VITE_ENABLE_CAREER_ADVICE` |
 
-With the flags off, the related API routes return 404 and the pages are hidden.
+With the server flags off, the related API routes return 404; with the client flags off, the pages and menu items are hidden.
+
+Also not reachable from the UI yet:
+
+* **Saved jobs** — the save buttons are hidden behind `VITE_ENABLE_SAVED_JOBS` because `POST /api/student/save` returns 501 (not stored yet).
+* **AI assistant** — `POST /api/ai/chat` (Gemini with retrieval over platform data) is live, but the chat widget is not mounted in the app.
 
 ---
 
