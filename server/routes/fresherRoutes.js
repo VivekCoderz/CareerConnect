@@ -2,10 +2,12 @@ const express = require("express");
 const router = express.Router();
 const fresherController = require("../controllers/fresherController");
 const protect = require("../middleware/authMiddleware");
+const { optionalAuth } = require("../middleware/authMiddleware");
 const { requireCandidate, requireUserType } = require("../middleware/roleMiddleware");
 
 // Public route for viewing public profiles
-router.get("/public/:usernameOrId", fresherController.getPublicFresherProfile);
+// optionalAuth: a fresher opening their own public page isn't counted as a profile view.
+router.get("/public/:usernameOrId", optionalAuth, fresherController.getPublicFresherProfile);
 
 // Authenticated Fresher-only routes
 router.use(protect);

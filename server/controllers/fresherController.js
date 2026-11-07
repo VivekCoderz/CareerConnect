@@ -10,90 +10,15 @@ const { sanitizeProfileUpdate } = require("../utils/profileUpdate");
 const { normalizeSkill, normalizedSkillSet } = require("../utils/skills");
 const { openListingQuery } = require("../utils/listingExpiry");
 const { formatSalary, formatStipend, companyOf, formatDate, textOrNull } = require("../utils/listingDisplay");
+const {
+  ROLE_SKILLS,
+  normalizePreferences,
+  mirrorPreferencesToLegacy,
+  syncPreferencesFromLegacy,
+} = require("../utils/fresherPreferences");
 
-// Skill benchmarks for target roles for Job Matching & Skill Gap Analysis
-const ROLE_SKILL_BENCHMARKS = {
-  "Full Stack Developer": [
-    "JavaScript",
-    "React",
-    "Node.js",
-    "Express",
-    "MongoDB",
-    "REST API",
-    "Git",
-    "HTML",
-    "CSS",
-    "TypeScript",
-  ],
-  "Frontend Developer": [
-    "JavaScript",
-    "React",
-    "HTML",
-    "CSS",
-    "Tailwind CSS",
-    "TypeScript",
-    "Redux",
-    "Git",
-  ],
-  "Backend Developer": [
-    "Node.js",
-    "Express",
-    "MongoDB",
-    "SQL",
-    "REST API",
-    "Python",
-    "Docker",
-    "Authentication",
-    "Git",
-  ],
-  "Software Developer": [
-    "Data Structures",
-    "Algorithms",
-    "Java",
-    "C++",
-    "Python",
-    "SQL",
-    "Git",
-    "OOP",
-  ],
-  "Junior Software Engineer": [
-    "JavaScript",
-    "Python",
-    "Java",
-    "Data Structures",
-    "SQL",
-    "Git",
-    "Problem Solving",
-  ],
-  "Data Analyst": [
-    "Python",
-    "SQL",
-    "Excel",
-    "Pandas",
-    "NumPy",
-    "Data Visualization",
-    "PowerBI",
-    "Tableau",
-  ],
-  "QA Engineer": [
-    "JavaScript",
-    "Selenium",
-    "Manual Testing",
-    "Automation Testing",
-    "Postman",
-    "Jest",
-    "Git",
-  ],
-  "DevOps Engineer": [
-    "Linux",
-    "Docker",
-    "Kubernetes",
-    "AWS",
-    "CI/CD",
-    "Git",
-    "Shell Scripting",
-  ],
-};
+// Skill benchmarks for target roles, shared with the dashboard banner's skill score.
+const ROLE_SKILL_BENCHMARKS = ROLE_SKILLS;
 
 const PROFILE_USER_FIELDS = "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks";
 
@@ -396,6 +321,20 @@ module.exports.updateFresherProfile = async (req, res, next) => {
     const userId = req.user._id;
     const updateData = sanitizeProfileUpdate(req.body);
 
+    // The dashboard's edit preferences form sends `preferences`; set only the keys it sent.
+    // The full profile editor sends the old fields instead (targetRole, jobPreferences).
+    let previousPreferences = null;
+    if (updateData.preferences && typeof updateData.preferences === "object") {
+      const existing = await FresherProfile.findOne({ userId }).select("preferences").lean();
+      previousPreferences = existing?.preferences || {};
+      for (const [key, value] of Object.entries(normalizePreferences(updateData.preferences))) {
+        updateData[`preferences.${key}`] = value;
+      }
+    }
+    delete updateData.preferences;
+    const legacyPreferencesChanged = !previousPreferences &&
+      ["targetRole", "targetRoles", "jobPreferences"].some((key) => key in updateData);
+
     // Synchronize basic user fields if present in updateData
     const userUpdateFields = {};
     if (updateData.fullName)
@@ -438,6 +377,10 @@ module.exports.updateFresherProfile = async (req, res, next) => {
       "userId",
       "fullName email username phone profileImage role userType isProfileComplete profileCompletion socialLinks",
     );
+
+    if (previousPreferences) mirrorPreferencesToLegacy(profile, previousPreferences);
+    else if (legacyPreferencesChanged) syncPreferencesFromLegacy(profile);
+    if (previousPreferences || legacyPreferencesChanged) profile.preferencesSyncedAt = new Date();
 
     // Calculate updated completion & readiness
     const completion = calculateFresherProfileCompletion(profile, req.user);
@@ -692,7 +635,7 @@ module.exports.getFresherDashboard = async (req, res, next) => {
 
     // Calculate Target Role & Benchmarks. targetRole falls back to a default for
     // skill benchmarks only; text shown as the fresher's own choice uses chosenRole.
-    const chosenRole = profile?.targetRole || profile?.jobPreferences?.preferredRoles?.[0] || "";
+    const chosenRole = profile?.preferences?.targetRole || profile?.targetRole || profile?.jobPreferences?.preferredRoles?.[0] || "";
     const targetRole =
       profile.targetRole ||
       profile.targetRoles?.[0] ||
@@ -1114,6 +1057,10 @@ module.exports.getPublicFresherProfile = async (req, res, next) => {
         success: false,
         message: "This profile is private and cannot be viewed publicly.",
       });
+    }
+
+    if (!req.user || String(req.user._id) !== String(user._id)) {
+      await FresherProfile.updateOne({ _id: profile._id }, { $inc: { profileViews: 1 } }, { timestamps: false });
     }
 
     const source = profile.toObject();

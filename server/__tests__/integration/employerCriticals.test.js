@@ -4,6 +4,7 @@ const Job = require("../../models/Job");
 const Application = require("../../models/Application");
 const EmployerProfile = require("../../models/EmployerProfile");
 const Interview = require("../../models/Interview");
+const StudentProfile = require("../../models/StudentProfile");
 const { createUserWithToken, createEmployerWithToken } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
@@ -14,6 +15,8 @@ const setup = async () => {
   const profile = await EmployerProfile.create({ userId: employer.user._id, companyName: "Acme Labs" });
   const job = await createTestJob(profile._id, { createdBy: employer.user._id, status: "Published" });
   const applicant = await createUserWithToken({ email: "applicant@student.test", phone: "9000000001" });
+  // Candidate search only lists people with a candidate profile.
+  await StudentProfile.create({ userId: applicant.user._id });
   const application = await Application.create({
     candidateId: applicant.user._id, jobId: job._id, employerId: profile._id,
     opportunityType: "Job", opportunityTitle: job.title,
@@ -50,7 +53,8 @@ describe("employer critical fixes (BUG-01 to BUG-04)", () => {
 
   it("BUG-03: shows contact details only for candidates who applied to this employer", async () => {
     const { employer } = await setup();
-    await createUserWithToken({ email: "stranger@student.test", phone: "9000000002" });
+    const stranger = await createUserWithToken({ email: "stranger@student.test", phone: "9000000002" });
+    await StudentProfile.create({ userId: stranger.user._id });
 
     const res = await as(employer.token, "get", "/api/candidates/search");
 

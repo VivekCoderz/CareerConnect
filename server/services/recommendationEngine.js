@@ -6,6 +6,36 @@ const FresherProfile = require("../models/FresherProfile");
 const User = require("../models/User");
 const { formatSalary, formatStipend, companyOf, textOrNull } = require("../utils/listingDisplay");
 const { openListingQuery } = require("../utils/listingExpiry");
+const { targetRolesOf, profileSkills, titleMatchesRole } = require("../utils/fresherPreferences");
+const { matchContext, scoreJob, isSeniorTitle } = require("./fresherJobMatch");
+
+// Open jobs considered before filtering to the fresher's roles.
+const JOB_POOL_SIZE = 200;
+
+/**
+ * The fresher's chosen roles and stack, from the dashboard preferences and the profile
+ * editor's fields, for filtering out listings from other fields.
+ */
+const fieldPreferencesOf = (profile) => {
+  const p = typeof profile?.toObject === "function" ? profile.toObject() : profile || {};
+  const prefs = p.preferences || {};
+  const roles = [
+    ...targetRolesOf(prefs),
+    p.targetRole,
+    ...(p.targetRoles || []),
+    ...(p.jobPreferences?.preferredRoles || []),
+  ].map((r) => (typeof r === "string" ? r.trim() : "")).filter(Boolean);
+  const seen = new Set();
+  const targetRoles = roles.filter((r) => !seen.has(r.toLowerCase()) && seen.add(r.toLowerCase()));
+  return { ...prefs, targetRole: targetRoles[0] || "", targetRoles };
+};
+
+/** Keeps listings for the fresher's roles or stack; keeps everything when neither is set. */
+const forFreshersField = (listings, ctx) => {
+  const open = listings.filter((l) => !isSeniorTitle(l.title));
+  if (!ctx.roles.length && !ctx.roleKeys.size) return open;
+  return open.filter((l) => scoreJob(l, ctx).relevant);
+};
 
 // Industry standard baseline skill matrix by role
 const ROLE_SKILL_BENCHMARKS = {
@@ -248,21 +278,23 @@ const extractUserSkills = (profile) => {
 /**
  * Calculate multi-factor match score between Fresher profile and a Job opening
  */
-const calculateJobScore = (profile, userSkills, job) => {
+const calculateJobScore = (profile, userSkills, job, targetRoles = []) => {
   let score = 0;
   const reasons = [];
   const matchingSkills = [];
   const missingSkills = [];
 
-  const targetRole = (profile?.targetRole || profile?.jobPreferences?.preferredRoles?.[0] || "").toLowerCase();
   const jobTitle = (job.title || "").toLowerCase();
-  const jobCategory = (job.category || "").toLowerCase();
+  // A role named in the title outright ("Full Stack Developer") before a related one (Web Developer).
+  const matchedRole =
+    targetRoles.find((role) => jobTitle.includes(role.toLowerCase())) ||
+    targetRoles.find((role) => titleMatchesRole(job.title, role));
 
   // 1. Role Match (25 pts)
-  if (targetRole && (jobTitle.includes(targetRole) || targetRole.includes(jobTitle) || jobCategory.includes(targetRole))) {
+  if (matchedRole) {
     score += 25;
-    reasons.push(`Job title matches your target role "${profile.targetRole}"`);
-  } else if (targetRole && (jobTitle.includes("developer") || jobTitle.includes("engineer") || jobTitle.includes("analyst"))) {
+    reasons.push(`Job title matches your target role "${matchedRole}"`);
+  } else if (targetRoles.length && (jobTitle.includes("developer") || jobTitle.includes("engineer") || jobTitle.includes("analyst"))) {
     score += 15;
   } else {
     score += 10;
@@ -367,7 +399,9 @@ const generateFresherRecommendations = async (userId) => {
   }
 
   const { skillList, skillDetails } = extractUserSkills(profile);
-  const targetRole = profile.targetRole || profile.jobPreferences?.preferredRoles?.[0] || "Full Stack Developer";
+  const fieldPrefs = fieldPreferencesOf(profile);
+  const fieldCtx = matchContext({ prefs: fieldPrefs, skills: profileSkills(profile) });
+  const targetRole = fieldPrefs.targetRole || "Full Stack Developer";
 
   // 2. Fetch User's existing applications to avoid redundant job recommendations
   const userApplications = await Application.find({ candidateId: userId }).select("jobId internshipId status opportunityTitle companyName createdAt");
@@ -381,7 +415,7 @@ const generateFresherRecommendations = async (userId) => {
   // 3. Fetch Active Published Jobs & calculate dynamic skill demand
   const activeJobs = await Job.find(openListingQuery())
     .sort({ isFeatured: -1, createdAt: -1 })
-    .limit(50)
+    .limit(JOB_POOL_SIZE)
     .lean();
 
   // Calculate live market skill frequency for this target role
@@ -438,11 +472,11 @@ const generateFresherRecommendations = async (userId) => {
   // Sort missing skills by priority (High -> Medium -> Low) and demand
   missingSkillsList.sort((a, b) => b.demandPercentage - a.demandPercentage);
 
-  // 5. Job Recommendations with Dynamic Scoring
-  const recommendedJobs = activeJobs
+  // 5. Job Recommendations with Dynamic Scoring, only for the fresher's chosen roles
+  const recommendedJobs = forFreshersField(activeJobs, fieldCtx)
     .filter((job) => !appliedJobIds.has(job._id.toString()))
     .map((job) => {
-      const matchAnalysis = calculateJobScore(profile, skillList, job);
+      const matchAnalysis = calculateJobScore(profile, skillList, job, fieldCtx.roles);
       return {
         _id: job._id,
         id: job._id,
@@ -475,7 +509,7 @@ const generateFresherRecommendations = async (userId) => {
     .limit(20)
     .lean();
 
-  const recommendedInternships = activeInternships
+  const recommendedInternships = forFreshersField(activeInternships, fieldCtx)
     .filter((internship) => !appliedInternshipIds.has(internship._id.toString()))
     .map((internship) => {
       const reqSkills = internship.requiredSkills || [];

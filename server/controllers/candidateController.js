@@ -118,6 +118,19 @@ const getApplicantIdsForEmployer = async (user, candidateIds) => {
   return new Set(applicantIds.map(String));
 };
 
+// The user's profile of one kind, reduced to its visibility (empty array when they have none).
+const profileLookup = (Model, as) => ({
+  $lookup: {
+    from: Model.collection.name,
+    let: { userId: "$_id" },
+    pipeline: [
+      { $match: { $expr: { $eq: ["$userId", "$$userId"] } } },
+      { $project: { _id: 0, profileVisibility: 1 } },
+    ],
+    as,
+  },
+});
+
 // GET /api/candidates/search
 exports.searchCandidates = async (req, res, next) => {
   try {
@@ -150,16 +163,38 @@ exports.searchCandidates = async (req, res, next) => {
 
     if (typeof search === "string" && search.trim()) {
       const term = escapeRegex(search.trim());
+      // Email only matches people who applied to this employer, so a search can't
+      // confirm whether some other email is registered.
+      const applicantIds = await Application.distinct("candidateId", {
+        $or: await applicationOwnerClauses(await getOwnerScope(req.user)),
+      });
       query.$or = [
         { fullName: { $regex: term, $options: "i" } },
-        { email: { $regex: term, $options: "i" } },
+        { email: { $regex: term, $options: "i" }, _id: { $in: applicantIds } },
       ];
     }
 
-    const users = await User.find(query)
-      .select("-password")
-      .limit(50)
-      .lean();
+    // Only people with a candidate profile, and none of their profiles set to private.
+    // Filtered in the query so the limit still returns up to 50 visible candidates.
+    const users = await User.aggregate([
+      { $match: query },
+      profileLookup(StudentProfile, "studentProfiles"),
+      profileLookup(FresherProfile, "fresherProfiles"),
+      profileLookup(ProfessionalProfile, "professionalProfiles"),
+      {
+        $match: {
+          $or: [
+            { "studentProfiles.0": { $exists: true } },
+            { "fresherProfiles.0": { $exists: true } },
+            { "professionalProfiles.0": { $exists: true } },
+          ],
+          "fresherProfiles.profileVisibility": { $ne: "private" },
+          "professionalProfiles.profileVisibility": { $ne: "private" },
+        },
+      },
+      { $limit: 50 },
+      { $project: { password: 0, studentProfiles: 0, fresherProfiles: 0, professionalProfiles: 0 } },
+    ]);
 
     // Fetch candidate profiles
     const userIds = users.map((u) => u._id);
