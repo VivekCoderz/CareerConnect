@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { openRoundStatus } from "../../utils/interviewRound";
 
 // Format date into clean readable format: "22/09/26, 3:05 pm"
 const formatScheduleDate = (dateVal, timeVal) => {
@@ -127,6 +128,9 @@ export default function ApplicationTrackingProgress({ application }) {
       let isActive = false;
       let isFailed = false;
 
+      // Status of the round the candidate is in when it has no result yet.
+      const openStatus = openRoundStatus(stg, matchingInterview).toUpperCase();
+
       if (isWithdrawn) {
         status = "WITHDRAWN";
       } else if (historyEntry?.status) {
@@ -141,8 +145,8 @@ export default function ApplicationTrackingProgress({ application }) {
           status = "SCHEDULED";
           isActive = true;
         } else if (s.includes("PROGRESS")) {
-          status = "IN PROGRESS";
-          isActive = true;
+          status = openStatus;
+          isActive = status !== "NOT STARTED";
         } else {
           status = s;
         }
@@ -153,15 +157,9 @@ export default function ApplicationTrackingProgress({ application }) {
         if (isRejected) {
           status = "FAILED";
           isFailed = true;
-        } else if (
-          matchingInterview &&
-          matchingInterview.status?.toLowerCase() === "scheduled"
-        ) {
-          status = "SCHEDULED";
-          isActive = true;
         } else {
-          status = "IN PROGRESS";
-          isActive = true;
+          status = openStatus;
+          isActive = status !== "NOT STARTED";
         }
       } else {
         status = "PENDING";
