@@ -233,10 +233,26 @@ function emitNotification(notification, targetUserId = null) {
   }
 }
 
+/**
+ * Closes every open socket of a user. The handshake is the only place a socket's cookie
+ * is checked, so this runs whenever the user's tokens are revoked (logout, password
+ * reset, account deletion); otherwise those sockets would keep receiving the user's events.
+ */
+function disconnectUser(userId) {
+  const id = idOf(userId);
+  if (!io || !id) return;
+  try {
+    io.in(`user_${id}`).disconnectSockets(true);
+  } catch (err) {
+    console.error("Failed to disconnect user sockets:", err.message);
+  }
+}
+
 module.exports = {
   init,
   getIO,
   emitNotification,
+  disconnectUser,
   emitInterviewRescheduled,
   emitInterviewCancelled,
   emitInterviewScheduled,

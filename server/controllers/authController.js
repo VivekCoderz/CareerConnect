@@ -5,6 +5,7 @@ const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const jwt = require("jsonwebtoken");
 const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies.js");
 const { revokeCookieToken } = require("../middleware/authMiddleware.js");
+const { disconnectUser } = require("../services/socketService.js");
 const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP.js");
 const sendEmail = require("../utils/sendEmail.js");
@@ -1222,6 +1223,7 @@ module.exports.deleteMyAccount = async (req, res, next) => {
     }
 
     await deleteAccount(user);
+    disconnectUser(user._id);
 
     res.clearCookie("token", authCookieBaseOptions());
     res.clearCookie("sid", authCookieBaseOptions());
@@ -1432,6 +1434,8 @@ module.exports.resetPassword = async (req, res, next) => {
       user.authProviders.push("email");
     }
     await user.save();
+    // Old tokens are revoked; close the sockets they opened too (H17).
+    disconnectUser(user._id);
 
     // Also sync updated password to Firebase if user is linked
     const admin = getFirebaseAdmin();

@@ -35,11 +35,15 @@ export default function useLiveNotifications(onNavigateTab) {
 
   useEffect(() => {
     refresh();
-    const unsubscribe = subscribeToNotifications((newNotif) => {
-      const id = notificationKey(newNotif);
-      setNotifications((prev) => [newNotif, ...prev.filter((item) => notificationKey(item) !== id)]);
-      setUnreadCount((c) => c + 1);
-    });
+    const unsubscribe = subscribeToNotifications(
+      (newNotif) => {
+        const id = notificationKey(newNotif);
+        setNotifications((prev) => [newNotif, ...prev.filter((item) => notificationKey(item) !== id)]);
+        setUnreadCount((c) => c + 1);
+      },
+      // After a reconnect, reload so notifications sent while disconnected show up.
+      refresh
+    );
     return () => unsubscribe();
   }, [refresh]);
 
