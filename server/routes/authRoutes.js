@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const authControllers = require("../controllers/authController.js");
+const emailChange = require("../controllers/emailChangeController.js");
 const authMiddleware = require("../middleware/authMiddleware");
 const verifyCaptcha = require("../middleware/captchaMiddleware");
 const { limitOtpAction } = require("../services/otpService");
@@ -76,6 +77,13 @@ router.delete("/account", loginLimiter, authMiddleware, authControllers.deleteMy
 // PROTECTED — Current User
 // ==========================================
 router.get("/me", authMiddleware, authControllers.getMe);
+
+// Change email: a code goes to the new address, and the email changes once it is entered.
+// No sanitizeInputs: it would alter the password (the email is normalized in the controller).
+router.post("/email-change/request", loginLimiter, authMiddleware, otpSendLimiter,
+  limitOtpAction("send"), emailChange.requestEmailChange);
+router.post("/email-change/confirm", authMiddleware, otpVerifyLimiter,
+  limitOtpAction("verify"), emailChange.confirmEmailChange);
 
 router.patch(
   "/update-experience-level",
