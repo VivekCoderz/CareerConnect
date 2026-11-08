@@ -3,13 +3,13 @@ const mongoose = require("mongoose");
 const dns = require("dns");
 try { dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]); } catch(e){}
 
-const User = require("../models/User");
-const EmployerProfile = require("../models/EmployerProfile");
-const Job = require("../models/Job");
-const Internship = require("../models/Internship");
-const Application = require("../models/Application");
-const Interview = require("../models/Interview");
-const AuditLog = require("../models/AuditLog");
+const User = require("../../models/User");
+const EmployerProfile = require("../../models/EmployerProfile");
+const Job = require("../../models/Job");
+const Internship = require("../../models/Internship");
+const Application = require("../../models/Application");
+const Interview = require("../../models/Interview");
+const AuditLog = require("../../models/AuditLog");
 
 async function test() {
   const uri = process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://127.0.0.1:27017/careerconnect";

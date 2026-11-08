@@ -60,3 +60,7 @@ server/uploads/
 tmp/
 courses-links.txt
 *.pdf
+# Generated reports and scratch output (keep out of the repo root)
+output/
+outputs/
+project-structure.txt

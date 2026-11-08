@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") });
-const Session = require("../models/Session");
+require("dotenv").config({ path: require("path").resolve(__dirname, "../../.env") });
+const Session = require("../../models/Session");
 
 async function inspectSessions() {
   try {

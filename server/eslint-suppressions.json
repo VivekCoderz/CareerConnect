@@ -14,11 +14,6 @@
       "count": 1
     }
   },
-  "check_offers.js": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "config/db.js": {
     "no-empty": {
       "count": 2
@@ -181,38 +176,6 @@
       "count": 1
     }
   },
-  "scripts/check-app-details.js": {
-    "no-empty": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 2
-    }
-  },
-  "scripts/check-eligible.js": {
-    "no-empty": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 6
-    }
-  },
-  "scripts/check-recent-activity.js": {
-    "no-empty": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "scripts/create-imran-interview.js": {
-    "no-empty": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "scripts/createAdmin.js": {
     "no-empty": {
       "count": 1
@@ -221,7 +184,7 @@
       "count": 1
     }
   },
-  "scripts/inspect-admin-db.js": {
+  "scripts/dev/check-recent-activity.js": {
     "no-empty": {
       "count": 1
     },
@@ -229,12 +192,28 @@
       "count": 1
     }
   },
-  "scripts/inspect-interviews.js": {
+  "scripts/dev/inspect-admin-db.js": {
     "no-empty": {
       "count": 1
     },
     "no-unused-vars": {
       "count": 1
+    }
+  },
+  "scripts/dev/inspect-interviews.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/dev/test-all-students-query.js": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 6
     }
   },
   "scripts/migrate-public-resumes.js": {
@@ -274,14 +253,6 @@
       "count": 2
     }
   },
-  "scripts/test-all-students-query.js": {
-    "no-empty": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 6
-    }
-  },
   "scripts/test-connect-company-flow.js": {
     "no-unused-vars": {
       "count": 1
@@ -303,14 +274,6 @@
     },
     "no-unused-vars": {
       "count": 2
-    }
-  },
-  "scripts/test-imran-query.js": {
-    "no-empty": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 4
     }
   },
   "scripts/test-interview-lifecycle.js": {
@@ -378,14 +341,6 @@
     },
     "preserve-caught-error": {
       "count": 3
-    }
-  },
-  "scripts/test-student-query.js": {
-    "no-empty": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 1
     }
   },
   "services/aiResumeservice.js": {
