@@ -170,8 +170,12 @@ exports.getAdminTickets = async (req, res, next) => {
       query.$or = [{ ticketNumber: pattern }, { subject: pattern }, { raisedByName: pattern }, { raisedByEmail: pattern }];
     }
 
-    const [tickets, counts] = await Promise.all([
-      SupportTicket.find(query).sort({ updatedAt: -1 }).limit(200).lean(),
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 100));
+
+    const [tickets, total, counts] = await Promise.all([
+      SupportTicket.find(query).sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      SupportTicket.countDocuments(query),
       SupportTicket.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
     ]);
 
@@ -180,7 +184,8 @@ exports.getAdminTickets = async (req, res, next) => {
       if (_id in statusCounts) statusCounts[_id] = count;
     });
 
-    return res.status(200).json({ success: true, tickets, statusCounts });
+    const pagination = { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) };
+    return res.status(200).json({ success: true, tickets, statusCounts, pagination });
   } catch (error) {
     next(error);
   }

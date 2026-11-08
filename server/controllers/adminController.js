@@ -36,6 +36,14 @@ const { notifyApplicationUpdates } = require("../services/applicationNotificatio
 const { isCompanyActive } = require("../utils/employerOwnership");
 
 const ADMIN_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_PAGE_SIZE = 100;
+
+// Reads ?page and ?limit for admin lists. page is at least 1, limit is 1-100.
+const pageParams = (query, defaultLimit) => {
+  const page = Math.max(1, parseInt(query.page, 10) || 1);
+  const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(query.limit, 10) || defaultLimit));
+  return { page, limit, skip: (page - 1) * limit };
+};
 
 /**
  * Generate JWT and set secure cookie for Admin sessions.
@@ -613,12 +621,13 @@ exports.getAdminDashboard = async (req, res, next) => {
  */
 exports.getAdminCompanies = async (req, res, next) => {
   try {
-    const { search = "", status = "", page = 1, limit = 15 } = req.query;
+    const { search = "", status = "" } = req.query;
+    const { page, limit, skip } = pageParams(req.query, 15);
     const query = {};
 
     if (search.trim()) {
       query.$or = [
-        { name: { $regex: search.trim(), $options: "i" } },
+        { name:{ $regex: search.trim(), $options: "i" } },
         { email: { $regex: search.trim(), $options: "i" } },
         { industry: { $regex: search.trim(), $options: "i" } },
       ];
@@ -627,7 +636,6 @@ exports.getAdminCompanies = async (req, res, next) => {
     // Deleted (soft-deleted) companies only show when asked for explicitly.
     query.status = status && status !== "all" ? status : { $ne: "deleted" };
 
-    const skip = (Number(page) - 1) * Number(limit);
     const [companies, total] = await Promise.all([
       Company.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
       Company.countDocuments(query),
@@ -1042,7 +1050,8 @@ exports.updateOwnCompany = async (req, res, next) => {
  */
 exports.getCompanyAdmins = async (req, res, next) => {
   try {
-    const { search = "", companyId = "", page = 1, limit = 15 } = req.query;
+    const { search = "", companyId = "" } = req.query;
+    const { page, limit, skip } = pageParams(req.query, 15);
     const query = { role: "COMPANY_ADMIN" };
 
     if (companyId) {
@@ -1056,7 +1065,6 @@ exports.getCompanyAdmins = async (req, res, next) => {
       ];
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
     const [admins, total] = await Promise.all([
       User.find(query)
         .populate("companyId", "name industry status")
@@ -1467,7 +1475,7 @@ exports.activateAdmin = async (req, res, next) => {
  */
 exports.getOrganizationRequests = async (req, res, next) => {
   try {
-    const { search = "", status = "all", page = 1, limit = 15 } = req.query;
+    const { search = "", status = "all" } = req.query;
     const query = {};
 
     if (status && status !== "all") {
@@ -1484,8 +1492,7 @@ exports.getOrganizationRequests = async (req, res, next) => {
       ];
     }
 
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageSize = Math.min(50, Math.max(1, parseInt(limit, 10) || 15));
+    const { page: pageNum, limit: pageSize } = pageParams(req.query, 15);
 
     const [total, requests] = await Promise.all([
       OrganizationRequest.countDocuments(query),
@@ -1867,8 +1874,6 @@ exports.getAdminUsers = async (req, res, next) => {
       userType = "",
       search = "",
       status = "",
-      page = 1,
-      limit = 25,
       sortBy = "createdAt",
       sortOrder = "desc",
     } = req.query;
@@ -1928,9 +1933,7 @@ exports.getAdminUsers = async (req, res, next) => {
 
     const query = andConditions.length > 0 ? { $and: andConditions } : {};
 
-    const parsedLimit = limit === "all" ? 1000 : Math.min(Math.max(Number(limit) || 25, 1), 200);
-    const parsedPage = Math.max(Number(page) || 1, 1);
-    const skip = (parsedPage - 1) * parsedLimit;
+    const { page: parsedPage, limit: parsedLimit, skip } = pageParams(req.query, 25);
 
     const sortDirection = sortOrder === "asc" ? 1 : -1;
     const sortField = ["createdAt", "fullName", "email"].includes(sortBy) ? sortBy : "createdAt";
@@ -2055,8 +2058,6 @@ exports.getAdminOpportunities = async (req, res, next) => {
       search = "",
       startDate = "",
       endDate = "",
-      page = 1,
-      limit = 12,
     } = req.query;
 
     const isCompanyAdmin = req.user.role === "COMPANY_ADMIN";
@@ -2180,9 +2181,7 @@ exports.getAdminOpportunities = async (req, res, next) => {
       queryFilter.status = status;
     }
 
-    const pageNum = Math.max(1, Number(page) || 1);
-    const limitNum = Math.max(1, Number(limit) || 12);
-    const skip = (pageNum - 1) * limitNum;
+    const { page: pageNum, limit: limitNum, skip } = pageParams(req.query, 12);
 
     let items = [];
     let total = 0;
@@ -2886,7 +2885,8 @@ exports.updateOpportunityStatus = async (req, res, next) => {
  */
 exports.getAdminApplications = async (req, res, next) => {
   try {
-    const { status = "all", type = "all", page = 1, limit = 15 } = req.query;
+    const { status = "all", type = "all" } = req.query;
+    const { page, limit, skip } = pageParams(req.query, 15);
     const filter = {};
 
     // Strict Scope: Company Admins only see applications for their company
@@ -2910,7 +2910,6 @@ exports.getAdminApplications = async (req, res, next) => {
       filter.status = String(status);
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
     const [applications, total, byStatus] = await Promise.all([
       Application.find(filter)
         .populate("candidateId", "fullName email profileImage phone city")
@@ -3019,8 +3018,6 @@ exports.getAdminReports = async (req, res, next) => {
       dateRange = "all",
       startDate = "",
       endDate = "",
-      page = 1,
-      limit = 12,
     } = req.query;
 
     const isCompanyAdmin = req.user.role === "COMPANY_ADMIN";
@@ -3125,9 +3122,7 @@ exports.getAdminReports = async (req, res, next) => {
       }
     }
 
-    const pageNum = Math.max(1, Number(page) || 1);
-    const limitNum = Math.max(1, Number(limit) || 12);
-    const skip = (pageNum - 1) * limitNum;
+    const { page: pageNum, limit: limitNum, skip } = pageParams(req.query, 12);
 
     const [reports, total] = await Promise.all([
       Report.find(filter)
