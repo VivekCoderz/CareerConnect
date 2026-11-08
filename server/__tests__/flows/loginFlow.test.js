@@ -9,8 +9,8 @@ const PASSWORD = "Password@123";
 
 const login = (agent, body) => agent.post("/api/auth/login").send(body);
 const tokenCookie = (res) => (res.headers["set-cookie"] || []).find((c) => c.startsWith("token="));
-// The JWT is only in the httpOnly cookie (H07), never in the JSON.
-const tokenOf = (res) => tokenCookie(res).split(";")[0].slice("token=".length);
+// The JWT is sent only in the httpOnly cookie (H07), never in the JSON body.
+const tokenFrom = (res) => tokenCookie(res)?.split(";")[0].slice("token=".length);
 
 describe("login flow", () => {
   let user;
@@ -28,6 +28,7 @@ describe("login flow", () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.token).toBeUndefined();
+      expect(tokenFrom(res)).toEqual(expect.any(String));
       expect(res.body.user.email).toBe(EMAIL);
       expect(res.body.user.password).toBeUndefined();
       expect(tokenCookie(res)).toMatch(/HttpOnly/i);
@@ -38,10 +39,10 @@ describe("login flow", () => {
       expect(me.body.user.email).toBe(EMAIL);
       expect(me.body.user.password).toBeUndefined();
 
-      // The cookie value alone authenticates, without the agent's other cookies.
-      const viaCookie = await request(app).get("/api/auth/me").set("Cookie", `token=${tokenOf(res)}`);
-      expect(viaCookie.status).toBe(200);
-      expect(String(viaCookie.body.user._id)).toBe(String(user._id));
+      // The cookie's token also works on its own as a Bearer token (mobile/API clients).
+      const bearer = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${tokenFrom(res)}`);
+      expect(bearer.status).toBe(200);
+      expect(String(bearer.body.user._id)).toBe(String(user._id));
     });
 
     it("accepts the email in any case and with surrounding spaces", async () => {
@@ -113,9 +114,9 @@ describe("login flow", () => {
 
     it("rejects a forged or tampered token on protected routes", async () => {
       const res = await login(request(app), { emailOrUsername: EMAIL, password: PASSWORD }).expect(200);
-      const tampered = `${tokenOf(res).slice(0, -4)}abcd`;
+      const tampered = `${tokenFrom(res).slice(0, -4)}abcd`;
 
-      expect((await request(app).get("/api/auth/me").set("Cookie", `token=${tampered}`)).status).toBe(401);
+      expect((await request(app).get("/api/auth/me").set("Authorization", `Bearer ${tampered}`)).status).toBe(401);
       expect((await request(app).get("/api/auth/me").set("Cookie", "token=not.a.jwt")).status).toBe(401);
     });
   });
