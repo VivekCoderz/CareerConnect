@@ -7,12 +7,14 @@ on:
       - develop
       - ram-mohan-code
       - launch/job-portal
+      - hardening
   push:
     branches:
       - main
       - develop
       - ram-mohan-code
       - launch/job-portal
+      - hardening
   workflow_dispatch:
 
 concurrency:
@@ -49,6 +51,16 @@ jobs:
 
       - name: Lint client (new errors and new files over 500 lines fail)
         run: npm run lint
+        working-directory: client
+
+      # Login, signup with consent, apply to job and employer bulk shortlist/reject,
+      # rendered with React Testing Library against a mocked API client.
+      - name: Run front-end flow tests
+        run: npm run test:flows
+        working-directory: client
+
+      - name: Run client tests
+        run: npm test -- --exclude "**/*.flow.test.jsx"
         working-directory: client
 
       - name: Build production client
@@ -122,5 +134,5 @@ jobs:
         timeout-minutes: 3
 
       - name: Run complete server test suite
-        run: npm test -- --ci
+        run: npm test -- --ci --testPathIgnorePatterns=/__tests__/flows/
         working-directory: server

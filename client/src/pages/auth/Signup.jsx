@@ -383,8 +383,8 @@ const Signup = () => {
         captchaToken,
       });
 
-      const { user, requiresPasswordSetup, token } = response.data;
-      dispatch(loginSuccess({ user, token }));
+      const { user, requiresPasswordSetup } = response.data;
+      dispatch(loginSuccess({ user }));
 
       if (requiresPasswordSetup || user.hasPassword === false) {
         navigate("/set-password", { replace: true });
@@ -506,26 +506,8 @@ const Signup = () => {
       return;
     }
 
-    // Check duplicate phone number
-    try {
-      const checkRes = await api.post("/auth/check-phone", {
-        phone: formData.phone.trim(),
-        countryCode: formData.countryCode || "+91",
-      });
-
-      if (checkRes.data?.exists) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          phone:
-            "This mobile number is already registered with another account",
-        }));
-
-        return;
-      }
-    } catch (err) {
-      console.warn("Phone check warning:", err.message);
-    }
-
+    // A number already in use is reported by /auth/register (field "phone"), which brings
+    // the user back to this step; there is no separate check endpoint.
     setFieldErrors({});
     setStep(3);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -647,7 +629,7 @@ const Signup = () => {
       };
 
       const res = await api.post("/auth/register", payload);
-      dispatch(signupSuccess({ user: res.data.user, token: res.data.token }));
+      dispatch(signupSuccess({ user: res.data.user }));
 
       // Account created! Proceed to Step 4 for Resume Upload & AI Parsing
       setStep(4);
