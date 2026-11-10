@@ -17,7 +17,7 @@ const { createUserWithToken } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 const remotiveJob = (overrides = {}) => ({
   id: 1001,

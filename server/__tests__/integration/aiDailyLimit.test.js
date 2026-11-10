@@ -12,7 +12,7 @@ describe("daily AI quota (G09)", () => {
 
   it("blocks a user's AI requests after the daily quota with a clear message", async () => {
     const { token } = await createUserWithToken({ email: "ai-quota@student.test" });
-    const tailor = () => request(app).post("/api/resume/tailor").set("Authorization", `Bearer ${token}`).send({});
+    const tailor = () => request(app).post("/api/resume/tailor").set("Cookie", `token=${token}`).send({});
 
     expect((await tailor()).statusCode).not.toBe(429);
     expect((await tailor()).statusCode).not.toBe(429);
@@ -25,7 +25,7 @@ describe("daily AI quota (G09)", () => {
   it("counts each user separately", async () => {
     const { token } = await createUserWithToken({ email: "ai-quota-2@student.test" });
 
-    const res = await request(app).post("/api/resume/tailor").set("Authorization", `Bearer ${token}`).send({});
+    const res = await request(app).post("/api/resume/tailor").set("Cookie", `token=${token}`).send({});
 
     expect(res.statusCode).not.toBe(429);
   });

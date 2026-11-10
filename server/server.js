@@ -24,21 +24,6 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
-// Startup validation for SESSION_SECRET
-let SESSION_SECRET = process.env.SESSION_SECRET;
-if (!SESSION_SECRET) {
-  if (isProduction) {
-    console.error("FATAL: SESSION_SECRET environment variable is not set. A secure secret is required for sessions.");
-    process.exit(1);
-  } else {
-    SESSION_SECRET = "dev_session_secret_key_career_connect_local_32chars_long";
-    process.env.SESSION_SECRET = SESSION_SECRET;
-  }
-} else if (isProduction && SESSION_SECRET.length < 32) {
-  console.error("FATAL: SESSION_SECRET must be set and at least 32 characters long in production.");
-  process.exit(1);
-}
-
 // Warn (once, without values) if the fallback email provider is only partly configured.
 require("./utils/sendEmail").warnOnFallbackEmailConfig();
 

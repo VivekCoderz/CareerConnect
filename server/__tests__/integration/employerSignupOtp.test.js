@@ -10,7 +10,7 @@ const { createUserWithToken } = require("../helpers/createTestUser");
 // signup code expires after one minute, and a code once accepted stays usable while the
 // employer finishes the form.
 const CONSENT = { acceptedTerms: true, termsVersion: "2026-10-01" };
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 const MINUTE = 60 * 1000;
 
 let seq = 0;
@@ -68,7 +68,9 @@ describe("employer signup without a mobile number", () => {
     const profile = await EmployerProfile.findOne({ userId: user._id }).lean();
     expect(profile.mobile).toBe("");
 
-    const me = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${res.body.token}`);
+    // Signed in by the httpOnly cookie only; the JWT is not in the JSON (H07).
+    expect(res.body.token).toBeUndefined();
+    const me = await request(app).get("/api/auth/me").set("Cookie", res.headers["set-cookie"]);
     expect(me.status).toBe(200);
     expect(me.body.user).toMatchObject({ phone: "", onboardingComplete: true });
   });
@@ -86,6 +88,8 @@ describe("employer signup without a mobile number", () => {
   it("lets employers use a number another account already has", async () => {
     const candidate = await registerCandidate("9123456780");
     expect(candidate.status).toBe(201);
+    expect(candidate.body.token).toBeUndefined();
+    expect([].concat(candidate.headers["set-cookie"] || []).some((c) => /^token=[^;]+;.*HttpOnly/i.test(c))).toBe(true);
 
     const first = await registerEmployer({ phone: "9123456780" });
     const second = await registerEmployer({ phone: "9123456780" });

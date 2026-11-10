@@ -6,7 +6,7 @@ const Company = require("../../models/Company");
 const { createUserWithToken } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
-const as = (token, method, path) => request(app)[method](path).set("Authorization", `Bearer ${token}`);
+const as = (token, method, path) => request(app)[method](path).set("Cookie", `token=${token}`);
 
 const setup = async () => {
   const company = await Company.create({ name: "Acme Labs", email: "hr@acme.test", status: "active" });
@@ -34,7 +34,9 @@ describe("admin login (ADM-03, ADM-15)", () => {
     const login = await request(app).post("/api/admin/login").send({ email: "reset-admin@careerconnect.test", password: "Admin@1234" });
     expect(login.statusCode).toBe(200);
 
-    const me = await as(login.body.token, "get", "/api/admin/me");
+    expect(login.body.token).toBeUndefined();
+
+    const me = await request(app).get("/api/admin/me").set("Cookie", login.headers["set-cookie"]);
     expect(me.statusCode).toBe(200);
   });
 
