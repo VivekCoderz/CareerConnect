@@ -1,5 +1,6 @@
 const session = require("express-session");
 const Session = require("../models/Session");
+const { authCookieBaseOptions } = require("../utils/authCookies");
 
 // Session Inactivity / Idle timeout (configurable via .env, default: 15 minutes)
 const SESSION_TIMEOUT_MINUTES = Number(process.env.SESSION_TIMEOUT_MINUTES) || 15;
@@ -139,11 +140,8 @@ const sessionMiddleware = session({
   saveUninitialized: false,
   rolling: true, // Resets idle expiration timer on each incoming request
   cookie: {
+    ...authCookieBaseOptions(), // httpOnly, secure, sameSite and path match the auth cookies
     maxAge: IDLE_TIMEOUT_MS, // 15 minutes idle timeout
-    httpOnly: true, // Protects cookie from XSS access
-    secure: isProduction, // Set to true on HTTPS production
-    sameSite: isProduction ? "none" : "lax", // Cross-site support in prod, lax in dev
-    path: "/",
   },
 });
 
