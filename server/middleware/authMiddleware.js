@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User.js");
+const { disconnectUser } = require("../services/socketService");
 
 /**
  * Authentication middleware (H09): one login path.
@@ -111,10 +112,11 @@ const revokeCookieToken = async (req) => {
     // Only a token that is still current can revoke; an old one must not log out a fresh login.
     // Older accounts may have no authVersion stored yet; that counts as 0.
     const av = decoded.av || 0;
-    await User.updateOne(
+    const result = await User.updateOne(
       { _id: decoded.id, authVersion: av === 0 ? { $in: [0, null] } : av },
       { $inc: { authVersion: 1 } }
     );
+    if (result.modifiedCount) disconnectUser(decoded.id);
   } catch (_) { /* Nothing to revoke. */ }
 };
 
