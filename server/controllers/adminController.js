@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies");
+const { revokeCookieToken } = require("../middleware/authMiddleware");
 const User = require("../models/User");
 const Company = require("../models/Company");
 const Report = require("../models/Report");
@@ -205,7 +206,9 @@ exports.adminLogin = async (req, res) => {
 /**
  * POST /api/admin/logout
  */
-exports.adminLogout = (req, res) => {
+exports.adminLogout = async (req, res) => {
+  // Revoke the token itself, so a copy of it stops working too (H09).
+  await revokeCookieToken(req);
   // Clearing only works when the options match the ones used to set the cookies.
   res.clearCookie("admin_token", authCookieBaseOptions());
   res.clearCookie("token", authCookieBaseOptions());

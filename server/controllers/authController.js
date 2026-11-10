@@ -4,6 +4,7 @@ const FresherProfile = require("../models/FresherProfile.js");
 const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const jwt = require("jsonwebtoken");
 const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies.js");
+const { revokeCookieToken } = require("../middleware/authMiddleware.js");
 const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP.js");
 const sendEmail = require("../utils/sendEmail.js");
@@ -290,42 +291,6 @@ module.exports.verifyOTP = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-};
-
-/**
- * Helper to create/regenerate session in Redis
- * Stores ONLY minimal, essential data (userId, email, role, loginTime, lastActive)
- */
-const createSession = (req, user) => {
-  return new Promise((resolve, reject) => {
-    if (!req.session) return resolve(null);
-
-    // Regenerate session to prevent session fixation attacks
-    req.session.regenerate((err) => {
-      if (err) {
-        console.error("Session regeneration error:", err);
-        return reject(err);
-      }
-
-      req.session.user = {
-        userId: user._id.toString(),
-        email: user.email,
-        role: user.role,
-        userType: user.userType,
-        authVersion: user.authVersion || 0,
-        loginTime: new Date(),
-        lastActive: new Date(),
-      };
-
-      req.session.save((saveErr) => {
-        if (saveErr) {
-          console.error("Session save error:", saveErr);
-          return reject(saveErr);
-        }
-        resolve(req.session.user);
-      });
-    });
-  });
 };
 
 // ==========================================
@@ -649,15 +614,6 @@ module.exports.registerUser = async (req, res, next) => {
       );
     }
 
-    // Initialize Redis Session
-    if (req.session) {
-      try {
-        await createSession(req, user);
-      } catch (sessErr) {
-        console.warn("Could not save registration session to Redis:", sessErr.message);
-      }
-    }
-
     const token = generateToken(user, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
@@ -734,22 +690,12 @@ module.exports.loginUser = async (req, res, next) => {
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
-    // Initialize Redis Session (15 min idle timeout with rolling reset)
-    if (req.session) {
-      try {
-        await createSession(req, user);
-      } catch (sessErr) {
-        console.warn("Could not save login session to Redis:", sessErr.message);
-      }
-    }
-
     const token = generateToken(user, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
     return res.status(200).json({
       success: true,
       message: "Login successful",
-      sessionExpiresInMs: req.session?.cookie?.maxAge || null,
       user: userPayload(user),
     });
   } catch (error) {
@@ -1129,9 +1075,6 @@ module.exports.cancelGoogleSignup = async (req, res, next) => {
     res.clearCookie("token", authCookieBaseOptions());
     res.clearCookie("sid", authCookieBaseOptions());
 
-    if (req.session) {
-      req.session.destroy(() => {});
-    }
 
     return res.status(200).json({
       success: true,
@@ -1282,7 +1225,6 @@ module.exports.deleteMyAccount = async (req, res, next) => {
 
     res.clearCookie("token", authCookieBaseOptions());
     res.clearCookie("sid", authCookieBaseOptions());
-    if (req.session) req.session.destroy(() => {});
 
     return res.status(200).json({ success: true, message: "Your account and personal data have been deleted." });
   } catch (error) {
@@ -1294,29 +1236,17 @@ module.exports.deleteMyAccount = async (req, res, next) => {
 // LOGOUT
 // ==========================================
 module.exports.logoutUser = async (req, res) => {
-  // 1. Clear token cookie
-  res.clearCookie("token", authCookieBaseOptions());
+  // Revoke the token itself, so a copy of it stops working too (H09).
+  await revokeCookieToken(req);
 
-  // 2. Clear session cookie
+  res.clearCookie("token", authCookieBaseOptions());
+  // Left over from the removed server-side sessions; clearing it is harmless.
   res.clearCookie("sid", authCookieBaseOptions());
 
-  // 3. Destroy session in Redis
-  if (req.session) {
-    req.session.destroy((err) => {
-      if (err) {
-        console.error("Error destroying Redis session during logout:", err);
-      }
-      return res.status(200).json({
-        success: true,
-        message: "Logout successful. Session destroyed.",
-      });
-    });
-  } else {
-    return res.status(200).json({
-      success: true,
-      message: "Logout successful",
-    });
-  }
+  return res.status(200).json({
+    success: true,
+    message: "Logout successful",
+  });
 };
 
 // ==========================================
@@ -1325,7 +1255,6 @@ module.exports.logoutUser = async (req, res) => {
 module.exports.getMe = async (req, res) => {
   return res.status(200).json({
     success: true,
-    sessionExpiresInMs: req.session?.cookie?.maxAge || null,
     user: userPayload(req.user),
   });
 };
@@ -1702,15 +1631,6 @@ module.exports.registerEmployer = async (req, res, next) => {
       });
     } catch (profileErr) {
       console.error("EmployerProfile creation error:", profileErr);
-    }
-
-    // Initialize Redis Session
-    if (req.session) {
-      try {
-        await createSession(req, user);
-      } catch (sessErr) {
-        console.warn("Could not save employer session to Redis:", sessErr.message);
-      }
     }
 
     const token = generateToken(user, keepSignedIn);

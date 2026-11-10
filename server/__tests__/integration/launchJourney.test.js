@@ -36,7 +36,7 @@ describe("launch candidate journey (isolated MongoDB)", () => {
     });
   });
 
-  const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+  const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
   it("shows published opportunities and hides drafts", async () => {
     const draftJob = await createTestJob(job.employerId, {

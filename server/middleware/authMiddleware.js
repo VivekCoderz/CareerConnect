@@ -2,62 +2,29 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User.js");
 
 /**
- * Authentication Middleware with Mongoose Session Support & Fallback JWT Verification
- * 
- * 1. Checks MongoDB Session (`req.session.user`).
- * 2. On activity, updates in-session `lastActive` timestamp (rolling: true extends TTL).
- * 3. Falls back to Bearer / Cookie JWT if token is provided.
- * 4. Returns 401 with distinct codes for NOT_AUTHENTICATED, SESSION_EXPIRED, INVALID_TOKEN, and USER_NOT_FOUND.
+ * Authentication middleware (H09): one login path.
+ *
+ * The only credential is the JWT in the httpOnly `token` cookie. There is no
+ * Authorization: Bearer fallback and no server-side session. A token is valid while
+ * its `av` claim matches the user's authVersion; logout, password reset and account
+ * deletion change or remove that, which revokes every token issued before.
+ *
+ * Returns 401 with NOT_AUTHENTICATED, SESSION_EXPIRED, INVALID_TOKEN or USER_NOT_FOUND,
+ * and 403 with ACCOUNT_SUSPENDED.
+ *
+ * The campus portal has its own header-only auth and does not use this middleware.
  */
+
+/** The JWT from the `token` cookie, or null. */
+const tokenFromCookie = (req) => {
+  const token = req.cookies?.token;
+  if (!token || token === "null" || token === "undefined") return null;
+  return token;
+};
+
 const protect = async (req, res, next) => {
   try {
-    // 1. Primary Authentication: Active MongoDB Session
-    if (req.session && req.session.user && req.session.user.userId) {
-      const user = await User.findById(req.session.user.userId).select("-password");
-
-      if (!user) {
-        // User deleted or invalid in MongoDB -> destroy stale session
-        req.session.destroy(() => {});
-        return res.status(401).json({
-          success: false,
-          code: "USER_NOT_FOUND",
-          message: "Account no longer exists. Please sign in again.",
-        });
-      }
-
-      if ((req.session.user.authVersion || 0) !== (user.authVersion || 0)) {
-        req.session.destroy(() => {});
-        return res.status(401).json({ success: false, code: "SESSION_EXPIRED", message: "Please sign in again." });
-      }
-
-      if (user.isActive === false) {
-        req.session.destroy(() => {});
-        return res.status(403).json({ success: false, code: "ACCOUNT_SUSPENDED", message: "Account suspended." });
-      }
-
-      // Update session activity time
-      req.session.user.lastActive = new Date();
-
-      // Attach user & session details to request
-      req.user = user;
-      req.sessionUser = req.session.user;
-      return next();
-    }
-
-    // 2. Secondary / Fallback Authentication: JWT Token (Cookie or Header)
-    let token = req.cookies?.token;
-    if (
-      !token &&
-      req.headers.authorization &&
-      req.headers.authorization.startsWith("Bearer ")
-    ) {
-      token = req.headers.authorization.split(" ")[1];
-    }
-
-    if(token === "null" || token === "undefined"){ 
-      token=null;
-    }
-
+    const token = tokenFromCookie(req);
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -109,18 +76,6 @@ const protect = async (req, res, next) => {
     }
 
     req.user = user;
-    // Automatically seed MongoDB session if not yet active
-    if (req.session && !req.session.user) {
-      req.session.user = {
-        userId: user._id.toString(),
-        email: user.email,
-        role: user.role,
-        userType: user.userType,
-        authVersion: user.authVersion || 0,
-        loginTime: new Date(),
-        lastActive: new Date(),
-      };
-    }
     return next();
   } catch (error) {
     return res.status(401).json({
@@ -133,18 +88,7 @@ const protect = async (req, res, next) => {
 
 // Public detail pages can identify an owner without requiring visitors to sign in.
 const optionalAuth = async (req, _res, next) => {
-  if (req.session?.user?.userId) {
-    try {
-      const user = await User.findById(req.session.user.userId).select("-password");
-      if (user && user.isActive !== false &&
-          (req.session.user.authVersion || 0) === (user.authVersion || 0)) {
-        req.user = user;
-        return next();
-      }
-    } catch (_) { /* A stale session is treated as an anonymous public request. */ }
-  }
-  const token = req.cookies?.token || (req.headers.authorization?.startsWith("Bearer ")
-    ? req.headers.authorization.slice(7) : null);
+  const token = tokenFromCookie(req);
   if (!token || !process.env.JWT_SECRET) return next();
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -154,5 +98,27 @@ const optionalAuth = async (req, _res, next) => {
   next();
 };
 
+/**
+ * Revokes the cookie's token on logout by moving the user's authVersion on, so a copy
+ * of the token stops working too. This signs the user out on every device.
+ * An invalid, expired or already-revoked token is ignored.
+ */
+const revokeCookieToken = async (req) => {
+  const token = tokenFromCookie(req);
+  if (!token || !process.env.JWT_SECRET) return;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Only a token that is still current can revoke; an old one must not log out a fresh login.
+    // Older accounts may have no authVersion stored yet; that counts as 0.
+    const av = decoded.av || 0;
+    await User.updateOne(
+      { _id: decoded.id, authVersion: av === 0 ? { $in: [0, null] } : av },
+      { $inc: { authVersion: 1 } }
+    );
+  } catch (_) { /* Nothing to revoke. */ }
+};
+
 module.exports = protect;
 module.exports.optionalAuth = optionalAuth;
+module.exports.tokenFromCookie = tokenFromCookie;
+module.exports.revokeCookieToken = revokeCookieToken;

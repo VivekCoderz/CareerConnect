@@ -16,7 +16,7 @@ const {
 } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
-const as = (token, method, path) => request(app)[method](path).set("Authorization", `Bearer ${token}`);
+const as = (token, method, path) => request(app)[method](path).set("Cookie", `token=${token}`);
 
 // The AI resume service picks Gemini at load time; load it with no key to test the
 // offline paths (and stay off the network).

@@ -39,10 +39,12 @@ describe("login flow", () => {
       expect(me.body.user.email).toBe(EMAIL);
       expect(me.body.user.password).toBeUndefined();
 
-      // The cookie's token also works on its own as a Bearer token (mobile/API clients).
-      const bearer = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${tokenFrom(res)}`);
-      expect(bearer.status).toBe(200);
-      expect(String(bearer.body.user._id)).toBe(String(user._id));
+      // The cookie value alone authenticates; the same token in an Authorization header does not (H09).
+      const viaCookie = await request(app).get("/api/auth/me").set("Cookie", `token=${tokenFrom(res)}`);
+      expect(viaCookie.status).toBe(200);
+      expect(String(viaCookie.body.user._id)).toBe(String(user._id));
+      const viaHeader = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${tokenFrom(res)}`);
+      expect(viaHeader.status).toBe(401);
     });
 
     it("accepts the email in any case and with surrounding spaces", async () => {
