@@ -12,9 +12,8 @@ const { EJSON } = require("bson");
 const sources = [
   ["users", ["resumeUrl"]],
   ["resumes", ["resumeUrl"]],
-  ["studentprofiles", ["resume.resumeUrl"]],
-  ["fresherprofiles", ["resume.resumeUrl"]],
-  ["professionalprofiles", ["resume.resumeUrl"]],
+  // Every candidate profile (student, fresher, professional) is in candidateprofiles.
+  ["candidateprofiles", ["resume.resumeUrl"]],
   ["applications", ["resumeUrl", "applicationData.resumeUrl"]],
 ];
 const atPath = (doc, field) => field.split(".").reduce((value, key) => value?.[key], doc);

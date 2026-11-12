@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { defineCandidateType } = require("./CandidateProfile");
 
 // ======================================================
 // EDUCATION SUB-SCHEMA
@@ -349,13 +350,7 @@ const skillItemSchema = new mongoose.Schema(
 // ======================================================
 const fresherProfileSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: [true, "User ID is required"],
-      unique: true,
-      index: true,
-    },
+    // userId (required, unique) is on the CandidateProfile base schema.
 
     // ==================================================
     // PROFESSIONAL IDENTITY
@@ -720,14 +715,6 @@ const fresherProfileSchema = new mongoose.Schema(
   }
 );
 
-// Indexes for fast searching & matching
-fresherProfileSchema.index({ targetRole: 1 });
-fresherProfileSchema.index({ "jobPreferences.preferredRoles": 1 });
-fresherProfileSchema.index({ "jobPreferences.preferredLocations": 1 });
-fresherProfileSchema.index({ "location.city": 1 });
-fresherProfileSchema.index({ profileVisibility: 1 });
+// Indexes are declared on CandidateProfile (userId, candidateType, resume.resumeUrl).
 
-// Resume file cleanup checks whether this still uses a resume file
-fresherProfileSchema.index({ "resume.resumeUrl": 1 });
-
-module.exports = mongoose.model("FresherProfile", fresherProfileSchema);
+module.exports = defineCandidateType("FresherProfile", fresherProfileSchema, "fresher");

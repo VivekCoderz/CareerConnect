@@ -392,10 +392,10 @@ const generateFresherRecommendations = async (userId) => {
   let profile = await FresherProfile.findOne({ userId });
 
   if (!profile) {
-    profile = await FresherProfile.create({
-      userId,
-      targetRole: "Full Stack Developer",
-    });
+    // Only a fresher gets a stored FresherProfile; anyone else (a user has one profile, of
+    // their own type) is scored against an unsaved one with the same defaults.
+    const defaults = { userId, targetRole: "Full Stack Developer" };
+    profile = user?.userType === "fresher" ? await FresherProfile.create(defaults) : new FresherProfile(defaults);
   }
 
   const { skillList, skillDetails } = extractUserSkills(profile);

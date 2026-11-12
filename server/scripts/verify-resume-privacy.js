@@ -7,9 +7,8 @@ const ResumeAsset = require("../models/ResumeAsset");
 
 const sourceFields = [
   ["users", "resumeUrl"], ["resumes", "resumeUrl"],
-  ["studentprofiles", "resume.resumeUrl"],
-  ["fresherprofiles", "resume.resumeUrl"],
-  ["professionalprofiles", "resume.resumeUrl"],
+  // Every candidate profile (student, fresher, professional) is in candidateprofiles.
+  ["candidateprofiles", "resume.resumeUrl"],
   ["applications", "resumeUrl"],
   ["applications", "applicationData.resumeUrl"],
 ];

@@ -428,7 +428,7 @@
       "count": 1
     },
     "no-unused-vars": {
-      "count": 4
+      "count": 3
     }
   },
   "utils/generateJobApplicantsPdf.js": {
