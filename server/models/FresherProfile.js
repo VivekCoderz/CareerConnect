@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { defineCandidateType } = require("./CandidateProfile");
 
 // ======================================================
 // EDUCATION SUB-SCHEMA
@@ -31,6 +32,11 @@ const educationSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [150, "University or board name cannot exceed 150 characters"],
+    },
+    startYear: {
+      type: Number,
+      min: [1970, "Invalid start year"],
+      max: [2035, "Invalid start year"],
     },
     graduationYear: {
       type: Number,
@@ -344,13 +350,7 @@ const skillItemSchema = new mongoose.Schema(
 // ======================================================
 const fresherProfileSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: [true, "User ID is required"],
-      unique: true,
-      index: true,
-    },
+    // userId (required, unique) is on the CandidateProfile base schema.
 
     // ==================================================
     // PROFESSIONAL IDENTITY
@@ -406,6 +406,59 @@ const fresherProfileSchema = new mongoose.Schema(
       trim: true,
       maxlength: [100, "Target industry cannot exceed 100 characters"],
       default: "",
+    },
+
+    // ==================================================
+    // DASHBOARD PREFERENCES
+    // What the dashboard banner and recommended jobs read. Kept in step with targetRole
+    // and jobPreferences by utils/fresherPreferences.js.
+    // ==================================================
+    preferences: {
+      targetRole: {
+        type: String,
+        trim: true,
+        maxlength: [100, "Target role cannot exceed 100 characters"],
+        default: "",
+      },
+      // Every role the fresher wants; targetRole is the first one.
+      targetRoles: [
+        {
+          type: String,
+          trim: true,
+          maxlength: [100, "Target role cannot exceed 100 characters"],
+        },
+      ],
+      techStack: [
+        {
+          type: String,
+          trim: true,
+          maxlength: [50, "Tech stack item cannot exceed 50 characters"],
+        },
+      ],
+      jobType: {
+        type: String,
+        enum: ["", "Internship", "Full-time", "Part-time"],
+        default: "",
+      },
+      location: {
+        type: String,
+        trim: true,
+        maxlength: [100, "Location cannot exceed 100 characters"],
+        default: "",
+      },
+    },
+
+    // Set once preferences have been filled from the old fields (backfillPreferences),
+    // so a fresher who later clears a preference doesn't get it filled back in.
+    preferencesSyncedAt: {
+      type: Date,
+    },
+
+    // Times the public profile was opened by someone other than the fresher.
+    profileViews: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
 
     // ==================================================
@@ -538,7 +591,7 @@ const fresherProfileSchema = new mongoose.Schema(
       employmentTypes: [
         {
           type: String,
-          enum: ["Full-time", "Internship", "Contract", "Freelance", "Apprenticeship", "Graduate Trainee"],
+          enum: ["Full-time", "Part-time", "Internship", "Contract", "Freelance", "Apprenticeship", "Graduate Trainee"],
         },
       ],
       preferredLocations: [
@@ -662,14 +715,6 @@ const fresherProfileSchema = new mongoose.Schema(
   }
 );
 
-// Indexes for fast searching & matching
-fresherProfileSchema.index({ targetRole: 1 });
-fresherProfileSchema.index({ "jobPreferences.preferredRoles": 1 });
-fresherProfileSchema.index({ "jobPreferences.preferredLocations": 1 });
-fresherProfileSchema.index({ "location.city": 1 });
-fresherProfileSchema.index({ profileVisibility: 1 });
+// Indexes are declared on CandidateProfile (userId, candidateType, resume.resumeUrl).
 
-// Resume file cleanup checks whether this still uses a resume file
-fresherProfileSchema.index({ "resume.resumeUrl": 1 });
-
-module.exports = mongoose.model("FresherProfile", fresherProfileSchema);
+module.exports = defineCandidateType("FresherProfile", fresherProfileSchema, "fresher");

@@ -1,13 +1,14 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
-import { useEffect, useState, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import useLiveNotifications from "../../hooks/useLiveNotifications";
-import { getFresherDashboardData } from "../../services/fresherDashboardService";
+import { getFresherDashboardData, getDashboardSummary } from "../../services/fresherDashboardService";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { openExternalApply } from "../../utils/opportunityApply";
 import { FEATURES } from "../../config/features";
 
 // Fresher Dashboard Components
@@ -16,6 +17,7 @@ import FresherNavbar from "../../components/fresher-dashboard/FresherNavbar";
 import FresherHeader from "../../components/fresher-dashboard/FresherHeader";
 import FresherQuickActions from "../../components/fresher-dashboard/FresherQuickActions";
 import FresherRecommendedJobs from "../../components/fresher-dashboard/FresherRecommendedJobs";
+import EditPreferencesModal from "../../components/fresher-dashboard/EditPreferencesModal";
 import FresherSkillDevelopment from "../../components/fresher-dashboard/FresherSkillDevelopment";
 import FresherRecommendedCourses from "../../components/fresher-dashboard/FresherRecommendedCourses";
 import FresherResumeCard from "../../components/fresher-dashboard/FresherResumeCard";
@@ -36,7 +38,6 @@ import CandidateInterviewsView from "../../components/student-dashboard/Candidat
 import NotificationInbox from "../../components/notifications/NotificationInbox";
 
 const FresherDashboard = () => {
-  const navigate = useNavigate();
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
@@ -54,6 +55,14 @@ const FresherDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [toast, setToast] = useState(null);
 
+  // Banner summary (/api/dashboard/summary). Bumping refreshKey refetches it and the jobs list.
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  // null = closed; otherwise { field } to focus ("targetRole", "techStack", "jobType", "location")
+  const [preferencesModal, setPreferencesModal] = useState(null);
+
   // Internship sub-views inside dashboard
   const [internshipView, setInternshipView] = useState("list");
   const [selectedInternshipId, setSelectedInternshipId] = useState(null);
@@ -67,8 +76,8 @@ const FresherDashboard = () => {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const fetchDashboard = async () => {
-    setLoading(true);
+  const fetchDashboard = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const res = await getFresherDashboardData();
@@ -87,14 +96,43 @@ const FresherDashboard = () => {
     fetchDashboard();
   }, []);
 
-  const handleLogout = () => {
-    logout();
+  const fetchSummary = useCallback(
+    () =>
+      getDashboardSummary()
+        .then((res) => {
+          setSummary(res?.data || null);
+          setSummaryError(null);
+        })
+        .catch((err) => {
+          console.error("Failed to load dashboard summary:", err);
+          setSummaryError("Dashboard load nahi ho paya. Dobara try karo.");
+        })
+        .finally(() => setSummaryLoading(false)),
+    []
+  );
+
+  const retrySummary = () => {
+    setSummaryLoading(true);
+    fetchSummary();
   };
 
-  const handleSearch = (term) => {
-    if (term.trim()) {
-      navigate(`/jobs?search=${encodeURIComponent(term.trim())}`);
-    }
+  useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary, refreshKey]);
+
+  const openPreferences = (field) => setPreferencesModal({ field: field || "targetRole" });
+
+  const handlePreferencesSaved = (preferences) => {
+    setPreferencesModal(null);
+    // Show the saved values at once, then refetch counts and jobs for them.
+    if (preferences) setSummary((prev) => (prev ? { ...prev, preferences } : prev));
+    setRefreshKey((k) => k + 1);
+    fetchDashboard({ silent: true });
+    showToast("Preferences saved");
+  };
+
+  const handleLogout = () => {
+    logout();
   };
 
   const handleSelectTab = (tab) => {
@@ -113,6 +151,12 @@ const FresherDashboard = () => {
   const inbox = useLiveNotifications(handleSelectTab);
 
   const handleApply = (item) => {
+    // External listings are applied to on the employer's site, not through E2Job.
+    const external = openExternalApply(item);
+    if (external) {
+      if (!external.opened) showToast("This listing has no apply link.", "error");
+      return;
+    }
     setSelectedOpportunityForTailoring({
       _id: item._id || item.id,
       id: item._id || item.id,
@@ -129,7 +173,8 @@ const FresherDashboard = () => {
     setIsTailoredModalOpen(true);
   };
 
-  if (loading) {
+  // The dashboard tab shows its own skeletons; other tabs need the profile first.
+  if (loading && activeTab !== "dashboard") {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
         <JourneyLoader variant="profile" size="hero" className="mb-4" />
@@ -146,7 +191,6 @@ const FresherDashboard = () => {
   // ─── Derived data ──────────────────────────────────────────────────────
   const currentUser = dashboardData?.user || user;
   const profile = dashboardData?.profile || {};
-  const completion = dashboardData?.profileCompletion ?? 0;
   // Only what the fresher actually set; empty values show as "not set" in the UI.
   const careerTarget = dashboardData?.careerTarget || {
     targetRole: profile.targetRole || "",
@@ -155,9 +199,8 @@ const FresherDashboard = () => {
     preferredLocations: [],
     careerGoal: "",
   };
-  const targetRoleLabel = careerTarget.targetRole || "your target role";
+  const targetRoleLabel = summary?.preferences?.targetRole || careerTarget.targetRole || "your target role";
 
-  const recommendedJobs = dashboardData?.recommendedJobs || [];
   const skillDev = dashboardData?.skillDevelopment || {
     userSkills: profile?.skills || [],
     recommendedSkills: [],
@@ -210,9 +253,7 @@ const FresherDashboard = () => {
         <FresherNavbar
           user={currentUser}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onLogout={handleLogout}
-          onSearch={handleSearch}
         />
 
         {/* Workspace Body */}
@@ -223,34 +264,43 @@ const FresherDashboard = () => {
             <div className="space-y-6 animate-fade-in">
               {/* Header Banner */}
               <FresherHeader
-                user={currentUser}
-                careerTarget={careerTarget}
-                profileCompletion={completion}
+                summary={summary}
+                loading={summaryLoading}
+                error={summaryError}
+                onRetry={retrySummary}
+                onEditPreferences={openPreferences}
+              />
+
+              {/* Recommended Jobs */}
+              <FresherRecommendedJobs
+                refreshKey={refreshKey}
+                appliedJobIds={appliedJobIds}
+                onApplyJob={handleApply}
+                onEditPreferences={openPreferences}
               />
 
               {/* Quick Actions */}
               <FresherQuickActions onSelectTab={handleSelectTab} />
 
-              {/* Recommended Jobs */}
-              <FresherRecommendedJobs
-                jobs={recommendedJobs}
-                appliedJobIds={appliedJobIds}
-                targetRole={careerTarget.targetRole}
-                onApplyJob={handleApply}
-              />
+              {loading ? (
+                <div className="flex justify-center py-10">
+                  <JourneyLoader variant="profile" />
+                </div>
+              ) : (
+              <>
 
               {/* 2-Column: Skills & Career Recommendations */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {FEATURES.courses && (
-                  <FresherSkillDevelopment
-                    userSkills={skillDev.userSkills}
-                    recommendedSkills={skillDev.recommendedSkills}
-                    targetRole={targetRoleLabel}
+                <FresherSkillDevelopment
+                  userSkills={skillDev.userSkills}
+                  recommendedSkills={skillDev.recommendedSkills}
+                  targetRole={targetRoleLabel}
+                />
+                {FEATURES.careerAdvice && (
+                  <FresherCareerRecommendations
+                    recommendations={careerRecommendations}
                   />
                 )}
-                <FresherCareerRecommendations
-                  recommendations={careerRecommendations}
-                />
               </div>
 
               {/* Recommended Courses */}
@@ -279,6 +329,8 @@ const FresherDashboard = () => {
                   <FresherRecentActivity activities={recentActivity} />
                 </div>
               </div>
+              </>
+              )}
             </div>
           )}
 
@@ -380,9 +432,8 @@ const FresherDashboard = () => {
           )}
 
           {/* ==================== SKILLS ==================== */}
-
-
-          {activeTab === "skills" && FEATURES.courses && (
+          {/* Not behind the courses flag: skills are profile data, and the card hides its own course links. */}
+          {activeTab === "skills" && (
             <div className="space-y-6 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Skill Development</h2>
@@ -468,7 +519,7 @@ const FresherDashboard = () => {
           )}
 
           {/* ==================== CAREER ADVICE ==================== */}
-          {activeTab === "recommendations" && (
+          {activeTab === "recommendations" && FEATURES.careerAdvice && (
             <div className="space-y-6 animate-fade-in">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Career Recommendations</h2>
@@ -581,10 +632,21 @@ const FresherDashboard = () => {
             : "Job"
         }
         onApplicationSubmitted={() => {
-          fetchDashboard();
+          fetchDashboard({ silent: true });
+          setRefreshKey((k) => k + 1);
           showToast("Application submitted successfully!");
         }}
       />
+
+      {preferencesModal && (
+        <EditPreferencesModal
+          preferences={summary?.preferences}
+          options={summary?.options}
+          focusField={preferencesModal.field}
+          onClose={() => setPreferencesModal(null)}
+          onSaved={handlePreferencesSaved}
+        />
+      )}
 
       {/* Toast */}
       {toast && (
