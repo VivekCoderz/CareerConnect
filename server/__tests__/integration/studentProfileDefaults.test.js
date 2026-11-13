@@ -11,7 +11,7 @@ const {
   createEmployerWithToken,
 } = require("../helpers/createTestUser");
 
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 const expectEmptyProfile = (profile) => {
   expect(profile.technicalSkills).toEqual([]);

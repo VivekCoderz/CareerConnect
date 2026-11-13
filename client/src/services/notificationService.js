@@ -1,4 +1,5 @@
 import api from "../api/api";
+import { acquireSocket, releaseSocket } from "./socket";
 
 /**
  * Fetch paginated notifications with unread counts
@@ -41,13 +42,10 @@ export const deleteNotification = async (id) => {
 };
 
 /**
- * Real-time SSE subscription with auto-reconnect and polling fallback
+ * Live notifications over the shared Socket.IO connection (H17), with light polling
+ * while the socket is disconnected. Returns a cleanup function.
  */
 export const subscribeToNotifications = (onNotification, onConnected) => {
-  const baseURL = (api.defaults.baseURL || "/api").replace(/\/+$/, "");
-  const streamUrl = `${baseURL}/notifications/stream`;
-
-  let eventSource = null;
   let pollInterval = null;
   let lastNotificationId = null;
 
@@ -58,58 +56,43 @@ export const subscribeToNotifications = (onNotification, onConnected) => {
     onNotification?.(notification);
   };
 
-  try {
-    eventSource = new EventSource(streamUrl, { withCredentials: true });
+  const stopPolling = () => {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
+    }
+  };
 
-    eventSource.addEventListener("connected", (e) => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
-        pollInterval = null;
-      }
-      if (onConnected) onConnected();
-    });
-
-    eventSource.addEventListener("notification", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        deliver(data);
-      } catch (err) {
-        console.warn("Could not parse notification stream:", err);
-      }
-    });
-
-    eventSource.onerror = () => {
-      // If SSE disconnects, gracefully fallback to light polling
-      if (!pollInterval) {
-        pollInterval = setInterval(async () => {
-          try {
-            const data = await fetchNotifications({ limit: 5 });
-            deliver(data?.notifications?.[0]);
-          } catch (e) {
-            // silent poll fail
-          }
-        }, 30000);
-      }
-    };
-  } catch (err) {
-    console.warn("EventSource not supported, using polling fallback");
+  const startPolling = () => {
+    if (pollInterval) return;
     pollInterval = setInterval(async () => {
       try {
         const data = await fetchNotifications({ limit: 5 });
         deliver(data?.notifications?.[0]);
-      } catch (e) {
-        // silent
+      } catch {
+        // A failed poll is retried on the next tick.
       }
     }, 30000);
-  }
+  };
 
-  // Return cleanup function
+  const socket = acquireSocket();
+  const handleConnect = () => {
+    stopPolling();
+    onConnected?.();
+  };
+
+  socket.on("connect", handleConnect);
+  socket.on("connect_error", startPolling);
+  socket.on("disconnect", startPolling);
+  socket.on("notification", deliver);
+  if (socket.connected) handleConnect();
+
   return () => {
-    if (eventSource) {
-      eventSource.close();
-    }
-    if (pollInterval) {
-      clearInterval(pollInterval);
-    }
+    socket.off("connect", handleConnect);
+    socket.off("connect_error", startPolling);
+    socket.off("disconnect", startPolling);
+    socket.off("notification", deliver);
+    stopPolling();
+    releaseSocket();
   };
 };

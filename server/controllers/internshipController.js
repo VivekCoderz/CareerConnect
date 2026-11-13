@@ -6,6 +6,7 @@ const Job = require("../models/Job");
 const EmployerProfile = require("../models/EmployerProfile");
 const { runExternalJobSync } = require("../services/externalJobSync");
 const jwt = require("jsonwebtoken");
+const { tokenFromCookie } = require("../middleware/authMiddleware");
 const User = require("../models/User");
 const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
@@ -42,10 +43,7 @@ const formatCategorySlug = (slug = "") => {
 
 const getUserProfileFromReq = async (req) => {
   try {
-    let token = req.cookies?.token;
-    if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
-      token = req.headers.authorization.split(" ")[1];
-    }
+    const token = tokenFromCookie(req);
     if (!token) return null;
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);

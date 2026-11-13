@@ -8,7 +8,7 @@ const { createUserWithToken } = require("../helpers/createTestUser");
 
 const url = "https://res.cloudinary.com/demo/raw/authenticated/v1/careerconnect/resumes/cand.pdf";
 const download = (token) =>
-  request(app).get("/api/resume/download").query({ url }).set("Authorization", `Bearer ${token}`).redirects(0);
+  request(app).get("/api/resume/download").query({ url }).set("Cookie", `token=${token}`).redirects(0);
 
 describe("resume uploads are PDF only (G10)", () => {
   it("rejects a Word document with a clear message", async () => {
@@ -16,7 +16,7 @@ describe("resume uploads are PDF only (G10)", () => {
 
     const res = await request(app)
       .post("/api/resume/upload")
-      .set("Authorization", `Bearer ${token}`)
+      .set("Cookie", `token=${token}`)
       .attach("resume", Buffer.from("PK\u0003\u0004 fake docx"), {
         filename: "resume.docx",
         contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
