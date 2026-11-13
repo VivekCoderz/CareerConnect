@@ -127,11 +127,11 @@ jobs:
         working-directory: server
         timeout-minutes: 5
 
-      # Login, signup with consent, apply to job and employer bulk shortlist/reject,
-      # run end to end over HTTP against the isolated in-memory MongoDB.
-      - name: Run end-to-end flow tests
-        run: npm run test:flows -- --ci
+      # Two workers on one in-memory database: each scheduled job runs once per interval.
+      - name: Check scheduled jobs run once across workers
+        run: npm run test:scheduler
         working-directory: server
+        timeout-minutes: 3
 
       - name: Run complete server test suite
         run: npm test -- --ci --testPathIgnorePatterns=/__tests__/flows/

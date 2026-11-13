@@ -164,7 +164,7 @@ const FresherSidebar = ({
 
           {/* Nav List */}
           <div className="py-4 px-2.5 space-y-0.5 overflow-y-auto flex-1 scrollbar-thin">
-            {NAV_ITEMS.filter((item) => item.id !== "courses" || FEATURES.courses).map((item) => {
+            {NAV_ITEMS.filter((item) => (item.id !== "courses" || FEATURES.courses) && (item.id !== "recommendations" || FEATURES.careerAdvice)).map((item) => {
               const isActive = activeTab === item.id;
 
               if (item.link) {
@@ -230,7 +230,7 @@ const FresherSidebar = ({
 
             {/* Settings */}
             <Link
-              to="/settings"
+              to="/account"
               onClick={onCloseMobile}
               title={collapsed ? "Settings" : undefined}
               className={`flex items-center ${
@@ -242,20 +242,6 @@ const FresherSidebar = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               {!collapsed && <span>Settings</span>}
-            </Link>
-
-            <Link
-              to="/help"
-              onClick={onCloseMobile}
-              title={collapsed ? "Help & Support" : undefined}
-              className={`flex items-center ${
-                collapsed ? "justify-center px-2 py-2" : "gap-3 px-3.5 py-2"
-              } rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition`}
-            >
-              <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {!collapsed && <span>Help & Support</span>}
             </Link>
           </div>
         </div>

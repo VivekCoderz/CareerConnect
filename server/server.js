@@ -30,8 +30,6 @@ require("./utils/sendEmail").warnOnFallbackEmailConfig();
 const app = require("./app.js");
 const connectDB = require("./config/db");
 const socketService = require("./services/socketService");
-const { closeExpiredListings } = require("./utils/listingExpiry");
-const { clearSearchCache } = require("./services/jobScraperService");
 
 const PORT = process.env.PORT || 5000;
 
@@ -51,34 +49,10 @@ const server = http.createServer(app);
 // Initialize Socket.IO
 socketService.init(server);
 
-// Background job: mark interviews whose end time has passed as completed (every 5 min + on startup)
-const { sweepPastInterviews } = require("./services/interviewSweep");
-sweepPastInterviews();
-setInterval(sweepPastInterviews, 5 * 60 * 1000);
-
-// Background job: close Published jobs/internships whose deadline (end of day IST) has passed.
-// Runs once on startup and every 15 minutes; public lists already hide expired listings
-// in between, so this only makes the stored status match.
-const LISTING_EXPIRY_INTERVAL_MS = 15 * 60 * 1000;
-const runListingExpirySweep = async () => {
-  try {
-    const result = await closeExpiredListings({ onChange: () => clearSearchCache() });
-    if (result.jobs || result.internships) {
-      console.log(`Closed expired listings: ${result.jobs} job(s), ${result.internships} internship(s)`);
-    }
-  } catch (err) {
-    console.warn("Listing expiry sweep failed:", err.message);
-  }
-};
-runListingExpirySweep();
-setInterval(runListingExpirySweep, LISTING_EXPIRY_INTERVAL_MS);
-
-// Background job: sync approved external job feeds (Remotive, Arbeitnow) into MongoDB.
-// Job lists only read the stored listings; requests never call the feeds.
-require("./services/externalJobSync").startExternalJobSyncSchedule();
+// Scheduled jobs (interview sweep, listing expiry, external job sync, 6 PM email digest)
+// run in the worker service, not here, so each runs once however many web instances
+// are up. See worker.js and jobs/scheduledJobs.js.
 
 server.listen(PORT, () => {
   console.log(`E2Job server running on port ${PORT} 🔥 (with Socket.IO enabled)`);
-  // Daily summary email of rejections / closed positions (6 PM IST)
-  require("./services/emailDigest").startEmailDigestScheduler();
 });

@@ -8,6 +8,7 @@ import { saveOpportunity } from "../../services/studentDashboardService";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { openExternalApply } from "../../utils/opportunityApply";
 import { getMyAppliedIds } from "../../services/applicationService";
 import OpportunityTitleLink from "../../components/common/OpportunityTitleLink";
 import ViewDetailsButton from "../../components/common/ViewDetailsButton";
@@ -211,6 +212,12 @@ const InternshipDiscoveryPage = () => {
   const handleApply = (intItem) => {
     if (!user) {
       navigate("/login?redirect=" + encodeURIComponent(location.pathname));
+      return;
+    }
+    // External listings are applied to on the employer's site, not through E2Job.
+    const external = openExternalApply(intItem);
+    if (external) {
+      if (!external.opened) showToast("This listing has no apply link.", "error");
       return;
     }
 
