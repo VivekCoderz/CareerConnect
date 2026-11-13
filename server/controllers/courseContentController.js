@@ -1,4 +1,3 @@
-const { publicError } = require("../utils/publicError");
 const Course = require("../models/Course");
 const CourseContent = require("../models/CourseContent");
 const CourseApplication = require("../models/CourseApplication");
@@ -9,7 +8,7 @@ const { cloudinary } = require("../config/cloudinary");
 // GET UPLOAD SIGNATURE FOR DIRECT-TO-CLOUD UPLOADS
 // GET /api/course-content/upload-signature
 // ==========================================
-const getUploadSignature = async (req, res) => {
+const getUploadSignature = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -57,12 +56,7 @@ const getUploadSignature = async (req, res) => {
       resourceType,
     });
   } catch (error) {
-    console.error("Get Upload Signature Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to generate upload signature",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
@@ -152,7 +146,7 @@ const uploadCourseFile = async (fileBuffer, originalName, fileType, courseId, ti
 // ADD COURSE CONTENT
 // POST /api/courses/:courseId/content
 // ==========================================
-const addCourseContent = async (req, res) => {
+const addCourseContent = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -327,13 +321,7 @@ const addCourseContent = async (req, res) => {
       courseContent: sanitizeContentUrl(courseContent),
     });
   } catch (error) {
-    console.error("Add Course Content Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to add course content",
-      error: process.env.NODE_ENV === "production" ? undefined : error.message,
-    });
+    return next(error);
   } finally {
     if (req.file?.path) await fs.promises.unlink(req.file.path).catch(() => {});
   }
@@ -363,7 +351,7 @@ const sanitizeContentUrl = (item) => {
 // GET COURSE CONTENT
 // Employee's own course content fetch
 // ==========================================
-const getCourseContent = async (req, res) => {
+const getCourseContent = async (req, res, next) => {
   try {
     const { courseId } = req.params;
 
@@ -399,13 +387,7 @@ const getCourseContent = async (req, res) => {
       content: sanitizedContent,
     });
   } catch (error) {
-    console.error("Get Course Content Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -414,7 +396,7 @@ const getCourseContent = async (req, res) => {
 // PUT /api/course-content/:contentId
 // ==========================================
 
-const updateCourseContent = async (req, res) => {
+const updateCourseContent = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -592,20 +574,14 @@ const updateCourseContent = async (req, res) => {
       courseContent: sanitizeContentUrl(courseContent),
     });
   } catch (error) {
-    console.error("Update Course Content Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update course content",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
 // ==========================================
 // DELETE COURSE CONTENT
 // ==========================================
-const deleteCourseContent = async (req, res) => {
+const deleteCourseContent = async (req, res, next) => {
   try {
     const { contentId } = req.params;
 
@@ -644,13 +620,7 @@ const deleteCourseContent = async (req, res) => {
       message: "Course content deleted successfully",
     });
   } catch (error) {
-    console.error("Delete Course Content Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -660,7 +630,7 @@ const deleteCourseContent = async (req, res) => {
 // Only enrolled students can access content
 // ==========================================
 
-const getStudentCourseContent = async (req, res) => {
+const getStudentCourseContent = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -771,13 +741,7 @@ const getStudentCourseContent = async (req, res) => {
       content: sanitizedContent,
     });
   } catch (error) {
-    console.error("Get Student Course Content Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch course content",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -785,7 +749,7 @@ const getStudentCourseContent = async (req, res) => {
 // STREAM / VIEW COURSE PDF
 // GET /api/course-content/:contentId/view-pdf
 // ==========================================
-const streamPdfContent = async (req, res) => {
+const streamPdfContent = async (req, res, next) => {
   try {
     const { contentId } = req.params;
     const content = await CourseContent.findById(contentId);
@@ -855,12 +819,7 @@ const streamPdfContent = async (req, res) => {
 
     return res.redirect(targetUrl);
   } catch (error) {
-    console.error("Stream PDF Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to serve PDF",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
@@ -869,7 +828,7 @@ const streamPdfContent = async (req, res) => {
 // PATCH /api/student/courses/:courseId/content/:contentId/complete
 // ==========================================
 
-const markContentComplete = async (req, res) => {
+const markContentComplete = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -1012,12 +971,7 @@ const markContentComplete = async (req, res) => {
       status: application.status,
     });
   } catch (error) {
-    console.error("Mark Content Complete Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update course progress",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -1025,7 +979,7 @@ const markContentComplete = async (req, res) => {
 // STREAM / VIEW COURSE VIDEO
 // GET /api/course-content/:contentId/view-video
 // ==========================================
-const streamVideoContent = async (req, res) => {
+const streamVideoContent = async (req, res, next) => {
   try {
     const { contentId } = req.params;
     const content = await CourseContent.findById(contentId);
@@ -1107,12 +1061,7 @@ const streamVideoContent = async (req, res) => {
     // 3. Fallback redirect
     return res.redirect(targetUrl);
   } catch (error) {
-    console.error("Stream Video Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to serve video stream",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 

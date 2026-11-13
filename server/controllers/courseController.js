@@ -1,4 +1,3 @@
-const { publicError } = require("../utils/publicError");
 const Course = require("../models/Course");
 const CourseContent = require("../models/CourseContent");
 const StudentProfile = require("../models/StudentProfile");
@@ -13,7 +12,7 @@ const Enrollment = require("../models/Enrollment");
 // POST /api/courses
 // ==========================================
 
-const createCourse = async (req, res) => {
+const createCourse = async (req, res, next) => {
   try {
     // Logged-in user auth middleware se aayega
     const user = req.user;
@@ -84,13 +83,7 @@ const createCourse = async (req, res) => {
       course,
     });
   } catch (error) {
-    console.error("Create Course Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to create course",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -99,7 +92,7 @@ const createCourse = async (req, res) => {
 // GET /api/courses/my-courses
 // ==========================================
 
-const getMyCourses = async (req, res) => {
+const getMyCourses = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -128,13 +121,7 @@ const getMyCourses = async (req, res) => {
       courses,
     });
   } catch (error) {
-    console.error("Get My Courses Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch courses",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -143,7 +130,7 @@ const getMyCourses = async (req, res) => {
 // PUT /api/courses/:id
 // ==========================================
 
-const updateCourse = async (req, res) => {
+const updateCourse = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -206,13 +193,7 @@ const updateCourse = async (req, res) => {
       course,
     });
   } catch (error) {
-    console.error("Update Course Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update course",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 // ==========================================
@@ -220,7 +201,7 @@ const updateCourse = async (req, res) => {
 // DELETE /api/courses/:id
 // ==========================================
 
-const deleteCourse = async (req, res) => {
+const deleteCourse = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -258,13 +239,7 @@ const deleteCourse = async (req, res) => {
       message: "Course deleted successfully",
     });
   } catch (error) {
-    console.error("Delete Course Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete course",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -273,7 +248,7 @@ const deleteCourse = async (req, res) => {
 // PATCH /api/courses/:id/status
 // ==========================================
 
-const updateCourseStatus = async (req, res) => {
+const updateCourseStatus = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -327,13 +302,7 @@ const updateCourseStatus = async (req, res) => {
       course,
     });
   } catch (error) {
-    console.error("Update Course Status Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update course status",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -342,7 +311,7 @@ const updateCourseStatus = async (req, res) => {
 // GET /api/courses/recommended
 // ==========================================
 
-const getRecommendedCourses = async (req, res) => {
+const getRecommendedCourses = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -588,13 +557,7 @@ const getRecommendedCourses = async (req, res) => {
       courses: recommendedCourses,
     });
   } catch (error) {
-    console.error("Get Recommended Courses Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch recommended courses",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -625,7 +588,7 @@ const courseSkillContains = (skills, searchText) => {
 // GET /api/courses/:id
 // ==========================================
 
-const getCourseDetails = async (req, res) => {
+const getCourseDetails = async (req, res, next) => {
   try {
     const user = req.user;
     const course = await Course.findById(req.params.id).populate(
@@ -668,13 +631,7 @@ const getCourseDetails = async (req, res) => {
       lessonsCount: syllabus.length,
     });
   } catch (error) {
-    console.error("Get Course Details Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch course details",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -683,7 +640,7 @@ const getCourseDetails = async (req, res) => {
 // POST /api/courses/:id/apply
 // ==========================================
 
-const applyCourse = async (req, res) => {
+const applyCourse = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -769,13 +726,7 @@ const applyCourse = async (req, res) => {
       isEnrolled: isFreeCourse,
     });
   } catch (error) {
-    console.error("Apply Course Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to apply for course",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -785,7 +736,7 @@ const applyCourse = async (req, res) => {
 // Only free courses can be directly enrolled
 // ==========================================
 
-const enrollFreeCourse = async (req, res) => {
+const enrollFreeCourse = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -899,13 +850,7 @@ const enrollFreeCourse = async (req, res) => {
       application,
     });
   } catch (error) {
-    console.error("Enroll Free Course Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to enroll in course",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
@@ -915,7 +860,7 @@ const enrollFreeCourse = async (req, res) => {
 // Employer can view applications for own course
 // ==========================================
 
-const getCourseApplications = async (req, res) => {
+const getCourseApplications = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -991,13 +936,7 @@ const getCourseApplications = async (req, res) => {
       applications,
     });
   } catch (error) {
-    console.error("Get Course Applications Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch course applications",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -1007,7 +946,7 @@ const getCourseApplications = async (req, res) => {
 // Employer can approve or reject application
 // ==========================================
 
-const updateCourseApplicationStatus = async (req, res) => {
+const updateCourseApplicationStatus = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -1116,13 +1055,7 @@ const updateCourseApplicationStatus = async (req, res) => {
       application,
     });
   } catch (error) {
-    console.error("Update Course Application Status Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update course application status",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -1134,7 +1067,7 @@ const updateCourseApplicationStatus = async (req, res) => {
 // SECURITY: Only returns applications where course.createdBy === req.user._id
 // ==========================================
 
-const getEmployerAllApplications = async (req, res) => {
+const getEmployerAllApplications = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -1278,13 +1211,7 @@ const getEmployerAllApplications = async (req, res) => {
       courseGroups,
     });
   } catch (error) {
-    console.error("Get Employer All Applications Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch course applications",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
@@ -1293,7 +1220,7 @@ const getEmployerAllApplications = async (req, res) => {
 // GET /api/student/courses
 // ==========================================
 
-const getStudentMyCourses = async (req, res) => {
+const getStudentMyCourses = async (req, res, next) => {
   try {
     const user = req.user;
 
@@ -1368,13 +1295,7 @@ const getStudentMyCourses = async (req, res) => {
       courses,
     });
   } catch (error) {
-    console.error("Get Student My Courses Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch student courses",
-      error: publicError(error),
-    });
+    return next(error);
   }
 };
 
@@ -1385,7 +1306,7 @@ const getStudentMyCourses = async (req, res) => {
 // no domain/employer restrictions. Used by the "All Courses" tab.
 // ==========================================
 
-const getAllPublishedCourses = async (req, res) => {
+const getAllPublishedCourses = async (req, res, next) => {
   try {
     const courses = await Course.find({ status: "Published" })
       .populate("createdBy", "fullName username")
@@ -1398,12 +1319,7 @@ const getAllPublishedCourses = async (req, res) => {
       courses,
     });
   } catch (error) {
-    console.error("Get All Published Courses Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch published courses",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 module.exports = {
