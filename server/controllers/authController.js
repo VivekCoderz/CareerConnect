@@ -1,6 +1,7 @@
 const User = require("../models/User.js");
 const StudentProfile = require("../models/StudentProfile.js");
 const FresherProfile = require("../models/FresherProfile.js");
+const { signupPreferenceFields } = require("../utils/fresherPreferences");
 const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const jwt = require("jsonwebtoken");
 const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies.js");
@@ -17,6 +18,7 @@ const { validateEmail, maskEmail } = require("../services/emailValidationService
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
 const { deleteAccount } = require("../services/accountDeletion.js");
 const { CONSENT_REQUIRED, readConsent } = require("../utils/consent.js");
+const { FRESHER_EXPERIENCE_ERROR, isWorkExperienceAllowed } = require("../utils/workExperience.js");
 
 // ==========================================
 // PASSWORD VALIDATION & HELPERS
@@ -443,6 +445,11 @@ module.exports.registerUser = async (req, res, next) => {
       resolvedUserType = "student";
     }
 
+    // Checked before the email verification token is used up, so the user can fix it and resubmit.
+    if (!isWorkExperienceAllowed(resolvedUserType, workExperience || experienceYears || "0 years")) {
+      return res.status(400).json(FRESHER_EXPERIENCE_ERROR);
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
 
     // Check if email already exists
@@ -561,6 +568,8 @@ module.exports.registerUser = async (req, res, next) => {
       } else if (resolvedUserType === "fresher") {
         await FresherProfile.create({
           userId: user._id,
+          // The role and stack the fresher picked as interests, under the keys the dashboard reads.
+          ...signupPreferenceFields(userData.interests),
           gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
             ? gender
             : "",
@@ -1768,6 +1777,10 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
       resolvedUserType = "student";
     }
 
+    if (!isWorkExperienceAllowed(resolvedUserType, workExperience || experienceYears || "0 years")) {
+      return res.status(400).json(FRESHER_EXPERIENCE_ERROR);
+    }
+
     const endYearNum =
       Number(endYear || graduationYear || passoutYear) ||
       new Date().getFullYear() + 2;
@@ -1871,6 +1884,7 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
         if (!existing) {
           await FresherProfile.create({
             userId,
+            ...signupPreferenceFields(updateData.interests),
             gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
               ? gender
               : "",
@@ -2049,3 +2063,7 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
 };
 
 module.exports.userPayload = userPayload;
+// Account settings (accountController) signs the user back in after a password or email change.
+module.exports.generateToken = generateToken;
+module.exports.setTokenCookie = setTokenCookie;
+module.exports.createSession = createSession;
