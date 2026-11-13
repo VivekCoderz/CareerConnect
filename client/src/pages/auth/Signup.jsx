@@ -22,6 +22,7 @@ import { generateStrongPassword } from "../../utils/passwordGenerator";
 import ReCaptchaCheckbox from "../../components/common/ReCaptchaCheckbox";
 import TermsConsentCheckbox from "../../components/common/TermsConsentCheckbox";
 import { TERMS_VERSION } from "../../config/legal";
+import { experienceForType, experienceOptionsFor } from "../../config/experience";
 import { needsOnboarding } from "../../utils/userRoles";
 
 const GoogleIcon = () => (
@@ -77,16 +78,6 @@ const MORE_COURSES = [
   "LLB",
   "Pharmacy",
   "Other",
-];
-
-const EXPERIENCE_OPTIONS = [
-  "0 years",
-  "1 year",
-  "2 years",
-  "3 years",
-  "4 years",
-  "5 years",
-  "5+ years",
 ];
 
 const POPULAR_INTERESTS = [
@@ -1420,7 +1411,11 @@ const Signup = () => {
                           type="button"
                           key={t.id}
                           onClick={() => {
-                            setFormData((prev) => ({ ...prev, type: t.id }));
+                            setFormData((prev) => ({
+                              ...prev,
+                              type: t.id,
+                              workExperience: experienceForType(t.id, prev.workExperience),
+                            }));
                             if (fieldErrors.type) setFieldErrors((prev) => ({ ...prev, type: "" }));
                           }}
                           className={`px-4 py-2 rounded-full text-xs transition select-none ${
@@ -1447,7 +1442,7 @@ const Signup = () => {
                       Years of work experience
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {EXPERIENCE_OPTIONS.map((exp) => {
+                      {experienceOptionsFor(formData.type).map((exp) => {
                         const isSelected = formData.workExperience === exp;
                         return (
                           <button

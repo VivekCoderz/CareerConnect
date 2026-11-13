@@ -51,6 +51,19 @@ export const opportunitySourceName = (item) => {
 };
 
 /**
+ * Opens an external listing's apply link in a new tab. Call it before showing an
+ * E2Job apply form: the server refuses applications to external listings.
+ * @param {object} item - listing from a discovery/dashboard feed
+ * @returns {{ opened: boolean } | null} null for an E2Job listing
+ */
+export const openExternalApply = (item) => {
+  if (!isExternalOpportunity(item)) return null;
+  const url = externalApplyUrl(item);
+  if (url) window.open(url, "_blank", "noopener,noreferrer");
+  return { opened: Boolean(url) };
+};
+
+/**
  * Applies the signed-in candidate to a E2Job job or internship, or opens an
  * external listing's apply link in a new tab.
  * @param {object} item - listing from a discovery/dashboard feed
@@ -58,11 +71,8 @@ export const opportunitySourceName = (item) => {
  * @returns {Promise<{ external: boolean, opened?: boolean, success?: boolean, message?: string }>}
  */
 export const applyToOpportunity = async (item, type = "Job") => {
-  if (isExternalOpportunity(item)) {
-    const url = externalApplyUrl(item);
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
-    return { external: true, opened: Boolean(url) };
-  }
+  const external = openExternalApply(item);
+  if (external) return { external: true, ...external };
 
   const id = opportunityId(item);
   const res = type === "Internship" ? await applyToInternship(id, {}) : await applyToJob(id, {});

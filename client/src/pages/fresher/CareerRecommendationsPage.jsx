@@ -1,6 +1,6 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import recommendationService from "../../services/recommendationService";
@@ -15,7 +15,6 @@ import FresherNavbar from "../../components/fresher-dashboard/FresherNavbar";
 const matchLabel = (score) => (typeof score === "number" ? `${score}% Match` : "Not enough data");
 
 const CareerRecommendationsPage = () => {
-  const navigate = useNavigate();
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
@@ -198,9 +197,7 @@ const CareerRecommendationsPage = () => {
         <FresherNavbar
           user={user}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           onLogout={logout}
-          onSearch={(q) => navigate(`/jobs?search=${encodeURIComponent(q)}`)}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-6xl w-full mx-auto space-y-6 animate-fade-in">
