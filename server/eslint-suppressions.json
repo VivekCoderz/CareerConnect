@@ -43,17 +43,6 @@
       "count": 1
     }
   },
-  "controllers/authController.js": {
-    "max-lines": {
-      "count": 1
-    },
-    "no-empty": {
-      "count": 5
-    },
-    "no-unused-vars": {
-      "count": 9
-    }
-  },
   "controllers/candidateController.js": {
     "no-unused-vars": {
       "count": 3
