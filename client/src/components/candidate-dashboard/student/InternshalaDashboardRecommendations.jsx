@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { FEATURES } from "../../config/features";
-import OpportunityTitleLink from "../common/OpportunityTitleLink";
-import ViewDetailsButton from "../common/ViewDetailsButton";
+import { FEATURES } from "../../../config/features";
+import OpportunityTitleLink from "../../common/OpportunityTitleLink";
+import ViewDetailsButton from "../../common/ViewDetailsButton";
 
 const EmptyOpportunityCard = ({ type, href }) => (
   <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between min-h-[290px]">

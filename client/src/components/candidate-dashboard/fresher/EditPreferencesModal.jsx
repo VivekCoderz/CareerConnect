@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Briefcase, Clock, Layers, Loader2, MapPin, X } from "lucide-react";
-import { updateFresherPreferences } from "../../services/fresherDashboardService";
+import { updateFresherPreferences } from "../../../services/fresherDashboardService";
 
 const MAX_TECH_STACK = 8;
 const MAX_TARGET_ROLES = 5;

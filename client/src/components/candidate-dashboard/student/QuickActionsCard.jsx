@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { FEATURES } from "../../config/features";
+import { FEATURES } from "../../../config/features";
 
 const QuickActionsCard = ({ onNavigateTab }) => {
   const actions = [

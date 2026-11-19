@@ -52,6 +52,45 @@
       "count": 1
     }
   },
+  "src/components/candidate-dashboard/CandidateInterviewsView.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/candidate-dashboard/professional/CareerPathModal.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/candidate-dashboard/professional/ExecutiveResumeCard.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/candidate-dashboard/professional/ProfessionalApplicationsView.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/candidate-dashboard/student/JobRecommendationsCard.jsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/candidate-dashboard/student/ResumeStatusCard.jsx": {
+    "max-lines": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 5
+    }
+  },
   "src/components/common/PhoneInput.jsx": {
     "no-empty": {
       "count": 2
@@ -408,26 +447,6 @@
       "count": 1
     }
   },
-  "src/components/professional-dashboard/CareerPathModal.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/components/professional-dashboard/ExecutiveResumeCard.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/components/professional-dashboard/ProfessionalApplicationsView.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/components/professional-dashboard/ProfessionalHeader.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "src/components/professional-profile/ProfessionalDevelopment.jsx": {
     "no-unused-vars": {
       "count": 1
@@ -597,35 +616,6 @@
   "src/components/resume-builder/templates/TwoColumnTemplate.jsx": {
     "no-unused-vars": {
       "count": 1
-    }
-  },
-  "src/components/student-dashboard/CandidateInterviewsView.jsx": {
-    "max-lines": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 1
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/student-dashboard/CourseRecommendationsCard.jsx": {
-    "no-unused-vars": {
-      "count": 2
-    }
-  },
-  "src/components/student-dashboard/JobRecommendationsCard.jsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/student-dashboard/ResumeStatusCard.jsx": {
-    "max-lines": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 5
     }
   },
   "src/components/student/AchievementsSection.jsx": {
@@ -1112,9 +1102,6 @@
     }
   },
   "src/pages/student/StudentDashboard.jsx": {
-    "max-lines": {
-      "count": 1
-    },
     "no-unused-vars": {
       "count": 7
     },

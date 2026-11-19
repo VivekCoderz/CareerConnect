@@ -1,5 +1,5 @@
 import { useState } from "react";
-import ResumeUploadInput from "../common/ResumeUploadInput";
+import ResumeUploadInput from "../../common/ResumeUploadInput";
 
 const ApplyReviewModal = ({
   isOpen,

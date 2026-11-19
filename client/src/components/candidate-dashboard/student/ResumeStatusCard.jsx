@@ -1,12 +1,12 @@
 import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { uploadResumeAPI, parseResumeAPI, confirmParsedProfileAPI } from "../../services/resumeService";
-import { updateUserProfile } from "../../redux/features/authSlice";
-import ParsedResumeReviewModal from "../resume-builder/ParsedResumeReviewModal";
-import { updateStudentProfile } from "../../services/studentProfileService";
-import ResumeUploadInput from "../common/ResumeUploadInput";
-import { openResume } from "../../utils/resumeAccess";
+import { uploadResumeAPI, parseResumeAPI, confirmParsedProfileAPI } from "../../../services/resumeService";
+import { updateUserProfile } from "../../../redux/features/authSlice";
+import ParsedResumeReviewModal from "../../resume-builder/ParsedResumeReviewModal";
+import { updateStudentProfile } from "../../../services/studentProfileService";
+import ResumeUploadInput from "../../common/ResumeUploadInput";
+import { openResume } from "../../../utils/resumeAccess";
 import {
   FileText,
   Zap,

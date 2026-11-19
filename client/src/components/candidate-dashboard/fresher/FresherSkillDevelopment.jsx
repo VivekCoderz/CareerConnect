@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { FEATURES } from "../../config/features";
+import { FEATURES } from "../../../config/features";
 
 // Shows only the skills the fresher saved and what the server recommends, never sample data.
 const FresherSkillDevelopment = ({ userSkills = [], recommendedSkills = [], targetRole = "Full Stack Developer" }) => {

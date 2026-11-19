@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { openResume } from "../../utils/resumeAccess";
+import { openResume } from "../../../utils/resumeAccess";
 
 const FresherResumeCard = ({ resumeData = {} }) => {
   const hasResume = Boolean(resumeData?.resumeUrl || resumeData?.resumeName);

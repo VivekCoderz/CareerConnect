@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { FEATURES } from "../../config/features";
+import { FEATURES } from "../../../config/features";
 import { Link } from "react-router-dom";
-import ViewDetailsButton from "../common/ViewDetailsButton";
+import ViewDetailsButton from "../../common/ViewDetailsButton";
 
 const JobRecommendationsCard = ({ jobs = [], onSave, onApply, savedIds = [], appliedJobIds = new Set(), limit = 1 }) => {
   const [currentPage, setCurrentPage] = useState(1);

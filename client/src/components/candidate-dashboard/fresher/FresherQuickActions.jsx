@@ -1,4 +1,4 @@
-import { FEATURES } from "../../config/features";
+import { FEATURES } from "../../../config/features";
 
 const FresherQuickActions = ({ onSelectTab }) => {
   const actions = [

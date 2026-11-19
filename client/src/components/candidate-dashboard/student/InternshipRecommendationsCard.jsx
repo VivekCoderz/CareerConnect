@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import OpportunityTitleLink from "../common/OpportunityTitleLink";
-import ViewDetailsButton from "../common/ViewDetailsButton";
+import OpportunityTitleLink from "../../common/OpportunityTitleLink";
+import ViewDetailsButton from "../../common/ViewDetailsButton";
 
 const InternshipRecommendationsCard = ({
   internships = [],

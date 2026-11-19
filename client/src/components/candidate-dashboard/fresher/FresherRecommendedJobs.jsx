@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bookmark, Briefcase, Check, Clock, ExternalLink, IndianRupee, Loader2, MapPin, Pencil, SearchX } from "lucide-react";
-import { FEATURES } from "../../config/features";
-import OpportunityTitleLink from "../common/OpportunityTitleLink";
-import { getRecommendedJobs } from "../../services/fresherDashboardService";
+import { FEATURES } from "../../../config/features";
+import OpportunityTitleLink from "../../common/OpportunityTitleLink";
+import { getRecommendedJobs } from "../../../services/fresherDashboardService";
 
 const PAGE_SIZE = 10;
 const FILTERS = [

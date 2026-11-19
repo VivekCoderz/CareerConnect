@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { externalHref } from "../../utils/safeUrl";
+import { externalHref } from "../../../utils/safeUrl";
 
 const ProjectsPortfolioCard = ({ projects = [] }) => {
   return (
