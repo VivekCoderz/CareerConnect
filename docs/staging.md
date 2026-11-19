@@ -1,6 +1,13 @@
 # Staging environment (H02)
 
-Staging is a full copy of the app that deploys from the `hardening` branch. It has its own API on Render, its own frontend preview on Vercel, and its own Atlas database, filled from a recent production backup with personal data scrubbed.
+Staging is a full copy of the app that deploys from the `hardening` branch. It has its own API on Render, its own frontend on Cloudflare, and its own Atlas database, filled from a recent production backup with personal data scrubbed.
+
+| | Address |
+|---|---|
+| Frontend | https://staging.e2job.com |
+| API | https://api-staging.e2job.com (Render service `careerconnect-api-staging`) |
+
+Always test on `staging.e2job.com`. The login cookie is `SameSite=Lax` (H08), so it only works when the site and the API share `e2job.com`; logging in from `e2job-staging.vivekgarg-code.workers.dev` or any other host fails.
 
 **Done when:** the staging URL works end to end for all four roles (candidate, employer, company admin, super admin) and never touches the production database.
 
@@ -11,7 +18,7 @@ Staging is a full copy of the app that deploys from the `hardening` branch. It h
 | With `APP_ENV=staging`, the API refuses to start unless the database name in `MONGODB_URI` contains `staging`. Production refuses to start on a `staging` database. | `server/config/environment.js`, `server/server.js` |
 | Staging only sends email to addresses in `STAGING_EMAIL_ALLOWLIST`. Everything else, including every scrubbed `@staging.invalid` address, is skipped and logged. | `server/utils/sendEmail.js` |
 | The refresh workflow restores and scrubs the backup inside a throwaway MongoDB on the GitHub runner. It uploads to staging only if the scrub check passes. It refuses to run if the staging URI points at the production cluster. | `.github/workflows/staging-refresh.yml` |
-| Staging has its own `JWT_SECRET`, `SESSION_SECRET` and `OTP_HASH_SECRET`, so a production login token does not work on staging, and a staging token does not work on production. | Render settings, below |
+| Staging has its own `JWT_SECRET` and `OTP_HASH_SECRET`, so a production login token does not work on staging, and a staging token does not work on production. | Render settings, below |
 
 ## What the scrub does
 
@@ -65,33 +72,42 @@ Environment variables: copy production's, then change these:
 |---|---|
 | `APP_ENV` | `staging` |
 | `MONGODB_URI` | The staging connection string |
-| `JWT_SECRET`, `SESSION_SECRET`, `OTP_HASH_SECRET` | New values. Generate each with `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`. |
-| `CLIENT_URL` | The staging frontend URL (step 5) |
-| `PUBLIC_SITE_URL` | The staging frontend URL |
+| `JWT_SECRET`, `OTP_HASH_SECRET` | New values. Generate each with `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`. (`SESSION_SECRET` is no longer read since H09 and can be removed.) |
+| `CLIENT_URL` | `https://staging.e2job.com` |
+| `PUBLIC_SITE_URL` | `https://staging.e2job.com` |
 | `SENTRY_ENVIRONMENT` | `staging` |
 | `STAGING_EMAIL_ALLOWLIST` | Testers' own addresses or domains, comma-separated, for example `@e2job.com`. Leave empty to send no email at all. |
 | `ENABLE_EXTERNAL_JOB_SYNC` | `false` |
 | `ENABLE_PAYMENTS` | `false`, or Razorpay **test** keys only |
 | `CLOUDINARY_*` | A separate free Cloudinary account, so staging uploads don't land in production's media |
 
-Check that `GET https://<staging-api>/health` returns 200, and that the logs show `MongoDB Connected` with no "Refusing to start" line.
+Custom domain: in the service's *Settings → Custom Domains*, add `api-staging.e2job.com`. In Cloudflare DNS (the `e2job.com` zone), add a `CNAME api-staging → careerconnect-api-staging.onrender.com`, **DNS only** (grey cloud), so Render can issue the certificate.
 
-### 5. Frontend preview on Vercel (Vivek)
+Check that `GET https://api-staging.e2job.com/health` returns 200, and that the logs show `MongoDB Connected` with no "Refusing to start" line.
 
-In the Vercel project, open *Settings → Environment Variables*, and add these for the **Preview** environment, limited to the branch `hardening`:
+Never point staging at `api.e2job.com`: that is the production API and database.
 
-| Variable | Value |
-|---|---|
-| `VITE_API_URL` | `https://<staging-api>/api` |
-| `VITE_SENTRY_ENVIRONMENT` | `staging` |
+### 5. Frontend on Cloudflare (Vivek)
 
-Every push to `hardening` then builds a preview. Its stable address is the branch alias, `<project>-git-hardening-<team>.vercel.app`. Use that address for `CLIENT_URL` on Render.
+The staging frontend is a Cloudflare Worker (Workers Builds) connected to this repository:
 
-**Custom domains come with H08.** Until then, the login cookie is cross-site between `vercel.app` and `onrender.com`, so Safari, and browsers that block third-party cookies, will drop it. Test staging in Chrome or Firefox until H08 is done. Staging needs its own API subdomain, such as `api-staging.e2job.com`. Pointing staging at `api.e2job.com` would send it to the production API and database.
+1. Cloudflare → *Workers & Pages* → the staging worker (`e2job-staging`) → *Settings → Build*.
+2. **Branch control:** production branch `hardening`. **Root directory:** `client`. Build and deploy commands as in `client/wrangler.jsonc`.
+3. **Build variables:**
+
+   | Variable | Value |
+   |---|---|
+   | `VITE_API_URL` | `https://api-staging.e2job.com/api` |
+   | `VITE_SENTRY_ENVIRONMENT` | `staging` |
+   | `VITE_RECAPTCHA_SITE_KEY`, `VITE_FIREBASE_*` | The **production** values (copy them from the production frontend, not from `client/.env`) |
+
+4. **Domain:** `staging.e2job.com`. The `e2job.com` zone is in a different Cloudflare account from the worker, so a small proxy worker (`staging-proxy`) in the zone's account serves `staging.e2job.com` and forwards to the staging worker's `workers.dev` address. Before production moves to Cloudflare, put the zone and the workers in one account and drop the proxy.
+
+Every push to `hardening` rebuilds it. Cloudflare doesn't build when only the branch setting changes: to deploy another branch for a test window, change *Branch control* and push a commit to that branch (or roll back to an earlier version under *Deployments*).
 
 ### 6. Google sign-in and reCAPTCHA
 
-Login and signup check reCAPTCHA on staging, as on production. Add the staging frontend domain to:
+Login and signup check reCAPTCHA on staging, as on production. Add `staging.e2job.com` to:
 
 - the reCAPTCHA site key's domain list (Google reCAPTCHA admin console);
 - Firebase → Authentication → Settings → **Authorized domains**, so Google sign-in works.
@@ -122,3 +138,6 @@ These addresses can't receive email. Anything that needs an inbox, such as signu
 - [ ] Company admin: log in and see Staging Test Company's dashboard.
 - [ ] An action on staging, such as posting a job, does **not** appear on production.
 - [ ] Sending an email to a non-allowlisted address shows `Staging: not sending` in the Render logs.
+- [ ] Login works in Safari with cross-site tracking prevention on (H08).
+- [ ] Logging out in one tab signs the other tab out on its next request (H09).
+- [ ] When the employer shortlists a candidate, the candidate's bell updates without a reload (H17).
