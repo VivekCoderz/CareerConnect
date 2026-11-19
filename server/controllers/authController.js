@@ -2068,4 +2068,3 @@ module.exports.userPayload = userPayload;
 // Account settings (accountController) signs the user back in after a password or email change.
 module.exports.generateToken = generateToken;
 module.exports.setTokenCookie = setTokenCookie;
-module.exports.createSession = createSession;

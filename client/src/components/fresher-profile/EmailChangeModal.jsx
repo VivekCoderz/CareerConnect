@@ -58,7 +58,7 @@ const PasswordField = ({ id, value, onChange, show, onToggle, hasError, autoComp
   </div>
 );
 
-const EmailChangeModal = ({ currentEmail, onClose, onEmailChanged, onSignedInAgain }) => {
+const EmailChangeModal = ({ currentEmail, onClose, onEmailChanged }) => {
   const [step, setStep] = useState("password");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -161,7 +161,6 @@ const EmailChangeModal = ({ currentEmail, onClose, onEmailChanged, onSignedInAga
     return run(async () => {
       const res = await resetAccountPassword(resetToken, newPassword);
       // Other devices are signed out; this one continues with the new token.
-      onSignedInAgain(res.authToken);
       setChangeToken(res.changeToken);
       setResetToken("");
       setNewPassword("");
@@ -193,7 +192,6 @@ const EmailChangeModal = ({ currentEmail, onClose, onEmailChanged, onSignedInAga
     if (!/^\d{6}$/.test(otp)) return setError("Enter the 6-digit code");
     return run(async () => {
       const res = await confirmNewEmail(changeToken, otp);
-      onSignedInAgain(res.authToken);
       onEmailChanged(res.user);
       goTo("success");
     }, "Couldn't verify the code. Please try again.");

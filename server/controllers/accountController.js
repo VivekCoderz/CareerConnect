@@ -6,7 +6,9 @@ const getFirebaseAdmin = require("../config/firebaseAdmin");
 const { validateEmail } = require("../services/emailValidationService");
 const { normalizeEmail } = require("../services/otpService");
 const { createAndSend, verify, OtpError } = require("../services/accountOtpService");
-const { generateToken, setTokenCookie, createSession, userPayload } = require("./authController");
+const { generateToken, setTokenCookie, userPayload } = require("./authController");
+const { tokenFromCookie } = require("../middleware/authMiddleware");
+const { disconnectUser } = require("../services/socketService");
 
 // Changing email, signed in: prove it's you (password, or a code to the current email plus a
 // new password), then verify a code sent to the new address. Each step hands the client a
@@ -57,24 +59,18 @@ const maskEmail = (email) => {
 
 // A reissued sign-in token keeps the length chosen at login.
 const wasKeptSignedIn = (req) => {
-  const raw = req.cookies?.token || req.headers.authorization?.split(" ")[1];
+  const raw = tokenFromCookie(req);
   const decoded = raw ? jwt.decode(raw) : null;
   return Boolean(decoded?.exp && decoded?.iat && decoded.exp - decoded.iat > 25 * 60 * 60);
 };
 
-// After authVersion changes, keep this device signed in; every other device is signed out.
-const signInAgain = async (req, res, user) => {
-  if (req.session) {
-    try {
-      await createSession(req, user);
-    } catch (sessErr) {
-      console.warn("Could not refresh session after account change:", sessErr.message);
-    }
-  }
+// After authVersion changes, keep this device signed in with a fresh cookie; every other
+// device is signed out. The token goes only in the httpOnly cookie (H07), and the user's
+// open sockets are closed so they reconnect with the new cookie or not at all (H17).
+const signInAgain = (req, res, user) => {
   const keepSignedIn = wasKeptSignedIn(req);
-  const authToken = generateToken(user, keepSignedIn);
-  setTokenCookie(res, authToken, keepSignedIn);
-  return authToken;
+  setTokenCookie(res, generateToken(user, keepSignedIn), keepSignedIn);
+  disconnectUser(user._id);
 };
 
 const sendOtpError = (res, err) => {
@@ -166,7 +162,7 @@ exports.verifyOldEmailOtp = async (req, res, next) => {
   }
 };
 
-// POST /api/account/password/reset { resetToken, newPassword } -> { authToken, changeToken }
+// POST /api/account/password/reset { resetToken, newPassword } -> { changeToken } (and a fresh token cookie)
 exports.resetPassword = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select("+password");
@@ -194,14 +190,13 @@ exports.resetPassword = async (req, res, next) => {
       }
     }
 
-    const authToken = await signInAgain(req, res, user);
+    signInAgain(req, res, user);
     securityAlert(user.email, user.fullName, "Your password was changed",
       "The password for your E2Job account was changed and other devices were signed out.");
 
     return res.status(200).json({
       success: true,
       message: "Password changed. Other devices were logged out.",
-      authToken,
       changeToken: signStepToken(user, "email_change"),
     });
   } catch (error) {
@@ -254,7 +249,7 @@ exports.requestNewEmail = async (req, res, next) => {
   }
 };
 
-// POST /api/account/email/confirm-new { changeToken, otp } -> { user, authToken }
+// POST /api/account/email/confirm-new { changeToken, otp } -> { user } (and a fresh token cookie)
 exports.confirmNewEmail = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id);
@@ -307,11 +302,11 @@ exports.confirmNewEmail = async (req, res, next) => {
       return stepExpired(res);
     }
 
-    const authToken = await signInAgain(req, res, updated);
+    signInAgain(req, res, updated);
     securityAlert(oldEmail, updated.fullName, "Your email was changed",
       "The email for your E2Job account was changed. This address will no longer receive account emails.");
 
-    return res.status(200).json({ success: true, message: "Email updated", user: userPayload(updated), authToken });
+    return res.status(200).json({ success: true, message: "Email updated", user: userPayload(updated) });
   } catch (error) {
     next(error);
   }
