@@ -16,6 +16,7 @@ const { parseClientUrls, isLocalDevOrigin } = require("./utils/clientOrigins");
 
 const authRoutes = require("./routes/authRoutes.js");
 const userRoutes = require("./routes/userRoutes.js");
+const accountRoutes = require("./routes/accountRoutes.js");
 const skillRoutes = require("./routes/skillRoutes.js");
 const studentRoutes = require("./routes/studentRoutes.js");
 const fresherRoutes = require("./routes/fresherRoutes.js");
@@ -29,6 +30,7 @@ const paymentRoutes = require("./routes/paymentRoutes.js");
 
 // Employer & Jobs / Internships feature routes
 const jobRoutes = require("./routes/jobRoutes.js");
+const dashboardRoutes = require("./routes/dashboardRoutes.js");
 const internshipRoutes = require("./routes/internshipRoutes.js");
 const applicationRoutes = require("./routes/applicationRoutes.js");
 const candidateRoutes = require("./routes/candidateRoutes.js");
@@ -148,6 +150,7 @@ app.use(["/api/jobs", "/api/internships", "/api/applications", "/api/admin", "/a
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/account", accountRoutes);
 app.use("/api/skills", skillRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/profile/student", studentRoutes);
@@ -167,6 +170,7 @@ if (flag("ENABLE_PAYMENTS")) app.use("/api/payment", paymentRoutes);
 
 // Marketplace & Discovery Routes
 app.use("/api/jobs", jobRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/internships", internshipRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/candidates", candidateRoutes);

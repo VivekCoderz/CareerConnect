@@ -1,28 +1,29 @@
 import JourneyLoader from "../../components/common/JourneyLoader";
-import { useEffect, useState, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import SupportTickets from "../../components/support/SupportTickets";
 import useTabInUrl from "../../hooks/useTabInUrl";
 import { useSelector } from "react-redux";
 import useLogout from "../../hooks/useLogout";
 import useLiveNotifications from "../../hooks/useLiveNotifications";
-import { getFresherDashboardData } from "../../services/fresherDashboardService";
+import { getFresherDashboardData, getDashboardSummary } from "../../services/fresherDashboardService";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
+import { openExternalApply } from "../../utils/opportunityApply";
 import { FEATURES } from "../../config/features";
 
 // Fresher Dashboard Components
-import FresherSidebar from "../../components/fresher-dashboard/FresherSidebar";
-import FresherNavbar from "../../components/fresher-dashboard/FresherNavbar";
-import FresherHeader from "../../components/fresher-dashboard/FresherHeader";
-import FresherQuickActions from "../../components/fresher-dashboard/FresherQuickActions";
-import FresherRecommendedJobs from "../../components/fresher-dashboard/FresherRecommendedJobs";
-import FresherSkillDevelopment from "../../components/fresher-dashboard/FresherSkillDevelopment";
-import FresherRecommendedCourses from "../../components/fresher-dashboard/FresherRecommendedCourses";
-import FresherResumeCard from "../../components/fresher-dashboard/FresherResumeCard";
-import FresherExperienceSection from "../../components/fresher-dashboard/FresherExperienceSection";
-import FresherApplicationTracker from "../../components/fresher-dashboard/FresherApplicationTracker";
-import FresherCareerRecommendations from "../../components/fresher-dashboard/FresherCareerRecommendations";
-import FresherRecentActivity from "../../components/fresher-dashboard/FresherRecentActivity";
+import CandidateDashboardShell from "../../components/candidate-dashboard/CandidateDashboardShell";
+import FresherHeader from "../../components/candidate-dashboard/fresher/FresherHeader";
+import FresherQuickActions from "../../components/candidate-dashboard/fresher/FresherQuickActions";
+import FresherRecommendedJobs from "../../components/candidate-dashboard/fresher/FresherRecommendedJobs";
+import EditPreferencesModal from "../../components/candidate-dashboard/fresher/EditPreferencesModal";
+import FresherSkillDevelopment from "../../components/candidate-dashboard/fresher/FresherSkillDevelopment";
+import FresherRecommendedCourses from "../../components/candidate-dashboard/fresher/FresherRecommendedCourses";
+import FresherResumeCard from "../../components/candidate-dashboard/fresher/FresherResumeCard";
+import FresherExperienceSection from "../../components/candidate-dashboard/fresher/FresherExperienceSection";
+import FresherApplicationTracker from "../../components/candidate-dashboard/fresher/FresherApplicationTracker";
+import FresherCareerRecommendations from "../../components/candidate-dashboard/fresher/FresherCareerRecommendations";
+import FresherRecentActivity from "../../components/candidate-dashboard/fresher/FresherRecentActivity";
 
 // Embedded pages (same pattern as StudentDashboard)
 import Internships from "../student/Internships";
@@ -32,11 +33,10 @@ import Jobs from "../student/Jobs";
 import StudentCoursesPage from "../courses/StudentCoursesPage";
 import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
 import CourseDetailsPage from "../courses/CourseDetailsPage";
-import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
+import CandidateInterviewsView from "../../components/candidate-dashboard/CandidateInterviewsView";
 import NotificationInbox from "../../components/notifications/NotificationInbox";
 
 const FresherDashboard = () => {
-  const navigate = useNavigate();
   const logout = useLogout();
   const { user } = useSelector((state) => state.auth);
 
@@ -44,8 +44,6 @@ const FresherDashboard = () => {
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "dashboard");
   useTabInUrl(activeTab, "dashboard");
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -53,6 +51,14 @@ const FresherDashboard = () => {
   const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [toast, setToast] = useState(null);
+
+  // Banner summary (/api/dashboard/summary). Bumping refreshKey refetches it and the jobs list.
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  // null = closed; otherwise { field } to focus ("targetRole", "techStack", "jobType", "location")
+  const [preferencesModal, setPreferencesModal] = useState(null);
 
   // Internship sub-views inside dashboard
   const [internshipView, setInternshipView] = useState("list");
@@ -67,8 +73,8 @@ const FresherDashboard = () => {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const fetchDashboard = async () => {
-    setLoading(true);
+  const fetchDashboard = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const res = await getFresherDashboardData();
@@ -87,14 +93,43 @@ const FresherDashboard = () => {
     fetchDashboard();
   }, []);
 
-  const handleLogout = () => {
-    logout();
+  const fetchSummary = useCallback(
+    () =>
+      getDashboardSummary()
+        .then((res) => {
+          setSummary(res?.data || null);
+          setSummaryError(null);
+        })
+        .catch((err) => {
+          console.error("Failed to load dashboard summary:", err);
+          setSummaryError("Dashboard load nahi ho paya. Dobara try karo.");
+        })
+        .finally(() => setSummaryLoading(false)),
+    []
+  );
+
+  const retrySummary = () => {
+    setSummaryLoading(true);
+    fetchSummary();
   };
 
-  const handleSearch = (term) => {
-    if (term.trim()) {
-      navigate(`/jobs?search=${encodeURIComponent(term.trim())}`);
-    }
+  useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary, refreshKey]);
+
+  const openPreferences = (field) => setPreferencesModal({ field: field || "targetRole" });
+
+  const handlePreferencesSaved = (preferences) => {
+    setPreferencesModal(null);
+    // Show the saved values at once, then refetch counts and jobs for them.
+    if (preferences) setSummary((prev) => (prev ? { ...prev, preferences } : prev));
+    setRefreshKey((k) => k + 1);
+    fetchDashboard({ silent: true });
+    showToast("Preferences saved");
+  };
+
+  const handleLogout = () => {
+    logout();
   };
 
   const handleSelectTab = (tab) => {
@@ -107,12 +142,17 @@ const FresherDashboard = () => {
       setCoursesView("catalog");
       setSelectedCourseId(null);
     }
-    setMobileSidebarOpen(false);
   };
 
   const inbox = useLiveNotifications(handleSelectTab);
 
   const handleApply = (item) => {
+    // External listings are applied to on the employer's site, not through E2Job.
+    const external = openExternalApply(item);
+    if (external) {
+      if (!external.opened) showToast("This listing has no apply link.", "error");
+      return;
+    }
     setSelectedOpportunityForTailoring({
       _id: item._id || item.id,
       id: item._id || item.id,
@@ -129,7 +169,8 @@ const FresherDashboard = () => {
     setIsTailoredModalOpen(true);
   };
 
-  if (loading) {
+  // The dashboard tab shows its own skeletons; other tabs need the profile first.
+  if (loading && activeTab !== "dashboard") {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
         <JourneyLoader variant="profile" size="hero" className="mb-4" />
@@ -146,7 +187,6 @@ const FresherDashboard = () => {
   // ─── Derived data ──────────────────────────────────────────────────────
   const currentUser = dashboardData?.user || user;
   const profile = dashboardData?.profile || {};
-  const completion = dashboardData?.profileCompletion ?? 0;
   // Only what the fresher actually set; empty values show as "not set" in the UI.
   const careerTarget = dashboardData?.careerTarget || {
     targetRole: profile.targetRole || "",
@@ -155,9 +195,8 @@ const FresherDashboard = () => {
     preferredLocations: [],
     careerGoal: "",
   };
-  const targetRoleLabel = careerTarget.targetRole || "your target role";
+  const targetRoleLabel = summary?.preferences?.targetRole || careerTarget.targetRole || "your target role";
 
-  const recommendedJobs = dashboardData?.recommendedJobs || [];
   const skillDev = dashboardData?.skillDevelopment || {
     userSkills: profile?.skills || [],
     recommendedSkills: [],
@@ -187,385 +226,370 @@ const FresherDashboard = () => {
 
   // ─── Render ────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex">
-      {/* Sidebar */}
-      <FresherSidebar
-        activeTab={activeTab}
-        onSelectTab={handleSelectTab}
-        mobileOpen={mobileSidebarOpen}
-        onCloseMobile={() => setMobileSidebarOpen(false)}
-        onLogout={handleLogout}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
-        unreadNotifications={inbox.unreadCount}
-      />
+    <CandidateDashboardShell
+      type="fresher"
+      user={currentUser}
+      activeTab={activeTab}
+      onSelectTab={handleSelectTab}
+      onLogout={handleLogout}
+      unreadNotifications={inbox.unreadCount}
+    >
 
-      {/* Main Content Area */}
-      <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-          sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
-        }`}
-      >
-        {/* Top Navbar */}
-        <FresherNavbar
-          user={currentUser}
-          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
-          onLogout={handleLogout}
-          onSearch={handleSearch}
-        />
+      {/* ==================== DASHBOARD HOME ==================== */}
+      {activeTab === "dashboard" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Header Banner */}
+          <FresherHeader
+            summary={summary}
+            loading={summaryLoading}
+            error={summaryError}
+            onRetry={retrySummary}
+            onEditPreferences={openPreferences}
+          />
 
-        {/* Workspace Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
+          {/* Recommended Jobs */}
+          <FresherRecommendedJobs
+            refreshKey={refreshKey}
+            appliedJobIds={appliedJobIds}
+            onApplyJob={handleApply}
+            onEditPreferences={openPreferences}
+          />
 
-          {/* ==================== DASHBOARD HOME ==================== */}
-          {activeTab === "dashboard" && (
-            <div className="space-y-6 animate-fade-in">
-              {/* Header Banner */}
-              <FresherHeader
-                user={currentUser}
-                careerTarget={careerTarget}
-                profileCompletion={completion}
-              />
+          {/* Quick Actions */}
+          <FresherQuickActions onSelectTab={handleSelectTab} />
 
-              {/* Quick Actions */}
-              <FresherQuickActions onSelectTab={handleSelectTab} />
-
-              {/* Recommended Jobs */}
-              <FresherRecommendedJobs
-                jobs={recommendedJobs}
-                appliedJobIds={appliedJobIds}
-                targetRole={careerTarget.targetRole}
-                onApplyJob={handleApply}
-              />
-
-              {/* 2-Column: Skills & Career Recommendations */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {FEATURES.courses && (
-                  <FresherSkillDevelopment
-                    userSkills={skillDev.userSkills}
-                    recommendedSkills={skillDev.recommendedSkills}
-                    targetRole={targetRoleLabel}
-                  />
-                )}
-                <FresherCareerRecommendations
-                  recommendations={careerRecommendations}
-                />
-              </div>
-
-              {/* Recommended Courses */}
-              {FEATURES.courses && (
-                <FresherRecommendedCourses
-                  courses={recommendedCourses}
-                  targetRole={targetRoleLabel}
-                />
-              )}
-
-              {/* 2-Column: Resume & Experience */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <FresherResumeCard resumeData={resumeData} />
-                <FresherExperienceSection
-                  experienceSummary={experienceSummary}
-                  profile={profile}
-                />
-              </div>
-
-              {/* 3-Column: Application Tracker & Recent Activity */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                  <FresherApplicationTracker applications={applications} />
-                </div>
-                <div className="lg:col-span-1">
-                  <FresherRecentActivity activities={recentActivity} />
-                </div>
-              </div>
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <JourneyLoader variant="profile" />
             </div>
-          )}
+          ) : (
+          <>
 
-          {/* ==================== FIND JOBS ==================== */}
-          {activeTab === "jobs" && (
-            <div className="animate-fade-in">
-              <Jobs
-                embedded
-                studentProfile={profile}
-                onApply={handleApply}
-              />
-            </div>
-          )}
-
-          {/* ==================== INTERNSHIPS ==================== */}
-          {activeTab === "internships" && (
-            <div className="animate-fade-in">
-              {internshipView === "list" && (
-                <Internships
-                  embedded
-                  appliedInternshipIds={appliedInternshipIds}
-                  studentProfile={profile}
-                  onSelectInternship={(id) => {
-                    setSelectedInternshipId(id);
-                    setInternshipView("detail");
-                  }}
-                />
-              )}
-              {internshipView === "detail" && (
-                <InternshipDetail
-                  embedded
-                  id={selectedInternshipId}
-                  isApplied={appliedInternshipIds.has(String(selectedInternshipId))}
-                  onAppliedSuccess={fetchDashboard}
-                  onBack={() => {
-                    setInternshipView("list");
-                    setSelectedInternshipId(null);
-                  }}
-                />
-              )}
-            </div>
-          )}
-
-          {/* ==================== APPLICATIONS ==================== */}
-          {activeTab === "applications" && (
-            <div className="animate-fade-in">
-              <MyApplications embedded />
-            </div>
-          )}
-
-          {/* ==================== INTERVIEWS ==================== */}
-          {activeTab === "interviews" && (
-            <div className="animate-fade-in">
-              <CandidateInterviewsView />
-            </div>
-          )}
-
-          {/* ==================== NOTIFICATIONS ==================== */}
-          {activeTab === "notifications" && (
-            <NotificationInbox
-              notifications={inbox.notifications}
-              unreadCount={inbox.unreadCount}
-              onNotificationClick={inbox.open}
-              onMarkAllRead={inbox.markAllRead}
-              onDeleteNotification={inbox.remove}
+          {/* 2-Column: Skills & Career Recommendations */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <FresherSkillDevelopment
+              userSkills={skillDev.userSkills}
+              recommendedSkills={skillDev.recommendedSkills}
+              targetRole={targetRoleLabel}
             />
-          )}
-
-          {/* ==================== COURSES ==================== */}
-          {activeTab === "courses" && FEATURES.courses && (
-            <div className="animate-fade-in">
-              {coursesView === "catalog" && (
-                <StudentCoursesPage
-                  embedded
-                  onViewDetails={(id) => {
-                    setSelectedCourseId(id);
-                    setCoursesView("detail");
-                  }}
-                  onNavigateToMyCourses={() => setCoursesView("my-courses")}
-                />
-              )}
-              {coursesView === "my-courses" && (
-                <StudentMyCoursesPage
-                  embedded
-                  onBackToCatalog={() => setCoursesView("catalog")}
-                />
-              )}
-              {coursesView === "detail" && (
-                <CourseDetailsPage
-                  embedded
-                  id={selectedCourseId}
-                  onBack={() => {
-                    setCoursesView("catalog");
-                    setSelectedCourseId(null);
-                  }}
-                />
-              )}
-            </div>
-          )}
-
-          {/* ==================== SKILLS ==================== */}
-
-
-          {activeTab === "skills" && FEATURES.courses && (
-            <div className="space-y-6 animate-fade-in">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">Skill Development</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Your skill profile and gap analysis for {targetRoleLabel}
-                </p>
-              </div>
-              <FresherSkillDevelopment
-                userSkills={skillDev.userSkills}
-                recommendedSkills={skillDev.recommendedSkills}
-                targetRole={targetRoleLabel}
-              />
-            </div>
-          )}
-
-          {/* ==================== RESUME ==================== */}
-          {activeTab === "resume" && (
-            <div className="space-y-6 animate-fade-in">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">Your Resume</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Manage and optimize your ATS-ready resume
-                </p>
-              </div>
-              <FresherResumeCard resumeData={resumeData} />
-            </div>
-          )}
-
-          {/* ==================== PROJECTS ==================== */}
-          {activeTab === "projects" && (
-            <div className="space-y-6 animate-fade-in">
-              <FresherExperienceSection
-                experienceSummary={experienceSummary}
-                profile={profile}
-              />
-
-              {/* Projects Grid */}
-              {projects.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                    <div>
-                      <h2 className="text-lg font-bold text-slate-900">
-                        All Projects ({projects.length})
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Your portfolio of completed and ongoing projects
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {projects.map((proj, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 rounded-xl border border-slate-200 hover:border-blue-200 hover:shadow-sm transition bg-white"
-                      >
-                        <h3 className="text-sm font-bold text-slate-900">{proj.title}</h3>
-                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{proj.description}</p>
-                        {proj.technologies && proj.technologies.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {proj.technologies.slice(0, 4).map((t, i) => (
-                              <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] rounded-md font-medium">
-                                {t}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {proj.link && (
-                          <a
-                            href={proj.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-[#1e3a8a] hover:underline"
-                          >
-                            View Project →
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ==================== CAREER ADVICE ==================== */}
-          {activeTab === "recommendations" && (
-            <div className="space-y-6 animate-fade-in">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">Career Recommendations</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  AI-powered career advice tailored for {targetRoleLabel}
-                </p>
-              </div>
+            {FEATURES.careerAdvice && (
               <FresherCareerRecommendations
                 recommendations={careerRecommendations}
               />
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-center space-y-3">
-                <div className="text-3xl">🎯</div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Get Personalized Career Insights
+            )}
+          </div>
+
+          {/* Recommended Courses */}
+          {FEATURES.courses && (
+            <FresherRecommendedCourses
+              courses={recommendedCourses}
+              targetRole={targetRoleLabel}
+            />
+          )}
+
+          {/* 2-Column: Resume & Experience */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <FresherResumeCard resumeData={resumeData} />
+            <FresherExperienceSection
+              experienceSummary={experienceSummary}
+              profile={profile}
+            />
+          </div>
+
+          {/* 3-Column: Application Tracker & Recent Activity */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <FresherApplicationTracker applications={applications} />
+            </div>
+            <div className="lg:col-span-1">
+              <FresherRecentActivity activities={recentActivity} />
+            </div>
+          </div>
+          </>
+          )}
+        </div>
+      )}
+
+      {/* ==================== FIND JOBS ==================== */}
+      {activeTab === "jobs" && (
+        <div className="animate-fade-in">
+          <Jobs
+            embedded
+            studentProfile={profile}
+            onApply={handleApply}
+          />
+        </div>
+      )}
+
+      {/* ==================== INTERNSHIPS ==================== */}
+      {activeTab === "internships" && (
+        <div className="animate-fade-in">
+          {internshipView === "list" && (
+            <Internships
+              embedded
+              appliedInternshipIds={appliedInternshipIds}
+              studentProfile={profile}
+              onSelectInternship={(id) => {
+                setSelectedInternshipId(id);
+                setInternshipView("detail");
+              }}
+            />
+          )}
+          {internshipView === "detail" && (
+            <InternshipDetail
+              embedded
+              id={selectedInternshipId}
+              isApplied={appliedInternshipIds.has(String(selectedInternshipId))}
+              onAppliedSuccess={fetchDashboard}
+              onBack={() => {
+                setInternshipView("list");
+                setSelectedInternshipId(null);
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ==================== APPLICATIONS ==================== */}
+      {activeTab === "applications" && (
+        <div className="animate-fade-in">
+          <MyApplications embedded />
+        </div>
+      )}
+
+      {/* ==================== INTERVIEWS ==================== */}
+      {activeTab === "interviews" && (
+        <div className="animate-fade-in">
+          <CandidateInterviewsView />
+        </div>
+      )}
+
+      {/* ==================== NOTIFICATIONS ==================== */}
+      {activeTab === "notifications" && (
+        <NotificationInbox
+          notifications={inbox.notifications}
+          unreadCount={inbox.unreadCount}
+          onNotificationClick={inbox.open}
+          onMarkAllRead={inbox.markAllRead}
+          onDeleteNotification={inbox.remove}
+        />
+      )}
+
+      {/* ==================== COURSES ==================== */}
+      {activeTab === "courses" && FEATURES.courses && (
+        <div className="animate-fade-in">
+          {coursesView === "catalog" && (
+            <StudentCoursesPage
+              embedded
+              onViewDetails={(id) => {
+                setSelectedCourseId(id);
+                setCoursesView("detail");
+              }}
+              onNavigateToMyCourses={() => setCoursesView("my-courses")}
+            />
+          )}
+          {coursesView === "my-courses" && (
+            <StudentMyCoursesPage
+              embedded
+              onBackToCatalog={() => setCoursesView("catalog")}
+            />
+          )}
+          {coursesView === "detail" && (
+            <CourseDetailsPage
+              embedded
+              id={selectedCourseId}
+              onBack={() => {
+                setCoursesView("catalog");
+                setSelectedCourseId(null);
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ==================== SKILLS ==================== */}
+      {/* Not behind the courses flag: skills are profile data, and the card hides its own course links. */}
+      {activeTab === "skills" && (
+        <div className="space-y-6 animate-fade-in">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Skill Development</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Your skill profile and gap analysis for {targetRoleLabel}
+            </p>
+          </div>
+          <FresherSkillDevelopment
+            userSkills={skillDev.userSkills}
+            recommendedSkills={skillDev.recommendedSkills}
+            targetRole={targetRoleLabel}
+          />
+        </div>
+      )}
+
+      {/* ==================== RESUME ==================== */}
+      {activeTab === "resume" && (
+        <div className="space-y-6 animate-fade-in">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Your Resume</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Manage and optimize your ATS-ready resume
+            </p>
+          </div>
+          <FresherResumeCard resumeData={resumeData} />
+        </div>
+      )}
+
+      {/* ==================== PROJECTS ==================== */}
+      {activeTab === "projects" && (
+        <div className="space-y-6 animate-fade-in">
+          <FresherExperienceSection
+            experienceSummary={experienceSummary}
+            profile={profile}
+          />
+
+          {/* Projects Grid */}
+          {projects.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">
+                    All Projects ({projects.length})
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Your portfolio of completed and ongoing projects
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {projects.map((proj, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-xl border border-slate-200 hover:border-blue-200 hover:shadow-sm transition bg-white"
+                  >
+                    <h3 className="text-sm font-bold text-slate-900">{proj.title}</h3>
+                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">{proj.description}</p>
+                    {proj.technologies && proj.technologies.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {proj.technologies.slice(0, 4).map((t, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] rounded-md font-medium">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {proj.link && (
+                      <a
+                        href={proj.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-[#1e3a8a] hover:underline"
+                      >
+                        View Project →
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ==================== CAREER ADVICE ==================== */}
+      {activeTab === "recommendations" && FEATURES.careerAdvice && (
+        <div className="space-y-6 animate-fade-in">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Career Recommendations</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              AI-powered career advice tailored for {targetRoleLabel}
+            </p>
+          </div>
+          <FresherCareerRecommendations
+            recommendations={careerRecommendations}
+          />
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-center space-y-3">
+            <div className="text-3xl">🎯</div>
+            <h3 className="text-base font-bold text-slate-900">
+              Get Personalized Career Insights
+            </h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              View detailed career path analysis, job match explanations, and skill roadmaps.
+            </p>
+            <a
+              href="/fresher/career-recommendations"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold hover:bg-[#1e40af] transition shadow-sm"
+            >
+              View Full Career Report →
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* ================= HELP & SUPPORT ================= */}
+      {activeTab === "support" && <SupportTickets />}
+
+      {/* ==================== CERTIFICATIONS ==================== */}
+      {activeTab === "certifications" && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Certifications</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Your verified certifications and credentials
+                </p>
+              </div>
+              <a
+                href="/fresher/profile?step=5"
+                className="px-3.5 py-1.5 rounded-xl bg-blue-50 text-[#1e3a8a] text-xs font-bold hover:bg-blue-100 border border-blue-200 transition"
+              >
+                + Add Certification
+              </a>
+            </div>
+            {certifications.length === 0 ? (
+              <div className="py-10 text-center space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-3xl flex items-center justify-center mx-auto">
+                  🎓
+                </div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  No certifications added yet
                 </h3>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  View detailed career path analysis, job match explanations, and skill roadmaps.
+                  Certifications from Coursera, Google, or AWS can increase your profile views by 3×.
                 </p>
+                 
+                 {FEATURES.courses && (
                 <a
-                  href="/fresher/career-recommendations"
-                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold hover:bg-[#1e40af] transition shadow-sm"
+                  href="/courses"
+                  className="inline-block mt-2 px-5 py-2 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold hover:bg-[#1e40af] transition shadow-sm"
                 >
-                  View Full Career Report →
+                  Browse Certification Courses
                 </a>
+                 )}
               </div>
-            </div>
-          )}
-
-          {/* ================= HELP & SUPPORT ================= */}
-          {activeTab === "support" && <SupportTickets />}
-
-          {/* ==================== CERTIFICATIONS ==================== */}
-          {activeTab === "certifications" && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">Certifications</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Your verified certifications and credentials
-                    </p>
-                  </div>
-                  <a
-                    href="/fresher/profile?step=5"
-                    className="px-3.5 py-1.5 rounded-xl bg-blue-50 text-[#1e3a8a] text-xs font-bold hover:bg-blue-100 border border-blue-200 transition"
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {certifications.map((cert, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-start gap-3"
                   >
-                    + Add Certification
-                  </a>
-                </div>
-                {certifications.length === 0 ? (
-                  <div className="py-10 text-center space-y-3">
-                    <div className="w-14 h-14 rounded-2xl bg-blue-50 text-3xl flex items-center justify-center mx-auto">
-                      🎓
+                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-[#1e3a8a] flex items-center justify-center font-bold text-lg shrink-0">
+                      🏅
                     </div>
-                    <h3 className="text-sm font-bold text-slate-800">
-                      No certifications added yet
-                    </h3>
-                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                      Certifications from Coursera, Google, or AWS can increase your profile views by 3×.
-                    </p>
-                     
-                     {FEATURES.courses && (
-                    <a
-                      href="/courses"
-                      className="inline-block mt-2 px-5 py-2 rounded-xl bg-[#1e3a8a] text-white text-xs font-bold hover:bg-[#1e40af] transition shadow-sm"
-                    >
-                      Browse Certification Courses
-                    </a>
-                     )}
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900">{cert.name}</h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{cert.issuer}</p>
+                      {cert.issueDate && (
+                        <p className="text-[11px] text-slate-400 mt-0.5">{cert.issueDate}</p>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {certifications.map((cert, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-start gap-3"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-blue-100 text-[#1e3a8a] flex items-center justify-center font-bold text-lg shrink-0">
-                          🏅
-                        </div>
-                        <div>
-                          <h3 className="text-xs font-bold text-slate-900">{cert.name}</h3>
-                          <p className="text-[11px] text-slate-500 mt-0.5">{cert.issuer}</p>
-                          {cert.issueDate && (
-                            <p className="text-[11px] text-slate-400 mt-0.5">{cert.issueDate}</p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                ))}
               </div>
-            </div>
-          )}
-
-        </main>
-      </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tailored Resume Application Modal */}
       <TailoredResumeApplicationModal
@@ -581,10 +605,21 @@ const FresherDashboard = () => {
             : "Job"
         }
         onApplicationSubmitted={() => {
-          fetchDashboard();
+          fetchDashboard({ silent: true });
+          setRefreshKey((k) => k + 1);
           showToast("Application submitted successfully!");
         }}
       />
+
+      {preferencesModal && (
+        <EditPreferencesModal
+          preferences={summary?.preferences}
+          options={summary?.options}
+          focusField={preferencesModal.field}
+          onClose={() => setPreferencesModal(null)}
+          onSaved={handlePreferencesSaved}
+        />
+      )}
 
       {/* Toast */}
       {toast && (
@@ -599,7 +634,7 @@ const FresherDashboard = () => {
           <span>{toast.message}</span>
         </div>
       )}
-    </div>
+    </CandidateDashboardShell>
   );
 };
 

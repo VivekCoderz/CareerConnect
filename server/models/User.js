@@ -13,7 +13,7 @@ const userSchema = new mongoose.Schema(
 
     fullName: {
       type: String,
-      required: [true, "Fulgl name is required"],
+      required: [true, "Full name is required"],
       trim: true,
       minlength: [2, "Full name must contain at least 2 characters"],
       maxlength: [100, "Full name cannot exceed 100 characters"],

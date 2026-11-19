@@ -11,24 +11,23 @@ import { openResume } from "../../utils/resumeAccess";
 import { FEATURES } from "../../config/features";
 
 // Subcomponents
-import ProfessionalSidebar from "../../components/professional-dashboard/ProfessionalSidebar";
-import ProfessionalHeader from "../../components/professional-dashboard/ProfessionalHeader";
-import WelcomeSection from "../../components/professional-dashboard/WelcomeSection";
-import CareerSnapshotCard from "../../components/professional-dashboard/CareerSnapshotCard";
-import CareerDirectionCard from "../../components/professional-dashboard/CareerDirectionCard";
-import SkillFocusCard from "../../components/professional-dashboard/SkillFocusCard";
-import ExecutiveResumeCard from "../../components/professional-dashboard/ExecutiveResumeCard";
-import ConfidentialCareerModeCard from "../../components/professional-dashboard/ConfidentialCareerModeCard";
-import ApplicationPipelineCard from "../../components/professional-dashboard/ApplicationPipelineCard";
-import ProfessionalApplicationsView from "../../components/professional-dashboard/ProfessionalApplicationsView";
+import CandidateDashboardShell from "../../components/candidate-dashboard/CandidateDashboardShell";
+import WelcomeSection from "../../components/candidate-dashboard/professional/WelcomeSection";
+import CareerSnapshotCard from "../../components/candidate-dashboard/professional/CareerSnapshotCard";
+import CareerDirectionCard from "../../components/candidate-dashboard/professional/CareerDirectionCard";
+import SkillFocusCard from "../../components/candidate-dashboard/professional/SkillFocusCard";
+import ExecutiveResumeCard from "../../components/candidate-dashboard/professional/ExecutiveResumeCard";
+import ConfidentialCareerModeCard from "../../components/candidate-dashboard/professional/ConfidentialCareerModeCard";
+import ApplicationPipelineCard from "../../components/candidate-dashboard/professional/ApplicationPipelineCard";
+import ProfessionalApplicationsView from "../../components/candidate-dashboard/professional/ProfessionalApplicationsView";
 
 // Modals & Interactive Overlays
-import CareerPathModal from "../../components/professional-dashboard/CareerPathModal";
-import OpportunityDetailModal from "../../components/professional-dashboard/OpportunityDetailModal";
-import PrivacyModal from "../../components/professional-dashboard/PrivacyModal";
-import ApplyReviewModal from "../../components/professional-dashboard/ApplyReviewModal";
-import ApplicationSuccessModal from "../../components/professional-dashboard/ApplicationSuccessModal";
-import ExternalApplicationFollowupModal from "../../components/professional-dashboard/ExternalApplicationFollowupModal";
+import CareerPathModal from "../../components/candidate-dashboard/professional/CareerPathModal";
+import OpportunityDetailModal from "../../components/candidate-dashboard/professional/OpportunityDetailModal";
+import PrivacyModal from "../../components/candidate-dashboard/professional/PrivacyModal";
+import ApplyReviewModal from "../../components/candidate-dashboard/professional/ApplyReviewModal";
+import ApplicationSuccessModal from "../../components/candidate-dashboard/professional/ApplicationSuccessModal";
+import ExternalApplicationFollowupModal from "../../components/candidate-dashboard/professional/ExternalApplicationFollowupModal";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 
 // Embedded full pages
@@ -38,7 +37,7 @@ import InternshipDetail from "../student/InternshipDetail";
 import StudentCoursesPage from "../courses/StudentCoursesPage";
 import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
 import CourseDetailsPage from "../courses/CourseDetailsPage";
-import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
+import CandidateInterviewsView from "../../components/candidate-dashboard/CandidateInterviewsView";
 import NotificationInbox from "../../components/notifications/NotificationInbox";
 
 // The professional's real applications from GET /applications/me, shaped for the pipeline cards.
@@ -91,8 +90,6 @@ const ProfessionalDashboard = () => {
   const [activeTab, setActiveTabRaw] = useState(() => resolveTab(searchParams.get("tab") || "dashboard"));
   const setActiveTab = (tab) => setActiveTabRaw(resolveTab(tab));
   useTabInUrl(activeTab, "dashboard");
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -168,7 +165,6 @@ const ProfessionalDashboard = () => {
       setCoursesView("catalog");
       setSelectedCourseId(null);
     }
-    setMobileSidebarOpen(false);
   };
 
   const inbox = useLiveNotifications(handleSelectTab);
@@ -302,404 +298,377 @@ const ProfessionalDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/70 text-slate-800 flex font-sans">
-      {/* Left Side Navigation Sidebar */}
-      <ProfessionalSidebar
-        activeTab={activeTab}
-        onSelectTab={handleSelectTab}
-        mobileOpen={mobileSidebarOpen}
-        onCloseMobile={() => setMobileSidebarOpen(false)}
-        onLogout={handleLogout}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
-        unreadNotifications={inbox.unreadCount}
-      />
+    <CandidateDashboardShell
+      type="professional"
+      user={user}
+      topBarSubtitle={currentRole}
+      activeTab={activeTab}
+      onSelectTab={handleSelectTab}
+      onLogout={handleLogout}
+      unreadNotifications={inbox.unreadCount}
+    >
+      {/* Main Dashboard Overview Tab */}
+      {activeTab === "dashboard" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* 1. Welcome Section */}
+          <WelcomeSection
+            name={professionalName}
+            currentRole={currentRole}
+            profileStrength={profileStrength}
+            careerStrength={careerStrengthScore}
+          />
 
-      {/* Main Content Area */}
-      <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-          sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
-        }`}
-      >
-        {/* Top Header */}
-        <ProfessionalHeader
-          user={user}
-          profile={profile}
-          professionalName={professionalName}
-          professionalRole={currentRole}
-          activeTab={activeTab}
-          onSelectTab={handleSelectTab}
-          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
-          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          onLogout={handleLogout}
+          {/* 2. Career Snapshot */}
+          <CareerSnapshotCard
+            currentRole={currentRole}
+            experience={experienceYears}
+            targetRole={targetRole}
+            onUpdateProfile={() => navigate("/professional/profile")}
+          />
+
+          {/* 3. Career Direction */}
+          <CareerDirectionCard
+            currentRole={currentRole}
+            targetRole={targetRole}
+            focusAreas={focusAreas}
+            onViewCareerPath={() => setShowCareerPathModal(true)}
+          />
+
+          {/* 5. Skill Focus */}
+          <SkillFocusCard
+            skills={skillFocusList}
+            onViewSkills={() => setActiveTab("skills")}
+          />
+
+          {/* 6. Executive Resume */}
+          <ExecutiveResumeCard
+            lastUpdated={resumeUpdated}
+            onViewResume={() => navigate("/professional/profile")}
+            onDownload={handleDownloadResume}
+          />
+
+          {/* 7. Confidential Career Mode */}
+          <ConfidentialCareerModeCard
+            isActive={true}
+            onManagePrivacy={() => setShowPrivacyModal(true)}
+          />
+
+          {/* 8. Application Pipeline */}
+          <ApplicationPipelineCard
+            stats={applicationStats}
+            recent={applicationsList.slice(0, 2)}
+            onViewAllApplications={() => setActiveTab("applications")}
+          />
+        </div>
+      )}
+
+      {/* ==================== JOBS (Full Browse) ==================== */}
+      {activeTab === "jobs" && (
+        <div className="animate-fade-in">
+          <Jobs
+            embedded
+            onApply={(job) => {
+              setTailoringOpportunity({
+                _id: job._id || job.id,
+                id: job._id || job.id,
+                title: job.title,
+                company: job.company || job.companyName,
+                companyName: job.company || job.companyName,
+                type: "Job",
+                opportunityType: "Job",
+                description: job.description || "",
+                skillsRequired: job.skillsRequired || job.skills || [],
+              });
+              setIsTailoredModalOpen(true);
+            }}
+          />
+        </div>
+      )}
+
+      {/* ==================== INTERNSHIPS ==================== */}
+      {activeTab === "internships" && (
+        <div className="animate-fade-in">
+          {internshipView === "list" && (
+            <Internships
+              embedded
+              onSelectInternship={(id) => {
+                setSelectedInternshipId(id);
+                setInternshipView("detail");
+              }}
+            />
+          )}
+          {internshipView === "detail" && (
+            <InternshipDetail
+              embedded
+              id={selectedInternshipId}
+              onBack={() => {
+                setInternshipView("list");
+                setSelectedInternshipId(null);
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ==================== COURSES ==================== */}
+      {activeTab === "courses" && FEATURES.courses && (
+        <div className="animate-fade-in">
+          {coursesView === "catalog" && (
+            <StudentCoursesPage
+              embedded
+              onViewDetails={(id) => {
+                setSelectedCourseId(id);
+                setCoursesView("detail");
+              }}
+              onNavigateToMyCourses={() => setCoursesView("my-courses")}
+            />
+          )}
+          {coursesView === "my-courses" && (
+            <StudentMyCoursesPage
+              embedded
+              onBackToCatalog={() => setCoursesView("catalog")}
+            />
+          )}
+          {coursesView === "detail" && (
+            <CourseDetailsPage
+              embedded
+              id={selectedCourseId}
+              onBack={() => {
+                setCoursesView("catalog");
+                setSelectedCourseId(null);
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ==================== INTERVIEWS ==================== */}
+      {activeTab === "interviews" && (
+        <div className="animate-fade-in">
+          <CandidateInterviewsView />
+        </div>
+      )}
+
+      {/* ==================== NOTIFICATIONS ==================== */}
+      {activeTab === "notifications" && (
+        <NotificationInbox
+          notifications={inbox.notifications}
+          unreadCount={inbox.unreadCount}
+          onNotificationClick={inbox.open}
+          onMarkAllRead={inbox.markAllRead}
+          onDeleteNotification={inbox.remove}
         />
+      )}
 
-        {/* Main Center Content Area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
-          {/* Main Dashboard Overview Tab */}
-          {activeTab === "dashboard" && (
-            <div className="space-y-6 animate-fade-in">
-              {/* 1. Welcome Section */}
-              <WelcomeSection
-                name={professionalName}
-                currentRole={currentRole}
-                profileStrength={profileStrength}
-                careerStrength={careerStrengthScore}
-              />
+      {/* Career Growth Dedicated Tab */}
+      {activeTab === "growth" && (
+        <div className="space-y-6">
+          <CareerDirectionCard
+            currentRole={currentRole}
+            targetRole={targetRole}
+            focusAreas={focusAreas}
+            onViewCareerPath={() => setShowCareerPathModal(true)}
+          />
+          <CareerSnapshotCard
+            currentRole={currentRole}
+            experience={experienceYears}
+            targetRole={targetRole}
+            onUpdateProfile={() => navigate("/professional/profile")}
+          />
+        </div>
+      )}
 
-              {/* 2. Career Snapshot */}
-              <CareerSnapshotCard
-                currentRole={currentRole}
-                experience={experienceYears}
-                targetRole={targetRole}
-                onUpdateProfile={() => navigate("/professional/profile")}
-              />
+      {/* Applications Dedicated Tab */}
+      {activeTab === "applications" && (
+        <ProfessionalApplicationsView
+          applications={applicationsList}
+          stats={applicationStats}
+          onExploreOpportunities={() => setActiveTab("opportunities")}
+        />
+      )}
 
-              {/* 3. Career Direction */}
-              <CareerDirectionCard
-                currentRole={currentRole}
-                targetRole={targetRole}
-                focusAreas={focusAreas}
-                onViewCareerPath={() => setShowCareerPathModal(true)}
-              />
+      {/* Skills Dedicated Tab */}
+      {activeTab === "skills" && (
+        <div className="space-y-6">
+          <SkillFocusCard
+            skills={skillFocusList}
+            onViewSkills={() => navigate("/professional/profile")}
+          />
 
-              {/* 5. Skill Focus */}
-              <SkillFocusCard
-                skills={skillFocusList}
-                onViewSkills={() => setActiveTab("skills")}
-              />
-
-              {/* 6. Executive Resume */}
-              <ExecutiveResumeCard
-                lastUpdated={resumeUpdated}
-                onViewResume={() => navigate("/professional/profile")}
-                onDownload={handleDownloadResume}
-              />
-
-              {/* 7. Confidential Career Mode */}
-              <ConfidentialCareerModeCard
-                isActive={true}
-                onManagePrivacy={() => setShowPrivacyModal(true)}
-              />
-
-              {/* 8. Application Pipeline */}
-              <ApplicationPipelineCard
-                stats={applicationStats}
-                recent={applicationsList.slice(0, 2)}
-                onViewAllApplications={() => setActiveTab("applications")}
-              />
+          {/* Core Technical Skills */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Technical Expertise</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Core skills from your professional experience
+                </p>
+              </div>
+              <Link
+                to="/professional/profile"
+                className="px-3.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 border border-purple-200 transition"
+              >
+                Edit Skills
+              </Link>
             </div>
-          )}
 
-          {/* ==================== JOBS (Full Browse) ==================== */}
-          {activeTab === "jobs" && (
-            <div className="animate-fade-in">
-              <Jobs
-                embedded
-                onApply={(job) => {
-                  setTailoringOpportunity({
-                    _id: job._id || job.id,
-                    id: job._id || job.id,
-                    title: job.title,
-                    company: job.company || job.companyName,
-                    companyName: job.company || job.companyName,
-                    type: "Job",
-                    opportunityType: "Job",
-                    description: job.description || "",
-                    skillsRequired: job.skillsRequired || job.skills || [],
-                  });
-                  setIsTailoredModalOpen(true);
-                }}
-              />
+            {allSkills.length === 0 ? (
+              <p className="text-xs text-slate-500">You haven't added any skills yet. Add them in your profile.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {allSkills.map((skill) => (
+                  <span key={skill.name} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
+                    {skill.name}
+                    {skill.level && <span className="text-slate-400 font-medium"> · {skill.level}</span>}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Resume Dedicated Tab */}
+      {activeTab === "resume" && (
+        <div className="space-y-6">
+          <ExecutiveResumeCard
+            lastUpdated={resumeUpdated}
+            onViewResume={() => navigate("/professional/profile")}
+            onDownload={handleDownloadResume}
+          />
+
+          {/* Resume Tips */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Executive Resume Tips</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Optimize your resume for senior-level opportunities
+                </p>
+              </div>
             </div>
-          )}
-
-          {/* ==================== INTERNSHIPS ==================== */}
-          {activeTab === "internships" && (
-            <div className="animate-fade-in">
-              {internshipView === "list" && (
-                <Internships
-                  embedded
-                  onSelectInternship={(id) => {
-                    setSelectedInternshipId(id);
-                    setInternshipView("detail");
-                  }}
-                />
-              )}
-              {internshipView === "detail" && (
-                <InternshipDetail
-                  embedded
-                  id={selectedInternshipId}
-                  onBack={() => {
-                    setInternshipView("list");
-                    setSelectedInternshipId(null);
-                  }}
-                />
-              )}
-            </div>
-          )}
-
-          {/* ==================== COURSES ==================== */}
-          {activeTab === "courses" && FEATURES.courses && (
-            <div className="animate-fade-in">
-              {coursesView === "catalog" && (
-                <StudentCoursesPage
-                  embedded
-                  onViewDetails={(id) => {
-                    setSelectedCourseId(id);
-                    setCoursesView("detail");
-                  }}
-                  onNavigateToMyCourses={() => setCoursesView("my-courses")}
-                />
-              )}
-              {coursesView === "my-courses" && (
-                <StudentMyCoursesPage
-                  embedded
-                  onBackToCatalog={() => setCoursesView("catalog")}
-                />
-              )}
-              {coursesView === "detail" && (
-                <CourseDetailsPage
-                  embedded
-                  id={selectedCourseId}
-                  onBack={() => {
-                    setCoursesView("catalog");
-                    setSelectedCourseId(null);
-                  }}
-                />
-              )}
-            </div>
-          )}
-
-          {/* ==================== INTERVIEWS ==================== */}
-          {activeTab === "interviews" && (
-            <div className="animate-fade-in">
-              <CandidateInterviewsView />
-            </div>
-          )}
-
-          {/* ==================== NOTIFICATIONS ==================== */}
-          {activeTab === "notifications" && (
-            <NotificationInbox
-              notifications={inbox.notifications}
-              unreadCount={inbox.unreadCount}
-              onNotificationClick={inbox.open}
-              onMarkAllRead={inbox.markAllRead}
-              onDeleteNotification={inbox.remove}
-            />
-          )}
-
-          {/* Career Growth Dedicated Tab */}
-          {activeTab === "growth" && (
-            <div className="space-y-6">
-              <CareerDirectionCard
-                currentRole={currentRole}
-                targetRole={targetRole}
-                focusAreas={focusAreas}
-                onViewCareerPath={() => setShowCareerPathModal(true)}
-              />
-              <CareerSnapshotCard
-                currentRole={currentRole}
-                experience={experienceYears}
-                targetRole={targetRole}
-                onUpdateProfile={() => navigate("/professional/profile")}
-              />
-            </div>
-          )}
-
-          {/* Applications Dedicated Tab */}
-          {activeTab === "applications" && (
-            <ProfessionalApplicationsView
-              applications={applicationsList}
-              stats={applicationStats}
-              onExploreOpportunities={() => setActiveTab("opportunities")}
-            />
-          )}
-
-          {/* Skills Dedicated Tab */}
-          {activeTab === "skills" && (
-            <div className="space-y-6">
-              <SkillFocusCard
-                skills={skillFocusList}
-                onViewSkills={() => navigate("/professional/profile")}
-              />
-
-              {/* Core Technical Skills */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { icon: "📊", title: "Quantify Impact", desc: "Add metrics: '35% latency reduction', '₹15L cost savings', '10M+ daily transactions handled'." },
+                { icon: "🎯", title: "Tailor for Each Role", desc: "Use our AI tailoring tool to customize your resume keywords for each specific job description." },
+                { icon: "🏆", title: "Lead with Achievements", desc: "Put your biggest wins in the first two bullet points of each role. Recruiters skim." },
+                { icon: "🔑", title: "Include Leadership Signals", desc: "Mention team sizes managed, hiring done, and architecture decisions made." },
+              ].map((tip) => (
+                <div key={tip.title} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex gap-3">
+                  <span className="text-xl shrink-0">{tip.icon}</span>
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">Technical Expertise</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Core skills from your professional experience
+                    <h3 className="text-xs font-bold text-slate-900">{tip.title}</h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{tip.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Achievements Dedicated Tab */}
+      {activeTab === "achievements" && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
+          <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+            <h2 className="text-lg font-bold text-slate-900">Key Executive Achievements</h2>
+            <Link
+              to="/professional/profile"
+              className="px-3.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 border border-purple-200 transition"
+            >
+              Manage in Profile
+            </Link>
+          </div>
+          {achievements.length === 0 ? (
+            <p className="text-xs text-slate-500">You haven't added any achievements yet. Add them in your profile.</p>
+          ) : (
+            <div className="space-y-3">
+              {achievements.map((a, idx) => (
+                <div key={a._id || `${a.title}-${idx}`} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <h3 className="text-sm font-bold text-slate-900">{a.title}</h3>
+                  {(a.organization || a.date) && (
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {[a.organization, a.date ? new Date(a.date).getFullYear() : null].filter(Boolean).join(" · ")}
                     </p>
-                  </div>
-                  <Link
-                    to="/professional/profile"
-                    className="px-3.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 border border-purple-200 transition"
-                  >
-                    Edit Skills
-                  </Link>
+                  )}
+                  {(a.description || a.impact) && (
+                    <p className="text-xs text-slate-600 mt-1">{a.description || a.impact}</p>
+                  )}
                 </div>
-
-                {allSkills.length === 0 ? (
-                  <p className="text-xs text-slate-500">You haven't added any skills yet. Add them in your profile.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {allSkills.map((skill) => (
-                      <span key={skill.name} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
-                        {skill.name}
-                        {skill.level && <span className="text-slate-400 font-medium"> · {skill.level}</span>}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              ))}
             </div>
           )}
+        </div>
+      )}
 
-          {/* Resume Dedicated Tab */}
-          {activeTab === "resume" && (
-            <div className="space-y-6">
-              <ExecutiveResumeCard
-                lastUpdated={resumeUpdated}
-                onViewResume={() => navigate("/professional/profile")}
-                onDownload={handleDownloadResume}
-              />
-
-              {/* Resume Tips */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">Executive Resume Tips</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Optimize your resume for senior-level opportunities
-                    </p>
+      {/* Certifications Dedicated Tab */}
+      {activeTab === "certifications" && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
+          <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+            <h2 className="text-lg font-bold text-slate-900">Professional Certifications</h2>
+            <Link
+              to="/professional/profile"
+              className="px-3.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 border border-purple-200 transition"
+            >
+              Add Certification
+            </Link>
+          </div>
+          {certifications.length === 0 ? (
+            <p className="text-xs text-slate-500">You haven't added any certifications yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {certifications.map((c, idx) => (
+                <div key={c._id || `${c.name}-${idx}`} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
+                    🏅
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-bold text-slate-900">{c.name}</h3>
+                    {c.issuingOrganization && <p className="text-[11px] text-slate-500">{c.issuingOrganization}</p>}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[
-                    { icon: "📊", title: "Quantify Impact", desc: "Add metrics: '35% latency reduction', '₹15L cost savings', '10M+ daily transactions handled'." },
-                    { icon: "🎯", title: "Tailor for Each Role", desc: "Use our AI tailoring tool to customize your resume keywords for each specific job description." },
-                    { icon: "🏆", title: "Lead with Achievements", desc: "Put your biggest wins in the first two bullet points of each role. Recruiters skim." },
-                    { icon: "🔑", title: "Include Leadership Signals", desc: "Mention team sizes managed, hiring done, and architecture decisions made." },
-                  ].map((tip) => (
-                    <div key={tip.title} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex gap-3">
-                      <span className="text-xl shrink-0">{tip.icon}</span>
-                      <div>
-                        <h3 className="text-xs font-bold text-slate-900">{tip.title}</h3>
-                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{tip.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
           )}
+        </div>
+      )}
 
-          {/* Achievements Dedicated Tab */}
-          {activeTab === "achievements" && (
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
-              <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                <h2 className="text-lg font-bold text-slate-900">Key Executive Achievements</h2>
-                <Link
-                  to="/professional/profile"
-                  className="px-3.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 border border-purple-200 transition"
-                >
-                  Manage in Profile
-                </Link>
+      {/* ================= HELP & SUPPORT ================= */}
+      {activeTab === "support" && <SupportTickets />}
+
+      {/* Settings Dedicated Tab */}
+      {activeTab === "settings" && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-6">
+          <h2 className="text-lg font-bold text-slate-900">Professional Preferences & Settings</h2>
+          <div className="space-y-4 max-w-xl">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900">Confidential Recruiter Mode</h3>
+                <p className="text-[11px] text-slate-500">Visible only to verified tech recruiters</p>
               </div>
-              {achievements.length === 0 ? (
-                <p className="text-xs text-slate-500">You haven't added any achievements yet. Add them in your profile.</p>
-              ) : (
-                <div className="space-y-3">
-                  {achievements.map((a, idx) => (
-                    <div key={a._id || `${a.title}-${idx}`} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-                      <h3 className="text-sm font-bold text-slate-900">{a.title}</h3>
-                      {(a.organization || a.date) && (
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          {[a.organization, a.date ? new Date(a.date).getFullYear() : null].filter(Boolean).join(" · ")}
-                        </p>
-                      )}
-                      {(a.description || a.impact) && (
-                        <p className="text-xs text-slate-600 mt-1">{a.description || a.impact}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <button
+                onClick={() => setShowPrivacyModal(true)}
+                className="px-3.5 py-1.5 rounded-xl border border-purple-200 bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition"
+              >
+                Configure
+              </button>
             </div>
-          )}
 
-          {/* Certifications Dedicated Tab */}
-          {activeTab === "certifications" && (
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
-              <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                <h2 className="text-lg font-bold text-slate-900">Professional Certifications</h2>
-                <Link
-                  to="/professional/profile"
-                  className="px-3.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 border border-purple-200 transition"
-                >
-                  Add Certification
-                </Link>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900">Profile Details & Experience</h3>
+                <p className="text-[11px] text-slate-500">Update company, skills, compensation, and target role</p>
               </div>
-              {certifications.length === 0 ? (
-                <p className="text-xs text-slate-500">You haven't added any certifications yet.</p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {certifications.map((c, idx) => (
-                    <div key={c._id || `${c.name}-${idx}`} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
-                        🏅
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-xs font-bold text-slate-900">{c.name}</h3>
-                        {c.issuingOrganization && <p className="text-[11px] text-slate-500">{c.issuingOrganization}</p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <Link
+                to="/professional/profile"
+                className="px-3.5 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 transition shadow-xs"
+              >
+                Edit Profile
+              </Link>
             </div>
-          )}
-
-          {/* ================= HELP & SUPPORT ================= */}
-          {activeTab === "support" && <SupportTickets />}
-
-          {/* Settings Dedicated Tab */}
-          {activeTab === "settings" && (
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-6">
-              <h2 className="text-lg font-bold text-slate-900">Professional Preferences & Settings</h2>
-              <div className="space-y-4 max-w-xl">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900">Confidential Recruiter Mode</h3>
-                    <p className="text-[11px] text-slate-500">Visible only to verified tech recruiters</p>
-                  </div>
-                  <button
-                    onClick={() => setShowPrivacyModal(true)}
-                    className="px-3.5 py-1.5 rounded-xl border border-purple-200 bg-purple-50 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition"
-                  >
-                    Configure
-                  </button>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900">Profile Details & Experience</h3>
-                    <p className="text-[11px] text-slate-500">Update company, skills, compensation, and target role</p>
-                  </div>
-                  <Link
-                    to="/professional/profile"
-                    className="px-3.5 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 transition shadow-xs"
-                  >
-                    Edit Profile
-                  </Link>
-                </div>
-              </div>
-            </div>
-          )}
-        </main>
-      </div>
+          </div>
+        </div>
+      )}
 
       {/* Career Trajectory Modal */}
       <CareerPathModal
@@ -793,7 +762,7 @@ const ProfessionalDashboard = () => {
           <span>{toast.message}</span>
         </div>
       )}
-    </div>
+    </CandidateDashboardShell>
   );
 };
 

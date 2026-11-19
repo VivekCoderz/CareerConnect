@@ -10,32 +10,31 @@ import {
   getStudentDashboardData,
   saveOpportunity,
 } from "../../services/studentDashboardService";
-import { isExternalOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
+import { openExternalApply } from "../../utils/opportunityApply";
 import { getPageCache, setPageCache } from "../../utils/pageCache";
 import { FEATURES } from "../../config/features";
 
 // Subcomponents
-import Sidebar from "../../components/student-dashboard/Sidebar";
-import DashboardHeader from "../../components/student-dashboard/DashboardHeader";
-import ProfileCompletionCard from "../../components/student-dashboard/ProfileCompletionCard";
-import CareerReadinessCard from "../../components/student-dashboard/CareerReadinessCard";
-import ProfileSummaryCard from "../../components/student-dashboard/ProfileSummaryCard";
-import EducationSummaryCard from "../../components/student-dashboard/EducationSummaryCard";
-import SkillsSectionCard from "../../components/student-dashboard/SkillsSectionCard";
-import SkillGapCard from "../../components/student-dashboard/SkillGapCard";
-import ResumeStatusCard from "../../components/student-dashboard/ResumeStatusCard";
-import ProjectsPortfolioCard from "../../components/student-dashboard/ProjectsPortfolioCard";
-import CertificationsCard from "../../components/student-dashboard/CertificationsCard";
-import InternshipRecommendationsCard from "../../components/student-dashboard/InternshipRecommendationsCard";
-import JobRecommendationsCard from "../../components/student-dashboard/JobRecommendationsCard";
-//import CourseRecommendationsCard from "../../components/student-dashboard/CourseRecommendationsCard";
-import InternshalaDashboardRecommendations from "../../components/student-dashboard/InternshalaDashboardRecommendations";
+import CandidateDashboardShell from "../../components/candidate-dashboard/CandidateDashboardShell";
+import StudentTopBarSearch from "../../components/candidate-dashboard/student/StudentTopBarSearch";
+import ProfileCompletionCard from "../../components/candidate-dashboard/student/ProfileCompletionCard";
+import CareerReadinessCard from "../../components/candidate-dashboard/student/CareerReadinessCard";
+import ProfileSummaryCard from "../../components/candidate-dashboard/student/ProfileSummaryCard";
+import EducationSummaryCard from "../../components/candidate-dashboard/student/EducationSummaryCard";
+import SkillsSectionCard from "../../components/candidate-dashboard/student/SkillsSectionCard";
+import SkillGapCard from "../../components/candidate-dashboard/student/SkillGapCard";
+import ResumeStatusCard from "../../components/candidate-dashboard/student/ResumeStatusCard";
+import ProjectsPortfolioCard from "../../components/candidate-dashboard/student/ProjectsPortfolioCard";
+import CertificationsCard from "../../components/candidate-dashboard/student/CertificationsCard";
+import InternshipRecommendationsCard from "../../components/candidate-dashboard/student/InternshipRecommendationsCard";
+import JobRecommendationsCard from "../../components/candidate-dashboard/student/JobRecommendationsCard";
+import InternshalaDashboardRecommendations from "../../components/candidate-dashboard/student/InternshalaDashboardRecommendations";
 // import StudentCoursesPage from "../courses/StudentCoursesPage";
-import ApplicationTrackerCard from "../../components/student-dashboard/ApplicationTrackerCard";
-import SavedOpportunitiesCard from "../../components/student-dashboard/SavedOpportunitiesCard";
-import UpcomingDeadlinesCard from "../../components/student-dashboard/UpcomingDeadlinesCard";
-import CareerGoalCard from "../../components/student-dashboard/CareerGoalCard";
-import QuickActionsCard from "../../components/student-dashboard/QuickActionsCard";
+import ApplicationTrackerCard from "../../components/candidate-dashboard/student/ApplicationTrackerCard";
+import SavedOpportunitiesCard from "../../components/candidate-dashboard/student/SavedOpportunitiesCard";
+import UpcomingDeadlinesCard from "../../components/candidate-dashboard/student/UpcomingDeadlinesCard";
+import CareerGoalCard from "../../components/candidate-dashboard/student/CareerGoalCard";
+import QuickActionsCard from "../../components/candidate-dashboard/student/QuickActionsCard";
 import NotificationInbox from "../../components/notifications/NotificationInbox";
 
 // Internship module (embedded)
@@ -50,7 +49,7 @@ import StudentCoursesPage from "../courses/StudentCoursesPage";
 import StudentMyCoursesPage from "../courses/StudentMyCoursesPage";
 import CourseDetailsPage from "../courses/CourseDetailsPage";
 
-import CandidateInterviewsView from "../../components/student-dashboard/CandidateInterviewsView";
+import CandidateInterviewsView from "../../components/candidate-dashboard/CandidateInterviewsView";
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -61,10 +60,8 @@ const StudentDashboard = () => {
   // Open the tab named in ?tab= right away (kept in the URL by useTabInUrl).
   const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "dashboard");
   useTabInUrl(activeTab, "dashboard");
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [selectedOpportunityForTailoring, setSelectedOpportunityForTailoring] = useState(null);
   const [isTailoredModalOpen, setIsTailoredModalOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -138,7 +135,6 @@ const StudentDashboard = () => {
       setCoursesView("catalog");
       setSelectedCourseId(null);
     }
-    setMobileSidebarOpen(false);
   };
 
   const inbox = useLiveNotifications(handleSelectTab);
@@ -184,9 +180,9 @@ const StudentDashboard = () => {
 
   const handleApply = (item) => {
     // External listings are applied to on the employer's site, not through E2Job.
-    if (isExternalOpportunity(item)) {
-      const url = externalApplyUrl(item);
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    const external = openExternalApply(item);
+    if (external) {
+      if (!external.opened) showToast("This listing has no apply link.", "error");
       return;
     }
     setSelectedOpportunityForTailoring({
@@ -332,243 +328,228 @@ const StudentDashboard = () => {
   } = dashboardData || {};
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex font-sans">
-      {/* Sidebar */}
-      <Sidebar
-        activeTab={activeTab}
-        onSelectTab={handleSelectTab}
-        mobileOpen={mobileSidebarOpen}
-        onCloseMobile={() => setMobileSidebarOpen(false)}
-        onLogout={handleLogout}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
-        unreadNotifications={inbox.unreadCount}
-      />
-
-      {/* Main */}
-      <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-          sidebarCollapsed ? "lg:pl-20" : "lg:pl-64"
-        }`}
-      >
-        <DashboardHeader
+    <CandidateDashboardShell
+      type="student"
+      user={user}
+      activeTab={activeTab}
+      onSelectTab={handleSelectTab}
+      onLogout={handleLogout}
+      unreadNotifications={inbox.unreadCount}
+      mainClassName="max-w-7xl space-y-7"
+      topBarContent={
+        <StudentTopBarSearch
           user={user}
           profile={profile}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          searchPlaceholder={activeTab === "interviews" ? "Search interviews by company, role or round..." : undefined}
-          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
-          onLogout={handleLogout}
+          placeholder={activeTab === "interviews" ? "Search interviews by company, role or round..." : undefined}
         />
-
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-7 max-w-7xl w-full mx-auto">
-          {/* ================= DASHBOARD HOME ================= */}
-          {activeTab === "dashboard" && (
-            <InternshalaDashboardRecommendations
-              jobs={filteredJobs}
-              appliedJobIds={appliedJobIds}
-              appliedInternshipIds={appliedInternshipIds}
-              internships={filteredInternships}
-              courses={FEATURES.courses ? filteredCourses : []}
-              savedIds={savedIds}
-              onSave={handleSaveToggle}
-              onApply={handleApply}
-              onNavigateTab={handleSelectTab}
-            />
-          )}
-
-          {/* ================= RESUME ================= */}
-          {activeTab === "resume" && (
-            <div className="space-y-6">
-              <ResumeStatusCard resume={resume} profile={profile} />
-              <CareerReadinessCard readiness={careerReadiness} />
-            </div>
-          )}
-
-          {/* ================= PROJECTS ================= */}
-          {activeTab === "projects" && (
-            <ProjectsPortfolioCard projects={projects} />
-          )}
-
-          {/* ================= SKILLS ================= */}
-          {activeTab === "skills" && (
-            <div className="space-y-6">
-              <SkillsSectionCard
-                technicalSkills={technicalSkills}
-                softSkills={softSkills}
-              />
-              <SkillGapCard skillGap={skillGap} />
-            </div>
-          )}
-
-          {/* ================= CERTIFICATIONS ================= */}
-          {activeTab === "certifications" && (
-            <CertificationsCard certifications={certifications} />
-          )}
-
-          {/* ================= EDUCATION ================= */}
-          {activeTab === "education" && (
-            <EducationSummaryCard education={education} />
-          )}
-
-          {/* ================= INTERNSHIPS (full module) ================= */}
-          {activeTab === "internships" && (
-            <div className="animate-fade-in">
-              {internshipView === "list" && (
-                <Internships
-                  embedded
-                  appliedInternshipIds={appliedInternshipIds}
-                  studentProfile={profile}
-                  onSelectInternship={(id) => {
-                    setSelectedInternshipId(id);
-                    setInternshipView("detail");
-                  }}
-                />
-              )}
-              {internshipView === "detail" && (
-                <InternshipDetail
-                  embedded
-                  id={selectedInternshipId}
-                  isApplied={appliedInternshipIds.has(String(selectedInternshipId))}
-                  onAppliedSuccess={handleApplicationSuccess}
-                  onBack={() => {
-                    setInternshipView("list");
-                    setSelectedInternshipId(null);
-                  }}
-                />
-              )}
-            </div>
-          )}
-
-          {/* ================= JOBS (full module) ================= */}
-          {activeTab === "jobs" && (
-            <JobRecommendationsCard
-              jobs={filteredJobs}
-              appliedJobIds={appliedJobIds}
-              onSave={handleSaveToggle}
-              onApply={handleApply}
-              savedIds={savedIds}
-              limit={0}
-            />
-          )}
-
-          {/* ================= COURSES (full module) ================= */}
-          {activeTab === "courses" && FEATURES.courses && (
-            <div className="animate-fade-in">
-              {coursesView === "catalog" && (
-                <StudentCoursesPage
-                  embedded
-                  onViewDetails={(id) => {
-                    setSelectedCourseId(id);
-                    setCoursesView("detail");
-                  }}
-                  onNavigateToMyCourses={() => setCoursesView("my-courses")}
-                />
-              )}
-              {coursesView === "my-courses" && (
-                <StudentMyCoursesPage
-                  embedded
-                  onBackToCatalog={() => setCoursesView("catalog")}
-                />
-              )}
-              {coursesView === "detail" && (
-                <CourseDetailsPage
-                  embedded
-                  id={selectedCourseId}
-                  onBack={() => {
-                    setCoursesView("catalog");
-                    setSelectedCourseId(null);
-                  }}
-                />
-              )}
-            </div>
-          )}
-
-          {/* ================= APPLICATIONS ================= */}
-          {activeTab === "applications" && (
-            <div className="animate-fade-in">
-              <MyApplications embedded />
-            </div>
-          )}
-
-          {/* ================= INTERVIEWS ================= */}
-          {activeTab === "interviews" && (
-            <div className="animate-fade-in">
-              <CandidateInterviewsView searchQuery={searchQuery} />
-            </div>
-          )}
-
-          {/* ================= SAVED ================= */}
-          {FEATURES.savedJobs && activeTab === "saved" && (
-            <SavedOpportunitiesCard
-              savedItems={savedList}
-              onRemove={(id) => {
-                setSavedIds((prev) => prev.filter((item) => item !== id));
-                setSavedList((prev) => prev.filter((item) => item.id !== id));
-              }}
-              onApply={handleApply}
-            />
-          )}
-
-          {/* ================= HELP & SUPPORT ================= */}
-          {activeTab === "support" && <SupportTickets />}
-
-          {/* ================= NOTIFICATIONS ================= */}
-          {activeTab === "notifications" && (
-            <NotificationInbox
-              notifications={inbox.notifications}
-              unreadCount={inbox.unreadCount}
-              onNotificationClick={inbox.open}
-              onMarkAllRead={inbox.markAllRead}
-              onDeleteNotification={inbox.remove}
-            />
-          )}
-
-          {/* ================= PROFILE ================= */}
-          {activeTab === "profile" && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ProfileSummaryCard user={user} profile={profile} />
-              <ProfileCompletionCard
-                profile={profile}
-                user={user}
-                completion={profileCompletion}
-              />
-              <EducationSummaryCard education={education} />
-              <CareerGoalCard
-                careerGoal={careerGoal}
-                preferences={jobPreferences}
-              />
-            </div>
-          )}
-        </main>
-      </div>
-
-      {/* Tailored Resume Application Modal */}
-      <TailoredResumeApplicationModal
-        isOpen={isTailoredModalOpen}
-        onClose={() => {
-          setIsTailoredModalOpen(false);
-          setSelectedOpportunityForTailoring(null);
-        }}
-        opportunity={selectedOpportunityForTailoring}
-        onAppliedSuccess={handleApplicationSuccess}
-      />
-
-      {/* Toast */}
-      {toast && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2.5 animate-slide-in-right ${
-            toast.type === "error"
-              ? "bg-rose-900 text-white border border-rose-700"
-              : "bg-slate-900 text-white border border-slate-700"
-          }`}
-        >
+      }
+      overlays={
+        <>
+          <TailoredResumeApplicationModal
+            isOpen={isTailoredModalOpen}
+            onClose={() => {
+              setIsTailoredModalOpen(false);
+              setSelectedOpportunityForTailoring(null);
+            }}
+            opportunity={selectedOpportunityForTailoring}
+            onAppliedSuccess={handleApplicationSuccess}
+          />
+          {toast && (
+            <div
+              className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2.5 animate-slide-in-right ${
+                toast.type === "error"
+                  ? "bg-rose-900 text-white border border-rose-700"
+                  : "bg-slate-900 text-white border border-slate-700"
+              }`}
+            >
           <span>{toast.type === "error" ? "⚠️" : "✓"}</span>
           <span>{toast.message}</span>
         </div>
       )}
-    </div>
+        </>
+      }
+    >
+      {/* ================= DASHBOARD HOME ================= */}
+      {activeTab === "dashboard" && (
+        <InternshalaDashboardRecommendations
+          jobs={filteredJobs}
+          appliedJobIds={appliedJobIds}
+          appliedInternshipIds={appliedInternshipIds}
+          internships={filteredInternships}
+          courses={FEATURES.courses ? filteredCourses : []}
+          savedIds={savedIds}
+          onSave={handleSaveToggle}
+          onApply={handleApply}
+          onNavigateTab={handleSelectTab}
+        />
+      )}
+
+      {/* ================= RESUME ================= */}
+      {activeTab === "resume" && (
+        <div className="space-y-6">
+          <ResumeStatusCard resume={resume} profile={profile} />
+          <CareerReadinessCard readiness={careerReadiness} />
+        </div>
+      )}
+
+      {/* ================= PROJECTS ================= */}
+      {activeTab === "projects" && (
+        <ProjectsPortfolioCard projects={projects} />
+      )}
+
+      {/* ================= SKILLS ================= */}
+      {activeTab === "skills" && (
+        <div className="space-y-6">
+          <SkillsSectionCard
+            technicalSkills={technicalSkills}
+            softSkills={softSkills}
+          />
+          <SkillGapCard skillGap={skillGap} />
+        </div>
+      )}
+
+      {/* ================= CERTIFICATIONS ================= */}
+      {activeTab === "certifications" && (
+        <CertificationsCard certifications={certifications} />
+      )}
+
+      {/* ================= EDUCATION ================= */}
+      {activeTab === "education" && (
+        <EducationSummaryCard education={education} />
+      )}
+
+      {/* ================= INTERNSHIPS (full module) ================= */}
+      {activeTab === "internships" && (
+        <div className="animate-fade-in">
+          {internshipView === "list" && (
+            <Internships
+              embedded
+              appliedInternshipIds={appliedInternshipIds}
+              studentProfile={profile}
+              onSelectInternship={(id) => {
+                setSelectedInternshipId(id);
+                setInternshipView("detail");
+              }}
+            />
+          )}
+          {internshipView === "detail" && (
+            <InternshipDetail
+              embedded
+              id={selectedInternshipId}
+              isApplied={appliedInternshipIds.has(String(selectedInternshipId))}
+              onAppliedSuccess={handleApplicationSuccess}
+              onBack={() => {
+                setInternshipView("list");
+                setSelectedInternshipId(null);
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ================= JOBS (full module) ================= */}
+      {activeTab === "jobs" && (
+        <JobRecommendationsCard
+          jobs={filteredJobs}
+          appliedJobIds={appliedJobIds}
+          onSave={handleSaveToggle}
+          onApply={handleApply}
+          savedIds={savedIds}
+          limit={0}
+        />
+      )}
+
+      {/* ================= COURSES (full module) ================= */}
+      {activeTab === "courses" && FEATURES.courses && (
+        <div className="animate-fade-in">
+          {coursesView === "catalog" && (
+            <StudentCoursesPage
+              embedded
+              onViewDetails={(id) => {
+                setSelectedCourseId(id);
+                setCoursesView("detail");
+              }}
+              onNavigateToMyCourses={() => setCoursesView("my-courses")}
+            />
+          )}
+          {coursesView === "my-courses" && (
+            <StudentMyCoursesPage
+              embedded
+              onBackToCatalog={() => setCoursesView("catalog")}
+            />
+          )}
+          {coursesView === "detail" && (
+            <CourseDetailsPage
+              embedded
+              id={selectedCourseId}
+              onBack={() => {
+                setCoursesView("catalog");
+                setSelectedCourseId(null);
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ================= APPLICATIONS ================= */}
+      {activeTab === "applications" && (
+        <div className="animate-fade-in">
+          <MyApplications embedded />
+        </div>
+      )}
+
+      {/* ================= INTERVIEWS ================= */}
+      {activeTab === "interviews" && (
+        <div className="animate-fade-in">
+          <CandidateInterviewsView searchQuery={searchQuery} />
+        </div>
+      )}
+
+      {/* ================= SAVED ================= */}
+      {FEATURES.savedJobs && activeTab === "saved" && (
+        <SavedOpportunitiesCard
+          savedItems={savedList}
+          onRemove={(id) => {
+            setSavedIds((prev) => prev.filter((item) => item !== id));
+            setSavedList((prev) => prev.filter((item) => item.id !== id));
+          }}
+          onApply={handleApply}
+        />
+      )}
+
+      {/* ================= HELP & SUPPORT ================= */}
+      {activeTab === "support" && <SupportTickets />}
+
+      {/* ================= NOTIFICATIONS ================= */}
+      {activeTab === "notifications" && (
+        <NotificationInbox
+          notifications={inbox.notifications}
+          unreadCount={inbox.unreadCount}
+          onNotificationClick={inbox.open}
+          onMarkAllRead={inbox.markAllRead}
+          onDeleteNotification={inbox.remove}
+        />
+      )}
+
+      {/* ================= PROFILE ================= */}
+      {activeTab === "profile" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ProfileSummaryCard user={user} profile={profile} />
+          <ProfileCompletionCard
+            profile={profile}
+            user={user}
+            completion={profileCompletion}
+          />
+          <EducationSummaryCard education={education} />
+          <CareerGoalCard
+            careerGoal={careerGoal}
+            preferences={jobPreferences}
+          />
+        </div>
+      )}
+    </CandidateDashboardShell>
   );
 };
 

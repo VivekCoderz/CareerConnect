@@ -1,0 +1,221 @@
+import { useState } from "react";
+import ResumeUploadInput from "../../common/ResumeUploadInput";
+
+const ApplyReviewModal = ({
+  isOpen,
+  onClose,
+  opportunity,
+  user,
+  profile,
+  onSubmitDirect,
+  onContinueExternal,
+}) => {
+  const [coverNote, setCoverNote] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customResumeOpen, setCustomResumeOpen] = useState(false);
+  const [customResumeUrl, setCustomResumeUrl] = useState(user?.resumeUrl || profile?.resume?.resumeUrl || "");
+  const [customResumeName, setCustomResumeName] = useState(user?.resumeName || profile?.resume?.resumeName || "");
+
+  if (!isOpen || !opportunity) return null;
+
+  const candidateName = user?.fullName || profile?.userId?.fullName || profile?.fullName || "";
+  const professionalHeadline =
+    profile?.currentEmployment?.jobTitle ||
+    profile?.professionalHeadline ||
+    "Not provided";
+  const experienceYears = profile?.totalExperienceYears ? `${profile.totalExperienceYears}+ Years` : "Not provided";
+
+  const isExternal = opportunity.isExternal || opportunity.applyType === "external" || opportunity.url?.startsWith("http");
+  const companyName = opportunity.company || opportunity.companyName || "";
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isExternal) {
+      if (onContinueExternal) {
+        onContinueExternal(opportunity, coverNote, customResumeUrl);
+      }
+    } else {
+      setIsSubmitting(true);
+      setTimeout(() => {
+        setIsSubmitting(false);
+        if (onSubmitDirect) {
+          onSubmitDirect(opportunity, coverNote, customResumeUrl);
+        }
+      }, 400);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white w-full max-w-xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 max-h-[92vh] overflow-y-auto space-y-6 animate-in zoom-in-95 duration-150"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  isExternal
+                    ? "bg-blue-50 text-blue-800 border border-blue-200"
+                    : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                }`}
+              >
+                {isExternal ? "🔵 Apply on Company Website" : "🟢 Direct Apply via E2Job"}
+              </span>
+              {opportunity.location && (
+                <span className="text-xs text-slate-400">· {opportunity.location}</span>
+              )}
+            </div>
+
+            <h2 className="text-xl font-bold text-slate-900 leading-tight">
+              {opportunity.title}
+            </h2>
+            {companyName && (
+              <p className="text-sm font-bold text-purple-700 mt-0.5">
+                {companyName}
+              </p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center text-sm font-bold transition"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Application Review Details */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Profile Snapshot */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+              Candidate Profile
+            </span>
+            <div className="flex items-center justify-between">
+              <div>
+                {candidateName && <p className="text-sm font-bold text-slate-900">{candidateName}</p>}
+                <p className="text-xs text-slate-600 font-medium">
+                  {professionalHeadline} · {experienceYears} Experience
+                </p>
+              </div>
+              <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">
+                {typeof opportunity.matchPercentage === "number" ? `${opportunity.matchPercentage}% Match` : "Not enough data"}
+              </span>
+            </div>
+          </div>
+
+          {/* Attached Resume */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Resume Attachment
+              </span>
+              <button
+                type="button"
+                onClick={() => setCustomResumeOpen(!customResumeOpen)}
+                className="text-[11px] font-semibold text-purple-700 hover:underline"
+              >
+                {customResumeOpen ? "Use Standard Profile Resume" : "Upload / Link Different Resume"}
+              </button>
+            </div>
+
+            {customResumeOpen ? (
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                <ResumeUploadInput
+                  value={customResumeUrl}
+                  onChange={(url, meta) => {
+                    setCustomResumeUrl(url);
+                    if (meta?.fileName) setCustomResumeName(meta.fileName);
+                  }}
+                  label="Custom Application Resume"
+                  helperText="Upload a PDF up to 10MB or paste an online link."
+                />
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
+                    📄
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block truncate max-w-[220px]">
+                      {customResumeName || (candidateName ? `${candidateName.replace(/\s+/g, "_")}_Executive_Resume.pdf` : "Profile resume")}
+                    </span>
+                    <span className="text-[11px] text-purple-800 font-semibold flex items-center gap-1">
+                      <span>✓</span> ATS Optimized & Verified
+                    </span>
+                  </div>
+                </div>
+
+                <span className="text-[11px] font-semibold text-purple-700">Auto-Attached</span>
+              </div>
+            )}
+          </div>
+
+          {/* Optional Cover Note */}
+          <div>
+            <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center justify-between">
+              <span>Leadership & Impact Note <span className="text-slate-400 font-normal">(Optional)</span></span>
+              <span className="text-[10px] text-slate-400">Sent directly to hiring manager</span>
+            </label>
+            <textarea
+              rows={3}
+              value={coverNote}
+              onChange={(e) => setCoverNote(e.target.value)}
+              placeholder="Highlight any relevant architectural decisions, scale handled, or leadership accomplishments..."
+              className="w-full p-3 rounded-2xl border border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 text-xs outline-none transition placeholder:text-slate-400 font-medium"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-2 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`px-6 py-2.5 rounded-xl text-white text-xs font-bold transition flex items-center gap-2 shadow-xs ${
+                isExternal
+                  ? "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"
+                  : "bg-purple-600 hover:bg-purple-700 shadow-purple-600/20"
+              }`}
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  <span>Submitting Application...</span>
+                </>
+              ) : isExternal ? (
+                <>
+                  <span>Continue to Company Website</span>
+                  <span>↗</span>
+                </>
+              ) : (
+                <>
+                  <span>Submit Application</span>
+                  <span>→</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default ApplyReviewModal;

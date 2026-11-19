@@ -35,7 +35,9 @@ let mongod;
 beforeAll(async () => {
   mongod = await MongoMemoryServer.create();
   const uri = mongod.getUri();
-  await mongoose.connect(uri);
+  // The MongoDB driver (7.7+) loads `os` with a dynamic import(), which Jest's CommonJS
+  // runtime can't run; the connection handshake then fails. Passing `os` in avoids it.
+  await mongoose.connect(uri, { runtimeAdapters: { os: require('os') } });
   process.env.JWT_SECRET = 'test-secret-key-careerconnect-123';
   process.env.NODE_ENV = 'test';
   process.env.CLIENT_URL = 'http://localhost:5173';
