@@ -160,7 +160,7 @@ const EmailChangeModal = ({ currentEmail, onClose, onEmailChanged }) => {
     if (newPassword !== confirmPassword) return setError("Passwords do not match");
     return run(async () => {
       const res = await resetAccountPassword(resetToken, newPassword);
-      // Other devices are signed out; this one continues with the new token.
+      // Other devices are signed out; this one continues with the fresh cookie the server set.
       setChangeToken(res.changeToken);
       setResetToken("");
       setNewPassword("");
