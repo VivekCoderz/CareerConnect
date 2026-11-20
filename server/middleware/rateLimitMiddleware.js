@@ -1,4 +1,13 @@
 const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
+const { MongoRateLimitStore } = require("../utils/mongoRateLimitStore");
+
+/**
+ * Counters live in MongoDB, so each limit holds across all web instances. If the database
+ * can't be reached the request is let through (and the error logged) instead of failing
+ * every API call; /health already reports a database outage.
+ * @param {string} name - unique per limiter
+ */
+const sharedStore = (name) => ({ store: new MongoRateLimitStore(name), passOnStoreError: true });
 
 /**
  * Helper to get clean, normalized client IP using express-rate-limit's ipKeyGenerator
@@ -37,6 +46,7 @@ const commonRateLimitOptions = {
  * Skips OPTIONS preflights and health check routes
  */
 const globalLimiter = rateLimit({
+  ...sharedStore("global"),
   ...commonRateLimitOptions,
   windowMs: 15 * 60 * 1000,
   max: () => getLimitMax("RATE_LIMIT_GLOBAL_MAX", 300),
@@ -58,6 +68,7 @@ const globalLimiter = rateLimit({
  * Default: 5 requests / 15 minutes per IP + normalized email/phone (RATE_LIMIT_OTP_SEND_MAX)
  */
 const otpSendLimiter = rateLimit({
+  ...sharedStore("otp-send"),
   ...commonRateLimitOptions,
   windowMs: 15 * 60 * 1000,
   max: () => getLimitMax("RATE_LIMIT_OTP_SEND_MAX", 5),
@@ -81,6 +92,7 @@ const otpSendLimiter = rateLimit({
  * Default: 10 requests / 15 minutes per IP + normalized email/phone (RATE_LIMIT_OTP_VERIFY_MAX)
  */
 const otpVerifyLimiter = rateLimit({
+  ...sharedStore("otp-verify"),
   ...commonRateLimitOptions,
   windowMs: 15 * 60 * 1000,
   max: () => getLimitMax("RATE_LIMIT_OTP_VERIFY_MAX", 10),
@@ -105,6 +117,7 @@ const otpVerifyLimiter = rateLimit({
  * Key: user:<req.user._id> when logged in, otherwise ip:<ip>
  */
 const aiResumeLimiter = rateLimit({
+  ...sharedStore("ai"),
   ...commonRateLimitOptions,
   windowMs: 60 * 60 * 1000,
   max: () => getLimitMax("RATE_LIMIT_AI_MAX", 20),
@@ -122,9 +135,10 @@ const aiResumeLimiter = rateLimit({
  * Daily AI quota, shared by every Gemini-backed feature (resume parse, tailor,
  * generate, ATS optimize, AI assistant) so the free Gemini tier lasts the day.
  * Default: 40 AI actions / 24 hours per user (RATE_LIMIT_AI_DAILY_MAX)
- * The count is kept in memory, so it resets when the server restarts.
+ * The count is kept in MongoDB, so it holds across instances and restarts.
  */
 const aiDailyLimiter = rateLimit({
+  ...sharedStore("ai-daily"),
   ...commonRateLimitOptions,
   windowMs: 24 * 60 * 60 * 1000,
   max: () => getLimitMax("RATE_LIMIT_AI_DAILY_MAX", 40),
@@ -144,6 +158,7 @@ const aiDailyLimiter = rateLimit({
  * Default: 60 requests / 1 minute per IP (RATE_LIMIT_LIVE_MAX)
  */
 const internshipsLiveLimiter = rateLimit({
+  ...sharedStore("internships-live"),
   ...commonRateLimitOptions,
   windowMs: 1 * 60 * 1000,
   max: () => getLimitMax("RATE_LIMIT_LIVE_MAX", 60),
@@ -154,6 +169,7 @@ const internshipsLiveLimiter = rateLimit({
  * Login Rate Limiter (Preserved with standardHeaders draft-7)
  */
 const loginLimiter = rateLimit({
+  ...sharedStore("login"),
   windowMs: 1 * 60 * 1000,
   max: 10,
   standardHeaders: "draft-7",
@@ -174,6 +190,7 @@ const loginLimiter = rateLimit({
  * Password Reset Limiter (Preserved with standardHeaders draft-7)
  */
 const passwordResetLimiter = rateLimit({
+  ...sharedStore("password-reset"),
   windowMs: 24 * 60 * 60 * 1000,
   max: 3,
   standardHeaders: "draft-7",

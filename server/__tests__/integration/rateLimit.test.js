@@ -99,7 +99,13 @@ jest.mock("../../services/emailValidationService", () => ({
 jest.mock("../../middleware/captchaMiddleware", () => () => (req, res, next) => next());
 
 describe("S06 Security: Rate Limiting & Proxy Configuration", () => {
-  const originalEnv = { ...process.env };
+  // Saved after jest.setup.js has set JWT_SECRET, so restoring it keeps the secret.
+  let originalEnv;
+  let app;
+
+  beforeAll(() => {
+    originalEnv = { ...process.env };
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -120,11 +126,10 @@ describe("S06 Security: Rate Limiting & Proxy Configuration", () => {
     process.env.RATE_LIMIT_OTP_VERIFY_MAX = String(limitOverrides.otpVerify || 1000);
     process.env.RATE_LIMIT_AI_MAX = String(limitOverrides.ai || 1000);
 
-    let freshApp;
-    jest.isolateModules(() => {
-      freshApp = require("../../app");
-    });
-    return freshApp;
+    // One app is enough: the limits above are read on every request, and the counters live
+    // in MongoDB (ratelimits), which the test setup clears after each test.
+    app ??= require("../../app");
+    return app;
   }
 
   // Test 1: /api/internships/live: N requests allowed, request N+1 returns 429 with a Retry-After header
