@@ -23,6 +23,13 @@ export const acquireSocket = () => {
       withCredentials: true,
       transports: ["websocket", "polling"],
     });
+    // The server closes a user's sockets when it revokes their tokens (logout, password or
+    // email change). Socket.IO doesn't reconnect after a server-side disconnect, so try once:
+    // with the fresh cookie from a password or email change it connects again; after a
+    // logout the handshake is refused.
+    socket.on("disconnect", (reason) => {
+      if (reason === "io server disconnect") socket.connect();
+    });
   }
   users += 1;
   return socket;
