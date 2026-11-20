@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { getApplicationById, withdraw } from "../../services/applicationService";
 import { useSelector } from "react-redux";
 import { openResume } from "../../utils/resumeAccess";
+import { isBookedInterview, openRoundStatus } from "../../utils/interviewRound";
 
 const DEFAULT_STAGES = [
   { name: "Resume Screening", type: "Resume Screening", order: 0 },
@@ -141,20 +142,25 @@ export default function StudentApplicationTrackingPage() {
           (sh.stageName && sh.stageName.toLowerCase() === stg.name.toLowerCase())
       );
 
-      // Match interview if any
-      const matchingInterview = (application.interviews || []).find(
+      // Match interview if any (a booked one wins over an earlier cancelled one)
+      const roundInterviews = (application.interviews || []).filter(
         (inv) =>
           inv.roundNumber === idx + 1 ||
           (inv.roundName && inv.roundName.toLowerCase().includes(stg.name.toLowerCase()))
       );
+      const matchingInterview = roundInterviews.find(isBookedInterview) || roundInterviews[0];
 
       let stepStatus = "Pending";
       const currentIdx = application.currentStageIndex ?? 0;
+      // The round has no result yet: "Scheduled", "Not Started" or "In Progress".
+      const openStatus = openRoundStatus(stg, matchingInterview).replace(/\b\w/g, (c) => c.toUpperCase());
 
       if (isWithdrawn) {
         stepStatus = "Withdrawn";
+      } else if (historyEntry && historyEntry.status && !/progress/i.test(historyEntry.status)) {
+        stepStatus = historyEntry.status;
       } else if (historyEntry) {
-        stepStatus = historyEntry.status || "In Progress";
+        stepStatus = openStatus;
       } else if (idx < currentIdx) {
         stepStatus = "Passed";
       } else if (idx === currentIdx) {
@@ -162,10 +168,8 @@ export default function StudentApplicationTrackingPage() {
           stepStatus = "Rejected";
         } else if (isSelected) {
           stepStatus = "Passed";
-        } else if (matchingInterview && matchingInterview.status?.toLowerCase() === "scheduled") {
-          stepStatus = "Scheduled";
         } else {
-          stepStatus = "In Progress";
+          stepStatus = openStatus;
         }
       } else {
         stepStatus = "Pending";

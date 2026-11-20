@@ -10,7 +10,7 @@ import {
   getStudentDashboardData,
   saveOpportunity,
 } from "../../services/studentDashboardService";
-import { isExternalOpportunity, externalApplyUrl } from "../../utils/opportunityApply";
+import { openExternalApply } from "../../utils/opportunityApply";
 import { getPageCache, setPageCache } from "../../utils/pageCache";
 import { FEATURES } from "../../config/features";
 
@@ -184,9 +184,9 @@ const StudentDashboard = () => {
 
   const handleApply = (item) => {
     // External listings are applied to on the employer's site, not through E2Job.
-    if (isExternalOpportunity(item)) {
-      const url = externalApplyUrl(item);
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    const external = openExternalApply(item);
+    if (external) {
+      if (!external.opened) showToast("This listing has no apply link.", "error");
       return;
     }
     setSelectedOpportunityForTailoring({

@@ -579,9 +579,16 @@ exports.getApplicationById = async (req, res, next) => {
       });
     }
 
+    // The tracking page shows each round as "Scheduled" with its date from these.
+    // Same fields as GET /applications/me: no scorecard or interviewer notes.
+    const interviews = await Interview.find({ applicationId: application._id })
+      .select("scheduledDate scheduledTime startTime duration durationMinutes meetingMode meetingLink location instructions roundName roundNumber status result")
+      .sort({ scheduledDate: 1 })
+      .lean();
+
     return res.status(200).json({
       success: true,
-      application,
+      application: { ...application.toObject(), interviews },
     });
   } catch (error) {
     next(error);
