@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
@@ -15,6 +15,11 @@ import "./home/home.css";
 
 // The public home page (design option D, "premium light"). Signed-in people never see it:
 // they go straight to their dashboard or onboarding.
+
+// Navbar items: plain text with an underline on hover (.e2h-navlink); the discovery menus
+// take the same look through their buttonClassName prop.
+const NAV_LINK = "e2h-navlink inline-flex items-center h-10 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-[#0f1f4d] transition";
+const NAV_MENU_BUTTON = "flex items-center gap-1 h-10 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-[#0f1f4d] hover:bg-slate-100/70 transition";
 
 const LOGO_TINTS = [
   "bg-indigo-50 text-[#1e3a8a]",
@@ -118,6 +123,45 @@ const Home = () => {
     };
   }, [mobileMenuOpen]);
 
+  // The navbar gets its frosted background once the page scrolls.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // The 3D card stack tilts toward the cursor and fans out while pointed at. CSS variables
+  // are set straight on the element (once per frame) so moving the mouse doesn't re-render.
+  const sceneRef = useRef(null);
+  const frameRef = useRef(0);
+  const reducedMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const handleScenePointer = (e) => {
+    const scene = sceneRef.current;
+    if (!scene || reducedMotion || e.pointerType === "touch") return;
+    const rect = scene.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    cancelAnimationFrame(frameRef.current);
+    frameRef.current = requestAnimationFrame(() => {
+      scene.style.setProperty("--tx", (x * 2 - 1).toFixed(3));
+      scene.style.setProperty("--ty", (y * 2 - 1).toFixed(3));
+      scene.style.setProperty("--gx", `${(x * 100).toFixed(1)}%`);
+      scene.style.setProperty("--gy", `${(y * 100).toFixed(1)}%`);
+      scene.classList.add("is-active");
+    });
+  };
+  const handleSceneLeave = () => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    cancelAnimationFrame(frameRef.current);
+    scene.style.setProperty("--tx", "0");
+    scene.style.setProperty("--ty", "0");
+    scene.classList.remove("is-active");
+  };
+  useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
+
   // Only real listings from the API; with none, the board shows a link to browse instead.
   useEffect(() => {
     const loadHomeData = async () => {
@@ -161,45 +205,43 @@ const Home = () => {
     `min-h-[40px] px-[18px] rounded-[10px] text-sm font-bold transition ${active ? "bg-white text-[#1e3a8a] shadow-[0_6px_14px_-8px_rgba(15,31,77,.5)]" : "text-slate-600 hover:text-slate-900"}`;
 
   return (
-    <div className="e2h-root min-h-screen bg-[#fbfcff] text-slate-900 flex flex-col overflow-x-hidden">
-      {/* ================= HERO ================= */}
-      <section className="relative overflow-hidden pb-14">
-        <div className="e2h-mesh e2h-m1" aria-hidden="true" />
-        <div className="e2h-mesh e2h-m2" aria-hidden="true" />
-        <div className="e2h-mesh e2h-m3" aria-hidden="true" />
-
-        <header className="relative z-20 pt-4">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="h-[68px] flex items-center justify-between gap-3 pl-4 pr-2 sm:pl-5 rounded-[20px] bg-white/75 backdrop-blur-md border border-slate-200/90 shadow-[0_20px_40px_-30px_rgba(15,31,77,.4)]">
-              <div className="flex items-center gap-3 lg:gap-5 min-w-0">
-                <Link to="/" aria-label="E2Job home" className="shrink-0">
-                  <BrandLogo className="h-8 w-32 sm:h-9 sm:w-40" />
-                </Link>
-                <nav className="hidden lg:flex items-center gap-2" aria-label="Main">
-                  <JobDiscoveryMenu />
-                  <InternshipDiscoveryMenu />
-                  {FEATURES.courses && (
-                    <Link to="/courses" className="px-3 py-1.5 rounded-xl text-sm font-semibold text-slate-700 hover:text-[#1e3a8a] hover:bg-indigo-50">Courses</Link>
-                  )}
-                  <Link to="/organizations/request-access" className="px-3 py-1.5 rounded-xl text-sm font-semibold text-slate-700 hover:text-[#1e3a8a] hover:bg-indigo-50">For Organizations</Link>
-                </nav>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Link to="/login" className="hidden sm:inline-flex items-center min-h-[44px] px-4 rounded-[14px] border border-slate-200 bg-white text-[15px] font-bold text-[#0f1f4d] hover:bg-slate-50">Log in</Link>
-                <Link to="/register/student" className="inline-flex items-center min-h-[44px] px-4 rounded-[14px] bg-[#1e3a8a] text-[15px] font-bold text-white shadow-[0_14px_30px_-14px_rgba(30,58,138,.85)] hover:bg-[#0f1f4d]">Sign up free</Link>
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen((open) => !open)}
-                  className="lg:hidden inline-flex items-center justify-center w-11 h-11 rounded-xl text-slate-700 hover:bg-slate-100"
-                  aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-                  aria-expanded={mobileMenuOpen}
-                >
-                  <Icon d={mobileMenuOpen ? "M6 6l12 12M18 6L6 18" : "M4 6h16M4 12h16M4 18h16"} className="w-6 h-6" />
-                </button>
-              </div>
+    <div className="e2h-root min-h-screen bg-[#fbfcff] text-slate-900 flex flex-col overflow-x-clip">
+      {/* ================= NAVBAR (sticky) ================= */}
+      <header className={`e2h-nav sticky top-0 z-40 border-b border-transparent ${scrolled || mobileMenuOpen ? "is-scrolled backdrop-blur-md" : ""}`}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="h-16 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-6 min-w-0">
+              <Link to="/" aria-label="E2Job home" className="shrink-0">
+                <BrandLogo className="h-8 w-32 sm:w-36" />
+              </Link>
+              <nav className="hidden lg:flex items-center gap-1" aria-label="Main">
+                <JobDiscoveryMenu buttonClassName={NAV_MENU_BUTTON} />
+                <InternshipDiscoveryMenu buttonClassName={NAV_MENU_BUTTON} />
+                {FEATURES.courses && <Link to="/courses" className={NAV_LINK}>Courses</Link>}
+                <Link to="/organizations/request-access" className={NAV_LINK}>For Organizations</Link>
+              </nav>
             </div>
-            {mobileMenuOpen && (
-              <nav className="lg:hidden mt-2 rounded-[20px] bg-white border border-slate-200 shadow-xl p-3 flex flex-col" aria-label="Mobile">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* The wrapper hides it below xl; NAV_LINK's own display would override `hidden`. */}
+              <span className="hidden xl:block">
+                <Link to="/register/employer" className={NAV_LINK}>For employers</Link>
+              </span>
+              <Link to="/login" className="hidden sm:inline-flex items-center h-10 px-4 rounded-xl text-sm font-semibold text-[#0f1f4d] hover:bg-slate-100 transition">Log in</Link>
+              <Link to="/register/student" className="inline-flex items-center h-10 px-4 rounded-xl bg-[#1e3a8a] text-sm font-semibold text-white shadow-[0_8px_20px_-10px_rgba(30,58,138,.8)] hover:bg-[#0f1f4d] transition">Sign up free</Link>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((open) => !open)}
+                className="lg:hidden inline-flex items-center justify-center w-11 h-11 rounded-xl text-slate-700 hover:bg-slate-100"
+                aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+                aria-expanded={mobileMenuOpen}
+              >
+                <Icon d={mobileMenuOpen ? "M6 6l12 12M18 6L6 18" : "M4 6h16M4 12h16M4 18h16"} className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+          {mobileMenuOpen && (
+            <div className="lg:hidden pb-3">
+              <nav className="rounded-2xl bg-white border border-slate-200 shadow-xl p-2 flex flex-col" aria-label="Mobile">
                 {[
                   ["/jobs", "Jobs"],
                   ["/internships", "Internships"],
@@ -214,17 +256,24 @@ const Home = () => {
                   </Link>
                 ))}
               </nav>
-            )}
-          </div>
-        </header>
+            </div>
+          )}
+        </div>
+      </header>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pt-12 lg:pt-16 grid lg:grid-cols-2 gap-6 items-center">
-          <div className="flex flex-col gap-6">
-            <span className="e2h-in self-start inline-flex gap-2.5 items-center py-1.5 pl-1.5 pr-4 rounded-full bg-white border border-slate-200 text-sm font-semibold text-slate-700 shadow-[0_10px_24px_-18px_rgba(15,31,77,.5)]">
-              <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold">₹0</span>
+      {/* ================= HERO ================= */}
+      <section className="relative overflow-hidden pb-10 lg:pb-14 -mt-16 pt-16">
+        <div className="e2h-mesh e2h-m1" aria-hidden="true" />
+        <div className="e2h-mesh e2h-m2" aria-hidden="true" />
+        <div className="e2h-mesh e2h-m3" aria-hidden="true" />
+
+        <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-10 lg:pt-14 grid lg:grid-cols-[1.05fr_0.95fr] gap-8 items-center">
+          <div className="flex flex-col gap-5">
+            <span className="e2h-in self-start inline-flex gap-2 items-center py-1 pl-1 pr-3.5 rounded-full bg-white border border-slate-200 text-[13px] font-medium text-slate-700 shadow-[0_8px_20px_-16px_rgba(15,31,77,.5)]">
+              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">₹0</span>
               Free for candidates. No employer can charge you.
             </span>
-            <h1 className="e2h-in e2h-display m-0 text-[42px] sm:text-[58px] lg:text-[70px] leading-[1.06] tracking-[-0.045em] font-extrabold text-[#0f1f4d]" style={{ animationDelay: ".15s" }}>
+            <h1 className="e2h-in e2h-display m-0 text-[36px] sm:text-[46px] lg:text-[54px] leading-[1.08] tracking-[-0.035em] font-bold text-[#0f1f4d]" style={{ animationDelay: ".15s" }}>
               Find{" "}
               <span className="e2h-rot">
                 <span>internships</span>
@@ -234,17 +283,17 @@ const Home = () => {
               <br />
               that fit your goals.
             </h1>
-            <p className="e2h-in m-0 text-lg leading-relaxed text-slate-600 max-w-[540px]" style={{ animationDelay: ".3s" }}>
+            <p className="e2h-in m-0 text-base sm:text-[17px] leading-relaxed text-slate-600 max-w-[500px]" style={{ animationDelay: ".3s" }}>
               One profile for every application. Verified employers, one-click apply, and every interview tracked in your dashboard.
             </p>
 
-            <div className="e2h-in max-w-[620px] bg-white rounded-[22px] p-2.5 border border-slate-200 shadow-[0_40px_70px_-40px_rgba(15,31,77,.55)] flex flex-col gap-2.5" style={{ animationDelay: ".45s" }}>
+            <div className="e2h-in max-w-[560px] bg-white rounded-[18px] p-2 border border-slate-200 shadow-[0_30px_60px_-36px_rgba(15,31,77,.5)] flex flex-col gap-2" style={{ animationDelay: ".45s" }}>
               <div className="self-start flex gap-1.5 p-1 bg-slate-100 rounded-[13px]" role="tablist" aria-label="Search for">
                 <button type="button" role="tab" aria-selected={searchType === "job"} className={tabClass(searchType === "job")} onClick={() => setSearchType("job")}>Jobs</button>
                 <button type="button" role="tab" aria-selected={searchType === "internship"} className={tabClass(searchType === "internship")} onClick={() => setSearchType("internship")}>Internships</button>
               </div>
               <form onSubmit={handleHeroSearchSubmit} className="flex flex-col sm:flex-row gap-2">
-                <label htmlFor="home-search" className="flex-1 flex items-center gap-3 px-4 min-h-[56px] rounded-[14px] bg-[#f5f7fc]">
+                <label htmlFor="home-search" className="flex-1 flex items-center gap-3 px-4 min-h-[50px] rounded-xl bg-[#f5f7fc]">
                   <span className="text-[#1e3a8a]"><Icon d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" /></span>
                   <span className="sr-only">Search</span>
                   <input
@@ -256,22 +305,30 @@ const Home = () => {
                     className="flex-1 min-w-0 border-0 outline-none bg-transparent text-base text-slate-900 placeholder:text-slate-500"
                   />
                 </label>
-                <button type="submit" className="inline-flex items-center justify-center gap-2 min-h-[56px] px-6 rounded-[14px] bg-[#1e3a8a] text-white font-bold hover:bg-[#0f1f4d] transition">
+                <button type="submit" className="inline-flex items-center justify-center gap-2 min-h-[50px] px-5 rounded-xl bg-[#1e3a8a] text-[15px] text-white font-semibold hover:bg-[#0f1f4d] transition">
                   {searchType === "job" ? "Search jobs" : "Search internships"} <span aria-hidden="true">→</span>
                 </button>
               </form>
             </div>
 
-            <div className="e2h-in flex gap-5 flex-wrap text-sm font-semibold text-slate-700" style={{ animationDelay: ".6s" }}>
+            <div className="e2h-in flex gap-5 flex-wrap text-[13px] font-medium text-slate-600" style={{ animationDelay: ".6s" }}>
               <span className="flex gap-2 items-center"><span className="text-green-700"><Icon d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9 12l2 2 4-4" className="w-[18px] h-[18px]" /></span>Verified employers</span>
               <span className="flex gap-2 items-center"><span className="text-[#1e3a8a]"><Icon d="M13 2L4 14h7l-1 8 9-12h-7z" className="w-[18px] h-[18px]" /></span>One-click apply</span>
               <span className="flex gap-2 items-center"><span className="text-amber-700"><Icon d="M7 3v3M17 3v3M4 8h16M5 5h14v15H5z" className="w-[18px] h-[18px]" /></span>Interview tracking</span>
             </div>
           </div>
 
-          {/* Decoration: profile, listing and interview cards stacked in 3D */}
-          <div className="e2h-scene hidden sm:block" aria-hidden="true">
+          {/* Decoration: profile, listing and interview cards stacked in 3D. It tilts toward the
+              cursor and fans out while pointed at (handleScenePointer). */}
+          <div
+            ref={sceneRef}
+            className="e2h-scene hidden sm:block"
+            onPointerMove={handleScenePointer}
+            onPointerLeave={handleSceneLeave}
+            aria-hidden="true"
+          >
             <div className="e2h-shadow" />
+            <div className="e2h-tilt">
             <div className="e2h-iso">
               <div className="e2h-layer bg-[#1e3a8a] text-white">
                 <span className="text-xs font-extrabold tracking-[.08em] text-amber-400">YOUR PROFILE</span>
@@ -291,7 +348,8 @@ const Home = () => {
                 <span className="flex gap-1.5"><span className="text-[11px] font-bold px-2 py-1 rounded-md bg-green-100 text-green-800">Verified</span></span>
                 <span className="mt-auto h-10 rounded-[11px] bg-[#1e3a8a] text-white font-bold text-[13px] flex items-center justify-center">Apply in one click</span>
               </div>
-              <div className="e2h-layer e2h-l3 bg-amber-500 text-[#1c1300]">
+              <div className="e2h-layer e2h-l3 overflow-hidden bg-amber-500 text-[#1c1300]">
+                <span className="e2h-glare" />
                 <span className="text-xs font-extrabold tracking-[.08em]">NEXT INTERVIEW</span>
                 <span className="e2h-display text-[22px] font-extrabold">HR round: scheduled</span>
                 <span className="mt-auto grid grid-cols-4 gap-1.5">
@@ -299,19 +357,26 @@ const Home = () => {
                 </span>
               </div>
             </div>
-            <span className="e2h-float absolute left-[4%] top-[18%] flex gap-2 items-center px-4 py-2.5 rounded-full bg-white border border-slate-200 text-[13px] font-bold text-green-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]"><span className="w-2 h-2 rounded-full bg-green-500" />Employer verified</span>
-            <span className="e2h-float d1 absolute right-[2%] top-[30%] px-4 py-2.5 rounded-full bg-white border border-slate-200 text-[13px] font-bold text-amber-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Zero fees, always</span>
-            <span className="e2h-float d2 absolute left-[14%] bottom-[10%] px-4 py-2.5 rounded-full bg-white border border-slate-200 text-[13px] font-bold text-[#1e3a8a] shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Shortlisted</span>
+            </div>
+            <span className="e2h-par left-[2%] top-[16%]" style={{ "--depth": "22px" }}>
+              <span className="e2h-float flex gap-2 items-center px-3.5 py-2 rounded-full bg-white border border-slate-200 text-[13px] font-semibold text-green-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]"><span className="w-2 h-2 rounded-full bg-green-500" />Employer verified</span>
+            </span>
+            <span className="e2h-par right-[0%] top-[30%]" style={{ "--depth": "30px" }}>
+              <span className="e2h-float d1 block px-3.5 py-2 rounded-full bg-white border border-slate-200 text-[13px] font-semibold text-amber-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Zero fees, always</span>
+            </span>
+            <span className="e2h-par left-[12%] bottom-[8%]" style={{ "--depth": "16px" }}>
+              <span className="e2h-float d2 block px-3.5 py-2 rounded-full bg-white border border-slate-200 text-[13px] font-semibold text-[#1e3a8a] shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Shortlisted</span>
+            </span>
           </div>
         </div>
       </section>
 
       {/* ================= LIVE BOARD (real listings) ================= */}
-      <section className="py-16 lg:py-24">
+      <section className="py-14 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-[0.85fr_1.15fr] gap-12 items-center">
           <div className="e2h-reveal flex flex-col gap-4">
             <span className="text-[13px] font-extrabold text-amber-700 tracking-[.1em] uppercase">Updated every day</span>
-            <h2 className="e2h-display m-0 text-[32px] sm:text-[46px] leading-[1.06] tracking-[-0.04em] font-extrabold text-[#0f1f4d]">A live board of new opportunities.</h2>
+            <h2 className="e2h-display m-0 text-[28px] sm:text-[38px] leading-[1.1] tracking-[-0.03em] font-bold text-[#0f1f4d]">A live board of new opportunities.</h2>
             <p className="m-0 text-lg leading-relaxed text-slate-600">Internships and fresher jobs from employers we've checked, across cities and remote. Hover to pause and pick one.</p>
             <div className="flex gap-3 flex-wrap">
               <Link to="/jobs" className="inline-flex items-center min-h-[50px] px-6 rounded-[14px] bg-[#1e3a8a] text-white font-bold hover:bg-[#0f1f4d]">Browse jobs →</Link>
@@ -342,11 +407,11 @@ const Home = () => {
       </section>
 
       {/* ================= FEATURES ================= */}
-      <section className="pb-20 lg:pb-28">
+      <section className="pb-16 lg:pb-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col gap-10">
           <div className="e2h-reveal text-center flex flex-col gap-3 items-center">
             <span className="text-[13px] font-extrabold text-amber-700 tracking-[.1em] uppercase">Built for your job search</span>
-            <h2 className="e2h-display m-0 text-[32px] sm:text-[46px] tracking-[-0.04em] font-extrabold text-[#0f1f4d]">Everything you need, nothing you don't</h2>
+            <h2 className="e2h-display m-0 text-[28px] sm:text-[38px] tracking-[-0.03em] font-bold text-[#0f1f4d]">Everything you need, nothing you don't</h2>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES_LIST.map((f) => (
@@ -363,14 +428,14 @@ const Home = () => {
       {/* ================= STEPS ================= */}
       <section className="py-20 bg-[#f1f5ff] border-y border-[#e6ebf5]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col gap-10">
-          <h2 className="e2h-display e2h-reveal m-0 text-[32px] sm:text-[46px] tracking-[-0.04em] font-extrabold text-[#0f1f4d] text-center">Three steps to your offer</h2>
+          <h2 className="e2h-display e2h-reveal m-0 text-[28px] sm:text-[38px] tracking-[-0.03em] font-bold text-[#0f1f4d] text-center">Three steps to your offer</h2>
           <div className="h-1.5 rounded-md bg-[#dbe4ff] overflow-hidden" aria-hidden="true">
             <span className="e2h-fill block h-full rounded-md bg-gradient-to-r from-[#1e3a8a] to-amber-500" />
           </div>
           <div className="grid md:grid-cols-3 gap-5">
             {STEPS.map((s) => (
               <div key={s.n} className="e2h-reveal bg-white rounded-[24px] p-7 border border-[#e6ebf5] flex flex-col gap-3">
-                <span className={`e2h-display text-5xl font-extrabold tracking-[-0.05em] leading-none ${s.color}`}>{s.n}</span>
+                <span className={`e2h-display text-4xl font-bold tracking-[-0.05em] leading-none ${s.color}`}>{s.n}</span>
                 <span className="e2h-display text-xl font-bold">{s.title}</span>
                 <span className="text-base leading-relaxed text-slate-600">{s.desc}</span>
               </div>
@@ -380,13 +445,13 @@ const Home = () => {
       </section>
 
       {/* ================= CTA ================= */}
-      <section className="py-20 lg:py-28">
+      <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="e2h-reveal relative overflow-hidden rounded-[36px] bg-[#0f1f4d] px-6 py-14 sm:px-12 sm:py-20 flex flex-wrap gap-8 items-center justify-between">
             <div className="e2h-mesh" style={{ width: 460, height: 460, background: "#f59e0b", right: -140, top: -160, opacity: 0.4 }} aria-hidden="true" />
             <div className="e2h-mesh" style={{ width: 380, height: 380, background: "#3b82f6", left: -120, bottom: -200, opacity: 0.45 }} aria-hidden="true" />
             <div className="relative flex flex-col gap-3 flex-[1_1_480px]">
-              <h2 className="e2h-display m-0 text-[32px] sm:text-[50px] leading-[1.04] tracking-[-0.045em] font-extrabold text-white">Your next step is one profile away.</h2>
+              <h2 className="e2h-display m-0 text-[28px] sm:text-[42px] leading-[1.08] tracking-[-0.035em] font-bold text-white">Your next step is one profile away.</h2>
               <p className="m-0 text-lg text-indigo-200">Free for candidates, always. Takes two minutes.</p>
             </div>
             <div className="relative flex gap-3 flex-wrap">
