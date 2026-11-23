@@ -11,13 +11,13 @@ import { opportunityLink } from "../utils/opportunityApply";
 import { FEATURES } from "../config/features";
 import useSeo from "../hooks/useSeo";
 import { needsOnboarding } from "../utils/userRoles";
+import { FEATURES_LIST, STEPS } from "./home/homeContent";
 import "./home/home.css";
 
 // The public home page (design option D, "premium light"). Signed-in people never see it:
 // they go straight to their dashboard or onboarding.
 
-// Navbar items: plain text with an underline on hover (.e2h-navlink); the discovery menus
-// take the same look through their buttonClassName prop.
+// Navbar items: plain text, underlined on hover; the discovery menus take this look via buttonClassName.
 const NAV_LINK = "e2h-navlink inline-flex items-center h-10 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-[#0f1f4d] transition";
 const NAV_MENU_BUTTON = "flex items-center gap-1 h-10 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-[#0f1f4d] hover:bg-slate-100/70 transition";
 
@@ -43,21 +43,6 @@ const companyOf = (item) => item.company?.name || item.companyName || (typeof it
 const payOf = (item) =>
   item.salary ||
   (item.stipend?.amount ? `₹${item.stipend.amount}/month` : typeof item.stipend === "string" ? item.stipend : "");
-
-const FEATURES_LIST = [
-  { title: "One profile, every application", desc: "Education, skills, projects and resume, filled in once.", icon: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0", tint: "bg-indigo-50 text-[#1e3a8a]" },
-  { title: "Tailored resumes", desc: "Adjust your resume for each role before you apply.", icon: "M4 4h12l4 4v12H4zM8 12h8M8 16h5", tint: "bg-amber-100 text-amber-800" },
-  { title: "One-click apply", desc: "Apply in seconds and get a confirmation right away.", icon: "M13 2L4 14h7l-1 8 9-12h-7z", tint: "bg-sky-100 text-sky-800" },
-  { title: "Interview tracker", desc: "Every round and date, in one timeline.", icon: "M7 3v3M17 3v3M4 8h16M5 5h14v15H5z", tint: "bg-green-100 text-green-800" },
-  { title: "Instant notifications", desc: "Shortlists, interviews and offers as they happen.", icon: "M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 004 0", tint: "bg-fuchsia-100 text-fuchsia-800" },
-  { title: "Safe and verified", desc: "Employers are checked first. Report any listing that asks for money.", icon: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9 12l2 2 4-4", tint: "bg-rose-100 text-rose-800" },
-];
-
-const STEPS = [
-  { n: "01", title: "Register & verify", desc: "Sign up with Google, or with email and a one-time code.", color: "text-[#1e3a8a]" },
-  { n: "02", title: "Complete your profile", desc: "Add education, skills, projects and your resume.", color: "text-[#3b5bcc]" },
-  { n: "03", title: "Apply & get hired", desc: "Apply in one click and track every interview.", color: "text-amber-700" },
-];
 
 const Icon = ({ d, className = "w-5 h-5", strokeWidth = 2.2 }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -132,35 +117,53 @@ const Home = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // The 3D card stack tilts toward the cursor and fans out while pointed at. CSS variables
-  // are set straight on the element (once per frame) so moving the mouse doesn't re-render.
+  // The 3D card eases toward the cursor and sways on its own otherwise, so it always reads as 3D.
+  // One animation-frame loop writes CSS variables to the element (no re-render). Reduced motion
+  // keeps the static tilt from home.css.
   const sceneRef = useRef(null);
-  const frameRef = useRef(0);
-  const reducedMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  const handleScenePointer = (e) => {
+  useEffect(() => {
     const scene = sceneRef.current;
-    if (!scene || reducedMotion || e.pointerType === "touch") return;
-    const rect = scene.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    cancelAnimationFrame(frameRef.current);
-    frameRef.current = requestAnimationFrame(() => {
-      scene.style.setProperty("--tx", (x * 2 - 1).toFixed(3));
-      scene.style.setProperty("--ty", (y * 2 - 1).toFixed(3));
-      scene.style.setProperty("--gx", `${(x * 100).toFixed(1)}%`);
-      scene.style.setProperty("--gy", `${(y * 100).toFixed(1)}%`);
-      scene.classList.add("is-active");
-    });
-  };
-  const handleSceneLeave = () => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-    cancelAnimationFrame(frameRef.current);
-    scene.style.setProperty("--tx", "0");
-    scene.style.setProperty("--ty", "0");
-    scene.classList.remove("is-active");
-  };
-  useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
+    if (!scene || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const target = { x: 0, y: 0 };
+    const current = { x: -0.4, y: 0.2 };
+    let pointing = false;
+    let frame = 0;
+    const startedAt = performance.now();
+
+    const onMove = (e) => {
+      if (e.pointerType === "touch") return;
+      const rect = scene.getBoundingClientRect();
+      target.x = Math.max(-1, Math.min(1, ((e.clientX - rect.left) / rect.width) * 2 - 1));
+      target.y = Math.max(-1, Math.min(1, ((e.clientY - rect.top) / rect.height) * 2 - 1));
+      pointing = true;
+    };
+    const onLeave = () => {
+      pointing = false;
+    };
+    const tick = (now) => {
+      if (!pointing) {
+        const t = (now - startedAt) / 1000;
+        target.x = Math.sin(t * 0.55) * 0.5 - 0.15;
+        target.y = Math.cos(t * 0.4) * 0.3 + 0.1;
+      }
+      current.x += (target.x - current.x) * 0.075;
+      current.y += (target.y - current.y) * 0.075;
+      scene.style.setProperty("--tx", current.x.toFixed(4));
+      scene.style.setProperty("--ty", current.y.toFixed(4));
+      scene.style.setProperty("--gx", `${((current.x + 1) * 50).toFixed(2)}%`);
+      scene.style.setProperty("--gy", `${((current.y + 1) * 50).toFixed(2)}%`);
+      frame = requestAnimationFrame(tick);
+    };
+
+    scene.addEventListener("pointermove", onMove);
+    scene.addEventListener("pointerleave", onLeave);
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      scene.removeEventListener("pointermove", onMove);
+      scene.removeEventListener("pointerleave", onLeave);
+    };
+  }, [isInitialized, user]);
 
   // Only real listings from the API; with none, the board shows a link to browse instead.
   useEffect(() => {
@@ -318,60 +321,34 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Decoration: profile, listing and interview cards stacked in 3D. It tilts toward the
-              cursor and fans out while pointed at (handleScenePointer). */}
-          <div
-            ref={sceneRef}
-            className="e2h-scene hidden sm:block"
-            onPointerMove={handleScenePointer}
-            onPointerLeave={handleSceneLeave}
-            aria-hidden="true"
-          >
+          {/* Decoration: the "next interview" card lying in 3D. It eases toward the cursor and sways
+              on its own otherwise (see the effect above); its edge gives it thickness. */}
+          <div ref={sceneRef} className="e2h-scene hidden sm:flex" aria-hidden="true">
             <div className="e2h-shadow" />
-            <div className="e2h-tilt">
-            <div className="e2h-iso">
-              <div className="e2h-layer bg-[#1e3a8a] text-white">
-                <span className="text-xs font-extrabold tracking-[.08em] text-amber-400">YOUR PROFILE</span>
-                <span className="e2h-display text-xl font-bold">Education · Skills · Resume</span>
-                <span className="h-2 rounded-md bg-white/20 overflow-hidden"><span className="block w-[82%] h-full bg-amber-400 rounded-md" /></span>
-                <span className="flex gap-1.5 flex-wrap text-[11px]">
-                  <span className="px-2 py-1 rounded-md bg-white/15">React</span>
-                  <span className="px-2 py-1 rounded-md bg-white/15">Python</span>
-                  <span className="px-2 py-1 rounded-md bg-white/15">SQL</span>
-                </span>
-              </div>
-              <div className="e2h-layer e2h-l2 bg-white border border-slate-200">
-                <span className="flex gap-2.5 items-center">
-                  <span className="w-10 h-10 rounded-[11px] bg-indigo-50 text-[#1e3a8a] font-extrabold flex items-center justify-center">WD</span>
-                  <span className="flex flex-col"><span className="font-extrabold text-[15px]">Web Development Intern</span><span className="text-xs text-slate-600">Remote · 3 months</span></span>
-                </span>
-                <span className="flex gap-1.5"><span className="text-[11px] font-bold px-2 py-1 rounded-md bg-green-100 text-green-800">Verified</span></span>
-                <span className="mt-auto h-10 rounded-[11px] bg-[#1e3a8a] text-white font-bold text-[13px] flex items-center justify-center">Apply in one click</span>
-              </div>
-              <div className="e2h-layer e2h-l3 overflow-hidden bg-amber-500 text-[#1c1300]">
-                <span className="e2h-glare" />
-                <span className="text-xs font-extrabold tracking-[.08em]">NEXT INTERVIEW</span>
-                <span className="e2h-display text-[22px] font-extrabold">HR round: scheduled</span>
-                <span className="mt-auto grid grid-cols-4 gap-1.5">
-                  <span className="h-1.5 rounded-md bg-[#1c1300]" /><span className="h-1.5 rounded-md bg-[#1c1300]" /><span className="h-1.5 rounded-md bg-[#1c1300]" /><span className="h-1.5 rounded-md bg-[#1c1300]/25" />
-                </span>
-              </div>
+            <div className="e2h-isocard">
+              <span className="e2h-glare" />
+              <span className="text-xs font-bold tracking-[.1em]">NEXT INTERVIEW</span>
+              <span className="e2h-display text-[24px] font-bold leading-tight">HR round: scheduled</span>
+              <span className="text-[13px] font-medium text-[#3d2a00]">Web Development Intern · Remote</span>
+              <span className="mt-auto grid grid-cols-4 gap-2">
+                <span className="h-2 rounded-full bg-[#1c1300]" /><span className="h-2 rounded-full bg-[#1c1300]" /><span className="h-2 rounded-full bg-[#1c1300]" /><span className="h-2 rounded-full bg-[#1c1300]/25" />
+              </span>
             </div>
-            </div>
-            <span className="e2h-par left-[2%] top-[16%]" style={{ "--depth": "22px" }}>
+            <span className="e2h-par left-[4%] top-[5%]" style={{ "--depth": "22px" }}>
               <span className="e2h-float flex gap-2 items-center px-3.5 py-2 rounded-full bg-white border border-slate-200 text-[13px] font-semibold text-green-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]"><span className="w-2 h-2 rounded-full bg-green-500" />Employer verified</span>
             </span>
             <span className="e2h-par right-[0%] top-[30%]" style={{ "--depth": "30px" }}>
               <span className="e2h-float d1 block px-3.5 py-2 rounded-full bg-white border border-slate-200 text-[13px] font-semibold text-amber-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Zero fees, always</span>
             </span>
-            <span className="e2h-par left-[12%] bottom-[8%]" style={{ "--depth": "16px" }}>
+            <span className="e2h-par left-[8%] bottom-[2%]" style={{ "--depth": "16px" }}>
               <span className="e2h-float d2 block px-3.5 py-2 rounded-full bg-white border border-slate-200 text-[13px] font-semibold text-[#1e3a8a] shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Shortlisted</span>
             </span>
           </div>
         </div>
       </section>
 
-      {/* ================= LIVE BOARD (real listings) ================= */}
+      {/* ================= LIVE BOARD (real listings; hidden with fewer than three) ================= */}
+      {listings.length >= 3 && (
       <section className="py-14 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-[0.85fr_1.15fr] gap-12 items-center">
           <div className="e2h-reveal flex flex-col gap-4">
@@ -383,8 +360,7 @@ const Home = () => {
               <Link to="/internships" className="inline-flex items-center min-h-[50px] px-6 rounded-[14px] border border-slate-200 bg-white font-bold text-[#0f1f4d] hover:bg-slate-50">Browse internships</Link>
             </div>
           </div>
-          {listings.length >= 3 ? (
-            <div className="e2h-board grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="e2h-board grid grid-cols-2 md:grid-cols-3 gap-4">
               {columns.map((column, c) => (
                 // The third column shows from tablet width up; the wrapper hides it, since
                 // .e2h-col sets its own display.
@@ -396,15 +372,10 @@ const Home = () => {
                   </div>
                 </div>
               ))}
-            </div>
-          ) : (
-            <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-10 text-center text-slate-600">
-              New listings appear here as employers post them.{" "}
-              <Link to="/opportunities" className="font-bold text-[#1e3a8a]">See all opportunities</Link>
-            </div>
-          )}
+          </div>
         </div>
       </section>
+      )}
 
       {/* ================= FEATURES ================= */}
       <section className="pb-16 lg:pb-24">

@@ -30,30 +30,24 @@
 .e2h-in { animation: e2h-up .9s cubic-bezier(.2, .7, .2, 1) both; }
 @keyframes e2h-up { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
 
-/* Three cards stacked in 3D that drift apart and back. The scene follows the cursor:
-   Home.jsx sets --tx/--ty (tilt, -1..1) and --gx/--gy (glare position) on .e2h-scene. */
-.e2h-scene { --tx: 0; --ty: 0; --gx: 50%; --gy: 30%; position: relative; width: 100%; height: 480px; perspective: 1800px; }
-.e2h-tilt { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateX(calc(var(--ty) * -9deg)) rotateY(calc(var(--tx) * 12deg)); transition: transform .35s cubic-bezier(.2, .8, .2, 1); }
-.e2h-iso { position: absolute; left: 50%; top: 50%; width: 300px; height: 210px; margin: -105px 0 0 -150px; transform-style: preserve-3d; transform: rotateX(56deg) rotateZ(-40deg); animation: e2h-iso-in 1.2s .3s cubic-bezier(.2, .8, .2, 1) both; }
-/* Pointing at the stack fans the cards out and stops the breathing */
-.e2h-scene.is-active .e2h-l2 { animation: none; transform: translate3d(-30px, -30px, 110px); transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
-.e2h-scene.is-active .e2h-l3 { animation: none; transform: translate3d(-60px, -60px, 220px); transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
-.e2h-glare { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(260px circle at var(--gx) var(--gy), rgba(255, 255, 255, .55), transparent 60%); opacity: 0; transition: opacity .3s ease; }
-.e2h-scene.is-active .e2h-glare { opacity: 1; }
+/* The "next interview" card lying in 3D. Home.jsx eases --tx/--ty (-1..1) and --gx/--gy
+   (glare position) on .e2h-scene every frame, so no CSS transition is needed (it would
+   lag). The defaults give a still, tilted card for reduced motion. */
+.e2h-scene { --tx: -0.4; --ty: 0.2; --gx: 30%; --gy: 60%; position: relative; width: 100%; height: 480px; perspective: 1400px; align-items: center; justify-content: center; }
+.e2h-isocard {
+  position: relative; width: 330px; height: 220px; padding: 24px; border-radius: 26px;
+  display: flex; flex-direction: column; gap: 6px; color: #1c1300;
+  background: linear-gradient(135deg, #fcc84a 0%, #f59e0b 55%, #f08c00 100%);
+  will-change: transform;
+  transform: rotateX(calc(54deg + var(--ty) * 9deg)) rotateZ(calc(-38deg + var(--tx) * 12deg)) translateZ(calc(var(--ty) * -12px));
+  /* The stacked 1px shadows are the card's edge, so it always shows thickness; the last one
+     is the drop shadow on the page. */
+  box-shadow: 0 1px 0 #c2700a, 0 2px 0 #c2700a, 0 3px 0 #c2700a, 0 4px 0 #c2700a, 0 5px 0 #c2700a, 0 6px 0 #c2700a, 0 7px 0 #c2700a, 0 8px 0 #c2700a, 0 9px 0 #c2700a, 0 10px 0 #c2700a, 0 40px 50px -18px rgba(15, 31, 77, .4);
+}
+.e2h-glare { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(260px circle at var(--gx) var(--gy), rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 60%); }
 /* Chips drift against the tilt, by depth, for a little parallax */
-.e2h-par { position: absolute; transition: transform .35s cubic-bezier(.2, .8, .2, 1); transform: translate(calc(var(--tx) * var(--depth, 14px) * -1), calc(var(--ty) * var(--depth, 14px) * -1)); }
-@keyframes e2h-iso-in { from { opacity: 0; transform: rotateX(56deg) rotateZ(-40deg) translateZ(-200px); } to { opacity: 1; transform: rotateX(56deg) rotateZ(-40deg); } }
-.e2h-layer { position: absolute; inset: 0; border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 30px 50px -20px rgba(15, 31, 77, .35); }
-.e2h-l2 { animation: e2h-e2 6s ease-in-out infinite; }
-.e2h-l3 { animation: e2h-e3 6s ease-in-out infinite; }
-/* Each card also steps sideways in the plane, so the stack still reads as three cards
-   where the browser flattens 3D. */
-.e2h-l2 { transform: translate3d(-12px, -12px, 36px); }
-.e2h-l3 { transform: translate3d(-24px, -24px, 72px); }
-@keyframes e2h-e2 { 0%, 100% { transform: translate3d(-12px, -12px, 36px); } 50% { transform: translate3d(-22px, -22px, 96px); } }
-@keyframes e2h-e3 { 0%, 100% { transform: translate3d(-24px, -24px, 72px); } 50% { transform: translate3d(-44px, -44px, 190px); } }
-.e2h-shadow { position: absolute; left: 50%; top: 68%; width: 380px; height: 90px; margin-left: -210px; border-radius: 9999px; background: radial-gradient(ellipse, rgba(15, 31, 77, .28), transparent 70%); filter: blur(10px); animation: e2h-sh 6s ease-in-out infinite; }
-@keyframes e2h-sh { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: .7; } }
+.e2h-par { position: absolute; transform: translate(calc(var(--tx) * var(--depth, 14px) * -1), calc(var(--ty) * var(--depth, 14px) * -1)); }
+.e2h-shadow { position: absolute; left: 50%; top: 70%; width: 320px; height: 60px; margin-left: -160px; border-radius: 9999px; background: radial-gradient(ellipse, rgba(15, 31, 77, .25), transparent 70%); filter: blur(12px); transform: translateX(calc(var(--tx) * -30px)); }
 .e2h-float { animation: e2h-float 6s ease-in-out infinite; }
 .e2h-float.d1 { animation-duration: 7s; animation-delay: 1s; }
 .e2h-float.d2 { animation-duration: 5.5s; animation-delay: .5s; }
