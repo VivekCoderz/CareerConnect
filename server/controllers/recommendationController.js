@@ -1,4 +1,4 @@
-const { generateFresherRecommendations } = require("../services/recommendationEngine");
+const { getRecommendations } = require("../services/recommendationCache");
 
 /**
  * GET /api/recommendations
@@ -7,12 +7,12 @@ const { generateFresherRecommendations } = require("../services/recommendationEn
 const getRecommendationsOverview = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const recommendations = await generateFresherRecommendations(userId);
+    const { recommendations, generatedAt } = await getRecommendations(userId);
 
     return res.status(200).json({
       success: true,
       data: recommendations,
-      generatedAt: new Date().toISOString(),
+      generatedAt: new Date(generatedAt).toISOString(),
     });
   } catch (error) {
     console.error("Recommendation overview error:", error);
@@ -28,7 +28,7 @@ const getRecommendedJobs = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { workMode, location, search } = req.query;
-    const recommendations = await generateFresherRecommendations(userId);
+    const { recommendations } = await getRecommendations(userId);
 
     let jobs = recommendations.recommendedJobs || [];
 
@@ -66,7 +66,7 @@ const getRecommendedJobs = async (req, res, next) => {
 const getRecommendedInternships = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const recommendations = await generateFresherRecommendations(userId);
+    const { recommendations } = await getRecommendations(userId);
 
     return res.status(200).json({
       success: true,
@@ -83,7 +83,7 @@ const getRecommendedInternships = async (req, res, next) => {
 const getSkillGapAnalysis = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const recommendations = await generateFresherRecommendations(userId);
+    const { recommendations } = await getRecommendations(userId);
 
     return res.status(200).json({
       success: true,
@@ -100,7 +100,7 @@ const getSkillGapAnalysis = async (req, res, next) => {
 const getRecommendedCourses = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const recommendations = await generateFresherRecommendations(userId);
+    const { recommendations } = await getRecommendations(userId);
 
     return res.status(200).json({
       success: true,
@@ -117,7 +117,7 @@ const getRecommendedCourses = async (req, res, next) => {
 const getRecommendedProjects = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const recommendations = await generateFresherRecommendations(userId);
+    const { recommendations } = await getRecommendations(userId);
 
     return res.status(200).json({
       success: true,
@@ -134,7 +134,7 @@ const getRecommendedProjects = async (req, res, next) => {
 const getCareerPaths = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const recommendations = await generateFresherRecommendations(userId);
+    const { recommendations } = await getRecommendations(userId);
 
     return res.status(200).json({
       success: true,
@@ -151,7 +151,7 @@ const getCareerPaths = async (req, res, next) => {
 const getActionPlan = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const recommendations = await generateFresherRecommendations(userId);
+    const { recommendations } = await getRecommendations(userId);
 
     return res.status(200).json({
       success: true,

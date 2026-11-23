@@ -13,6 +13,7 @@ const Internship = require("../models/Internship");
 const EmployerProfile = require("../models/EmployerProfile");
 const StudentProfile = require("../models/StudentProfile");
 const FresherProfile = require("../models/FresherProfile");
+const RecommendationCache = require("../models/RecommendationCache");
 const ProfessionalProfile = require("../models/ProfessionalProfile");
 const Notification = require("../models/Notification");
 const NotificationUserState = require("../models/NotificationUserState");
@@ -54,6 +55,7 @@ const deleteCandidateData = async (userId) => {
     Resume.deleteMany({ user: userId }),
     StudentProfile.deleteMany({ userId }),
     FresherProfile.deleteMany({ userId }),
+    RecommendationCache.deleteMany({ userId }),
     ProfessionalProfile.deleteMany({ userId }),
     CourseProgress.deleteMany({ student: userId }),
     Enrollment.deleteMany({ userId }),

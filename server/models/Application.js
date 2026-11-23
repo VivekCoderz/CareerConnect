@@ -371,12 +371,19 @@ applicationSchema.pre("validate", function () {
 const ENDING_STATUSES = ["Rejected", "rejected", "Withdrawn", "withdrawn"];
 
 applicationSchema.pre("save", function () {
+  this.$locals.created = this.isNew;
   this.$locals.ended = !this.isNew && this.isModified("status") && ENDING_STATUSES.includes(this.status);
 });
 
 applicationSchema.post("save", async function () {
   // Loaded here so neither model file depends on the other being loaded first.
   if (this.$locals.ended) await require("./JobOffer").withdrawPending([this._id]);
+  // Recommendations leave out listings the candidate applied to, so a new application makes them stale.
+  // The application is already saved, so a failed clear must not fail the request (the entry still expires in 10 minutes).
+  if (this.$locals.created) {
+    await require("../services/recommendationCache").clearRecommendations(this.candidateId)
+      .catch((error) => console.error("Recommendation cache clear failed:", error.message));
+  }
 });
 
 applicationSchema.statics.ENDING_STATUSES = ENDING_STATUSES;
