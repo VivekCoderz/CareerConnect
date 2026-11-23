@@ -1,23 +1,95 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../components/jobs/JobDiscoveryMenu";
 import { getDashboardPath } from "../utils/dashboardRedirect";
-import { logout } from "../redux/features/authSlice";
-import { logoutUser } from "../services/authService";
 import internshipService from "../services/internshipService";
 import jobService from "../services/jobService";
 import BrandLogo from "../components/common/BrandLogo";
-import ViewDetailsButton from "../components/common/ViewDetailsButton";
 import { opportunityLink } from "../utils/opportunityApply";
 import { FEATURES } from "../config/features";
 import useSeo from "../hooks/useSeo";
 import { needsOnboarding } from "../utils/userRoles";
+import "./home/home.css";
+
+// The public home page (design option D, "premium light"). Signed-in people never see it:
+// they go straight to their dashboard or onboarding.
+
+const LOGO_TINTS = [
+  "bg-indigo-50 text-[#1e3a8a]",
+  "bg-amber-100 text-amber-800",
+  "bg-green-100 text-green-800",
+  "bg-sky-100 text-sky-800",
+  "bg-fuchsia-100 text-fuchsia-800",
+  "bg-rose-100 text-rose-800",
+];
+
+const initialsOf = (title = "") =>
+  title
+    .split(/\s+/)
+    .filter((word) => /^[A-Za-z]/.test(word))
+    .slice(0, 2)
+    .map((word) => word[0].toUpperCase())
+    .join("") || "E2";
+
+const companyOf = (item) => item.company?.name || item.companyName || (typeof item.company === "string" ? item.company : "");
+
+const payOf = (item) =>
+  item.salary ||
+  (item.stipend?.amount ? `₹${item.stipend.amount}/month` : typeof item.stipend === "string" ? item.stipend : "");
+
+const FEATURES_LIST = [
+  { title: "One profile, every application", desc: "Education, skills, projects and resume, filled in once.", icon: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0", tint: "bg-indigo-50 text-[#1e3a8a]" },
+  { title: "Tailored resumes", desc: "Adjust your resume for each role before you apply.", icon: "M4 4h12l4 4v12H4zM8 12h8M8 16h5", tint: "bg-amber-100 text-amber-800" },
+  { title: "One-click apply", desc: "Apply in seconds and get a confirmation right away.", icon: "M13 2L4 14h7l-1 8 9-12h-7z", tint: "bg-sky-100 text-sky-800" },
+  { title: "Interview tracker", desc: "Every round and date, in one timeline.", icon: "M7 3v3M17 3v3M4 8h16M5 5h14v15H5z", tint: "bg-green-100 text-green-800" },
+  { title: "Instant notifications", desc: "Shortlists, interviews and offers as they happen.", icon: "M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 004 0", tint: "bg-fuchsia-100 text-fuchsia-800" },
+  { title: "Safe and verified", desc: "Employers are checked first. Report any listing that asks for money.", icon: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9 12l2 2 4-4", tint: "bg-rose-100 text-rose-800" },
+];
+
+const STEPS = [
+  { n: "01", title: "Register & verify", desc: "Sign up with Google, or with email and a one-time code.", color: "text-[#1e3a8a]" },
+  { n: "02", title: "Complete your profile", desc: "Add education, skills, projects and your resume.", color: "text-[#3b5bcc]" },
+  { n: "03", title: "Apply & get hired", desc: "Apply in one click and track every interview.", color: "text-amber-700" },
+];
+
+const Icon = ({ d, className = "w-5 h-5", strokeWidth = 2.2 }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d={d} pathLength="100" />
+  </svg>
+);
+
+/** One listing on the live board; links to its page, or to the employer's site for external listings. */
+const BoardCard = ({ item, type, tint }) => {
+  const link = opportunityLink(item, type);
+  const company = companyOf(item);
+  const place = item.location || item.workMode || "";
+  const body = (
+    <>
+      <span className="flex gap-2.5 items-center">
+        <span className={`w-10 h-10 shrink-0 rounded-[11px] flex items-center justify-center font-extrabold text-[13px] ${tint}`}>
+          {initialsOf(item.title)}
+        </span>
+        <span className="flex flex-col min-w-0">
+          <span className="font-bold text-sm text-slate-900 truncate">{item.title}</span>
+          <span className="text-xs text-slate-600 truncate">{[company, place].filter(Boolean).join(" · ")}</span>
+        </span>
+      </span>
+      <span className="flex gap-1.5 flex-wrap">
+        <span className="text-[11px] font-semibold px-2 py-1 rounded-md bg-slate-100 text-slate-700">{type}</span>
+        {payOf(item) && <span className="text-[11px] font-bold px-2 py-1 rounded-md bg-green-100 text-green-800">{payOf(item)}</span>}
+      </span>
+    </>
+  );
+  const className = "rounded-[18px] bg-white border border-[#e6ebf5] p-4 flex flex-col gap-3 no-underline transition hover:scale-[1.03] hover:shadow-[0_24px_40px_-22px_rgba(15,31,77,.45)]";
+  if (link?.to) return <Link to={link.to} className={className}>{body}</Link>;
+  if (link?.href) return <a href={link.href} target="_blank" rel="noopener noreferrer" className={className}>{body}</a>;
+  return <div className={className}>{body}</div>;
+};
 
 const Home = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   useSeo({ path: "/" });
   const { user, isInitialized } = useSelector((state) => state.auth);
 
@@ -34,34 +106,26 @@ const Home = () => {
   }, [user, isInitialized, navigate]);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchType, setSearchType] = useState("job");
   const [internships, setInternships] = useState([]);
   const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = mobileMenuOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
   }, [mobileMenuOpen]);
 
-  // Only real listings from the API; with none, the hero shows no job cards at all.
-  const featuredJobs = jobs || [];
-
+  // Only real listings from the API; with none, the board shows a link to browse instead.
   useEffect(() => {
     const loadHomeData = async () => {
       try {
-        setLoading(true);
         const [intRes, jobRes] = await Promise.all([
           internshipService.getInternships({ limit: 8, sort: "latest" }).catch(() => ({ internships: [] })),
           jobService.getJobs({ limit: 8, sort: "latest" }).catch(() => ({ jobs: [] })),
         ]);
-
         if (intRes?.success && Array.isArray(intRes.internships || intRes.data)) {
           setInternships((intRes.internships || intRes.data).slice(0, 8));
         }
@@ -70,868 +134,275 @@ const Home = () => {
         }
       } catch (err) {
         console.warn("Home data fetch error:", err.message);
-      } finally {
-        setLoading(false);
       }
     };
     loadHomeData();
   }, []);
 
-  const handleLogout = () => {
-    logout();
-  };
-
   const handleHeroSearchSubmit = (e) => {
     e?.preventDefault?.();
-    if (searchQuery.trim()) {
-      navigate(`/opportunities?q=${encodeURIComponent(searchQuery.trim())}`);
-    } else {
-      navigate("/opportunities");
-    }
+    const params = new URLSearchParams({ type: searchType });
+    if (searchQuery.trim()) params.set("q", searchQuery.trim());
+    navigate(`/opportunities?${params.toString()}`);
   };
-
-  const dashboardUrl = user ? getDashboardPath(user.userType, user) : "/home";
 
   if (!isInitialized || user) {
     return null;
   }
 
+  // Jobs and internships interleaved, then dealt into three columns that scroll on a loop.
+  const listings = [];
+  for (let i = 0; i < Math.max(jobs.length, internships.length); i += 1) {
+    if (jobs[i]) listings.push({ item: jobs[i], type: "Job" });
+    if (internships[i]) listings.push({ item: internships[i], type: "Internship" });
+  }
+  const columns = [0, 1, 2].map((c) => listings.filter((_, i) => i % 3 === c));
+  const tabClass = (active) =>
+    `min-h-[40px] px-[18px] rounded-[10px] text-sm font-bold transition ${active ? "bg-white text-[#1e3a8a] shadow-[0_6px_14px_-8px_rgba(15,31,77,.5)]" : "text-slate-600 hover:text-slate-900"}`;
+
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans">
-      {/* ================= 1. INTERNSHALA-STYLE NAVBAR ================= */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200/90 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-[68px] gap-2 sm:gap-4">
-            {/* Left: Logo & Dropdowns */}
-            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-              <Link to="/" className="flex items-center gap-2">
-                {/* Smaller on phones so Login, Register and the menu fit at 360px */}
-                <BrandLogo className="h-8 w-32 sm:h-10 sm:w-44" />
-              </Link>
+    <div className="e2h-root min-h-screen bg-[#fbfcff] text-slate-900 flex flex-col overflow-x-hidden">
+      {/* ================= HERO ================= */}
+      <section className="relative overflow-hidden pb-14">
+        <div className="e2h-mesh e2h-m1" aria-hidden="true" />
+        <div className="e2h-mesh e2h-m2" aria-hidden="true" />
+        <div className="e2h-mesh e2h-m3" aria-hidden="true" />
 
-              {/* Navigation Dropdowns like Internshala */}
-              <div className="hidden md:flex items-center gap-2">
-                <JobDiscoveryMenu />
-                <InternshipDiscoveryMenu />
-                {FEATURES.courses && (
-                  <Link
-                    to="/courses"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
-                  >
-                    <span>Courses</span>
-                    <span className="px-1.5 py-0.2 rounded text-[9.5px] font-extrabold bg-[#ea580c] text-white uppercase tracking-wider">
-                      OFFER
-                    </span>
-                  </Link>
-                )}
-
-                <Link
-                  to="/organizations/request-access"
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
-                >
-                  <span>For Organizations</span>
+        <header className="relative z-20 pt-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="h-[68px] flex items-center justify-between gap-3 pl-4 pr-2 sm:pl-5 rounded-[20px] bg-white/75 backdrop-blur-md border border-slate-200/90 shadow-[0_20px_40px_-30px_rgba(15,31,77,.4)]">
+              <div className="flex items-center gap-3 lg:gap-5 min-w-0">
+                <Link to="/" aria-label="E2Job home" className="shrink-0">
+                  <BrandLogo className="h-8 w-32 sm:h-9 sm:w-40" />
                 </Link>
-              </div>
-            </div>
-
-
-            {/* Right: Auth / Actions */}
-            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-              {user ? (
-                <>
-                  <div className="hidden sm:flex items-center gap-2 pr-1">
-                    <div className="w-8 h-8 rounded-full bg-[#1e3a8a] text-white flex items-center justify-center font-bold text-xs uppercase shadow-xs">
-                      {user.fullName?.charAt(0) || "U"}
-                    </div>
-                    <div className="text-left leading-none">
-                      <p className="text-xs font-semibold text-slate-800">{user.fullName || "User"}</p>
-                      <span className="text-[10px] text-slate-400 font-medium capitalize">
-                        {user.role === "employer" ? "Employer" : (user.userType || "Student")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <Link
-                    to={dashboardUrl}
-                    className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#008bdc] hover:bg-[#0074b7] text-white text-xs font-bold transition shadow-xs"
-                  >
-                    <span>Dashboard</span>
-                  </Link>
-
-                  <button
-                    onClick={handleLogout}
-                    className="hidden md:inline-flex items-center h-9 px-3 rounded-xl border border-slate-200 text-slate-600 hover:text-red-600 hover:bg-red-50 text-xs font-semibold transition"
-                  >
-                    Sign Out
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link
-                    to="/login"
-                    className="h-9 px-3 sm:px-4 rounded-xl border border-[#008bdc] text-[#008bdc] hover:bg-[#008bdc]/5 text-xs font-bold transition inline-flex items-center justify-center"
-                  >
-                    Login
-                  </Link>
-
-                  <div className="relative group">
-                    <Link
-                      to="/register/student"
-                      className="h-9 px-3 sm:px-4 rounded-xl bg-[#008bdc] hover:bg-[#0074b7] text-white text-xs font-bold transition inline-flex items-center justify-center shadow-xs"
-                    >
-                      Register
-                    </Link>
-                  </div>
-
-                  <div className="hidden sm:block pl-1">
-                    <Link
-                      to="/register/employer"
-                      className="text-xs font-bold text-[#008bdc] hover:text-[#005f96] transition flex items-center gap-1"
-                    >
-                      <span>For Employers</span>
-                      <span className="text-sm font-normal">›</span>
-                    </Link>
-                  </div>
-                </>
-              )}
-
-              {/* Mobile 3-line Hamburger Menu Button */}
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen((prev) => !prev)}
-                className="md:hidden p-2 -mr-1 rounded-xl text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition flex items-center justify-center min-w-[40px] min-h-[40px] cursor-pointer"
-                aria-label={mobileMenuOpen ? "Close menu" : "Open navigation menu"}
-                title="Navigation menu"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  {mobileMenuOpen ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                <nav className="hidden lg:flex items-center gap-2" aria-label="Main">
+                  <JobDiscoveryMenu />
+                  <InternshipDiscoveryMenu />
+                  {FEATURES.courses && (
+                    <Link to="/courses" className="px-3 py-1.5 rounded-xl text-sm font-semibold text-slate-700 hover:text-[#1e3a8a] hover:bg-indigo-50">Courses</Link>
                   )}
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* ================= MOBILE SIDEBAR / DRAWER ================= */}
-      {mobileMenuOpen && (
-        <div
-          onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 bg-slate-900/60 z-50 md:hidden backdrop-blur-xs transition-opacity animate-fade-in"
-        />
-      )}
-
-      <aside
-        className={`fixed top-0 left-0 bottom-0 z-50 w-72 bg-white border-r border-slate-200 flex flex-col justify-between transition-transform duration-300 ease-in-out md:hidden shadow-2xl overflow-y-auto ${
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        {/* Drawer Header */}
-        <div>
-          <div className="h-16 px-4 flex items-center justify-between border-b border-slate-100">
-            <Link
-              to="/"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2"
-            >
-              <BrandLogo className="h-9 w-44" />
-            </Link>
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(false)}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
-              aria-label="Close menu"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Navigation Links */}
-          <div className="p-4 space-y-5">
-            {/* Opportunities Section */}
-            <div>
-              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Explore Opportunities
-              </p>
-              <div className="space-y-1">
-                <Link
-                  to="/jobs"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
+                  <Link to="/organizations/request-access" className="px-3 py-1.5 rounded-xl text-sm font-semibold text-slate-700 hover:text-[#1e3a8a] hover:bg-indigo-50">For Organizations</Link>
+                </nav>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Link to="/login" className="hidden sm:inline-flex items-center min-h-[44px] px-4 rounded-[14px] border border-slate-200 bg-white text-[15px] font-bold text-[#0f1f4d] hover:bg-slate-50">Log in</Link>
+                <Link to="/register/student" className="inline-flex items-center min-h-[44px] px-4 rounded-[14px] bg-[#1e3a8a] text-[15px] font-bold text-white shadow-[0_14px_30px_-14px_rgba(30,58,138,.85)] hover:bg-[#0f1f4d]">Sign up free</Link>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen((open) => !open)}
+                  className="lg:hidden inline-flex items-center justify-center w-11 h-11 rounded-xl text-slate-700 hover:bg-slate-100"
+                  aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+                  aria-expanded={mobileMenuOpen}
                 >
-                  <span className="flex items-center gap-2.5">
-                    <span className="text-base">💼</span>
-                    <span>Find Jobs</span>
-                  </span>
-                  <span className="text-slate-400 text-xs">→</span>
-                </Link>
-                <Link
-                  to="/jobs/work-from-home"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="text-base">🏠</span>
-                    <span>Work from Home Jobs</span>
-                  </span>
-                  <span className="text-slate-400 text-xs">→</span>
-                </Link>
-                <Link
-                  to="/internships"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="text-base">🎓</span>
-                    <span>Internships</span>
-                  </span>
-                  <span className="text-slate-400 text-xs">→</span>
-                </Link>
-                <Link
-                  to="/internships/work-from-home"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="text-base">🌐</span>
-                    <span>Remote Internships</span>
-                  </span>
-                  <span className="text-slate-400 text-xs">→</span>
-                </Link>
-
-
-                {FEATURES.courses && (
-                  <Link
-                    to="/courses"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <span className="text-base">🚀</span>
-                      <span>Courses & Upskilling</span>
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#ea580c] text-white uppercase">OFFER</span>
-                  </Link>
-                )}
-
-
-                <Link
-                  to="/opportunities"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="text-base">⚡</span>
-                    <span>Opportunities Matrix</span>
-                  </span>
-                  <span className="text-slate-400 text-xs">→</span>
-                </Link>
+                  <Icon d={mobileMenuOpen ? "M6 6l12 12M18 6L6 18" : "M4 6h16M4 12h16M4 18h16"} className="w-6 h-6" />
+                </button>
               </div>
             </div>
+            {mobileMenuOpen && (
+              <nav className="lg:hidden mt-2 rounded-[20px] bg-white border border-slate-200 shadow-xl p-3 flex flex-col" aria-label="Mobile">
+                {[
+                  ["/jobs", "Jobs"],
+                  ["/internships", "Internships"],
+                  ["/opportunities?source=campus", "Campus hiring"],
+                  ...(FEATURES.courses ? [["/courses", "Courses"]] : []),
+                  ["/organizations/request-access", "For Organizations"],
+                  ["/register/employer", "Hire talent"],
+                  ["/login", "Log in"],
+                ].map(([to, label]) => (
+                  <Link key={to} to={to} onClick={() => setMobileMenuOpen(false)} className="px-3 py-3 rounded-xl text-[15px] font-semibold text-slate-800 hover:bg-slate-50">
+                    {label}
+                  </Link>
+                ))}
+              </nav>
+            )}
+          </div>
+        </header>
 
-            {/* For Employers */}
-            <div className="pt-2 border-t border-slate-100">
-              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Employers
-              </p>
-              <Link
-                to="/register/employer"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100/80 border border-amber-200/60 transition"
-              >
-                <span className="flex items-center gap-2">
-                  <span>🏢</span>
-                  <span>Hire Talent / For Employers</span>
-                </span>
-                <span className="text-amber-700 font-bold">›</span>
-              </Link>
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pt-12 lg:pt-16 grid lg:grid-cols-2 gap-6 items-center">
+          <div className="flex flex-col gap-6">
+            <span className="e2h-in self-start inline-flex gap-2.5 items-center py-1.5 pl-1.5 pr-4 rounded-full bg-white border border-slate-200 text-sm font-semibold text-slate-700 shadow-[0_10px_24px_-18px_rgba(15,31,77,.5)]">
+              <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold">₹0</span>
+              Free for candidates. No employer can charge you.
+            </span>
+            <h1 className="e2h-in e2h-display m-0 text-[42px] sm:text-[58px] lg:text-[70px] leading-[1.06] tracking-[-0.045em] font-extrabold text-[#0f1f4d]" style={{ animationDelay: ".15s" }}>
+              Find{" "}
+              <span className="e2h-rot">
+                <span>internships</span>
+                <span>fresher jobs</span>
+                <span>live projects</span>
+              </span>
+              <br />
+              that fit your goals.
+            </h1>
+            <p className="e2h-in m-0 text-lg leading-relaxed text-slate-600 max-w-[540px]" style={{ animationDelay: ".3s" }}>
+              One profile for every application. Verified employers, one-click apply, and every interview tracked in your dashboard.
+            </p>
+
+            <div className="e2h-in max-w-[620px] bg-white rounded-[22px] p-2.5 border border-slate-200 shadow-[0_40px_70px_-40px_rgba(15,31,77,.55)] flex flex-col gap-2.5" style={{ animationDelay: ".45s" }}>
+              <div className="self-start flex gap-1.5 p-1 bg-slate-100 rounded-[13px]" role="tablist" aria-label="Search for">
+                <button type="button" role="tab" aria-selected={searchType === "job"} className={tabClass(searchType === "job")} onClick={() => setSearchType("job")}>Jobs</button>
+                <button type="button" role="tab" aria-selected={searchType === "internship"} className={tabClass(searchType === "internship")} onClick={() => setSearchType("internship")}>Internships</button>
+              </div>
+              <form onSubmit={handleHeroSearchSubmit} className="flex flex-col sm:flex-row gap-2">
+                <label htmlFor="home-search" className="flex-1 flex items-center gap-3 px-4 min-h-[56px] rounded-[14px] bg-[#f5f7fc]">
+                  <span className="text-[#1e3a8a]"><Icon d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" /></span>
+                  <span className="sr-only">Search</span>
+                  <input
+                    id="home-search"
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={searchType === "job" ? "Role, skill or company" : "Internship, skill or field"}
+                    className="flex-1 min-w-0 border-0 outline-none bg-transparent text-base text-slate-900 placeholder:text-slate-500"
+                  />
+                </label>
+                <button type="submit" className="inline-flex items-center justify-center gap-2 min-h-[56px] px-6 rounded-[14px] bg-[#1e3a8a] text-white font-bold hover:bg-[#0f1f4d] transition">
+                  {searchType === "job" ? "Search jobs" : "Search internships"} <span aria-hidden="true">→</span>
+                </button>
+              </form>
+            </div>
+
+            <div className="e2h-in flex gap-5 flex-wrap text-sm font-semibold text-slate-700" style={{ animationDelay: ".6s" }}>
+              <span className="flex gap-2 items-center"><span className="text-green-700"><Icon d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9 12l2 2 4-4" className="w-[18px] h-[18px]" /></span>Verified employers</span>
+              <span className="flex gap-2 items-center"><span className="text-[#1e3a8a]"><Icon d="M13 2L4 14h7l-1 8 9-12h-7z" className="w-[18px] h-[18px]" /></span>One-click apply</span>
+              <span className="flex gap-2 items-center"><span className="text-amber-700"><Icon d="M7 3v3M17 3v3M4 8h16M5 5h14v15H5z" className="w-[18px] h-[18px]" /></span>Interview tracking</span>
             </div>
           </div>
-        </div>
 
-        {/* Drawer Footer: Auth Actions */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50 space-y-2">
-          {user ? (
-            <>
-              <Link
-                to={dashboardUrl}
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full h-10 rounded-xl bg-[#008bdc] hover:bg-[#0074b7] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs"
-              >
-                <span>Go to Dashboard</span>
-              </Link>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleLogout();
-                }}
-                className="w-full h-10 rounded-xl border border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600 text-xs font-semibold transition flex items-center justify-center cursor-pointer"
-              >
-                Sign Out
-              </button>
-            </>
+          {/* Decoration: profile, listing and interview cards stacked in 3D */}
+          <div className="e2h-scene hidden sm:block" aria-hidden="true">
+            <div className="e2h-shadow" />
+            <div className="e2h-iso">
+              <div className="e2h-layer bg-[#1e3a8a] text-white">
+                <span className="text-xs font-extrabold tracking-[.08em] text-amber-400">YOUR PROFILE</span>
+                <span className="e2h-display text-xl font-bold">Education · Skills · Resume</span>
+                <span className="h-2 rounded-md bg-white/20 overflow-hidden"><span className="block w-[82%] h-full bg-amber-400 rounded-md" /></span>
+                <span className="flex gap-1.5 flex-wrap text-[11px]">
+                  <span className="px-2 py-1 rounded-md bg-white/15">React</span>
+                  <span className="px-2 py-1 rounded-md bg-white/15">Python</span>
+                  <span className="px-2 py-1 rounded-md bg-white/15">SQL</span>
+                </span>
+              </div>
+              <div className="e2h-layer e2h-l2 bg-white border border-slate-200">
+                <span className="flex gap-2.5 items-center">
+                  <span className="w-10 h-10 rounded-[11px] bg-indigo-50 text-[#1e3a8a] font-extrabold flex items-center justify-center">WD</span>
+                  <span className="flex flex-col"><span className="font-extrabold text-[15px]">Web Development Intern</span><span className="text-xs text-slate-600">Remote · 3 months</span></span>
+                </span>
+                <span className="flex gap-1.5"><span className="text-[11px] font-bold px-2 py-1 rounded-md bg-green-100 text-green-800">Verified</span></span>
+                <span className="mt-auto h-10 rounded-[11px] bg-[#1e3a8a] text-white font-bold text-[13px] flex items-center justify-center">Apply in one click</span>
+              </div>
+              <div className="e2h-layer e2h-l3 bg-amber-500 text-[#1c1300]">
+                <span className="text-xs font-extrabold tracking-[.08em]">NEXT INTERVIEW</span>
+                <span className="e2h-display text-[22px] font-extrabold">HR round: scheduled</span>
+                <span className="mt-auto grid grid-cols-4 gap-1.5">
+                  <span className="h-1.5 rounded-md bg-[#1c1300]" /><span className="h-1.5 rounded-md bg-[#1c1300]" /><span className="h-1.5 rounded-md bg-[#1c1300]" /><span className="h-1.5 rounded-md bg-[#1c1300]/25" />
+                </span>
+              </div>
+            </div>
+            <span className="e2h-float absolute left-[4%] top-[18%] flex gap-2 items-center px-4 py-2.5 rounded-full bg-white border border-slate-200 text-[13px] font-bold text-green-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]"><span className="w-2 h-2 rounded-full bg-green-500" />Employer verified</span>
+            <span className="e2h-float d1 absolute right-[2%] top-[30%] px-4 py-2.5 rounded-full bg-white border border-slate-200 text-[13px] font-bold text-amber-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Zero fees, always</span>
+            <span className="e2h-float d2 absolute left-[14%] bottom-[10%] px-4 py-2.5 rounded-full bg-white border border-slate-200 text-[13px] font-bold text-[#1e3a8a] shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Shortlisted</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= LIVE BOARD (real listings) ================= */}
+      <section className="py-16 lg:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-[0.85fr_1.15fr] gap-12 items-center">
+          <div className="e2h-reveal flex flex-col gap-4">
+            <span className="text-[13px] font-extrabold text-amber-700 tracking-[.1em] uppercase">Updated every day</span>
+            <h2 className="e2h-display m-0 text-[32px] sm:text-[46px] leading-[1.06] tracking-[-0.04em] font-extrabold text-[#0f1f4d]">A live board of new opportunities.</h2>
+            <p className="m-0 text-lg leading-relaxed text-slate-600">Internships and fresher jobs from employers we've checked, across cities and remote. Hover to pause and pick one.</p>
+            <div className="flex gap-3 flex-wrap">
+              <Link to="/jobs" className="inline-flex items-center min-h-[50px] px-6 rounded-[14px] bg-[#1e3a8a] text-white font-bold hover:bg-[#0f1f4d]">Browse jobs →</Link>
+              <Link to="/internships" className="inline-flex items-center min-h-[50px] px-6 rounded-[14px] border border-slate-200 bg-white font-bold text-[#0f1f4d] hover:bg-slate-50">Browse internships</Link>
+            </div>
+          </div>
+          {listings.length >= 3 ? (
+            <div className="e2h-board grid grid-cols-2 md:grid-cols-3 gap-4">
+              {columns.map((column, c) => (
+                // The third column shows from tablet width up; the wrapper hides it, since
+                // .e2h-col sets its own display.
+                <div key={c} className={c === 2 ? "hidden md:block" : ""}>
+                  <div className={`e2h-col ${c === 1 ? "down" : c === 2 ? "slow" : ""}`}>
+                    {[...column, ...column].map(({ item, type }, i) => (
+                      <BoardCard key={`${item._id || item.id || item.title}-${i}`} item={item} type={type} tint={LOGO_TINTS[(i + c) % LOGO_TINTS.length]} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
-            <>
-              <Link
-                to="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full h-10 rounded-xl border border-[#008bdc] text-[#008bdc] hover:bg-[#008bdc]/5 text-xs font-bold transition flex items-center justify-center"
-              >
-                Login
-              </Link>
-              <Link
-                to="/register/student"
-                onClick={() => setMobileMenuOpen(false)}
-                className="w-full h-10 rounded-xl bg-[#008bdc] hover:bg-[#0074b7] text-white text-xs font-bold transition flex items-center justify-center shadow-xs"
-              >
-                Register as Candidate
-              </Link>
-            </>
+            <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-10 text-center text-slate-600">
+              New listings appear here as employers post them.{" "}
+              <Link to="/opportunities" className="font-bold text-[#1e3a8a]">See all opportunities</Link>
+            </div>
           )}
         </div>
-      </aside>
-
-      {/* ================= 2. MODERN HERO BANNER SECTION (LIGHT THEME) ================= */}
-   <section className="relative overflow-hidden bg-gradient-to-b from-[#eff6ff] via-white to-white">
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231e3a8a' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-        }} />
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-16 lg:pt-20 lg:pb-24">
-          <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-12 items-center">
-            {/* Left */}
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#fff7ed] border border-[#fed7aa] text-[12px] font-semibold text-[#c2410c] mb-5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b]" />
-                Official Career Platform · E2Job
-              </div>
-
-              <h1 className="text-[2.35rem] sm:text-5xl lg:text-[3.25rem] font-bold tracking-tight text-slate-900 leading-[1.15]">
-                Internships & jobs that{" "}
-                <span className="text-[#1e3a8a]">shape your career</span>
-              </h1>
-
-              <p className="mt-5 text-[16px] text-slate-600 leading-relaxed max-w-xl">
-                Explore internships, jobs and projects. Build your profile, apply in one click, and take the next step — built for students, freshers & professionals.
-              </p>
-
-              {/* Search */}
-              <form onSubmit={handleHeroSearchSubmit} className="mt-8 max-w-xl">
-                <div className="flex flex-col sm:flex-row gap-2 p-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/60 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition">
-                  <div className="flex-1 flex items-center gap-3 px-3">
-                    <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search internships, jobs, companies..."
-                      className="w-full h-11 text-sm outline-none placeholder:text-slate-400 bg-transparent"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="h-11 px-6 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-semibold transition flex items-center justify-center cursor-pointer shadow-sm"
-                  >
-                    Search
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {["Internship", "Remote", "Fresher", "Part-time", "Work from Home"].map((tag) => (
-                    <Link
-                      key={tag}
-                      to={`/opportunities?type=${encodeURIComponent(tag.toLowerCase())}`}
-                      className="px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-semibold text-slate-600 hover:border-[#1e3a8a] hover:text-[#1e40af] transition shadow-2xs"
-                    >
-                      {tag}
-                    </Link>
-                  ))}
-                </div>
-              </form>
-
-              {/* Dual CTA */}
-              <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                {user ? (
-                  <>
-                    <Link
-                      to={dashboardUrl}
-                      className="inline-flex items-center justify-center gap-2 h-12 px-7 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-bold transition shadow-lg shadow-blue-900/20"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                      </svg>
-                      Go to My Dashboard →
-                    </Link>
-                    <Link
-                      to="/opportunities"
-                      className="inline-flex items-center justify-center h-12 px-7 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold transition shadow-sm"
-                    >
-                      Browse Opportunities
-                    </Link>
-                  </>
-                ) : (
-                  <>
-                    <Link
-                      to="/register/student"
-                      className="inline-flex items-center justify-center h-12 px-7 rounded-xl bg-[#1e3a8a] hover:bg-[#1e40af] text-white text-sm font-semibold transition shadow-lg shadow-blue-900/20"
-                    >
-                      I’m a Student / Fresher
-                    </Link>
-                    <Link
-                      to="/register/employer"
-                      className="inline-flex items-center justify-center h-12 px-7 rounded-xl bg-[#f59e0b] hover:bg-[#d97706] text-white text-sm font-semibold transition shadow-lg shadow-amber-500/25"
-                    >
-                      I’m an Employer / Recruiter
-                    </Link>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Right - Visual cards */}
-            <div className="relative hidden lg:block">
-              <div className="absolute -top-6 -right-4 w-72 h-72 bg-[#f59e0b]/10 rounded-full blur-3xl" />
-              <div className="relative space-y-4">
-                {(featuredJobs.length > 0 ? featuredJobs.slice(0, 3) : []).map((job, i) => {
-                  const jobType = job.opportunityType || job.type;
-                  const jobCompany = job.company?.name || job.company;
-                  const jobPay = job.salary || (job.stipend?.amount ? `₹${job.stipend.amount}/month` : typeof job.stipend === "string" ? job.stipend : null);
-                  return (
-                  <div
-                    key={job.id || job._id || job.title || i}
-                    className={`bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5 ${
-                      i === 1 ? "ml-8" : i === 2 ? "ml-4" : ""
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        {jobType && (
-                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#eff6ff] text-[#1e3a8a]">
-                            {jobType}
-                          </span>
-                        )}
-                        <p className="mt-2 text-[15px] font-semibold text-slate-900 line-clamp-1">{job.title}</p>
-                        {jobCompany && <p className="text-sm text-slate-500">{jobCompany}</p>}
-                      </div>
-                      {jobPay && <p className="text-sm font-bold text-[#1e3a8a] shrink-0">{jobPay}</p>}
-                    </div>
-                  </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
       </section>
 
-
-      {/* ================= 4. TRENDING NOW SECTION ================= */}
-      <section className="py-10 bg-slate-50/60 border-b border-slate-200/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Explore opportunities
-            </h2>
-            <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
-              📈
-            </span>
+      {/* ================= FEATURES ================= */}
+      <section className="pb-20 lg:pb-28">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col gap-10">
+          <div className="e2h-reveal text-center flex flex-col gap-3 items-center">
+            <span className="text-[13px] font-extrabold text-amber-700 tracking-[.1em] uppercase">Built for your job search</span>
+            <h2 className="e2h-display m-0 text-[32px] sm:text-[46px] tracking-[-0.04em] font-extrabold text-[#0f1f4d]">Everything you need, nothing you don't</h2>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Banner 1: Internships */}
-            <Link
-              to="/internships"
-              className="group p-5 rounded-3xl bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#334155] text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col justify-between min-h-[160px]"
-            >
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-400/30">
-                  INTERNSHIPS
-                </span>
-                <h3 className="text-base font-bold mt-2.5 group-hover:text-blue-300 transition leading-snug">
-                  Internships for students
-                </h3>
-                <p className="text-xs text-slate-300 mt-1">Paid, remote and in-office internships</p>
-              </div>
-              <span className="text-xs font-bold text-blue-400 mt-4 inline-flex items-center gap-1">
-                Apply now →
-              </span>
-            </Link>
-
-            {/* Banner 2: Jobs */}
-            <Link
-              to="/jobs"
-              className="group p-5 rounded-3xl bg-gradient-to-br from-[#0284c7] via-[#0369a1] to-[#075985] text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col justify-between min-h-[160px]"
-            >
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-white/20 text-white border border-white/30">
-                  JOBS
-                </span>
-                <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-300 transition leading-snug">
-                  Early-Career Jobs
-                </h3>
-                <p className="text-xs text-sky-100 mt-1">Entry-level and fresher openings</p>
-              </div>
-              <span className="text-xs font-bold text-sky-200 mt-4 inline-flex items-center gap-1">
-                Explore jobs →
-              </span>
-            </Link>
-
-            {/* Banner 3: Campus Drives */}
-            <Link
-              to="/opportunities?source=campus"
-              className="group p-5 rounded-3xl bg-gradient-to-br from-[#78350f] via-[#92400e] to-[#b45309] text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col justify-between min-h-[160px]"
-            >
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-200 border border-amber-300/30">
-                  CAMPUS HIRING
-                </span>
-                <h3 className="text-base font-bold mt-2.5 group-hover:text-amber-200 transition leading-snug">
-                  Jobs for freshers
-                </h3>
-                <p className="text-xs text-amber-100 mt-1">Campus hiring and fresher jobs from approved employers</p>
-              </div>
-              <span className="text-xs font-bold text-amber-200 mt-4 inline-flex items-center gap-1">
-                View Campus Hiring →
-              </span>
-            </Link>
-
-            {/* Banner 4: Courses */}
-             {FEATURES.courses && (
-            <Link
-              to="/courses"
-              className="group p-5 rounded-3xl bg-gradient-to-br from-[#4c1d95] via-[#5b21b6] to-[#6d28d9] text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition flex flex-col justify-between min-h-[160px]"
-            >
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-400/20 text-purple-200 border border-purple-300/30">
-                  COURSES
-                </span>
-                <h3 className="text-base font-bold mt-2.5 group-hover:text-purple-200 transition leading-snug">
-                  Job Oriented Certifications
-                </h3>
-                <p className="text-xs text-purple-100 mt-1">With Live Industry Projects</p>
-              </div>
-              <span className="text-xs font-bold text-purple-300 mt-4 inline-flex items-center gap-1">
-                Enroll with 55% OFF →
-              </span>
-            </Link>
-                )}
-
-          </div>
-        </div>
-      </section>
-
-      {/* ================= 5. LATEST INTERNSHIPS ON E2JOB ================= */}
-      <section className="py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-100 pb-4">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Latest internships on E2Job
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                POPULAR CATEGORIES:{" "}
-                <Link to="/internships/work-from-home" className="text-blue-600 font-semibold hover:underline">
-                  Online Internship
-                </Link>{" "}
-                •{" "}
-                <Link to="/internships/in/delhi" className="text-blue-600 font-semibold hover:underline">
-                  Delhi/NCR
-                </Link>{" "}
-                •{" "}
-                <Link to="/internships/in/bangalore" className="text-blue-600 font-semibold hover:underline">
-                  Bangalore
-                </Link>{" "}
-                •{" "}
-                <Link to="/internships/category/data-science" className="text-blue-600 font-semibold hover:underline">
-                  Data Science
-                </Link>
-              </p>
-            </div>
-            <Link
-              to="/internships"
-              className="text-xs font-bold text-blue-600 hover:text-blue-800 transition inline-flex items-center gap-1 shrink-0"
-            >
-              <span>View all internships (10/page)</span>
-              <span>→</span>
-            </Link>
-          </div>
-
-          {/* Internships Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {loading ? (
-              [...Array(4)].map((_, i) => (
-                <div key={i} className="p-5 rounded-2xl bg-white border border-slate-200 animate-pulse space-y-3">
-                  <div className="h-4 bg-slate-200 rounded w-24" />
-                  <div className="h-5 bg-slate-200 rounded w-4/5" />
-                  <div className="h-4 bg-slate-100 rounded w-1/2" />
-                </div>
-              ))
-            ) : internships.length > 0 ? (
-              internships.slice(0, 4).map((item, idx) => (
-                <div
-                  key={item._id || item.id || idx}
-                  className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-md transition flex flex-col justify-between gap-3 group"
-                >
-                  <div className="space-y-2">
-                    {(item.workMode || item.postedAt) && (
-                      <div className="flex items-center justify-between">
-                        {item.workMode ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                            {item.workMode}
-                          </span>
-                        ) : <span />}
-                        {item.postedAt && (
-                          <span className="text-[10px] text-slate-400">
-                            {item.postedAt}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition line-clamp-1">
-                      {item.title}
-                    </h3>
-                    {item.company && <p className="text-xs font-semibold text-slate-600 line-clamp-1">{item.company}</p>}
-                    {item.location && <p className="text-[11px] text-slate-400">📍 {item.location}</p>}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-bold text-emerald-700">{item.stipend || ""}</span>
-                    {opportunityLink(item, "Internship") ? (
-                      <ViewDetailsButton item={item} type="Internship" size="sm" />
-                    ) : (
-                      <Link
-                        to="/internships"
-                        className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
-                      >
-                        Apply ›
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-full py-8 text-center text-slate-400 text-xs">
-                No internships found right now.
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ================= 6. LATEST JOBS ON E2JOB ================= */}
-      <section className="py-12 bg-slate-50/70 border-y border-slate-200/70">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-200/80 pb-4">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Latest jobs on E2Job
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                POPULAR STREAMS:{" "}
-                <Link to="/jobs/category/software-development" className="text-blue-600 font-semibold hover:underline">
-                  Software Engineer
-                </Link>{" "}
-                •{" "}
-                <Link to="/jobs/category/data-science" className="text-blue-600 font-semibold hover:underline">
-                  Data Analyst
-                </Link>{" "}
-                •{" "}
-                <Link to="/jobs/category/marketing" className="text-blue-600 font-semibold hover:underline">
-                  Marketing
-                </Link>{" "}
-                •{" "}
-                <Link to="/jobs/work-from-home" className="text-blue-600 font-semibold hover:underline">
-                  Remote Jobs
-                </Link>
-              </p>
-            </div>
-            <Link
-              to="/jobs"
-              className="text-xs font-bold text-blue-600 hover:text-blue-800 transition inline-flex items-center gap-1 shrink-0"
-            >
-              <span>View all jobs (10/page)</span>
-              <span>→</span>
-            </Link>
-          </div>
-
-          {/* Jobs Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {loading ? (
-              [...Array(4)].map((_, i) => (
-                <div key={i} className="p-5 rounded-2xl bg-white border border-slate-200 animate-pulse space-y-3">
-                  <div className="h-4 bg-slate-200 rounded w-24" />
-                  <div className="h-5 bg-slate-200 rounded w-4/5" />
-                  <div className="h-4 bg-slate-100 rounded w-1/2" />
-                </div>
-              ))
-            ) : jobs.length > 0 ? (
-              jobs.slice(0, 4).map((jobItem, idx) => (
-                <div
-                  key={jobItem._id || jobItem.id || idx}
-                  className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-md transition flex flex-col justify-between gap-3 group"
-                >
-                  <div className="space-y-2">
-                    {(jobItem.employmentType || jobItem.postedAt) && (
-                      <div className="flex items-center justify-between">
-                        {jobItem.employmentType ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
-                            {jobItem.employmentType}
-                          </span>
-                        ) : <span />}
-                        {jobItem.postedAt && (
-                          <span className="text-[10px] text-slate-400">
-                            {jobItem.postedAt}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition line-clamp-1">
-                      {jobItem.title}
-                    </h3>
-                    {jobItem.company && <p className="text-xs font-semibold text-slate-600 line-clamp-1">{jobItem.company}</p>}
-                    {jobItem.location && <p className="text-[11px] text-slate-400">📍 {jobItem.location}</p>}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-800">{jobItem.salary || ""}</span>
-                    {opportunityLink(jobItem, "Job") ? (
-                      <ViewDetailsButton item={jobItem} type="Job" size="sm" />
-                    ) : (
-                      <Link
-                        to="/jobs"
-                        className="font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5"
-                      >
-                        Apply ›
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-full py-8 text-center text-slate-400 text-xs">
-                No jobs found right now.
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ================= 7. CERTIFICATION COURSES BANNER ================= */}
-        {FEATURES.courses && (
-      <section className="py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10.5px] font-extrabold mb-1">
-                <span>⚡ PLACEMENT ASSISTANCE</span>
-              </div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Certification courses for students & freshers
-              </h2>
-            </div>
-            <Link to="/courses" className="text-xs font-bold text-blue-600 hover:underline">
-              View all courses →
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { title: "Full Stack Web Development", icon: "💻", duration: "8 Weeks", tag: "Most Popular" },
-              { title: "Python with AI & Machine Learning", icon: "🤖", duration: "6 Weeks", tag: "Trending" },
-              { title: "Data Science & PowerBI", icon: "📊", duration: "6 Weeks", tag: "High Demand" },
-              { title: "Digital Marketing & Growth", icon: "📈", duration: "4 Weeks", tag: "Beginner Friendly" },
-            ].map((course, idx) => (
-              <Link
-                key={idx}
-                to="/courses"
-                className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md transition space-y-3 group"
-              >
-                <div className="text-2xl">{course.icon}</div>
-                <div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                    {course.tag}
-                  </span>
-                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition mt-2">
-                    {course.title}
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-1">Duration: {course.duration}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-       )}
-
-        {/* ================= HOW IT WORKS ================= */}
-      <section id="how-it-works" className="py-16 lg:py-20 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-xl mx-auto mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-              How it works
-            </h2>
-            <p className="mt-2 text-slate-500 text-sm">Get started in 3 simple steps</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              { step: "1", title: "Register & verify", desc: "Sign up with Google, or with email and a one-time code, as a student, fresher or professional." },
-              { step: "2", title: "Complete your profile", desc: "Add education, skills, projects and resume so recruiters can find you." },
-              { step: "3", title: "Apply & get hired", desc: "Browse opportunities, apply in one click, and track interviews & offers." },
-            ].map((item) => (
-              <div key={item.step} className="relative bg-white rounded-2xl border border-slate-200 p-6">
-                <div className="w-10 h-10 rounded-xl bg-[#1e3a8a] text-white flex items-center justify-center text-sm font-bold mb-4">
-                  {item.step}
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">{item.title}</h3>
-                <p className="text-sm text-slate-500 leading-relaxed">{item.desc}</p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {FEATURES_LIST.map((f) => (
+              <div key={f.title} className="e2h-feature e2h-reveal rounded-[24px] p-7 bg-white border border-[#e6ebf5] flex flex-col gap-3">
+                <span className={`w-14 h-14 rounded-2xl flex items-center justify-center ${f.tint}`}><Icon d={f.icon} className="w-[26px] h-[26px]" strokeWidth={2} /></span>
+                <span className="e2h-display text-xl font-bold text-slate-900">{f.title}</span>
+                <span className="text-[15px] leading-relaxed text-slate-600">{f.desc}</span>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ================= 8. STATS & NUMBERS STRIP ================= */}
-      <section className="border-t border-slate-100 bg-[#0a2540] text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* What we promise, not made-up totals. */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            <div>
-              <p className="text-3xl sm:text-4xl font-black text-[#facc15]">Free</p>
-              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">for candidates, always</p>
+      {/* ================= STEPS ================= */}
+      <section className="py-20 bg-[#f1f5ff] border-y border-[#e6ebf5]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col gap-10">
+          <h2 className="e2h-display e2h-reveal m-0 text-[32px] sm:text-[46px] tracking-[-0.04em] font-extrabold text-[#0f1f4d] text-center">Three steps to your offer</h2>
+          <div className="h-1.5 rounded-md bg-[#dbe4ff] overflow-hidden" aria-hidden="true">
+            <span className="e2h-fill block h-full rounded-md bg-gradient-to-r from-[#1e3a8a] to-amber-500" />
+          </div>
+          <div className="grid md:grid-cols-3 gap-5">
+            {STEPS.map((s) => (
+              <div key={s.n} className="e2h-reveal bg-white rounded-[24px] p-7 border border-[#e6ebf5] flex flex-col gap-3">
+                <span className={`e2h-display text-5xl font-extrabold tracking-[-0.05em] leading-none ${s.color}`}>{s.n}</span>
+                <span className="e2h-display text-xl font-bold">{s.title}</span>
+                <span className="text-base leading-relaxed text-slate-600">{s.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= CTA ================= */}
+      <section className="py-20 lg:py-28">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="e2h-reveal relative overflow-hidden rounded-[36px] bg-[#0f1f4d] px-6 py-14 sm:px-12 sm:py-20 flex flex-wrap gap-8 items-center justify-between">
+            <div className="e2h-mesh" style={{ width: 460, height: 460, background: "#f59e0b", right: -140, top: -160, opacity: 0.4 }} aria-hidden="true" />
+            <div className="e2h-mesh" style={{ width: 380, height: 380, background: "#3b82f6", left: -120, bottom: -200, opacity: 0.45 }} aria-hidden="true" />
+            <div className="relative flex flex-col gap-3 flex-[1_1_480px]">
+              <h2 className="e2h-display m-0 text-[32px] sm:text-[50px] leading-[1.04] tracking-[-0.045em] font-extrabold text-white">Your next step is one profile away.</h2>
+              <p className="m-0 text-lg text-indigo-200">Free for candidates, always. Takes two minutes.</p>
             </div>
-            <div>
-              <p className="text-3xl sm:text-4xl font-black text-white">₹0</p>
-              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">fees an employer can ask you for</p>
-            </div>
-            <div>
-              <p className="text-3xl sm:text-4xl font-black text-[#facc15]">Report</p>
-              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">any listing that looks fake or asks for money</p>
-            </div>
-            <div>
-              <p className="text-3xl sm:text-4xl font-black text-white">Verified</p>
-              <p className="text-xs sm:text-sm text-blue-200 mt-1 font-medium">employers, before they can post</p>
+            <div className="relative flex gap-3 flex-wrap">
+              <Link to="/register/student" className="inline-flex items-center min-h-[58px] px-8 rounded-[14px] bg-amber-500 text-[#1c1300] text-lg font-bold hover:bg-amber-400">Create free profile →</Link>
+              <Link to="/register/employer" className="inline-flex items-center min-h-[58px] px-7 rounded-[14px] border border-white/30 bg-white/10 text-white text-lg font-bold hover:bg-white/20">I'm hiring</Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= 9. INTERNSHALA STYLE FOOTER ================= */}
+      {/* ================= FOOTER (unchanged: city and stream links for search engines) ================= */}
       <footer className="bg-[#121b2b] text-slate-300 border-t border-slate-800 text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8">
-            {/* Col 1: Internships by Place */}
             <div className="space-y-2.5">
-              <p className="font-bold text-white uppercase tracking-wider text-[11px]">
-                Internships by places
-              </p>
+              <p className="font-bold text-white uppercase tracking-wider text-[11px]">Internships by places</p>
               <ul className="space-y-1.5 text-slate-400">
                 <li><Link to="/internships/in/delhi" className="hover:text-white">Internship in Delhi</Link></li>
                 <li><Link to="/internships/in/bangalore" className="hover:text-white">Internship in Bangalore</Link></li>
@@ -942,12 +413,8 @@ const Home = () => {
                 <li><Link to="/internships/work-from-home" className="hover:text-white">Virtual internship</Link></li>
               </ul>
             </div>
-
-            {/* Col 2: Internships by Stream */}
             <div className="space-y-2.5">
-              <p className="font-bold text-white uppercase tracking-wider text-[11px]">
-                Internship by Stream
-              </p>
+              <p className="font-bold text-white uppercase tracking-wider text-[11px]">Internship by Stream</p>
               <ul className="space-y-1.5 text-slate-400">
                 <li><Link to="/internships/category/computer-science" className="hover:text-white">Computer Science</Link></li>
                 <li><Link to="/internships/category/web-development" className="hover:text-white">Web Development</Link></li>
@@ -958,12 +425,8 @@ const Home = () => {
                 <li><Link to="/internships/category/hr" className="hover:text-white">Human Resources</Link></li>
               </ul>
             </div>
-
-            {/* Col 3: Jobs by Places */}
             <div className="space-y-2.5">
-              <p className="font-bold text-white uppercase tracking-wider text-[11px]">
-                Jobs by Places
-              </p>
+              <p className="font-bold text-white uppercase tracking-wider text-[11px]">Jobs by Places</p>
               <ul className="space-y-1.5 text-slate-400">
                 <li><Link to="/jobs/in/delhi" className="hover:text-white">Jobs in Delhi</Link></li>
                 <li><Link to="/jobs/in/bangalore" className="hover:text-white">Jobs in Bangalore</Link></li>
@@ -973,12 +436,8 @@ const Home = () => {
                 <li><Link to="/jobs/work-from-home" className="hover:text-white">Remote Jobs</Link></li>
               </ul>
             </div>
-
-            {/* Col 4: Jobs by Stream */}
             <div className="space-y-2.5">
-              <p className="font-bold text-white uppercase tracking-wider text-[11px]">
-                Jobs by Stream
-              </p>
+              <p className="font-bold text-white uppercase tracking-wider text-[11px]">Jobs by Stream</p>
               <ul className="space-y-1.5 text-slate-400">
                 <li><Link to="/jobs/category/software-development" className="hover:text-white">Software Engineer</Link></li>
                 <li><Link to="/jobs/category/data-science" className="hover:text-white">Data Analyst</Link></li>
@@ -987,12 +446,8 @@ const Home = () => {
                 <li><Link to="/jobs/category/finance" className="hover:text-white">Finance Executive</Link></li>
               </ul>
             </div>
-
-            {/* Col 5: About & Campus */}
             <div className="space-y-2.5">
-              <p className="font-bold text-white uppercase tracking-wider text-[11px]">
-                About E2Job
-              </p>
+              <p className="font-bold text-white uppercase tracking-wider text-[11px]">About E2Job</p>
               <ul className="space-y-1.5 text-slate-400">
                 <li><Link to="/contact" className="hover:text-white">About E2Job</Link></li>
                 <li><Link to="/opportunities?source=campus" className="hover:text-white">Opportunities</Link></li>

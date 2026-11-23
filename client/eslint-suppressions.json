@@ -711,14 +711,6 @@
       "count": 2
     }
   },
-  "src/pages/Home.jsx": {
-    "max-lines": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 3
-    }
-  },
   "src/pages/NotFound.jsx": {
     "no-unused-vars": {
       "count": 2

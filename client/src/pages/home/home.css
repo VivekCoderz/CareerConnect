@@ -1,0 +1,69 @@
+/* Home page (design option D, "premium light"): animations and the few styles Tailwind
+   classes can't express. Every class is prefixed e2h- so nothing leaks into other pages. */
+
+.e2h-display { font-family: "Sora", ui-sans-serif, system-ui, sans-serif; }
+
+/* Soft colour blobs drifting behind the hero */
+.e2h-mesh { position: absolute; border-radius: 9999px; filter: blur(80px); pointer-events: none; }
+.e2h-m1 { width: 560px; height: 560px; background: #c7d7ff; left: -180px; top: -160px; animation: e2h-drift1 18s ease-in-out infinite; }
+.e2h-m2 { width: 480px; height: 480px; background: #fde68a; right: -120px; top: 60px; opacity: .75; animation: e2h-drift2 20s ease-in-out infinite; }
+.e2h-m3 { width: 420px; height: 420px; background: #e9d5ff; left: 40%; top: 420px; opacity: .6; animation: e2h-drift1 22s ease-in-out infinite reverse; }
+@keyframes e2h-drift1 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(110px, 70px); } }
+@keyframes e2h-drift2 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-120px, 90px); } }
+
+/* The word that changes inside the headline */
+.e2h-rot { display: inline-grid; vertical-align: bottom; padding: 0 .25em; border-radius: .25em; background: #1e3a8a; color: #fff; overflow: hidden; line-height: 1.18; }
+.e2h-rot > span { grid-area: 1 / 1; white-space: nowrap; opacity: 0; animation: e2h-cycle 9s infinite; }
+.e2h-rot > span:nth-child(2) { animation-delay: 3s; }
+.e2h-rot > span:nth-child(3) { animation-delay: 6s; }
+@keyframes e2h-cycle { 0% { opacity: 0; transform: translateY(80%); } 6%, 30% { opacity: 1; transform: none; } 36%, 100% { opacity: 0; transform: translateY(-80%); } }
+
+.e2h-in { animation: e2h-up .9s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes e2h-up { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
+
+/* Three cards stacked in 3D that drift apart and back */
+.e2h-scene { position: relative; width: 100%; height: 560px; perspective: 2000px; }
+.e2h-iso { position: absolute; left: 50%; top: 52%; width: 330px; height: 230px; margin: -115px 0 0 -165px; transform-style: preserve-3d; transform: rotateX(56deg) rotateZ(-40deg); animation: e2h-iso-in 1.2s .3s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes e2h-iso-in { from { opacity: 0; transform: rotateX(56deg) rotateZ(-40deg) translateZ(-200px); } to { opacity: 1; transform: rotateX(56deg) rotateZ(-40deg); } }
+.e2h-layer { position: absolute; inset: 0; border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 30px 50px -20px rgba(15, 31, 77, .35); }
+.e2h-l2 { animation: e2h-e2 6s ease-in-out infinite; }
+.e2h-l3 { animation: e2h-e3 6s ease-in-out infinite; }
+@keyframes e2h-e2 { 0%, 100% { transform: translateZ(36px); } 50% { transform: translateZ(96px); } }
+@keyframes e2h-e3 { 0%, 100% { transform: translateZ(72px); } 50% { transform: translateZ(190px); } }
+.e2h-shadow { position: absolute; left: 50%; top: 70%; width: 420px; height: 90px; margin-left: -210px; border-radius: 9999px; background: radial-gradient(ellipse, rgba(15, 31, 77, .28), transparent 70%); filter: blur(10px); animation: e2h-sh 6s ease-in-out infinite; }
+@keyframes e2h-sh { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: .7; } }
+.e2h-float { animation: e2h-float 6s ease-in-out infinite; }
+.e2h-float.d1 { animation-duration: 7s; animation-delay: 1s; }
+.e2h-float.d2 { animation-duration: 5.5s; animation-delay: .5s; }
+@keyframes e2h-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+
+/* Live board: columns of listings scrolling in opposite directions */
+.e2h-board { height: 600px; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); }
+.e2h-col { display: flex; flex-direction: column; gap: 16px; animation: e2h-col-up 30s linear infinite; }
+.e2h-col.down { animation: e2h-col-down 34s linear infinite; }
+.e2h-col.slow { animation-duration: 38s; }
+.e2h-board:hover .e2h-col, .e2h-board:focus-within .e2h-col { animation-play-state: paused; }
+@keyframes e2h-col-up { to { transform: translateY(-50%); } }
+@keyframes e2h-col-down { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+
+/* Feature cards: lift on hover and redraw the icon */
+.e2h-feature { transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s ease; }
+.e2h-feature:hover { transform: translateY(-8px) rotate(-.6deg); box-shadow: 0 34px 60px -32px rgba(15, 31, 77, .5); }
+.e2h-feature:hover path { stroke-dasharray: 100; animation: e2h-redraw 1s ease both; }
+@keyframes e2h-redraw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+
+/* Sections fade up as they scroll into view, where the browser supports it */
+@supports (animation-timeline: view()) {
+  .e2h-reveal { animation: e2h-up linear both; animation-timeline: view(); animation-range: entry 0% entry 45%; }
+  .e2h-fill { transform-origin: left; animation: e2h-fill linear both; animation-timeline: view(); animation-range: entry 20% cover 50%; }
+}
+@keyframes e2h-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .e2h-root *, .e2h-root *::before, .e2h-root *::after { animation: none !important; transition: none !important; }
+  .e2h-rot > span:first-child { opacity: 1; }
+}
+@media (max-width: 640px) {
+  .e2h-scene { height: 420px; }
+  .e2h-iso { transform: rotateX(56deg) rotateZ(-40deg) scale(.82); }
+}
