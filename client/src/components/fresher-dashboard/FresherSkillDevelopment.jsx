@@ -1,18 +1,8 @@
 import { Link } from "react-router-dom";
 import { FEATURES } from "../../config/features";
 
-const DEFAULT_SKILLS = ["JavaScript", "React", "Node.js", "Python", "Git"];
-
-const DEFAULT_RECOMMENDED = [
-  { name: "TypeScript", reason: "Required in 80% of full-stack roles", resourceUrl: "/courses?search=TypeScript" },
-  { name: "System Design", reason: "Essential for senior-level interviews", resourceUrl: "/courses?search=System+Design" },
-  { name: "Docker / Kubernetes", reason: "High demand in cloud-native teams", resourceUrl: "/courses?search=Docker" },
-  { name: "AWS Fundamentals", reason: "Most in-demand cloud certification", resourceUrl: "/courses?search=AWS" },
-];
-
+// Shows only the skills the fresher saved and what the server recommends, never sample data.
 const FresherSkillDevelopment = ({ userSkills = [], recommendedSkills = [], targetRole = "Full Stack Developer" }) => {
-  const displayUserSkills = userSkills.length > 0 ? userSkills : DEFAULT_SKILLS;
-  const displayRecommended = recommendedSkills.length > 0 ? recommendedSkills : DEFAULT_RECOMMENDED;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
@@ -50,7 +40,7 @@ const FresherSkillDevelopment = ({ userSkills = [], recommendedSkills = [], targ
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              Your Skills ({displayUserSkills.length})
+              Your Skills ({userSkills.length})
             </span>
             <Link
               to="/fresher/profile?step=4"
@@ -61,7 +51,7 @@ const FresherSkillDevelopment = ({ userSkills = [], recommendedSkills = [], targ
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {displayUserSkills.map((skill, idx) => (
+            {userSkills.map((skill, idx) => (
               <span
                 key={idx}
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-emerald-800 text-xs font-semibold shadow-sm"
@@ -73,8 +63,8 @@ const FresherSkillDevelopment = ({ userSkills = [], recommendedSkills = [], targ
               </span>
             ))}
             {userSkills.length === 0 && (
-              <p className="text-[11px] text-slate-400 italic">
-                Showing example skills. Add your real skills to your profile.
+              <p className="text-[11px] text-slate-500">
+                You haven't added any skills yet. Add them to your profile to see what to learn next.
               </p>
             )}
           </div>
@@ -88,7 +78,10 @@ const FresherSkillDevelopment = ({ userSkills = [], recommendedSkills = [], targ
           </span>
 
           <div className="space-y-2">
-            {displayRecommended.slice(0, 4).map((item, idx) => (
+            {recommendedSkills.length === 0 && (
+              <p className="text-[11px] text-slate-500">No recommendations yet.</p>
+            )}
+            {recommendedSkills.slice(0, 4).map((item, idx) => (
               <div
                 key={idx}
                 className="p-3 rounded-xl border border-slate-200 hover:border-blue-200 bg-white hover:bg-blue-50/20 transition flex items-center justify-between gap-3"

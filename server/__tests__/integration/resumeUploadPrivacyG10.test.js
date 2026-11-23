@@ -23,7 +23,7 @@ describe('G10: Resume uploads consistency & access privacy', () => {
       const fakeDocxBuffer = Buffer.from('fake docx content');
       const response = await request(app)
         .post('/api/resume/upload')
-        .set('Authorization', `Bearer ${token}`)
+        .set("Cookie", `token=${token}`)
         .attach('resume', fakeDocxBuffer, 'sample_resume.docx');
 
       expect(response.status).toBe(400);
@@ -37,7 +37,7 @@ describe('G10: Resume uploads consistency & access privacy', () => {
       const invalidBuffer = Buffer.from('NOT_A_REAL_PDF_CONTENT');
       const response = await request(app)
         .post('/api/resume/upload')
-        .set('Authorization', `Bearer ${token}`)
+        .set("Cookie", `token=${token}`)
         .attach('resume', invalidBuffer, { filename: 'malicious.pdf', contentType: 'application/pdf' });
 
       expect(response.status).toBe(400);
@@ -62,7 +62,7 @@ describe('G10: Resume uploads consistency & access privacy', () => {
       const res = await request(app)
         .get('/api/resume/download')
         .query({ url: testAssetUrl })
-        .set('Authorization', `Bearer ${generateToken(unappliedEmployer._id)}`);
+        .set("Cookie", `token=${generateToken(unappliedEmployer._id)}`);
 
       expect(res.status).toBe(403);
       expect(res.body.success).toBe(false);
@@ -82,7 +82,7 @@ describe('G10: Resume uploads consistency & access privacy', () => {
       const res = await request(app)
         .get('/api/resume/download')
         .query({ url: testAssetUrl })
-        .set('Authorization', `Bearer ${generateToken(attackerCandidate._id)}`);
+        .set("Cookie", `token=${generateToken(attackerCandidate._id)}`);
 
       expect(res.status).toBe(403);
     });
@@ -109,7 +109,7 @@ describe('G10: Resume uploads consistency & access privacy', () => {
       const res = await request(app)
         .get('/api/resume/download')
         .query({ url: testAssetUrl })
-        .set('Authorization', `Bearer ${generateToken(employer._id)}`);
+        .set("Cookie", `token=${generateToken(employer._id)}`);
 
       expect(res.status).toBe(302);
       expect(res.headers.location).toBe('https://api.cloudinary.com/test-signed-download');

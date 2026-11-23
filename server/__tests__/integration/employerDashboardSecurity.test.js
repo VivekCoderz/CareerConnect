@@ -139,7 +139,7 @@ describe("🛡️ Employer Hub Dashboard — Multi-Tenant Security & Isolation",
     // Request dashboard as Employer A
     const resA = await request(app)
       .get("/api/employer/dashboard")
-      .set("Authorization", `Bearer ${tokenA}`);
+      .set("Cookie", `token=${tokenA}`);
 
     expect(resA.statusCode).toBe(200);
     expect(resA.body.success).toBe(true);
@@ -172,7 +172,7 @@ describe("🛡️ Employer Hub Dashboard — Multi-Tenant Security & Isolation",
     // Employer A attempts to spoof Company B's ID via query param
     const res = await request(app)
       .get(`/api/employer/dashboard?companyId=${companyB._id}`)
-      .set("Authorization", `Bearer ${tokenA}`);
+      .set("Cookie", `token=${tokenA}`);
 
     expect(res.statusCode).toBe(403);
     expect(res.body.success).toBe(false);
@@ -183,7 +183,7 @@ describe("🛡️ Employer Hub Dashboard — Multi-Tenant Security & Isolation",
     // Request dashboard as Employer B with zero rows created
     const res = await request(app)
       .get("/api/employer/dashboard")
-      .set("Authorization", `Bearer ${tokenB}`);
+      .set("Cookie", `token=${tokenB}`);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);

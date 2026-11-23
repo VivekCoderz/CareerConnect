@@ -7,7 +7,7 @@ const Interview = require("../../models/Interview");
 const { createUserWithToken, createEmployerWithToken } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
-const as = (token, method, path) => request(app)[method](path).set("Authorization", `Bearer ${token}`);
+const as = (token, method, path) => request(app)[method](path).set("Cookie", `token=${token}`);
 
 const setup = async () => {
   const employer = await createEmployerWithToken({ email: "hr@acme.test" });

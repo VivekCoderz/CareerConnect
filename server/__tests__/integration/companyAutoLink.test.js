@@ -18,7 +18,7 @@ describe("employers are never linked to a company automatically", () => {
   });
 
   it("the dashboard does not link by matching company name or email", async () => {
-    const res = await request(app).get("/api/employer/dashboard").set("Authorization", `Bearer ${employer.token}`);
+    const res = await request(app).get("/api/employer/dashboard").set("Cookie", `token=${employer.token}`);
     expect(res.statusCode).toBe(200);
     expect((await User.findById(employer.user._id).lean()).companyId ?? null).toBeNull();
   });
@@ -26,7 +26,7 @@ describe("employers are never linked to a company automatically", () => {
   it("a connection request for an existing company is refused, not auto-approved", async () => {
     const res = await request(app)
       .post("/api/employer/request-company-approval")
-      .set("Authorization", `Bearer ${employer.token}`)
+      .set("Cookie", `token=${employer.token}`)
       .send({
         companyName: "acme labs", officialCompanyEmail: "hr@acme.test", companyWebsite: "https://acme.test",
         industry: "IT", companySize: "11-50", verificationDocument: "https://acme.test/doc.pdf",

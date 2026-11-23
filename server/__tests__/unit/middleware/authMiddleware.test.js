@@ -20,11 +20,8 @@ describe('🔐 Auth Middleware — Unit Tests', () => {
       expect(next).not.toHaveBeenCalled();
     });
 
-     it('should return 401 NOT_AUTHENTICATED for literal "null" bearer token, not a JWT error', async () => {
-      const req = httpMocks.createRequest({
-        cookies: {},
-        headers: { authorization: 'Bearer null' },
-      });
+     it('should return 401 NOT_AUTHENTICATED for a literal "null" token cookie, not a JWT error', async () => {
+      const req = httpMocks.createRequest({ cookies: { token: 'null' } });
       const res = httpMocks.createResponse();
       const next = jest.fn();
 
@@ -36,11 +33,8 @@ describe('🔐 Auth Middleware — Unit Tests', () => {
       expect(next).not.toHaveBeenCalled();
     });
 
-    it('should return 401 NOT_AUTHENTICATED for literal "undefined" bearer token', async () => {
-      const req = httpMocks.createRequest({
-        cookies: {},
-        headers: { authorization: 'Bearer undefined' },
-      });
+    it('should return 401 NOT_AUTHENTICATED for a literal "undefined" token cookie', async () => {
+      const req = httpMocks.createRequest({ cookies: { token: 'undefined' } });
       const res = httpMocks.createResponse();
       const next = jest.fn();
 
@@ -71,7 +65,7 @@ describe('🔐 Auth Middleware — Unit Tests', () => {
       expect(req.user.password).toBeUndefined(); // password never in req.user
     });
 
-    it('should call next() with valid Bearer token in Authorization header', async () => {
+    it('rejects a valid token sent only as a Bearer header (H09: cookie only)', async () => {
       const user = await createTestUser();
       const token = generateToken(user._id);
 
@@ -84,41 +78,24 @@ describe('🔐 Auth Middleware — Unit Tests', () => {
 
       await protect(req, res, next);
 
-      expect(next).toHaveBeenCalledTimes(1);
-      expect(req.user._id.toString()).toBe(user._id.toString());
+      expect(res.statusCode).toBe(401);
+      expect(JSON.parse(res._getData()).code).toBe('NOT_AUTHENTICATED');
+      expect(next).not.toHaveBeenCalled();
     });
 
-    it('should prefer session over JWT when session exists', async () => {
+    it('ignores a server-side session object (H09: no sessions)', async () => {
       const user = await createTestUser();
-      const token = generateToken(user._id);
 
       const req = httpMocks.createRequest({
-        cookies: { token },
-        session: { user: { userId: user._id.toString() } },
+        cookies: {},
+        session: { user: { userId: user._id.toString(), authVersion: user.authVersion || 0 } },
       });
       const res = httpMocks.createResponse();
       const next = jest.fn();
 
       await protect(req, res, next);
 
-      expect(next).toHaveBeenCalled();
-      expect(req.user._id.toString()).toBe(user._id.toString());
-    });
-
-    it('rejects a suspended user even if an existing session is present', async () => {
-      const user = await createTestUser({ isActive: false });
-      const destroy = jest.fn((callback) => callback());
-      const req = httpMocks.createRequest({
-        session: { user: { userId: user._id.toString(), authVersion: user.authVersion || 0 }, destroy },
-      });
-      const res = httpMocks.createResponse();
-      const next = jest.fn();
-
-      await protect(req, res, next);
-
-      expect(res.statusCode).toBe(403);
-      expect(JSON.parse(res._getData()).code).toBe('ACCOUNT_SUSPENDED');
-      expect(destroy).toHaveBeenCalled();
+      expect(res.statusCode).toBe(401);
       expect(next).not.toHaveBeenCalled();
     });
   });

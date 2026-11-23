@@ -81,7 +81,7 @@ describe("student apply to job flow", () => {
     const mine = await agent.get("/api/applications/me");
     expect(mine.body.applications.map((a) => String(a._id))).toEqual([String(saved[0]._id)]);
     const employerList = await request(app).get("/api/applications/employer/list")
-      .set("Authorization", `Bearer ${employer.token}`);
+      .set("Cookie", `token=${employer.token}`);
     expect(employerList.body.applications.map((a) => String(a._id))).toContain(String(saved[0]._id));
   });
 
@@ -129,7 +129,7 @@ describe("student apply to job flow", () => {
 
     expect((await request(app).post(`/api/applications/job/${job._id}`).send({})).status).toBe(401);
     expect((await request(app).post(`/api/applications/job/${job._id}`)
-      .set("Authorization", `Bearer ${employer.token}`).send({})).status).toBe(403);
+      .set("Cookie", `token=${employer.token}`).send({})).status).toBe(403);
     expect((await agent.post(`/api/applications/job/${closed._id}`).send({})).status).toBe(400);
     expect((await agent.post("/api/applications/job/64b000000000000000000000").send({})).status).toBe(404);
 

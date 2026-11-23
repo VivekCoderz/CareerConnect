@@ -12,7 +12,7 @@ const {
   createEmployerProfile,
 } = require("../helpers/createTestUser");
 
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 const publicJobIds = async () =>
   (await request(app).get("/api/jobs?source=campus&limit=50")).body.jobs.map((j) => String(j._id));
 const publicInternshipIds = async () =>

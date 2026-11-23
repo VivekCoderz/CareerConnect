@@ -20,7 +20,7 @@ const { flushNotificationEmails } = require("../../services/notificationEmail");
 const { istDay, notificationBudget } = require("../../services/emailBudget");
 const { notifyEmployerVerification } = require("../../services/accountNotifications");
 
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 const sentTo = (email) => sendEmail.mock.calls.filter(([msg]) => msg.to === email).map(([msg]) => msg);
 const settle = () => flushNotificationEmails();
 const futureDate = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
