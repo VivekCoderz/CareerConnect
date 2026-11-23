@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import internshipService from "../../services/internshipService";
 
-const InternshipDiscoveryMenu = ({ studentCity = "" }) => {
+// buttonClassName restyles the trigger button (the home page uses a plain text link look).
+const InternshipDiscoveryMenu = ({ studentCity = "", buttonClassName }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [categoryData, setCategoryData] = useState(null);
   const dropdownRef = useRef(null);
@@ -85,7 +86,7 @@ const InternshipDiscoveryMenu = ({ studentCity = "" }) => {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"
+        className={buttonClassName || "flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 text-xs font-bold text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50/40 transition shadow-2xs"}
       >
         <span>🎓 Internships</span>
         <svg

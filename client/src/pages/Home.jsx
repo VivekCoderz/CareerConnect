@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
@@ -11,10 +11,15 @@ import { opportunityLink } from "../utils/opportunityApply";
 import { FEATURES } from "../config/features";
 import useSeo from "../hooks/useSeo";
 import { needsOnboarding } from "../utils/userRoles";
+import { FEATURES_LIST, STEPS } from "./home/homeContent";
 import "./home/home.css";
 
 // The public home page (design option D, "premium light"). Signed-in people never see it:
 // they go straight to their dashboard or onboarding.
+
+// Navbar items: plain text, underlined on hover; the discovery menus take this look via buttonClassName.
+const NAV_LINK = "e2h-navlink inline-flex items-center h-10 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-[#0f1f4d] transition";
+const NAV_MENU_BUTTON = "flex items-center gap-1 h-10 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-[#0f1f4d] hover:bg-slate-100/70 transition";
 
 const LOGO_TINTS = [
   "bg-indigo-50 text-[#1e3a8a]",
@@ -38,21 +43,6 @@ const companyOf = (item) => item.company?.name || item.companyName || (typeof it
 const payOf = (item) =>
   item.salary ||
   (item.stipend?.amount ? `₹${item.stipend.amount}/month` : typeof item.stipend === "string" ? item.stipend : "");
-
-const FEATURES_LIST = [
-  { title: "One profile, every application", desc: "Education, skills, projects and resume, filled in once.", icon: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0", tint: "bg-indigo-50 text-[#1e3a8a]" },
-  { title: "Tailored resumes", desc: "Adjust your resume for each role before you apply.", icon: "M4 4h12l4 4v12H4zM8 12h8M8 16h5", tint: "bg-amber-100 text-amber-800" },
-  { title: "One-click apply", desc: "Apply in seconds and get a confirmation right away.", icon: "M13 2L4 14h7l-1 8 9-12h-7z", tint: "bg-sky-100 text-sky-800" },
-  { title: "Interview tracker", desc: "Every round and date, in one timeline.", icon: "M7 3v3M17 3v3M4 8h16M5 5h14v15H5z", tint: "bg-green-100 text-green-800" },
-  { title: "Instant notifications", desc: "Shortlists, interviews and offers as they happen.", icon: "M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 004 0", tint: "bg-fuchsia-100 text-fuchsia-800" },
-  { title: "Safe and verified", desc: "Employers are checked first. Report any listing that asks for money.", icon: "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9 12l2 2 4-4", tint: "bg-rose-100 text-rose-800" },
-];
-
-const STEPS = [
-  { n: "01", title: "Register & verify", desc: "Sign up with Google, or with email and a one-time code.", color: "text-[#1e3a8a]" },
-  { n: "02", title: "Complete your profile", desc: "Add education, skills, projects and your resume.", color: "text-[#3b5bcc]" },
-  { n: "03", title: "Apply & get hired", desc: "Apply in one click and track every interview.", color: "text-amber-700" },
-];
 
 const Icon = ({ d, className = "w-5 h-5", strokeWidth = 2.2 }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -118,6 +108,63 @@ const Home = () => {
     };
   }, [mobileMenuOpen]);
 
+  // The navbar gets its frosted background once the page scrolls.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // The 3D card eases toward the cursor and sways on its own otherwise, so it always reads as 3D.
+  // One animation-frame loop writes CSS variables to the element (no re-render). Reduced motion
+  // keeps the static tilt from home.css.
+  const sceneRef = useRef(null);
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const target = { x: 0, y: 0 };
+    const current = { x: -0.4, y: 0.2 };
+    let pointing = false;
+    let frame = 0;
+    const startedAt = performance.now();
+
+    const onMove = (e) => {
+      if (e.pointerType === "touch") return;
+      const rect = scene.getBoundingClientRect();
+      target.x = Math.max(-1, Math.min(1, ((e.clientX - rect.left) / rect.width) * 2 - 1));
+      target.y = Math.max(-1, Math.min(1, ((e.clientY - rect.top) / rect.height) * 2 - 1));
+      pointing = true;
+    };
+    const onLeave = () => {
+      pointing = false;
+    };
+    const tick = (now) => {
+      if (!pointing) {
+        const t = (now - startedAt) / 1000;
+        target.x = Math.sin(t * 0.55) * 0.5 - 0.15;
+        target.y = Math.cos(t * 0.4) * 0.3 + 0.1;
+      }
+      current.x += (target.x - current.x) * 0.075;
+      current.y += (target.y - current.y) * 0.075;
+      scene.style.setProperty("--tx", current.x.toFixed(4));
+      scene.style.setProperty("--ty", current.y.toFixed(4));
+      scene.style.setProperty("--gx", `${((current.x + 1) * 50).toFixed(2)}%`);
+      scene.style.setProperty("--gy", `${((current.y + 1) * 50).toFixed(2)}%`);
+      frame = requestAnimationFrame(tick);
+    };
+
+    scene.addEventListener("pointermove", onMove);
+    scene.addEventListener("pointerleave", onLeave);
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      scene.removeEventListener("pointermove", onMove);
+      scene.removeEventListener("pointerleave", onLeave);
+    };
+  }, [isInitialized, user]);
+
   // Only real listings from the API; with none, the board shows a link to browse instead.
   useEffect(() => {
     const loadHomeData = async () => {
@@ -161,45 +208,43 @@ const Home = () => {
     `min-h-[40px] px-[18px] rounded-[10px] text-sm font-bold transition ${active ? "bg-white text-[#1e3a8a] shadow-[0_6px_14px_-8px_rgba(15,31,77,.5)]" : "text-slate-600 hover:text-slate-900"}`;
 
   return (
-    <div className="e2h-root min-h-screen bg-[#fbfcff] text-slate-900 flex flex-col overflow-x-hidden">
-      {/* ================= HERO ================= */}
-      <section className="relative overflow-hidden pb-14">
-        <div className="e2h-mesh e2h-m1" aria-hidden="true" />
-        <div className="e2h-mesh e2h-m2" aria-hidden="true" />
-        <div className="e2h-mesh e2h-m3" aria-hidden="true" />
-
-        <header className="relative z-20 pt-4">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="h-[68px] flex items-center justify-between gap-3 pl-4 pr-2 sm:pl-5 rounded-[20px] bg-white/75 backdrop-blur-md border border-slate-200/90 shadow-[0_20px_40px_-30px_rgba(15,31,77,.4)]">
-              <div className="flex items-center gap-3 lg:gap-5 min-w-0">
-                <Link to="/" aria-label="E2Job home" className="shrink-0">
-                  <BrandLogo className="h-8 w-32 sm:h-9 sm:w-40" />
-                </Link>
-                <nav className="hidden lg:flex items-center gap-2" aria-label="Main">
-                  <JobDiscoveryMenu />
-                  <InternshipDiscoveryMenu />
-                  {FEATURES.courses && (
-                    <Link to="/courses" className="px-3 py-1.5 rounded-xl text-sm font-semibold text-slate-700 hover:text-[#1e3a8a] hover:bg-indigo-50">Courses</Link>
-                  )}
-                  <Link to="/organizations/request-access" className="px-3 py-1.5 rounded-xl text-sm font-semibold text-slate-700 hover:text-[#1e3a8a] hover:bg-indigo-50">For Organizations</Link>
-                </nav>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Link to="/login" className="hidden sm:inline-flex items-center min-h-[44px] px-4 rounded-[14px] border border-slate-200 bg-white text-[15px] font-bold text-[#0f1f4d] hover:bg-slate-50">Log in</Link>
-                <Link to="/register/student" className="inline-flex items-center min-h-[44px] px-4 rounded-[14px] bg-[#1e3a8a] text-[15px] font-bold text-white shadow-[0_14px_30px_-14px_rgba(30,58,138,.85)] hover:bg-[#0f1f4d]">Sign up free</Link>
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen((open) => !open)}
-                  className="lg:hidden inline-flex items-center justify-center w-11 h-11 rounded-xl text-slate-700 hover:bg-slate-100"
-                  aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-                  aria-expanded={mobileMenuOpen}
-                >
-                  <Icon d={mobileMenuOpen ? "M6 6l12 12M18 6L6 18" : "M4 6h16M4 12h16M4 18h16"} className="w-6 h-6" />
-                </button>
-              </div>
+    <div className="e2h-root min-h-screen bg-[#fbfcff] text-slate-900 flex flex-col overflow-x-clip">
+      {/* ================= NAVBAR (sticky) ================= */}
+      <header className={`e2h-nav sticky top-0 z-40 border-b border-transparent ${scrolled || mobileMenuOpen ? "is-scrolled backdrop-blur-md" : ""}`}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="h-16 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-6 min-w-0">
+              <Link to="/" aria-label="E2Job home" className="shrink-0">
+                <BrandLogo className="h-8 w-32 sm:w-36" />
+              </Link>
+              <nav className="hidden lg:flex items-center gap-1" aria-label="Main">
+                <JobDiscoveryMenu buttonClassName={NAV_MENU_BUTTON} />
+                <InternshipDiscoveryMenu buttonClassName={NAV_MENU_BUTTON} />
+                {FEATURES.courses && <Link to="/courses" className={NAV_LINK}>Courses</Link>}
+                <Link to="/organizations/request-access" className={NAV_LINK}>For Organizations</Link>
+              </nav>
             </div>
-            {mobileMenuOpen && (
-              <nav className="lg:hidden mt-2 rounded-[20px] bg-white border border-slate-200 shadow-xl p-3 flex flex-col" aria-label="Mobile">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* The wrapper hides it below xl; NAV_LINK's own display would override `hidden`. */}
+              <span className="hidden xl:block">
+                <Link to="/register/employer" className={NAV_LINK}>For employers</Link>
+              </span>
+              <Link to="/login" className="hidden sm:inline-flex items-center h-10 px-4 rounded-xl text-sm font-semibold text-[#0f1f4d] hover:bg-slate-100 transition">Log in</Link>
+              <Link to="/register/student" className="inline-flex items-center h-10 px-4 rounded-xl bg-[#1e3a8a] text-sm font-semibold text-white shadow-[0_8px_20px_-10px_rgba(30,58,138,.8)] hover:bg-[#0f1f4d] transition">Sign up free</Link>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((open) => !open)}
+                className="lg:hidden inline-flex items-center justify-center w-11 h-11 rounded-xl text-slate-700 hover:bg-slate-100"
+                aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+                aria-expanded={mobileMenuOpen}
+              >
+                <Icon d={mobileMenuOpen ? "M6 6l12 12M18 6L6 18" : "M4 6h16M4 12h16M4 18h16"} className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+          {mobileMenuOpen && (
+            <div className="lg:hidden pb-3">
+              <nav className="rounded-2xl bg-white border border-slate-200 shadow-xl p-2 flex flex-col" aria-label="Mobile">
                 {[
                   ["/jobs", "Jobs"],
                   ["/internships", "Internships"],
@@ -214,17 +259,24 @@ const Home = () => {
                   </Link>
                 ))}
               </nav>
-            )}
-          </div>
-        </header>
+            </div>
+          )}
+        </div>
+      </header>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pt-12 lg:pt-16 grid lg:grid-cols-2 gap-6 items-center">
-          <div className="flex flex-col gap-6">
-            <span className="e2h-in self-start inline-flex gap-2.5 items-center py-1.5 pl-1.5 pr-4 rounded-full bg-white border border-slate-200 text-sm font-semibold text-slate-700 shadow-[0_10px_24px_-18px_rgba(15,31,77,.5)]">
-              <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold">₹0</span>
+      {/* ================= HERO ================= */}
+      <section className="relative overflow-hidden pb-10 lg:pb-14 -mt-16 pt-16">
+        <div className="e2h-mesh e2h-m1" aria-hidden="true" />
+        <div className="e2h-mesh e2h-m2" aria-hidden="true" />
+        <div className="e2h-mesh e2h-m3" aria-hidden="true" />
+
+        <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-10 lg:pt-14 grid lg:grid-cols-[1.05fr_0.95fr] gap-8 items-center">
+          <div className="flex flex-col gap-5">
+            <span className="e2h-in self-start inline-flex gap-2 items-center py-1 pl-1 pr-3.5 rounded-full bg-white border border-slate-200 text-[13px] font-medium text-slate-700 shadow-[0_8px_20px_-16px_rgba(15,31,77,.5)]">
+              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">₹0</span>
               Free for candidates. No employer can charge you.
             </span>
-            <h1 className="e2h-in e2h-display m-0 text-[42px] sm:text-[58px] lg:text-[70px] leading-[1.06] tracking-[-0.045em] font-extrabold text-[#0f1f4d]" style={{ animationDelay: ".15s" }}>
+            <h1 className="e2h-in e2h-display m-0 text-[36px] sm:text-[46px] lg:text-[54px] leading-[1.08] tracking-[-0.035em] font-bold text-[#0f1f4d]" style={{ animationDelay: ".15s" }}>
               Find{" "}
               <span className="e2h-rot">
                 <span>internships</span>
@@ -234,17 +286,17 @@ const Home = () => {
               <br />
               that fit your goals.
             </h1>
-            <p className="e2h-in m-0 text-lg leading-relaxed text-slate-600 max-w-[540px]" style={{ animationDelay: ".3s" }}>
+            <p className="e2h-in m-0 text-base sm:text-[17px] leading-relaxed text-slate-600 max-w-[500px]" style={{ animationDelay: ".3s" }}>
               One profile for every application. Verified employers, one-click apply, and every interview tracked in your dashboard.
             </p>
 
-            <div className="e2h-in max-w-[620px] bg-white rounded-[22px] p-2.5 border border-slate-200 shadow-[0_40px_70px_-40px_rgba(15,31,77,.55)] flex flex-col gap-2.5" style={{ animationDelay: ".45s" }}>
+            <div className="e2h-in max-w-[560px] bg-white rounded-[18px] p-2 border border-slate-200 shadow-[0_30px_60px_-36px_rgba(15,31,77,.5)] flex flex-col gap-2" style={{ animationDelay: ".45s" }}>
               <div className="self-start flex gap-1.5 p-1 bg-slate-100 rounded-[13px]" role="tablist" aria-label="Search for">
                 <button type="button" role="tab" aria-selected={searchType === "job"} className={tabClass(searchType === "job")} onClick={() => setSearchType("job")}>Jobs</button>
                 <button type="button" role="tab" aria-selected={searchType === "internship"} className={tabClass(searchType === "internship")} onClick={() => setSearchType("internship")}>Internships</button>
               </div>
               <form onSubmit={handleHeroSearchSubmit} className="flex flex-col sm:flex-row gap-2">
-                <label htmlFor="home-search" className="flex-1 flex items-center gap-3 px-4 min-h-[56px] rounded-[14px] bg-[#f5f7fc]">
+                <label htmlFor="home-search" className="flex-1 flex items-center gap-3 px-4 min-h-[50px] rounded-xl bg-[#f5f7fc]">
                   <span className="text-[#1e3a8a]"><Icon d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" /></span>
                   <span className="sr-only">Search</span>
                   <input
@@ -256,70 +308,59 @@ const Home = () => {
                     className="flex-1 min-w-0 border-0 outline-none bg-transparent text-base text-slate-900 placeholder:text-slate-500"
                   />
                 </label>
-                <button type="submit" className="inline-flex items-center justify-center gap-2 min-h-[56px] px-6 rounded-[14px] bg-[#1e3a8a] text-white font-bold hover:bg-[#0f1f4d] transition">
+                <button type="submit" className="inline-flex items-center justify-center gap-2 min-h-[50px] px-5 rounded-xl bg-[#1e3a8a] text-[15px] text-white font-semibold hover:bg-[#0f1f4d] transition">
                   {searchType === "job" ? "Search jobs" : "Search internships"} <span aria-hidden="true">→</span>
                 </button>
               </form>
             </div>
 
-            <div className="e2h-in flex gap-5 flex-wrap text-sm font-semibold text-slate-700" style={{ animationDelay: ".6s" }}>
+            <div className="e2h-in flex gap-5 flex-wrap text-[13px] font-medium text-slate-600" style={{ animationDelay: ".6s" }}>
               <span className="flex gap-2 items-center"><span className="text-green-700"><Icon d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9 12l2 2 4-4" className="w-[18px] h-[18px]" /></span>Verified employers</span>
               <span className="flex gap-2 items-center"><span className="text-[#1e3a8a]"><Icon d="M13 2L4 14h7l-1 8 9-12h-7z" className="w-[18px] h-[18px]" /></span>One-click apply</span>
               <span className="flex gap-2 items-center"><span className="text-amber-700"><Icon d="M7 3v3M17 3v3M4 8h16M5 5h14v15H5z" className="w-[18px] h-[18px]" /></span>Interview tracking</span>
             </div>
           </div>
 
-          {/* Decoration: profile, listing and interview cards stacked in 3D */}
-          <div className="e2h-scene hidden sm:block" aria-hidden="true">
+          {/* Decoration: the "next interview" card lying in 3D. It eases toward the cursor and sways
+              on its own otherwise (see the effect above); its edge gives it thickness. */}
+          <div ref={sceneRef} className="e2h-scene hidden sm:flex" aria-hidden="true">
             <div className="e2h-shadow" />
-            <div className="e2h-iso">
-              <div className="e2h-layer bg-[#1e3a8a] text-white">
-                <span className="text-xs font-extrabold tracking-[.08em] text-amber-400">YOUR PROFILE</span>
-                <span className="e2h-display text-xl font-bold">Education · Skills · Resume</span>
-                <span className="h-2 rounded-md bg-white/20 overflow-hidden"><span className="block w-[82%] h-full bg-amber-400 rounded-md" /></span>
-                <span className="flex gap-1.5 flex-wrap text-[11px]">
-                  <span className="px-2 py-1 rounded-md bg-white/15">React</span>
-                  <span className="px-2 py-1 rounded-md bg-white/15">Python</span>
-                  <span className="px-2 py-1 rounded-md bg-white/15">SQL</span>
-                </span>
-              </div>
-              <div className="e2h-layer e2h-l2 bg-white border border-slate-200">
-                <span className="flex gap-2.5 items-center">
-                  <span className="w-10 h-10 rounded-[11px] bg-indigo-50 text-[#1e3a8a] font-extrabold flex items-center justify-center">WD</span>
-                  <span className="flex flex-col"><span className="font-extrabold text-[15px]">Web Development Intern</span><span className="text-xs text-slate-600">Remote · 3 months</span></span>
-                </span>
-                <span className="flex gap-1.5"><span className="text-[11px] font-bold px-2 py-1 rounded-md bg-green-100 text-green-800">Verified</span></span>
-                <span className="mt-auto h-10 rounded-[11px] bg-[#1e3a8a] text-white font-bold text-[13px] flex items-center justify-center">Apply in one click</span>
-              </div>
-              <div className="e2h-layer e2h-l3 bg-amber-500 text-[#1c1300]">
-                <span className="text-xs font-extrabold tracking-[.08em]">NEXT INTERVIEW</span>
-                <span className="e2h-display text-[22px] font-extrabold">HR round: scheduled</span>
-                <span className="mt-auto grid grid-cols-4 gap-1.5">
-                  <span className="h-1.5 rounded-md bg-[#1c1300]" /><span className="h-1.5 rounded-md bg-[#1c1300]" /><span className="h-1.5 rounded-md bg-[#1c1300]" /><span className="h-1.5 rounded-md bg-[#1c1300]/25" />
-                </span>
-              </div>
+            <div className="e2h-isocard">
+              <span className="e2h-glare" />
+              <span className="text-xs font-bold tracking-[.1em]">NEXT INTERVIEW</span>
+              <span className="e2h-display text-[24px] font-bold leading-tight">HR round: scheduled</span>
+              <span className="text-[13px] font-medium text-[#3d2a00]">Web Development Intern · Remote</span>
+              <span className="mt-auto grid grid-cols-4 gap-2">
+                <span className="h-2 rounded-full bg-[#1c1300]" /><span className="h-2 rounded-full bg-[#1c1300]" /><span className="h-2 rounded-full bg-[#1c1300]" /><span className="h-2 rounded-full bg-[#1c1300]/25" />
+              </span>
             </div>
-            <span className="e2h-float absolute left-[4%] top-[18%] flex gap-2 items-center px-4 py-2.5 rounded-full bg-white border border-slate-200 text-[13px] font-bold text-green-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]"><span className="w-2 h-2 rounded-full bg-green-500" />Employer verified</span>
-            <span className="e2h-float d1 absolute right-[2%] top-[30%] px-4 py-2.5 rounded-full bg-white border border-slate-200 text-[13px] font-bold text-amber-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Zero fees, always</span>
-            <span className="e2h-float d2 absolute left-[14%] bottom-[10%] px-4 py-2.5 rounded-full bg-white border border-slate-200 text-[13px] font-bold text-[#1e3a8a] shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Shortlisted</span>
+            <span className="e2h-par left-[4%] top-[5%]" style={{ "--depth": "22px" }}>
+              <span className="e2h-float flex gap-2 items-center px-3.5 py-2 rounded-full bg-white border border-slate-200 text-[13px] font-semibold text-green-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]"><span className="w-2 h-2 rounded-full bg-green-500" />Employer verified</span>
+            </span>
+            <span className="e2h-par right-[0%] top-[30%]" style={{ "--depth": "30px" }}>
+              <span className="e2h-float d1 block px-3.5 py-2 rounded-full bg-white border border-slate-200 text-[13px] font-semibold text-amber-800 shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Zero fees, always</span>
+            </span>
+            <span className="e2h-par left-[8%] bottom-[2%]" style={{ "--depth": "16px" }}>
+              <span className="e2h-float d2 block px-3.5 py-2 rounded-full bg-white border border-slate-200 text-[13px] font-semibold text-[#1e3a8a] shadow-[0_18px_36px_-16px_rgba(15,31,77,.35)]">Shortlisted</span>
+            </span>
           </div>
         </div>
       </section>
 
-      {/* ================= LIVE BOARD (real listings) ================= */}
-      <section className="py-16 lg:py-24">
+      {/* ================= LIVE BOARD (real listings; hidden with fewer than three) ================= */}
+      {listings.length >= 3 && (
+      <section className="py-14 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-[0.85fr_1.15fr] gap-12 items-center">
           <div className="e2h-reveal flex flex-col gap-4">
             <span className="text-[13px] font-extrabold text-amber-700 tracking-[.1em] uppercase">Updated every day</span>
-            <h2 className="e2h-display m-0 text-[32px] sm:text-[46px] leading-[1.06] tracking-[-0.04em] font-extrabold text-[#0f1f4d]">A live board of new opportunities.</h2>
+            <h2 className="e2h-display m-0 text-[28px] sm:text-[38px] leading-[1.1] tracking-[-0.03em] font-bold text-[#0f1f4d]">A live board of new opportunities.</h2>
             <p className="m-0 text-lg leading-relaxed text-slate-600">Internships and fresher jobs from employers we've checked, across cities and remote. Hover to pause and pick one.</p>
             <div className="flex gap-3 flex-wrap">
               <Link to="/jobs" className="inline-flex items-center min-h-[50px] px-6 rounded-[14px] bg-[#1e3a8a] text-white font-bold hover:bg-[#0f1f4d]">Browse jobs →</Link>
               <Link to="/internships" className="inline-flex items-center min-h-[50px] px-6 rounded-[14px] border border-slate-200 bg-white font-bold text-[#0f1f4d] hover:bg-slate-50">Browse internships</Link>
             </div>
           </div>
-          {listings.length >= 3 ? (
-            <div className="e2h-board grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="e2h-board grid grid-cols-2 md:grid-cols-3 gap-4">
               {columns.map((column, c) => (
                 // The third column shows from tablet width up; the wrapper hides it, since
                 // .e2h-col sets its own display.
@@ -331,22 +372,17 @@ const Home = () => {
                   </div>
                 </div>
               ))}
-            </div>
-          ) : (
-            <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-10 text-center text-slate-600">
-              New listings appear here as employers post them.{" "}
-              <Link to="/opportunities" className="font-bold text-[#1e3a8a]">See all opportunities</Link>
-            </div>
-          )}
+          </div>
         </div>
       </section>
+      )}
 
       {/* ================= FEATURES ================= */}
-      <section className="pb-20 lg:pb-28">
+      <section className="pb-16 lg:pb-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col gap-10">
           <div className="e2h-reveal text-center flex flex-col gap-3 items-center">
             <span className="text-[13px] font-extrabold text-amber-700 tracking-[.1em] uppercase">Built for your job search</span>
-            <h2 className="e2h-display m-0 text-[32px] sm:text-[46px] tracking-[-0.04em] font-extrabold text-[#0f1f4d]">Everything you need, nothing you don't</h2>
+            <h2 className="e2h-display m-0 text-[28px] sm:text-[38px] tracking-[-0.03em] font-bold text-[#0f1f4d]">Everything you need, nothing you don't</h2>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES_LIST.map((f) => (
@@ -363,14 +399,14 @@ const Home = () => {
       {/* ================= STEPS ================= */}
       <section className="py-20 bg-[#f1f5ff] border-y border-[#e6ebf5]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col gap-10">
-          <h2 className="e2h-display e2h-reveal m-0 text-[32px] sm:text-[46px] tracking-[-0.04em] font-extrabold text-[#0f1f4d] text-center">Three steps to your offer</h2>
+          <h2 className="e2h-display e2h-reveal m-0 text-[28px] sm:text-[38px] tracking-[-0.03em] font-bold text-[#0f1f4d] text-center">Three steps to your offer</h2>
           <div className="h-1.5 rounded-md bg-[#dbe4ff] overflow-hidden" aria-hidden="true">
             <span className="e2h-fill block h-full rounded-md bg-gradient-to-r from-[#1e3a8a] to-amber-500" />
           </div>
           <div className="grid md:grid-cols-3 gap-5">
             {STEPS.map((s) => (
               <div key={s.n} className="e2h-reveal bg-white rounded-[24px] p-7 border border-[#e6ebf5] flex flex-col gap-3">
-                <span className={`e2h-display text-5xl font-extrabold tracking-[-0.05em] leading-none ${s.color}`}>{s.n}</span>
+                <span className={`e2h-display text-4xl font-bold tracking-[-0.05em] leading-none ${s.color}`}>{s.n}</span>
                 <span className="e2h-display text-xl font-bold">{s.title}</span>
                 <span className="text-base leading-relaxed text-slate-600">{s.desc}</span>
               </div>
@@ -380,13 +416,13 @@ const Home = () => {
       </section>
 
       {/* ================= CTA ================= */}
-      <section className="py-20 lg:py-28">
+      <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="e2h-reveal relative overflow-hidden rounded-[36px] bg-[#0f1f4d] px-6 py-14 sm:px-12 sm:py-20 flex flex-wrap gap-8 items-center justify-between">
             <div className="e2h-mesh" style={{ width: 460, height: 460, background: "#f59e0b", right: -140, top: -160, opacity: 0.4 }} aria-hidden="true" />
             <div className="e2h-mesh" style={{ width: 380, height: 380, background: "#3b82f6", left: -120, bottom: -200, opacity: 0.45 }} aria-hidden="true" />
             <div className="relative flex flex-col gap-3 flex-[1_1_480px]">
-              <h2 className="e2h-display m-0 text-[32px] sm:text-[50px] leading-[1.04] tracking-[-0.045em] font-extrabold text-white">Your next step is one profile away.</h2>
+              <h2 className="e2h-display m-0 text-[28px] sm:text-[42px] leading-[1.08] tracking-[-0.035em] font-bold text-white">Your next step is one profile away.</h2>
               <p className="m-0 text-lg text-indigo-200">Free for candidates, always. Takes two minutes.</p>
             </div>
             <div className="relative flex gap-3 flex-wrap">
