@@ -8,4 +8,6 @@ export const FEATURES = {
   // Off until saved jobs are actually stored (POST /api/student/save returns 501).
   savedJobs: on(import.meta.env.VITE_ENABLE_SAVED_JOBS),
   careerAdvice: on(import.meta.env.VITE_ENABLE_CAREER_ADVICE),
+  // Career programmes sprint: off in production until launch (C06, C08).
+  programs: on(import.meta.env.VITE_ENABLE_PROGRAMS),
 };
