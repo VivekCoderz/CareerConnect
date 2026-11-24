@@ -43,6 +43,8 @@ const InternshipDiscoveryPage = lazyWithRetry(
   () => import("./pages/internships/InternshipDiscoveryPage"),
 );
 const OpportunitiesPage = lazyWithRetry(() => import("./pages/OpportunitiesPage"));
+const ProgramsPage = lazyWithRetry(() => import("./pages/programs/ProgramsPage"));
+const ProgramDetailPage = lazyWithRetry(() => import("./pages/programs/ProgramDetailPage"));
 const AccountSettings = lazyWithRetry(() => import("./pages/AccountSettings"));
 const OrganizationRequestPage = lazyWithRetry(() => import("./pages/organizations/OrganizationRequestPage"));
 const AdminActivate = lazyWithRetry(() => import("./pages/admin/AdminActivate"));
@@ -341,6 +343,16 @@ function AppRoutes() {
               LIVE OPPORTUNITIES MATRIX & DISCOVERY
           ================================================= */}
             <Route path="/opportunities" element={<OpportunitiesPage />} />
+
+            {/* =================================================
+              CAREER PROGRAMMES (C13, C14): public, enquiry only
+          ================================================= */}
+            {FEATURES.programs && (
+              <>
+                <Route path="/programs" element={<ProgramsPage />} />
+                <Route path="/programs/:slug" element={<ProgramDetailPage />} />
+              </>
+            )}
 
             {/* =================================================
               INTERNSHIP DISCOVERY
