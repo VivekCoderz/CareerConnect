@@ -59,3 +59,44 @@ Existing pending OTPs are invalid after the schema change; users must request a 
 - CORS: confirmed `CLIENT_URL` on Render = `https://careerconnect-v1.vercel.app` (Google login was blocked until this was fixed).
 - Verified after deploy: `/health` OK, email login OK, Google login OK, OTP email OK.
 - Team: anyone using the production database locally needs the new `MONGODB_URI` in their `server/.env`, shared privately.
+
+## Database network access: decision (25 Nov 2026, Imran)
+
+**Today:** Atlas *Network Access* allows `0.0.0.0/0`, so anyone who has the connection string can connect from anywhere. The password is the only barrier, and the string has leaked once already (Z03 above).
+
+**What connects to Atlas:**
+
+| Client | Runs on | Database |
+|---|---|---|
+| API (web) | Render Starter, Hobby workspace | production (Atlas Free, M0) |
+| Worker (#261) | Render | production |
+| Staging API and worker | Render Free | staging (separate Atlas project, M0) |
+| Nightly backup (`mongodb-backup.yml`) | GitHub Actions runner | production |
+| Staging refresh (`staging-refresh.yml`) | GitHub Actions runner | staging |
+
+### Options priced (per month; ₹96 per US$1)
+
+| Option | Cost | Result | Problem |
+|---|---|---|---|
+| A. Keep `0.0.0.0/0` | $0 | nothing changes | A leaked string works from anywhere. |
+| **B. Render's outbound IP ranges in the Atlas access list** | **$0** | Only Render services in our region (plus short-lived CI entries) can connect. | The ranges are shared with every Render customer in that region. Workspaces created before 23 Jan 2022 have no fixed ranges in Oregon. |
+| C. Render dedicated IPs | **$125 (≈ ₹12,000)**: Pro workspace $25 + $100 per set of 3 IPs, one region | IPs only we use | More than the rest of the hosting bill. |
+| D. Static-IP proxy (QuotaGuard Static, SOCKS5) | $19–49 (≈ ₹1,800–4,700) | 2 fixed IPs | All database traffic goes through a third party, with bandwidth caps (10 GB/month on the cheapest plan), extra latency and one more point of failure. |
+| E. Private networking (Atlas private endpoint or VPC peering) | M10 ≈ $57–60 (≈ ₹5,500–5,800) **plus** moving the API to AWS/GCP/Azure | Database not reachable from the internet at all | Needs a dedicated M10+ cluster (Free and Flex support only IP access lists) and a VPC to peer with. Render can't connect to an Atlas private endpoint. |
+
+Sources: [Render outbound IPs](https://render.com/docs/outbound-ip-addresses), [Render dedicated IPs](https://render.com/blog/dedicated-ips-for-your-services-on-render), [Render plans](https://render.com/pricing), [Atlas private endpoints](https://www.mongodb.com/docs/atlas/security-private-endpoint/), [Atlas peering](https://www.mongodb.com/docs/atlas/security-vpc-peering/), [Atlas pricing](https://www.mongodb.com/pricing), [QuotaGuard pricing](https://www.quotaguard.com/pricing). Prices checked 25 Nov 2026.
+
+### Decision
+
+**Option B now; option E when we move to M10 and AWS** (the layout in `production-cost-report-india.md`). C and D cost more than they protect at our size. B removes "anyone on the internet" for free, and the database user password stays the second barrier.
+
+### Steps (Imran prepares, the Atlas owner applies)
+
+1. In Render, open each service (API, worker, staging API, staging worker) → **Connect → Outbound** and copy the outbound IP ranges. Note the region. If the workspace predates 23 Jan 2022 and is in Oregon, stop: there are no fixed ranges, and B isn't possible without moving region.
+2. In Atlas (production project), **Network Access**: add each Render range with a comment such as `Render <region> outbound`. Do the same in the staging project for the staging services.
+3. GitHub Actions: create an Atlas API key per project with *Project Network Access Manager* only, saved as repository secrets. At the start of `mongodb-backup.yml` and `staging-refresh.yml`, add the runner's IP for one hour: `atlas accessLists create --currentIp --deleteAfter <now + 1 h> --comment "GitHub Actions <run id>"`. Delete it again at the end of the job (`if: always()`).
+4. Developers who need the production database add their own IP temporarily the same way, with `--deleteAfter`, never `0.0.0.0/0`.
+5. Then remove `0.0.0.0/0`. Check right away: `/health` on production and staging, a login, the worker's logs, and a manual run of both workflows.
+6. Rollback: add `0.0.0.0/0` back (one click). Nothing else changes.
+
+**Revisit** when moving to M10/AWS (then use a private endpoint and drop the public access list), if Render changes how its outbound ranges work, or if the database starts holding data that needs more than a password and a shared IP range.
