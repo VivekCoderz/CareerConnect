@@ -6,7 +6,7 @@ const { createUserWithToken } = require("../helpers/createTestUser");
 
 // FL-16: users raise support tickets; platform admins see all of them, set a status and
 // reply, and only the person who raised a ticket sees it and the result.
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 const raise = (identity, body) => request(app).post("/api/support-tickets").set(auth(identity)).send(body);
 const adminUpdate = (identity, id, body) => request(app).patch(`/api/admin/support-tickets/${id}`).set(auth(identity)).send(body);
 const feedback = (identity, id, body) => request(app).post(`/api/support-tickets/${id}/feedback`).set(auth(identity)).send(body);

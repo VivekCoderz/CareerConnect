@@ -6,7 +6,7 @@ const { createUserWithToken } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
 // G11: "Report this job" saves into the Report model so it shows on /admin/reports.
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 const report = (identity, body) => request(app).post("/api/reports").set(auth(identity)).send(body);
 
 describe("POST /api/reports (G11)", () => {

@@ -4,7 +4,7 @@ const EmployerProfile = require("../../models/EmployerProfile");
 const { createEmployerWithToken } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
-const as = (token, method, path) => request(app)[method](path).set("Authorization", `Bearer ${token}`);
+const as = (token, method, path) => request(app)[method](path).set("Cookie", `token=${token}`);
 
 describe("global error handler: bad input returns 400, not 500", () => {
   it("returns 400 for a malformed ID", async () => {

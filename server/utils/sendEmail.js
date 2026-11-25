@@ -2,6 +2,7 @@ const SibApiV3Sdk = require("sib-api-v3-sdk");
 const axios = require("axios");
 const { maskEmail } = require("../services/emailValidationService");
 const { recordOtpEmail, isBrevoQuotaUsed } = require("../services/emailBudget");
+const { isEmailAllowed } = require("../config/environment");
 
 // Logs never contain full recipient addresses (personal data); only masked ones.
 const maskedRecipients = (recipients) => recipients.map((r) => maskEmail(r?.email)).join(", ");
@@ -196,10 +197,17 @@ const sendViaBrevoWithRetry = async (message) => {
  * @returns {Promise<{messageId?: string, provider?: string, error?: any}>}
  */
 const sendEmail = async ({ to, subject, html, text, kind }) => {
-  const recipients = normalizeRecipients(to);
-  if (!recipients.length) {
+  const allRecipients = normalizeRecipients(to);
+  if (!allRecipients.length) {
     console.error("⚠️ [sendEmail] Invalid or missing recipient 'to'");
     return { error: "Invalid recipient email" };
+  }
+
+  // Staging never emails anyone outside STAGING_EMAIL_ALLOWLIST.
+  const recipients = allRecipients.filter((r) => isEmailAllowed(r.email));
+  if (!recipients.length) {
+    console.log(`[sendEmail] Staging: not sending "${subject}" to ${maskedRecipients(allRecipients)}`);
+    return { skipped: true, provider: null };
   }
 
   const message = { recipients, subject, html, text };

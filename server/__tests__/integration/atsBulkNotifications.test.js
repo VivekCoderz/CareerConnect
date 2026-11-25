@@ -13,7 +13,7 @@ const { reserveNotificationEmail, recordOtpEmail, istDay } = require("../../serv
 const { createUserWithToken, createEmployerWithToken } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
-const as = (token, method, path) => request(app)[method](path).set("Authorization", `Bearer ${token}`);
+const as = (token, method, path) => request(app)[method](path).set("Cookie", `token=${token}`);
 const waitFor = async (check) => {
   for (let i = 0; i < 100 && !(await check()); i++) await new Promise((r) => setTimeout(r, 100));
 };

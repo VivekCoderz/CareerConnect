@@ -65,7 +65,7 @@ describe("resume file cleanup (G08)", () => {
     const asset = await createAsset(user._id, "deleted-resume");
     const resume = await Resume.create({ user: user._id, title: "Old", rawData: {}, resumeUrl: url("deleted-resume") });
 
-    const res = await request(app).delete(`/api/resume/${resume._id}`).set("Authorization", `Bearer ${token}`);
+    const res = await request(app).delete(`/api/resume/${resume._id}`).set("Cookie", `token=${token}`);
     expect(res.statusCode).toBe(200);
 
     // Background work: allow up to 10 s on slow CI runners

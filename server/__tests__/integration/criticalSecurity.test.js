@@ -6,8 +6,9 @@ const PendingOTP = require("../../models/PendingOTP");
 const User = require("../../models/User");
 const { issueOtp, verifyOtp, consumeVerifiedOtp } = require("../../services/otpService");
 const getFirebaseAdmin = require("../../config/firebaseAdmin.js");
-const EventEmitter = require("events");
-const { registerSseClient, broadcastRealtimeNotification } = require("../../services/notificationService");
+const http = require("http");
+const socketService = require("../../services/socketService");
+const { broadcastRealtimeNotification } = require("../../services/notificationService");
 
 describe("critical security boundaries", () => {
   beforeEach(() => {
@@ -180,23 +181,20 @@ describe("critical security boundaries", () => {
     expect((await bobRequest("get", `/api/notifications/${announcement._id}`)).statusCode).toBe(200);
   });
 
-  it("sends private SSE events only to the recipient", () => {
-    const connection = () => {
-      const stream = new EventEmitter();
-      stream.events = [];
-      stream.writableLength = 0;
-      stream.write = (value) => stream.events.push(value);
-      stream.end = jest.fn();
-      return stream;
-    };
-    const alice = connection();
-    const bob = connection();
-    registerSseClient("alice", alice);
-    registerSseClient("bob", bob);
+  it("sends a private notification only to the recipient's socket room (H17)", () => {
+    const io = socketService.init(http.createServer());
+    const roomEmit = jest.fn();
+    const to = jest.spyOn(io, "to").mockReturnValue({ emit: roomEmit });
+    const everyone = jest.spyOn(io, "emit").mockImplementation(() => true);
+
     broadcastRealtimeNotification({ _id: "private-1", recipient: "alice", title: "Secret" });
-    expect(alice.events.some((event) => event.includes('"title":"Secret"'))).toBe(true);
-    expect(bob.events.some((event) => event.includes('"title":"Secret"'))).toBe(false);
-    alice.emit("close");
-    bob.emit("close");
+    expect(to).toHaveBeenCalledWith("user_alice");
+    expect(roomEmit).toHaveBeenCalledWith("notification", expect.objectContaining({ title: "Secret" }));
+    expect(everyone).not.toHaveBeenCalled();
+
+    // A notification without a recipient is the announcement broadcast.
+    broadcastRealtimeNotification({ _id: "announcement-1", title: "For everyone" });
+    expect(everyone).toHaveBeenCalledWith("notification", expect.objectContaining({ title: "For everyone" }));
+    io.close();
   });
 });

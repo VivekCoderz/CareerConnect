@@ -6,7 +6,7 @@ const Internship = require("../../models/Internship");
 const { createTestJob } = require("../helpers/createTestJob");
 const { createUserWithToken, createEmployerWithToken } = require("../helpers/createTestUser");
 
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 describe("candidate-only role checks (S08)", () => {
   let candidate;

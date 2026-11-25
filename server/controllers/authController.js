@@ -1,9 +1,12 @@
 const User = require("../models/User.js");
 const StudentProfile = require("../models/StudentProfile.js");
 const FresherProfile = require("../models/FresherProfile.js");
+const { signupPreferenceFields } = require("../utils/fresherPreferences");
 const ProfessionalProfile = require("../models/ProfessionalProfile.js");
 const jwt = require("jsonwebtoken");
 const { authCookieOptions, authCookieBaseOptions } = require("../utils/authCookies.js");
+const { revokeCookieToken } = require("../middleware/authMiddleware.js");
+const { disconnectUser } = require("../services/socketService.js");
 const crypto = require("crypto");
 const PendingOTP = require("../models/PendingOTP.js");
 const sendEmail = require("../utils/sendEmail.js");
@@ -15,6 +18,7 @@ const { validateEmail, maskEmail } = require("../services/emailValidationService
 const { normalizeEmail, issueOtp, verifyOtp, consumeVerifiedOtp } = require("../services/otpService.js");
 const { deleteAccount } = require("../services/accountDeletion.js");
 const { CONSENT_REQUIRED, readConsent } = require("../utils/consent.js");
+const { FRESHER_EXPERIENCE_ERROR, isWorkExperienceAllowed } = require("../utils/workExperience.js");
 
 // ==========================================
 // PASSWORD VALIDATION & HELPERS
@@ -292,42 +296,6 @@ module.exports.verifyOTP = async (req, res, next) => {
   }
 };
 
-/**
- * Helper to create/regenerate session in Redis
- * Stores ONLY minimal, essential data (userId, email, role, loginTime, lastActive)
- */
-const createSession = (req, user) => {
-  return new Promise((resolve, reject) => {
-    if (!req.session) return resolve(null);
-
-    // Regenerate session to prevent session fixation attacks
-    req.session.regenerate((err) => {
-      if (err) {
-        console.error("Session regeneration error:", err);
-        return reject(err);
-      }
-
-      req.session.user = {
-        userId: user._id.toString(),
-        email: user.email,
-        role: user.role,
-        userType: user.userType,
-        authVersion: user.authVersion || 0,
-        loginTime: new Date(),
-        lastActive: new Date(),
-      };
-
-      req.session.save((saveErr) => {
-        if (saveErr) {
-          console.error("Session save error:", saveErr);
-          return reject(saveErr);
-        }
-        resolve(req.session.user);
-      });
-    });
-  });
-};
-
 // ==========================================
 // REGISTER (Multi-step form ke hisaab se)
 // ==========================================
@@ -477,6 +445,11 @@ module.exports.registerUser = async (req, res, next) => {
       resolvedUserType = "student";
     }
 
+    // Checked before the email verification token is used up, so the user can fix it and resubmit.
+    if (!isWorkExperienceAllowed(resolvedUserType, workExperience || experienceYears || "0 years")) {
+      return res.status(400).json(FRESHER_EXPERIENCE_ERROR);
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
 
     // Check if email already exists
@@ -595,6 +568,8 @@ module.exports.registerUser = async (req, res, next) => {
       } else if (resolvedUserType === "fresher") {
         await FresherProfile.create({
           userId: user._id,
+          // The role and stack the fresher picked as interests, under the keys the dashboard reads.
+          ...signupPreferenceFields(userData.interests),
           gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
             ? gender
             : "",
@@ -608,6 +583,7 @@ module.exports.registerUser = async (req, res, next) => {
               institution: resolvedCollege,
               degree: resolvedCourse,
               specialization: resolvedStream,
+              startYear: startYearNum,
               graduationYear: endYearNum,
               isHighest: true,
             },
@@ -647,15 +623,6 @@ module.exports.registerUser = async (req, res, next) => {
         "Error creating role profile during registration:",
         profileErr.message
       );
-    }
-
-    // Initialize Redis Session
-    if (req.session) {
-      try {
-        await createSession(req, user);
-      } catch (sessErr) {
-        console.warn("Could not save registration session to Redis:", sessErr.message);
-      }
     }
 
     const token = generateToken(user, keepSignedIn);
@@ -734,22 +701,12 @@ module.exports.loginUser = async (req, res, next) => {
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
-    // Initialize Redis Session (15 min idle timeout with rolling reset)
-    if (req.session) {
-      try {
-        await createSession(req, user);
-      } catch (sessErr) {
-        console.warn("Could not save login session to Redis:", sessErr.message);
-      }
-    }
-
     const token = generateToken(user, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
     return res.status(200).json({
       success: true,
       message: "Login successful",
-      sessionExpiresInMs: req.session?.cookie?.maxAge || null,
       user: userPayload(user),
     });
   } catch (error) {
@@ -1129,9 +1086,6 @@ module.exports.cancelGoogleSignup = async (req, res, next) => {
     res.clearCookie("token", authCookieBaseOptions());
     res.clearCookie("sid", authCookieBaseOptions());
 
-    if (req.session) {
-      req.session.destroy(() => {});
-    }
 
     return res.status(200).json({
       success: true,
@@ -1279,11 +1233,10 @@ module.exports.deleteMyAccount = async (req, res, next) => {
     }
 
     await deleteAccount(user);
+    disconnectUser(user._id);
 
-    const cookieOptions = { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax" };
-    res.clearCookie("token", cookieOptions);
-    res.clearCookie("sid", { ...cookieOptions, path: "/" });
-    if (req.session) req.session.destroy(() => {});
+    res.clearCookie("token", authCookieBaseOptions());
+    res.clearCookie("sid", authCookieBaseOptions());
 
     return res.status(200).json({ success: true, message: "Your account and personal data have been deleted." });
   } catch (error) {
@@ -1295,29 +1248,17 @@ module.exports.deleteMyAccount = async (req, res, next) => {
 // LOGOUT
 // ==========================================
 module.exports.logoutUser = async (req, res) => {
-  // 1. Clear token cookie
-  res.clearCookie("token", authCookieBaseOptions());
+  // Revoke the token itself, so a copy of it stops working too (H09).
+  await revokeCookieToken(req);
 
-  // 2. Clear session cookie
+  res.clearCookie("token", authCookieBaseOptions());
+  // Left over from the removed server-side sessions; clearing it is harmless.
   res.clearCookie("sid", authCookieBaseOptions());
 
-  // 3. Destroy session in Redis
-  if (req.session) {
-    req.session.destroy((err) => {
-      if (err) {
-        console.error("Error destroying Redis session during logout:", err);
-      }
-      return res.status(200).json({
-        success: true,
-        message: "Logout successful. Session destroyed.",
-      });
-    });
-  } else {
-    return res.status(200).json({
-      success: true,
-      message: "Logout successful",
-    });
-  }
+  return res.status(200).json({
+    success: true,
+    message: "Logout successful",
+  });
 };
 
 // ==========================================
@@ -1326,7 +1267,6 @@ module.exports.logoutUser = async (req, res) => {
 module.exports.getMe = async (req, res) => {
   return res.status(200).json({
     success: true,
-    sessionExpiresInMs: req.session?.cookie?.maxAge || null,
     user: userPayload(req.user),
   });
 };
@@ -1504,6 +1444,8 @@ module.exports.resetPassword = async (req, res, next) => {
       user.authProviders.push("email");
     }
     await user.save();
+    // Old tokens are revoked; close the sockets they opened too (H17).
+    disconnectUser(user._id);
 
     // Also sync updated password to Firebase if user is linked
     const admin = getFirebaseAdmin();
@@ -1705,15 +1647,6 @@ module.exports.registerEmployer = async (req, res, next) => {
       console.error("EmployerProfile creation error:", profileErr);
     }
 
-    // Initialize Redis Session
-    if (req.session) {
-      try {
-        await createSession(req, user);
-      } catch (sessErr) {
-        console.warn("Could not save employer session to Redis:", sessErr.message);
-      }
-    }
-
     const token = generateToken(user, keepSignedIn);
     setTokenCookie(res, token, keepSignedIn);
 
@@ -1845,6 +1778,10 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
       resolvedUserType = "student";
     }
 
+    if (!isWorkExperienceAllowed(resolvedUserType, workExperience || experienceYears || "0 years")) {
+      return res.status(400).json(FRESHER_EXPERIENCE_ERROR);
+    }
+
     const endYearNum =
       Number(endYear || graduationYear || passoutYear) ||
       new Date().getFullYear() + 2;
@@ -1948,6 +1885,7 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
         if (!existing) {
           await FresherProfile.create({
             userId,
+            ...signupPreferenceFields(updateData.interests),
             gender: ["male", "female", "other", "prefer-not-to-say"].includes(gender)
               ? gender
               : "",
@@ -1960,6 +1898,7 @@ module.exports.completeGoogleOnboarding = async (req, res, next) => {
                 institution: resolvedCollege,
                 degree: resolvedCourse,
                 specialization: resolvedStream,
+                startYear: startYearNum,
                 graduationYear: endYearNum,
                 isHighest: true,
               },
@@ -2126,3 +2065,6 @@ module.exports.completeEmployerGoogleOnboarding = async (req, res, next) => {
 };
 
 module.exports.userPayload = userPayload;
+// Account settings (accountController) signs the user back in after a password or email change.
+module.exports.generateToken = generateToken;
+module.exports.setTokenCookie = setTokenCookie;

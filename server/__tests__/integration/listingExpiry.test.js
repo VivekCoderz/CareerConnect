@@ -14,7 +14,7 @@ const {
   createEmployerProfile,
 } = require("../helpers/createTestUser");
 
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 const HOUR = 60 * 60 * 1000;
 
 describe("deadline = end of that day in IST", () => {

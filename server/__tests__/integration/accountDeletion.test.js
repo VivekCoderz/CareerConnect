@@ -14,7 +14,7 @@ const { createUserWithToken, createEmployerWithToken } = require("../helpers/cre
 const { createTestJob } = require("../helpers/createTestJob");
 
 const deleteAccount = (token, body) =>
-  request(app).delete("/api/auth/account").set("Authorization", `Bearer ${token}`).send(body);
+  request(app).delete("/api/auth/account").set("Cookie", `token=${token}`).send(body);
 
 const waitFor = async (check) => {
   // Background work: allow up to 10 s on slow CI runners
@@ -86,7 +86,7 @@ describe("account deletion (G07)", () => {
     await waitFor(async () => !(await ResumeAsset.exists({ user: candidate.user._id })));
     expect(destroy).toHaveBeenCalledWith("careerconnect/resumes/leaving", expect.any(Object));
 
-    const me = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${candidate.token}`);
+    const me = await request(app).get("/api/auth/me").set("Cookie", `token=${candidate.token}`);
     expect(me.statusCode).toBe(401);
   });
 

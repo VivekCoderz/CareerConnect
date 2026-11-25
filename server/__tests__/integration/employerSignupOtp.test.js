@@ -10,7 +10,7 @@ const { createUserWithToken } = require("../helpers/createTestUser");
 // signup code expires after one minute, and a code once accepted stays usable while the
 // employer finishes the form.
 const CONSENT = { acceptedTerms: true, termsVersion: "2026-10-01" };
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 const MINUTE = 60 * 1000;
 
 let seq = 0;

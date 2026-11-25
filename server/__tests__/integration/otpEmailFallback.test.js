@@ -46,7 +46,7 @@ const brevoRateLimitError = () =>
   Object.assign(new Error("Too Many Requests"), { status: 429 });
 const resendError = () =>
   Object.assign(new Error("Request failed with status code 500"), {
-    config: { headers: { Authorization: `Bearer ${RESEND_KEY}` } },
+    config: { headers: { Cookie: `token=${RESEND_KEY}` } },
     response: {
       status: 500,
       data: { name: "application_error", message: "Internal server error" },
