@@ -105,7 +105,7 @@ describe("recruiter contact is opt-in (DPDP)", () => {
 
     const existing = await createUserWithToken({ email: `${uniq("pro")}@candidate.test`, phone: phone(9), userType: "professional" });
     await ProfessionalProfile.collection.insertOne({
-      userId: existing.user._id, recruiterPreferences: { allowContact: true, preferredContactMethod: "Email" },
+      userId: existing.user._id, candidateType: "professional", recruiterPreferences: { allowContact: true, preferredContactMethod: "Email" },
       createdAt: new Date(), updatedAt: new Date(),
     });
     const kept = await as(existing.token, "get", "/api/professional/profile");

@@ -12,9 +12,8 @@ const ResumeAsset = require("../models/ResumeAsset");
 const sources = [
   ["users", "resumeUrl", "_id"],
   ["resumes", "resumeUrl", "user"],
-  ["studentprofiles", "resume.resumeUrl", "userId"],
-  ["fresherprofiles", "resume.resumeUrl", "userId"],
-  ["professionalprofiles", "resume.resumeUrl", "userId"],
+  // Every candidate profile (student, fresher, professional) is in candidateprofiles.
+  ["candidateprofiles", "resume.resumeUrl", "userId"],
   ["applications", "resumeUrl", "candidateId"],
   ["applications", "applicationData.resumeUrl", "candidateId"],
 ];

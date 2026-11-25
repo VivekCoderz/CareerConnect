@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { defineCandidateType } = require("./CandidateProfile");
 
 // ======================================================
 // WORK EXPERIENCE SUB-SCHEMA
@@ -373,13 +374,7 @@ const professionalAchievementSchema = new mongoose.Schema(
 // ======================================================
 const professionalProfileSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: [true, "User ID is required"],
-      unique: true,
-      index: true,
-    },
+    // userId (required, unique) is on the CandidateProfile base schema.
 
     // ==================================================
     // PROFESSIONAL IDENTITY
@@ -834,15 +829,6 @@ const professionalProfileSchema = new mongoose.Schema(
   }
 );
 
-// Fast search indexes
-professionalProfileSchema.index({ "currentEmployment.jobTitle": 1 });
-professionalProfileSchema.index({ "currentEmployment.company": 1 });
-professionalProfileSchema.index({ "careerGoal.targetRole": 1 });
-professionalProfileSchema.index({ profileVisibility: 1 });
-professionalProfileSchema.index({ jobSearchStatus: 1 });
-professionalProfileSchema.index({ "location.city": 1 });
+// Indexes are declared on CandidateProfile (userId, candidateType, resume.resumeUrl).
 
-// Resume file cleanup checks whether this still uses a resume file
-professionalProfileSchema.index({ "resume.resumeUrl": 1 });
-
-module.exports = mongoose.model("ProfessionalProfile", professionalProfileSchema);
+module.exports = defineCandidateType("ProfessionalProfile", professionalProfileSchema, "professional");
