@@ -18,6 +18,16 @@ const { startScheduler } = require("./jobs/scheduler");
 // The email digest sends mail; warn (once, without values) if the fallback provider is half set up.
 require("./utils/sendEmail").warnOnFallbackEmailConfig();
 
+// Staging must use its own database and production must never use it (H02, docs/staging.md).
+// Same check as server.js: a staging worker given the production URI would otherwise close
+// production listings and send production digests.
+try {
+  require("./config/environment").assertDatabaseMatchesEnvironment(process.env.MONGODB_URI);
+} catch (error) {
+  console.error(`FATAL: ${error.message}`);
+  process.exit(1);
+}
+
 const main = async () => {
   // connectDB exits the process if MongoDB can't be reached, so the host restarts the worker.
   const conn = await connectDB();
