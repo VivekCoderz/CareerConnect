@@ -77,10 +77,6 @@ const AccountDetailsCard = () => {
     setNotice("Email updated");
   };
 
-  const handleSignedInAgain = (authToken) => {
-    if (authToken) localStorage.setItem("careerconnect_token", authToken);
-  };
-
   return (
     <section className={`${card} mb-6`}>
       <div className="flex items-start gap-4">
@@ -150,7 +146,6 @@ const AccountDetailsCard = () => {
           currentEmail={user?.email}
           onClose={() => setEmailModalOpen(false)}
           onEmailChanged={handleEmailChanged}
-          onSignedInAgain={handleSignedInAgain}
         />
       )}
     </section>

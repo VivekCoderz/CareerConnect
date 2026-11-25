@@ -65,7 +65,7 @@ describe("fresher work experience (bug 4)", () => {
     };
     const newGoogleUser = () =>
       createUserWithToken({ phone: "", isProfileComplete: false, authProviders: ["google"] });
-    const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+    const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
     it("refuses a fresher with more than 2 years and leaves the profile unfinished", async () => {
       const googleUser = await newGoogleUser();

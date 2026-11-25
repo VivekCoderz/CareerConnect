@@ -5,7 +5,7 @@ const app = require("../../app");
 const User = require("../../models/User");
 const { createUserWithToken } = require("../helpers/createTestUser");
 
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 describe("PATCH /api/fresher/profile fullName", () => {
   let fresher;

@@ -7,7 +7,7 @@ const { issueOtp, verifyOtp } = require("../../services/otpService");
 const { createUserWithToken } = require("../helpers/createTestUser");
 
 const CONSENT = { acceptedTerms: true, termsVersion: "2026-10-01" };
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 const verifiedEmail = async (email) => {
   const { code } = await issueOtp(email, "verification");

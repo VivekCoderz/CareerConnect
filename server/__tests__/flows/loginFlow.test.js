@@ -118,7 +118,7 @@ describe("login flow", () => {
       const res = await login(request(app), { emailOrUsername: EMAIL, password: PASSWORD }).expect(200);
       const tampered = `${tokenFrom(res).slice(0, -4)}abcd`;
 
-      expect((await request(app).get("/api/auth/me").set("Authorization", `Bearer ${tampered}`)).status).toBe(401);
+      expect((await request(app).get("/api/auth/me").set("Cookie", `token=${tampered}`)).status).toBe(401);
       expect((await request(app).get("/api/auth/me").set("Cookie", "token=not.a.jwt")).status).toBe(401);
     });
   });
