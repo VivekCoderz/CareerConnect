@@ -27,17 +27,6 @@
       "count": 2
     }
   },
-  "controllers/adminController.js": {
-    "max-lines": {
-      "count": 1
-    },
-    "no-empty": {
-      "count": 8
-    },
-    "no-unused-vars": {
-      "count": 12
-    }
-  },
   "controllers/applicationController.js": {
     "max-lines": {
       "count": 1
