@@ -1,0 +1,23 @@
+{
+  "slug": "ai-generative-ai",
+  "title": "AI & Generative AI",
+  "published": true,
+  "order": 1,
+  "track": "data-ai",
+  "level": null,
+  "duration": "8–12 weeks",
+  "tools": [
+    "Generative AI",
+    "LLMs",
+    "Prompt Engineering",
+    "AI Agents",
+    "Python"
+  ],
+  "summary": "",
+  "syllabus": [],
+  "projects": [],
+  "mentorship": "",
+  "internship": "",
+  "certificate": "",
+  "faq": []
+}
