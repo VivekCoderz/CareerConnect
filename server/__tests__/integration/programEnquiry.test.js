@@ -1,5 +1,7 @@
 // C10: POST /api/programs/:slug/enquiry stores a ProgramEnquiry (status New) and returns a
 // reference number; bad input, duplicates and floods are rejected.
+// Real emails must never leave a test run (.env is loaded); C11 sends two per enquiry.
+jest.mock("../../utils/sendEmail", () => jest.fn().mockResolvedValue({ messageId: "test-message" }));
 const request = require("supertest");
 const app = require("../../app");
 const ProgramEnquiry = require("../../models/ProgramEnquiry");
@@ -68,7 +70,7 @@ describe("POST /api/programs/:slug/enquiry (C10)", () => {
   });
 
   it("never stores batch, timing or other unknown fields", async () => {
-    const res = await send(validEnquiry({ batch: "December", timing: "Evening", status: "Closed", user: "0123456789abcdef01234567" }));
+    const res = await send(validEnquiry({ batch: "December", timing: "Evening", status: "Enrolled", user: "0123456789abcdef01234567" }));
     expect(res.status).toBe(201);
     const saved = await ProgramEnquiry.findOne({ reference: res.body.reference }).lean();
     expect(saved).not.toHaveProperty("batch");
@@ -181,9 +183,9 @@ describe("POST /api/programs/:slug/enquiry (C10)", () => {
       expect(res.status).toBe(201);
     });
 
-    it("allows a new enquiry once the old one is closed", async () => {
+    it.each(["Enrolled", "Not interested"])("allows a new enquiry once the old one is %s", async (status) => {
       const first = await send(validEnquiry());
-      await ProgramEnquiry.updateOne({ reference: first.body.reference }, { status: "Closed" });
+      await ProgramEnquiry.updateOne({ reference: first.body.reference }, { status });
       const res = await send(validEnquiry());
       expect(res.status).toBe(201);
       expect(res.body.reference).not.toBe(first.body.reference);

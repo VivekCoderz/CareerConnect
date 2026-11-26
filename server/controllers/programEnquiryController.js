@@ -8,6 +8,7 @@ const { findProgram } = require("../services/programCatalog");
 const { readConsent } = require("../utils/consent");
 const { validatePhoneFormat } = require("../middleware/validationMiddleware");
 const { validateEmail } = require("../services/emailValidationService");
+const { sendNewEnquiryEmails } = require("../services/programEnquiryEmails");
 
 const ENQUIRY_CONSENT_REQUIRED = {
   success: false,
@@ -129,6 +130,7 @@ const createProgramEnquiry = async (req, res, next) => {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         const saved = await ProgramEnquiry.create({ ...enquiry, reference: newReference() });
+        sendNewEnquiryEmails(saved); // background: an email problem never fails the enquiry
         return res.status(201).json({
           success: true,
           reference: saved.reference,

@@ -3,9 +3,24 @@
 // shared on the call, never stored from the form.
 const mongoose = require("mongoose");
 
-const ENQUIRY_STATUSES = ["New", "Contacted", "Closed"];
+// C11: the admin moves an enquiry through these after calling the student.
+const ENQUIRY_STATUSES = ["New", "Contacted", "Enrolled", "Not interested"];
 // "Open" enquiries block a second one for the same email and programme.
 const OPEN_ENQUIRY_STATUSES = ["New", "Contacted"];
+const NOTE_MAX = 1000;
+
+// One entry per admin status change, with the admin's note (never shown to the student).
+const historySchema = new mongoose.Schema(
+  {
+    from: { type: String, enum: ENQUIRY_STATUSES, required: true },
+    to: { type: String, enum: ENQUIRY_STATUSES, required: true },
+    note: { type: String, trim: true, maxlength: NOTE_MAX, default: "" },
+    by: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    byName: { type: String, trim: true, default: "" },
+    at: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
 const PROGRAM_LEVELS = ["foundation", "professional", "advanced"];
 const YEARS_OF_STUDY = ["1", "2", "3", "4", "5", "graduated"];
 
@@ -37,6 +52,7 @@ const programEnquirySchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 
     status: { type: String, enum: ENQUIRY_STATUSES, default: "New" },
+    history: { type: [historySchema], default: [] },
   },
   { timestamps: true }
 );
@@ -48,9 +64,12 @@ programEnquirySchema.index(
   { unique: true, partialFilterExpression: { status: { $in: OPEN_ENQUIRY_STATUSES } } }
 );
 programEnquirySchema.index({ status: 1, createdAt: -1 });
+programEnquirySchema.index({ programSlug: 1, createdAt: -1 });
+programEnquirySchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("ProgramEnquiry", programEnquirySchema);
 module.exports.ENQUIRY_STATUSES = ENQUIRY_STATUSES;
 module.exports.OPEN_ENQUIRY_STATUSES = OPEN_ENQUIRY_STATUSES;
 module.exports.PROGRAM_LEVELS = PROGRAM_LEVELS;
 module.exports.YEARS_OF_STUDY = YEARS_OF_STUDY;
+module.exports.NOTE_MAX = NOTE_MAX;

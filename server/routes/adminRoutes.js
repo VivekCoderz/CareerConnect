@@ -78,6 +78,11 @@ const {
   syncExternalJobs,
 } = require("../controllers/adminController");
 const { getAdminTickets, updateAdminTicket } = require("../controllers/supportTicketController");
+const {
+  listEnquiries,
+  updateEnquiryStatus,
+  exportEnquiriesCsv,
+} = require("../controllers/adminProgramEnquiryController");
 
 // ===================================================
 // PUBLIC ADMIN AUTHENTICATION & ACTIVATION
@@ -129,6 +134,11 @@ router.delete("/companies/:id", requireSuperAdmin, deleteAdminCompany);
 // Support tickets raised by users (SUPER_ADMIN)
 router.get("/support-tickets", requireSuperAdmin, getAdminTickets);
 router.patch("/support-tickets/:id", requireSuperAdmin, sanitizeInputs, updateAdminTicket);
+
+// C11: programme enquiries (E2Job's own training leads, not an organisation's): SUPER_ADMIN.
+router.get("/program-enquiries", requireSuperAdmin, listEnquiries);
+router.get("/program-enquiries/export.csv", requireSuperAdmin, exportEnquiriesCsv);
+router.patch("/program-enquiries/:id", requireSuperAdmin, sanitizeInputs, updateEnquiryStatus);
 
 // External job feeds: run the scheduled sync now (SUPER_ADMIN)
 router.post("/jobs/sync", requireSuperAdmin, syncExternalJobs);
