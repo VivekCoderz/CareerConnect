@@ -1,6 +1,11 @@
 // C09: public career programme data (C05 files). Not the old /api/courses (LMS) routes.
 const express = require("express");
 const { listPrograms, findProgram } = require("../services/programCatalog");
+const { optionalAuth } = require("../middleware/authMiddleware");
+const verifyCaptcha = require("../middleware/captchaMiddleware");
+const { sanitizeInputs } = require("../middleware/validationMiddleware");
+const { programEnquiryLimiter } = require("../middleware/rateLimitMiddleware");
+const { loadProgram, createProgramEnquiry } = require("../controllers/programEnquiryController");
 
 const router = express.Router();
 
@@ -21,6 +26,18 @@ router.get("/:slug", (req, res) => {
   res.set("Cache-Control", PROGRAMS_CACHE_CONTROL);
   return res.status(200).json({ success: true, program });
 });
+
+// C10: enquiry, with or without login. Rate limit first (no reCAPTCHA call for a flood),
+// then the programme must exist, then reCAPTCHA like signup.
+router.post(
+  "/:slug/enquiry",
+  programEnquiryLimiter,
+  loadProgram,
+  sanitizeInputs,
+  verifyCaptcha("program_enquiry"),
+  optionalAuth,
+  createProgramEnquiry
+);
 
 module.exports = router;
 module.exports.PROGRAMS_CACHE_CONTROL = PROGRAMS_CACHE_CONTROL;
