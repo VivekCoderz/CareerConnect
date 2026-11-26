@@ -44,6 +44,7 @@ const InternshipDiscoveryPage = lazyWithRetry(
 );
 const OpportunitiesPage = lazyWithRetry(() => import("./pages/OpportunitiesPage"));
 const ProgramsPage = lazyWithRetry(() => import("./pages/programs/ProgramsPage"));
+const ProgramDetailPage = lazyWithRetry(() => import("./pages/programs/ProgramDetailPage"));
 const AccountSettings = lazyWithRetry(() => import("./pages/AccountSettings"));
 const OrganizationRequestPage = lazyWithRetry(() => import("./pages/organizations/OrganizationRequestPage"));
 const AdminActivate = lazyWithRetry(() => import("./pages/admin/AdminActivate"));
@@ -343,8 +344,9 @@ function AppRoutes() {
           ================================================= */}
             <Route path="/opportunities" element={<OpportunitiesPage />} />
 
-            {/* CAREER PROGRAMMES (C12): public list page, behind the programmes flag */}
+            {/* CAREER PROGRAMMES (C12, C13): public pages, behind the programmes flag */}
             {FEATURES.programs && <Route path="/programs" element={<ProgramsPage />} />}
+            {FEATURES.programs && <Route path="/programs/:slug" element={<ProgramDetailPage />} />}
 
             {/* =================================================
               INTERNSHIP DISCOVERY
