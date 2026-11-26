@@ -17,7 +17,7 @@ const {
   createEmployerProfile,
 } = require("../helpers/createTestUser");
 const { flushNotificationEmails } = require("../../services/notificationEmail");
-const { istDay, notificationBudget } = require("../../services/emailBudget");
+const { istDay, notificationBudget, reserveNotificationEmail } = require("../../services/emailBudget");
 const { notifyEmployerVerification } = require("../../services/accountNotifications");
 
 const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
@@ -214,6 +214,22 @@ describe("transactional emails (G03)", () => {
       const otp = await request(app).post("/api/auth/send-otp").send({ email: "brand-new@example.com" });
       expect(otp.status).toBe(200);
       expect(sentTo("brand-new@example.com")).toHaveLength(1);
+    });
+
+    it("counts emails reserved at the same moment before today's counter exists (C11)", async () => {
+      await EmailUsage.init();
+      await EmailUsage.deleteMany({});
+      const results = await Promise.all(Array.from({ length: 5 }, () => reserveNotificationEmail()));
+      expect(results).toEqual([true, true, true, true, true]);
+      expect((await EmailUsage.findOne({ day: istDay(), kind: "notification" }).lean()).count).toBe(5);
+    });
+
+    it("still refuses at the limit when racing", async () => {
+      await EmailUsage.init();
+      await EmailUsage.create({ day: istDay(), kind: "notification", count: notificationBudget() - 1 });
+      const results = await Promise.all([reserveNotificationEmail(), reserveNotificationEmail(), reserveNotificationEmail()]);
+      expect(results.filter(Boolean)).toHaveLength(1);
+      expect((await EmailUsage.findOne({ day: istDay(), kind: "notification" }).lean()).count).toBe(notificationBudget());
     });
   });
 

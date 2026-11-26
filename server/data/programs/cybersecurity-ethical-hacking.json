@@ -1,0 +1,23 @@
+{
+  "slug": "cybersecurity-ethical-hacking",
+  "title": "Cybersecurity & Ethical Hacking",
+  "published": true,
+  "order": 4,
+  "track": "cloud-security",
+  "level": null,
+  "duration": "12–16 weeks",
+  "tools": [
+    "Networking",
+    "Linux",
+    "VAPT",
+    "Security Tools",
+    "SOC Fundamentals"
+  ],
+  "summary": "",
+  "syllabus": [],
+  "projects": [],
+  "mentorship": "",
+  "internship": "",
+  "certificate": "",
+  "faq": []
+}

@@ -1,0 +1,33 @@
+{
+  "track": "software",
+  "level": "foundation",
+  "duration": "4 weeks",
+  "tools": [
+    "Tool A"
+  ],
+  "summary": "Test summary.",
+  "syllabus": [
+    {
+      "title": "Module 1",
+      "topics": [
+        "Topic 1"
+      ]
+    }
+  ],
+  "projects": [
+    "Project 1"
+  ],
+  "mentorship": "",
+  "internship": "",
+  "certificate": "",
+  "faq": [
+    {
+      "question": "Q?",
+      "answer": "A."
+    }
+  ],
+  "slug": "first-programme",
+  "title": "First Programme",
+  "published": true,
+  "order": 1
+}

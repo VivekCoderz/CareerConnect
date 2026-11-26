@@ -27,6 +27,8 @@ const employerRoutes = require("./routes/employerRoutes.js");
 const courseRoutes = require("./routes/courseRoutes.js");
 const courseContentRoutes = require("./routes/courseContentRoutes");
 const paymentRoutes = require("./routes/paymentRoutes.js");
+// C09: career programmes (C05 data files), separate from the old courses LMS
+const programRoutes = require("./routes/programRoutes.js");
 
 // Employer & Jobs / Internships feature routes
 const jobRoutes = require("./routes/jobRoutes.js");
@@ -167,6 +169,7 @@ if (flag("ENABLE_COURSES")) app.use("/api/courses", courseRoutes);
 if (flag("ENABLE_COURSES")) app.use("/api/courses", courseContentRoutes);
 if (flag("ENABLE_COURSES")) app.use("/api/course-content", courseContentRoutes);
 if (flag("ENABLE_PAYMENTS")) app.use("/api/payment", paymentRoutes);
+app.use("/api/programs", programRoutes);
 
 // Marketplace & Discovery Routes
 app.use("/api/jobs", jobRoutes);

@@ -1,4 +1,4 @@
-const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
+const { rateLimit, ipKeyGenerator, MemoryStore } = require("express-rate-limit");
 
 /**
  * Helper to get clean, normalized client IP using express-rate-limit's ipKeyGenerator
@@ -195,6 +195,25 @@ const passwordResetLimiter = rateLimit({
   },
 });
 
+/**
+ * Programme Enquiry Limiter (C10)
+ * Default: 5 enquiries / hour per IP (RATE_LIMIT_PROGRAM_ENQUIRY_MAX). Runs before reCAPTCHA
+ * so a flood never reaches Google. The store is exported so tests can reset it.
+ */
+const programEnquiryStore = new MemoryStore();
+const programEnquiryLimiter = rateLimit({
+  ...commonRateLimitOptions,
+  windowMs: 60 * 60 * 1000,
+  max: () => getLimitMax("RATE_LIMIT_PROGRAM_ENQUIRY_MAX", 5),
+  keyGenerator: (req) => getClientIp(req),
+  store: programEnquiryStore,
+  message: {
+    success: false,
+    code: "ENQUIRY_RATE_LIMIT",
+    message: "Too many enquiries. Please try again later.",
+  },
+});
+
 // No-op middleware for backwards compatibility
 const noopMiddleware = (req, res, next) => next();
 
@@ -208,6 +227,8 @@ module.exports = {
   internshipsLiveLimiter,
   loginLimiter,
   passwordResetLimiter,
+  programEnquiryLimiter,
+  programEnquiryStore,
 
   // Aliases for backwards compatibility
   otpLimiter: otpSendLimiter,

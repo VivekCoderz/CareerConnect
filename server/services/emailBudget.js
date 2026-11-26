@@ -57,18 +57,22 @@ const reserveNotificationEmail = async () => {
   const day = istDay();
   const budget = notificationBudget();
   if (budget === 0) return false;
-  try {
-    const doc = await EmailUsage.findOneAndUpdate(
-      { day, kind: "notification", count: { $lt: budget } },
-      { $inc: { count: 1 } },
-      { upsert: true, new: true }
-    );
-    return Boolean(doc);
-  } catch (err) {
-    // A duplicate-key error means today's document exists but is at the limit.
-    if (err.code === 11000) return false;
-    throw err;
+  const reserve = () => EmailUsage.findOneAndUpdate(
+    { day, kind: "notification", count: { $lt: budget } },
+    { $inc: { count: 1 } },
+    { upsert: true, new: true }
+  );
+  // A duplicate-key error means today's document exists: either it is at the limit, or two
+  // emails raced to create it (e.g. the two emails for a programme enquiry, the first of the
+  // day). One retry tells them apart: it counts the email, or fails again at the limit.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return Boolean(await reserve());
+    } catch (err) {
+      if (err.code !== 11000) throw err;
+    }
   }
+  return false;
 };
 
 const releaseNotificationEmail = async () => {
