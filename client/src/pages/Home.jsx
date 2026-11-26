@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import InternshipDiscoveryMenu from "../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../components/jobs/JobDiscoveryMenu";
+import ProgramsMenu from "../components/programs/ProgramsMenu";
 import { getDashboardPath } from "../utils/dashboardRedirect";
 import internshipService from "../services/internshipService";
 import jobService from "../services/jobService";
@@ -220,6 +221,7 @@ const Home = () => {
               <nav className="hidden lg:flex items-center gap-1" aria-label="Main">
                 <JobDiscoveryMenu buttonClassName={NAV_MENU_BUTTON} />
                 <InternshipDiscoveryMenu buttonClassName={NAV_MENU_BUTTON} />
+                <ProgramsMenu buttonClassName={NAV_MENU_BUTTON} />
                 {FEATURES.courses && <Link to="/courses" className={NAV_LINK}>Courses</Link>}
                 <Link to="/organizations/request-access" className={NAV_LINK}>For Organizations</Link>
               </nav>
@@ -249,7 +251,7 @@ const Home = () => {
                   ["/jobs", "Jobs"],
                   ["/internships", "Internships"],
                   ["/opportunities?source=campus", "Campus hiring"],
-                  ...(FEATURES.courses ? [["/courses", "Courses"]] : []),
+                  ...(FEATURES.programs ? [["/programs", "Courses"]] : FEATURES.courses ? [["/courses", "Courses"]] : []),
                   ["/organizations/request-access", "For Organizations"],
                   ["/register/employer", "Hire talent"],
                   ["/login", "Log in"],
