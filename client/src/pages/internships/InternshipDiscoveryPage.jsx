@@ -7,6 +7,7 @@ import internshipService from "../../services/internshipService";
 import { saveOpportunity } from "../../services/studentDashboardService";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
+import ProgramsMenu from "../../components/programs/ProgramsMenu";
 import TailoredResumeApplicationModal from "../../components/resume-builder/TailoredResumeApplicationModal";
 import { openExternalApply } from "../../utils/opportunityApply";
 import { getMyAppliedIds } from "../../services/applicationService";
@@ -301,6 +302,7 @@ const InternshipDiscoveryPage = () => {
           <div className="hidden sm:flex items-center gap-2">
             <InternshipDiscoveryMenu studentCity={user?.location || ""} />
             <JobDiscoveryMenu />
+            <ProgramsMenu />
           </div>
         </div>
 

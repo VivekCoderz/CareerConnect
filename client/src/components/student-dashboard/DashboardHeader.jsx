@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import InternshipDiscoveryMenu from "../internships/InternshipDiscoveryMenu";
+import ProgramsMenu from "../programs/ProgramsMenu";
 
 const DashboardHeader = ({
   user,
@@ -71,6 +72,7 @@ const DashboardHeader = ({
           {/* Internshala-style Category Discovery Menu */}
           <div className="hidden md:block pl-2">
             <InternshipDiscoveryMenu studentCity={profile?.location?.city || ""} />
+            <ProgramsMenu />
           </div>
         </div>
 

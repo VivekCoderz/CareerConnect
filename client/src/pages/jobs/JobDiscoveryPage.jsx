@@ -11,6 +11,7 @@ import ViewDetailsButton from "../../components/common/ViewDetailsButton";
 import useSeo from "../../hooks/useSeo";
 import InternshipDiscoveryMenu from "../../components/internships/InternshipDiscoveryMenu";
 import JobDiscoveryMenu from "../../components/jobs/JobDiscoveryMenu";
+import ProgramsMenu from "../../components/programs/ProgramsMenu";
 import BrandLogo from "../../components/common/BrandLogo";
 import { getDashboardPath } from "../../utils/dashboardRedirect";
 
@@ -273,6 +274,7 @@ const JobDiscoveryPage = () => {
           <div className="hidden sm:flex items-center gap-2 ml-3">
             <JobDiscoveryMenu />
             <InternshipDiscoveryMenu />
+            <ProgramsMenu />
           </div>
         </div>
 

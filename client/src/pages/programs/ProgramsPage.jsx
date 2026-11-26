@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../../components/common/BrandLogo";
+import ProgramsMenu from "../../components/programs/ProgramsMenu";
 import useSeo from "../../hooks/useSeo";
 import { LEVELS, PROGRAMS, TRACKS } from "./programList";
 import "../home/home.css";
@@ -42,6 +43,9 @@ export default function ProgramsPage() {
             <Link to="/internships" className="hidden sm:inline-flex items-center h-10 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-[#0f1f4d]">
               Internships
             </Link>
+            <span className="hidden sm:inline-flex">
+              <ProgramsMenu buttonClassName="flex items-center gap-1 h-10 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-[#0f1f4d] hover:bg-slate-100/70 transition" />
+            </span>
             <Link to="/login" className="inline-flex items-center h-10 px-4 rounded-xl text-sm font-semibold text-[#0f1f4d] hover:bg-slate-100">
               Log in
             </Link>
