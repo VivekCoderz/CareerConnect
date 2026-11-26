@@ -1,0 +1,23 @@
+{
+  "slug": "data-analytics-business-intelligence",
+  "title": "Data Analytics & Business Intelligence",
+  "published": true,
+  "order": 2,
+  "track": "data-ai",
+  "level": null,
+  "duration": "10–12 weeks",
+  "tools": [
+    "Python",
+    "SQL",
+    "Excel",
+    "Power BI",
+    "Data Visualisation"
+  ],
+  "summary": "",
+  "syllabus": [],
+  "projects": [],
+  "mentorship": "",
+  "internship": "",
+  "certificate": "",
+  "faq": []
+}
