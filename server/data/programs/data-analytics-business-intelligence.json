@@ -13,11 +13,105 @@
     "Power BI",
     "Data Visualisation"
   ],
-  "summary": "",
-  "syllabus": [],
-  "projects": [],
-  "mentorship": "",
-  "internship": "",
-  "certificate": "",
-  "faq": []
+  "summary": "Learn to turn raw data into business decisions. Work with Excel, SQL, Python and Power BI to clean data, analyse it and build dashboards that business teams actually use.",
+  "syllabus": [
+    {
+      "title": "Excel for analysis",
+      "topics": [
+        "Formulas and lookups",
+        "Pivot tables and charts",
+        "Cleaning and preparing data"
+      ]
+    },
+    {
+      "title": "Statistics for analysts",
+      "topics": [
+        "Descriptive statistics",
+        "Distributions and sampling",
+        "Correlation",
+        "Hypothesis testing basics"
+      ]
+    },
+    {
+      "title": "SQL",
+      "topics": [
+        "Selecting, filtering and joining tables",
+        "Grouping and aggregation",
+        "Subqueries and window functions",
+        "Working with real databases"
+      ]
+    },
+    {
+      "title": "Python for data analysis",
+      "topics": [
+        "pandas for cleaning and transformation",
+        "Exploratory data analysis",
+        "Charts with Matplotlib and Seaborn"
+      ]
+    },
+    {
+      "title": "Data visualisation and storytelling",
+      "topics": [
+        "Choosing the right chart",
+        "Clear dashboard design",
+        "Presenting insights to decision makers"
+      ]
+    },
+    {
+      "title": "Power BI",
+      "topics": [
+        "Power Query and data modelling",
+        "DAX basics",
+        "Interactive dashboards",
+        "Publishing and sharing reports"
+      ]
+    },
+    {
+      "title": "Business analytics in practice",
+      "topics": [
+        "Defining KPIs",
+        "Sales, marketing and HR analytics",
+        "From a business question to a recommendation"
+      ]
+    }
+  ],
+  "projects": [
+    "A sales performance dashboard in Power BI with drill-downs by region and product",
+    "A customer churn analysis in Python with recommendations for the business",
+    "A SQL analysis of an e-commerce database that answers real business questions",
+    "An Excel operations report with pivot tables and automated summaries"
+  ],
+  "mentorship": "Every student gets a personal mentor from the industry for the whole programme. Your mentor reviews your projects, helps when you are stuck, and guides you one to one on your portfolio, GitHub and LinkedIn profile, resume and interview preparation.",
+  "internship": "Students who complete the projects and the final evaluation are considered for internship opportunities through E2Job, and everyone gets practical industry exposure through real-world projects and expert sessions. Internships depend on your performance and on availability; they are not guaranteed.",
+  "certificate": "Complete the live sessions, at least two hands-on industry projects and the final evaluation to receive an E2Job Certificate of Completion. It shows the programme, your level and the duration, and carries a unique certificate ID.",
+  "faq": [
+    {
+      "question": "Who is this programme for?",
+      "answer": "B.Tech, BCA, MCA, MBA and other students and recent graduates who want to work as data or business analysts."
+    },
+    {
+      "question": "Do I need prior experience?",
+      "answer": "No. School-level maths is enough. Foundation starts with Excel and introduces SQL and Python step by step."
+    },
+    {
+      "question": "Which level should I choose?",
+      "answer": "There are three levels. Foundation is for beginners, Professional is for students who know the basics and want job-ready depth, and Advanced is for those ready for complex, industry-level work. Pick the closest one in the enquiry form; our team will confirm the right level with you on the call."
+    },
+    {
+      "question": "How are classes taught?",
+      "answer": "Through live, interactive sessions led by industry experts, with hands-on practice, assignments and doubt-clearing. You also get a personal mentor for project reviews and guidance."
+    },
+    {
+      "question": "What are the fees, and when do classes start?",
+      "answer": "Fees, the trainer and batch timings are shared by our team after you enquire. Fill in the enquiry form and we will contact you."
+    },
+    {
+      "question": "Do you guarantee a job or an internship?",
+      "answer": "No. We do not guarantee placements or internships. You get career support: access to the E2Job job and internship portal, interview preparation, help with your resume and portfolio, and internship opportunities based on your performance."
+    },
+    {
+      "question": "What do I get when I finish?",
+      "answer": "An E2Job Certificate of Completion, at least two projects for your portfolio, and an updated resume, GitHub and LinkedIn profile."
+    }
+  ]
 }

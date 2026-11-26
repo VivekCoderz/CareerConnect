@@ -13,11 +13,111 @@
     "Security Tools",
     "SOC Fundamentals"
   ],
-  "summary": "",
-  "syllabus": [],
-  "projects": [],
-  "mentorship": "",
-  "internship": "",
-  "certificate": "",
-  "faq": []
+  "summary": "Learn how attackers think and how to defend systems, legally and responsibly. Cover networking, Linux, vulnerability assessment and penetration testing (VAPT), security tools and SOC fundamentals in hands-on labs.",
+  "syllabus": [
+    {
+      "title": "Networking fundamentals",
+      "topics": [
+        "OSI and TCP/IP models",
+        "IP addressing and subnets",
+        "DNS, HTTP and other common protocols",
+        "Packet analysis with Wireshark"
+      ]
+    },
+    {
+      "title": "Linux for security",
+      "topics": [
+        "The command line",
+        "Users, permissions and processes",
+        "Bash scripting"
+      ]
+    },
+    {
+      "title": "Security fundamentals",
+      "topics": [
+        "Confidentiality, integrity and availability",
+        "Threats, vulnerabilities and risk",
+        "Cryptography basics",
+        "Authentication and access control"
+      ]
+    },
+    {
+      "title": "Ethical hacking and reconnaissance",
+      "topics": [
+        "Legal and ethical rules, scope and written permission",
+        "Footprinting and information gathering",
+        "Scanning with Nmap"
+      ]
+    },
+    {
+      "title": "Web application security",
+      "topics": [
+        "OWASP Top 10",
+        "SQL injection and cross-site scripting",
+        "Broken authentication",
+        "Testing with Burp Suite"
+      ]
+    },
+    {
+      "title": "Vulnerability assessment and penetration testing (VAPT)",
+      "topics": [
+        "VAPT methodology",
+        "Metasploit in a lab",
+        "Exploitation and privilege escalation in a lab",
+        "Writing a VAPT report"
+      ]
+    },
+    {
+      "title": "SOC fundamentals",
+      "topics": [
+        "Security monitoring and logs",
+        "SIEM basics",
+        "Detecting and responding to incidents",
+        "Threat intelligence"
+      ]
+    }
+  ],
+  "projects": [
+    "A vulnerability assessment and penetration test of a practice lab, with a professional VAPT report",
+    "Securing a vulnerable web application against OWASP Top 10 issues",
+    "Network traffic analysis to find suspicious activity with Wireshark",
+    "A SOC exercise: detect and respond to simulated attacks using logs"
+  ],
+  "mentorship": "Every student gets a personal mentor from the industry for the whole programme. Your mentor reviews your projects, helps when you are stuck, and guides you one to one on your portfolio, GitHub and LinkedIn profile, resume and interview preparation.",
+  "internship": "Students who complete the projects and the final evaluation are considered for internship opportunities through E2Job, and everyone gets practical industry exposure through real-world projects and expert sessions. Internships depend on your performance and on availability; they are not guaranteed.",
+  "certificate": "Complete the live sessions, at least two hands-on industry projects and the final evaluation to receive an E2Job Certificate of Completion. It shows the programme, your level and the duration, and carries a unique certificate ID.",
+  "faq": [
+    {
+      "question": "Who is this programme for?",
+      "answer": "B.Tech, BCA, MCA, MBA and other students and recent graduates who want a career in cybersecurity."
+    },
+    {
+      "question": "Do I need prior experience?",
+      "answer": "Not for Foundation, which starts with networking and Linux. Professional and Advanced expect basic networking and command-line knowledge."
+    },
+    {
+      "question": "Which level should I choose?",
+      "answer": "There are three levels. Foundation is for beginners, Professional is for students who know the basics and want job-ready depth, and Advanced is for those ready for complex, industry-level work. Pick the closest one in the enquiry form; our team will confirm the right level with you on the call."
+    },
+    {
+      "question": "How are classes taught?",
+      "answer": "Through live, interactive sessions led by industry experts, with hands-on practice, assignments and doubt-clearing. You also get a personal mentor for project reviews and guidance."
+    },
+    {
+      "question": "What are the fees, and when do classes start?",
+      "answer": "Fees, the trainer and batch timings are shared by our team after you enquire. Fill in the enquiry form and we will contact you."
+    },
+    {
+      "question": "Do you guarantee a job or an internship?",
+      "answer": "No. We do not guarantee placements or internships. You get career support: access to the E2Job job and internship portal, interview preparation, help with your resume and portfolio, and internship opportunities based on your performance."
+    },
+    {
+      "question": "What do I get when I finish?",
+      "answer": "An E2Job Certificate of Completion, at least two projects for your portfolio, and an updated resume, GitHub and LinkedIn profile."
+    },
+    {
+      "question": "Is ethical hacking legal?",
+      "answer": "Yes, when you have written permission to test a system. All practice in this programme happens in safe lab environments, and you learn the legal and ethical rules first."
+    }
+  ]
 }

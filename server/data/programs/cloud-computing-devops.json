@@ -13,11 +13,103 @@
     "CI/CD",
     "Deployment"
   ],
-  "summary": "",
-  "syllabus": [],
-  "projects": [],
-  "mentorship": "",
-  "internship": "",
-  "certificate": "",
-  "faq": []
+  "summary": "Learn to build, deploy and run applications in the cloud. Work with AWS and Azure, Linux, Docker and CI/CD pipelines, the way modern engineering teams ship software.",
+  "syllabus": [
+    {
+      "title": "Linux and networking for the cloud",
+      "topics": [
+        "The command line and shell scripting",
+        "Networking basics: IP, DNS, ports and firewalls",
+        "SSH and remote servers"
+      ]
+    },
+    {
+      "title": "Cloud fundamentals",
+      "topics": [
+        "IaaS, PaaS and SaaS",
+        "Regions, availability and pricing",
+        "Getting started with AWS and Azure",
+        "Identity and access management"
+      ]
+    },
+    {
+      "title": "Core cloud services",
+      "topics": [
+        "Virtual machines",
+        "Object storage",
+        "Managed databases",
+        "Virtual networks, load balancers and auto scaling"
+      ]
+    },
+    {
+      "title": "Docker and containers",
+      "topics": [
+        "Images and Dockerfiles",
+        "Docker Compose",
+        "Container registries"
+      ]
+    },
+    {
+      "title": "CI/CD",
+      "topics": [
+        "Git workflows",
+        "Building pipelines with GitHub Actions",
+        "Automated testing and deployment"
+      ]
+    },
+    {
+      "title": "Infrastructure as code and orchestration",
+      "topics": [
+        "Terraform basics",
+        "Kubernetes concepts: pods, deployments and services"
+      ]
+    },
+    {
+      "title": "Monitoring, security and cost",
+      "topics": [
+        "Logging, monitoring and alerts",
+        "Cloud security basics",
+        "Keeping cloud costs under control"
+      ]
+    }
+  ],
+  "projects": [
+    "Deploy a web application on AWS behind a load balancer with auto scaling",
+    "Containerise a multi-service application with Docker and Docker Compose",
+    "A CI/CD pipeline that tests and deploys code automatically on every push",
+    "Build a cloud environment as code with Terraform"
+  ],
+  "mentorship": "Every student gets a personal mentor from the industry for the whole programme. Your mentor reviews your projects, helps when you are stuck, and guides you one to one on your portfolio, GitHub and LinkedIn profile, resume and interview preparation.",
+  "internship": "Students who complete the projects and the final evaluation are considered for internship opportunities through E2Job, and everyone gets practical industry exposure through real-world projects and expert sessions. Internships depend on your performance and on availability; they are not guaranteed.",
+  "certificate": "Complete the live sessions, at least two hands-on industry projects and the final evaluation to receive an E2Job Certificate of Completion. It shows the programme, your level and the duration, and carries a unique certificate ID.",
+  "faq": [
+    {
+      "question": "Who is this programme for?",
+      "answer": "B.Tech, BCA, MCA, MBA and other students and recent graduates who want to work in cloud or DevOps roles."
+    },
+    {
+      "question": "Do I need prior experience?",
+      "answer": "Not for Foundation, which starts with Linux and cloud basics. Professional and Advanced expect some programming or system administration experience."
+    },
+    {
+      "question": "Which level should I choose?",
+      "answer": "There are three levels. Foundation is for beginners, Professional is for students who know the basics and want job-ready depth, and Advanced is for those ready for complex, industry-level work. Pick the closest one in the enquiry form; our team will confirm the right level with you on the call."
+    },
+    {
+      "question": "How are classes taught?",
+      "answer": "Through live, interactive sessions led by industry experts, with hands-on practice, assignments and doubt-clearing. You also get a personal mentor for project reviews and guidance."
+    },
+    {
+      "question": "What are the fees, and when do classes start?",
+      "answer": "Fees, the trainer and batch timings are shared by our team after you enquire. Fill in the enquiry form and we will contact you."
+    },
+    {
+      "question": "Do you guarantee a job or an internship?",
+      "answer": "No. We do not guarantee placements or internships. You get career support: access to the E2Job job and internship portal, interview preparation, help with your resume and portfolio, and internship opportunities based on your performance."
+    },
+    {
+      "question": "What do I get when I finish?",
+      "answer": "An E2Job Certificate of Completion, at least two projects for your portfolio, and an updated resume, GitHub and LinkedIn profile."
+    }
+  ]
 }
