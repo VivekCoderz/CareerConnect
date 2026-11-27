@@ -1,0 +1,28 @@
+{
+  "slug": "cloud-computing-devops",
+  "title": "Cloud Computing & DevOps",
+  "published": true,
+  "order": 5,
+  "track": "cloud-security",
+  "levels": [
+    "foundation",
+    "professional",
+    "advanced"
+  ],
+  "duration": "12–16 weeks",
+  "tools": [
+    "AWS/Azure",
+    "Cloud Infrastructure",
+    "Docker",
+    "CI/CD",
+    "Deployment"
+  ],
+  "summary": "",
+  "syllabus": [],
+  "projects": [],
+  "mentorship": "",
+  "internship": "",
+  "certificate": "",
+  "certificateImage": "",
+  "faq": []
+}

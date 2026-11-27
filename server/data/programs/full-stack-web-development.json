@@ -1,0 +1,30 @@
+{
+  "slug": "full-stack-web-development",
+  "title": "Full Stack Web Development",
+  "published": true,
+  "order": 3,
+  "track": "software",
+  "levels": [
+    "foundation",
+    "professional",
+    "advanced"
+  ],
+  "duration": "12–16 weeks",
+  "tools": [
+    "HTML",
+    "CSS",
+    "JavaScript",
+    "React",
+    "Node.js",
+    "MongoDB",
+    "APIs"
+  ],
+  "summary": "",
+  "syllabus": [],
+  "projects": [],
+  "mentorship": "",
+  "internship": "",
+  "certificate": "",
+  "certificateImage": "",
+  "faq": []
+}
