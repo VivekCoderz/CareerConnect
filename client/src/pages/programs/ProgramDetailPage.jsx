@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import ProgramEnquiryModal from "../../components/programs/ProgramEnquiryModal";
 import ProgramsShell from "../../components/programs/ProgramsShell";
 import JourneyLoader from "../../components/common/JourneyLoader";
 import useSeo, { toDescription } from "../../hooks/useSeo";
@@ -27,13 +28,10 @@ const Bullets = ({ items }) => (
   </ul>
 );
 
-const scrollToEnquiry = () =>
-  document.getElementById("enquire")?.scrollIntoView({ behavior: "smooth", block: "start" });
-
-const EnquireButton = ({ className = "" }) => (
+const EnquireButton = ({ onClick, className = "" }) => (
   <button
     type="button"
-    onClick={scrollToEnquiry}
+    onClick={onClick}
     className={`inline-flex items-center justify-center min-h-[48px] px-7 rounded-[14px] bg-amber-500 text-[#1c1300] text-base font-bold hover:bg-amber-400 ${className}`}
   >
     Enquire now
@@ -47,7 +45,10 @@ export default function ProgramDetailPage() {
   // The answer for one slug; until it matches the current slug, the page is loading.
   const [result, setResult] = useState({ slug: null, program: null, status: "loading" });
   const [heroOut, setHeroOut] = useState(false);
+  const [enquiryOpen, setEnquiryOpen] = useState(false);
   const heroRef = useRef(null);
+  const openEnquiry = () => setEnquiryOpen(true);
+  const closeEnquiry = useCallback(() => setEnquiryOpen(false), []);
   const state = result.slug === slug ? result.status : "loading"; // loading | ready | missing | error
   const program = state === "ready" ? result.program : null;
 
@@ -134,7 +135,7 @@ export default function ProgramDetailPage() {
             <li className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700">Levels: {LEVELS.join(" · ")}</li>
           </ul>
           <div className="flex flex-wrap items-center gap-3">
-            <EnquireButton />
+            <EnquireButton onClick={openEnquiry} />
             <span className="text-sm text-slate-500">{SHARED_ON_THE_CALL}</span>
           </div>
         </div>
@@ -232,15 +233,14 @@ export default function ProgramDetailPage() {
           </Section>
         )}
 
-        {/* C14 puts the enquiry form here. */}
-        <section id="enquire" className="scroll-mt-20 rounded-[28px] bg-[#0f1f4d] text-white px-6 py-10 sm:px-10 flex flex-col gap-3">
+        <section className="rounded-[28px] bg-[#0f1f4d] text-white px-6 py-10 sm:px-10 flex flex-col gap-3">
           <h2 className="e2h-display m-0 text-2xl sm:text-3xl font-bold">Interested in {program.title}?</h2>
           <p className="m-0 text-indigo-200">{SHARED_ON_THE_CALL}</p>
-          <Link to="/contact" className="self-start inline-flex items-center min-h-[48px] px-6 rounded-[14px] bg-amber-500 text-[#1c1300] font-bold hover:bg-amber-400">
-            Contact our team
-          </Link>
+          <EnquireButton onClick={openEnquiry} className="self-start" />
         </section>
       </div>
+
+      {enquiryOpen && <ProgramEnquiryModal program={program} onClose={closeEnquiry} />}
 
       {/* Sticky enquiry bar: always on phones, on wider screens once the hero has scrolled away */}
       <div
@@ -252,7 +252,7 @@ export default function ProgramDetailPage() {
             <p className="m-0 font-bold text-slate-900 truncate">{program.title}</p>
             <p className="m-0 text-xs text-slate-500">{program.duration} · Live classes</p>
           </div>
-          <EnquireButton className="shrink-0" />
+          <EnquireButton onClick={openEnquiry} className="shrink-0" />
         </div>
       </div>
     </ProgramsShell>
