@@ -16,7 +16,7 @@ const FORBIDDEN_KEY = /trainer|instructor|faculty|batch|timing|schedule|start_?d
 
 // Card fields for the list; the detail adds the content sections.
 const CARD_FIELDS = ["slug", "title", "track", "levels", "duration", "tools", "summary"];
-const DETAIL_FIELDS = [...CARD_FIELDS, "syllabus", "projects", "mentorship", "internship", "certificate", "faq"];
+const DETAIL_FIELDS = [...CARD_FIELDS, "syllabus", "projects", "mentorship", "internship", "certificate", "certificateImage", "faq"];
 
 const fail = (file, message) => {
   throw new Error(`Programme data ${file}: ${message}`);
@@ -51,6 +51,10 @@ const checkProgram = (program, file) => {
   }
   for (const key of ["duration", "summary", "mentorship", "internship", "certificate"]) {
     if (typeof program[key] !== "string") fail(file, `${key} must be a string`);
+  }
+  // C02 sample certificate: "" until it exists, then a path on the site or an https URL.
+  if (typeof program.certificateImage !== "string" || (program.certificateImage && !/^(\/(?!\/)|https:\/\/)/.test(program.certificateImage))) {
+    fail(file, 'certificateImage must be "", a path such as "/programs/certificates/<slug>.webp", or an https:// URL');
   }
   for (const key of ["tools", "projects"]) {
     if (!isStringList(program[key])) fail(file, `${key} must be a list of strings`);

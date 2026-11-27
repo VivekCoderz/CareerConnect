@@ -14,6 +14,7 @@ describe("Feature flags", () => {
     process.env.ENABLE_COURSES = "false";
     process.env.ENABLE_PAYMENTS = "false";
     process.env.ENABLE_ASSESSMENTS = "false";
+    process.env.ENABLE_PROGRAMS = "false";
 
     // Load a fresh app
     jest.isolateModules(() => {
@@ -33,6 +34,8 @@ describe("Feature flags", () => {
     "/api/payment/x",
     "/api/employer/learning",
     "/api/assessments",
+    "/api/programs",
+    "/api/programs/ai-generative-ai",
   ];
 
   routes.forEach((route) => {

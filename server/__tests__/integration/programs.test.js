@@ -88,6 +88,7 @@ describe("programme API (fixture data)", () => {
       mentorship: "",
       internship: "",
       certificate: "",
+      certificateImage: "",
       faq: [{ question: "Q?", answer: "A." }],
     });
     expect(res.body.program).not.toHaveProperty("published");
@@ -117,7 +118,7 @@ describe("programme data file checks", () => {
   const valid = {
     slug: "ok-programme", title: "OK", published: true, order: 1, track: "software", levels: ["foundation"],
     duration: "", tools: [], summary: "", syllabus: [], projects: [], mentorship: "", internship: "",
-    certificate: "", faq: [],
+    certificate: "", certificateImage: "", faq: [],
   };
   const writeOne = (program, file = `${program.slug}.json`) => {
     fs.readdirSync(dir).forEach((name) => fs.unlinkSync(path.join(dir, name)));
@@ -142,6 +143,10 @@ describe("programme data file checks", () => {
     ["levels that is not a list", { ...valid, levels: "foundation" }, /levels must be/],
     ["a repeated level", { ...valid, levels: ["foundation", "foundation"] }, /no repeats/],
     ["the old single level field", { ...valid, level: "foundation" }, /"level" is now "levels"/],
+    ["a missing certificateImage", { ...valid, certificateImage: undefined }, /certificateImage/],
+    ["a relative certificateImage", { ...valid, certificateImage: "cert.png" }, /certificateImage/],
+    ["an http certificateImage", { ...valid, certificateImage: "http://example.com/c.png" }, /certificateImage/],
+    ["a protocol-relative certificateImage", { ...valid, certificateImage: "//example.com/c.png" }, /certificateImage/],
     ["a non-boolean published", { ...valid, published: "yes" }, /published/],
   ])("rejects %s", (_label, program, message) => {
     writeOne(program);

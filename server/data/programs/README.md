@@ -23,6 +23,7 @@ cards open the right pages.
 | `mentorship`  | string                            |                                                    |
 | `internship`  | string                            |                                                    |
 | `certificate` | string                            | C02: final wording comes from Ram Mohan sir        |
+| `certificateImage` | string                          | C02 sample certificate: `""` until it exists, then `"/programs/certificates/<slug>.webp"` (file in `client/public`) or an `https://` URL |
 | `faq`         | `{ question, answer }[]`          |                                                    |
 
 Leave a section empty (`""` or `[]`) until the real content is agreed; the page hides
