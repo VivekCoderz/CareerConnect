@@ -15,7 +15,7 @@ const LEVELS = ["foundation", "professional", "advanced"];
 const FORBIDDEN_KEY = /trainer|instructor|faculty|batch|timing|schedule|start_?date|class_?time/i;
 
 // Card fields for the list; the detail adds the content sections.
-const CARD_FIELDS = ["slug", "title", "track", "level", "duration", "tools", "summary"];
+const CARD_FIELDS = ["slug", "title", "track", "levels", "duration", "tools", "summary"];
 const DETAIL_FIELDS = [...CARD_FIELDS, "syllabus", "projects", "mentorship", "internship", "certificate", "faq"];
 
 const fail = (file, message) => {
@@ -44,7 +44,11 @@ const checkProgram = (program, file) => {
   if (typeof program.published !== "boolean") fail(file, "published must be true or false");
   if (typeof program.order !== "number") fail(file, "order must be a number");
   if (!TRACKS.includes(program.track)) fail(file, `track must be one of ${TRACKS.join(", ")}`);
-  if (program.level !== null && !LEVELS.includes(program.level)) fail(file, `level must be null or one of ${LEVELS.join(", ")}`);
+  if ("level" in program) fail(file, `"level" is now "levels", a list such as ["foundation", "professional", "advanced"]`);
+  const { levels } = program;
+  if (!Array.isArray(levels) || !levels.length || !levels.every((l) => LEVELS.includes(l)) || new Set(levels).size !== levels.length) {
+    fail(file, `levels must be a list of one or more of ${LEVELS.join(", ")}, with no repeats`);
+  }
   for (const key of ["duration", "summary", "mentorship", "internship", "certificate"]) {
     if (typeof program[key] !== "string") fail(file, `${key} must be a string`);
   }
@@ -83,6 +87,11 @@ const loadPrograms = (dir = DEFAULT_DIR) => {
     }
     checkProgram(program, file);
     return program;
+  });
+
+  // Levels always come out Foundation -> Advanced, whatever order the file lists them in.
+  programs.forEach((program) => {
+    program.levels = LEVELS.filter((level) => program.levels.includes(level));
   });
 
   const published = programs

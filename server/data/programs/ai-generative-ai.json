@@ -4,7 +4,11 @@
   "published": true,
   "order": 1,
   "track": "data-ai",
-  "level": null,
+  "levels": [
+    "foundation",
+    "professional",
+    "advanced"
+  ],
   "duration": "8–12 weeks",
   "tools": [
     "Generative AI",

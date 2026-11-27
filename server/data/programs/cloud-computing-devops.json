@@ -4,7 +4,11 @@
   "published": true,
   "order": 5,
   "track": "cloud-security",
-  "level": null,
+  "levels": [
+    "foundation",
+    "professional",
+    "advanced"
+  ],
   "duration": "12–16 weeks",
   "tools": [
     "AWS/Azure",

@@ -1,6 +1,8 @@
 {
   "track": "software",
-  "level": null,
+  "levels": [
+    "professional"
+  ],
   "duration": "4 weeks",
   "tools": [],
   "summary": "",

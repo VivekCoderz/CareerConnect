@@ -54,7 +54,7 @@ describe("programme API (fixture data)", () => {
         slug: "first-programme",
         title: "First Programme",
         track: "software",
-        level: "foundation",
+        levels: ["foundation", "advanced"],
         duration: "4 weeks",
         tools: ["Tool A"],
         summary: "Test summary.",
@@ -63,7 +63,7 @@ describe("programme API (fixture data)", () => {
         slug: "second-programme",
         title: "Second Programme",
         track: "software",
-        level: null,
+        levels: ["professional"],
         duration: "4 weeks",
         tools: [],
         summary: "",
@@ -79,7 +79,7 @@ describe("programme API (fixture data)", () => {
       slug: "first-programme",
       title: "First Programme",
       track: "software",
-      level: "foundation",
+      levels: ["foundation", "advanced"],
       duration: "4 weeks",
       tools: ["Tool A"],
       summary: "Test summary.",
@@ -115,7 +115,7 @@ describe("programme API (fixture data)", () => {
 describe("programme data file checks", () => {
   let dir;
   const valid = {
-    slug: "ok-programme", title: "OK", published: true, order: 1, track: "software", level: null,
+    slug: "ok-programme", title: "OK", published: true, order: 1, track: "software", levels: ["foundation"],
     duration: "", tools: [], summary: "", syllabus: [], projects: [], mentorship: "", internship: "",
     certificate: "", faq: [],
   };
@@ -137,7 +137,11 @@ describe("programme data file checks", () => {
     ["a batch date inside the syllabus", { ...valid, syllabus: [{ title: "M1", topics: [], batchStart: "1 Dec" }] }, /batchStart/],
     ["a missing title", { ...valid, title: "" }, /title/],
     ["an unknown track", { ...valid, track: "marketing" }, /track/],
-    ["a bad level", { ...valid, level: "Beginner" }, /level/],
+    ["a bad level", { ...valid, levels: ["Beginner"] }, /levels must be/],
+    ["an empty levels list", { ...valid, levels: [] }, /levels must be/],
+    ["levels that is not a list", { ...valid, levels: "foundation" }, /levels must be/],
+    ["a repeated level", { ...valid, levels: ["foundation", "foundation"] }, /no repeats/],
+    ["the old single level field", { ...valid, level: "foundation" }, /"level" is now "levels"/],
     ["a non-boolean published", { ...valid, published: "yes" }, /published/],
   ])("rejects %s", (_label, program, message) => {
     writeOne(program);

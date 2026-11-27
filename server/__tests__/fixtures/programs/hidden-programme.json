@@ -1,6 +1,10 @@
 {
   "track": "software",
-  "level": null,
+  "levels": [
+    "foundation",
+    "professional",
+    "advanced"
+  ],
   "duration": "4 weeks",
   "tools": [],
   "summary": "",

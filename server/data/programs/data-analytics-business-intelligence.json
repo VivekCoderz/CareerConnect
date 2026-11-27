@@ -4,7 +4,11 @@
   "published": true,
   "order": 2,
   "track": "data-ai",
-  "level": null,
+  "levels": [
+    "foundation",
+    "professional",
+    "advanced"
+  ],
   "duration": "10–12 weeks",
   "tools": [
     "Python",

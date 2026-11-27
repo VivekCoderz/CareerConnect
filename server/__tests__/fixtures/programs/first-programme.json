@@ -1,6 +1,9 @@
 {
   "track": "software",
-  "level": "foundation",
+  "levels": [
+    "advanced",
+    "foundation"
+  ],
   "duration": "4 weeks",
   "tools": [
     "Tool A"
