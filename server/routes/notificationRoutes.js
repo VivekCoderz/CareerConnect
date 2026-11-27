@@ -4,9 +4,6 @@ const notificationController = require("../controllers/notificationController");
 const protect = require("../middleware/authMiddleware");
 
 router.use(protect);
-// Real-time SSE stream endpoint
-router.get("/stream", notificationController.streamNotifications);
-
 // Notification retrieval
 router.get("/", notificationController.getNotifications);
 

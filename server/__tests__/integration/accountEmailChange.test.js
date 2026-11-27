@@ -22,7 +22,10 @@ const ANY_PASSWORD = ["any", "thing"].join("");
 const WEAK_PASSWORD = ["short", "1"].join("");
 const NEW_PASSWORD = ["NewPass", "2026"].join("#");
 const OTHER_PASSWORD = ["Other", "2026x"].join("#");
-const auth = (token) => ({ Authorization: `Bearer ${token}` });
+const auth = (token) => ({ Cookie: `token=${token}` });
+// The re-issued token is only in the httpOnly cookie (H07), never in the JSON.
+const cookieToken = (res) =>
+  [].concat(res.headers["set-cookie"] || []).find((c) => c.startsWith("token=")).split(";")[0].slice("token=".length);
 const post = (token, path, body = {}) => request(app).post(`/api/account${path}`).set(auth(token)).send(body);
 
 let seq = 0;
@@ -89,12 +92,12 @@ describe("change email with the password", () => {
     expect(saved.email).toBe(email);
     expect(saved.isEmailVerified).toBe(true);
     expect((await request(app).get("/api/auth/me").set(auth(token))).statusCode).toBe(401);
-    expect((await request(app).get("/api/auth/me").set(auth(res.body.authToken))).statusCode).toBe(200);
+    expect((await request(app).get("/api/auth/me").set(auth(cookieToken(res)))).statusCode).toBe(200);
     expect((await request(app).post("/api/auth/login").send({ email, password: PASSWORD })).statusCode).toBe(200);
     expect(sendEmail.mock.calls.some(([opts]) => opts.to === "old@student.test" && /security alert/.test(opts.subject))).toBe(true);
 
     // The change token was for one change only.
-    const again = await post(res.body.authToken, "/email/request-new", { changeToken: changeTok, newEmail: nextEmail() });
+    const again = await post(cookieToken(res), "/email/request-new", { changeToken: changeTok, newEmail: nextEmail() });
     expect(again.body.code).toBe("STEP_EXPIRED");
   });
 
@@ -210,7 +213,9 @@ describe("change email via forgot password", () => {
     const reset = await post(token, "/password/reset", { resetToken, newPassword: NEW_PASSWORD });
     expect(reset.statusCode).toBe(200);
     expect((await request(app).get("/api/auth/me").set(auth(token))).statusCode).toBe(401);
-    const { authToken, changeToken: changeTok } = reset.body;
+    const { changeToken: changeTok } = reset.body;
+    expect(reset.body.authToken).toBeUndefined();
+    const authToken = cookieToken(reset);
     const login = await request(app).post("/api/auth/login").send({ email: "imran@geetauniversity.edu.in", password: NEW_PASSWORD });
     expect(login.statusCode).toBe(200);
 

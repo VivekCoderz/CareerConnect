@@ -100,7 +100,6 @@ const GoogleOnboarding = () => {
       }
     } finally {
       dispatch(logout());
-      localStorage.removeItem("careerconnect_token");
       localStorage.removeItem("careerconnect_user");
       setCancelling(false);
       navigate("/", { replace: true });

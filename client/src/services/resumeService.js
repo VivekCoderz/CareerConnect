@@ -1,6 +1,6 @@
 /**
  * Resume Service – Frontend
- * Uses shared api instance (withCredentials + Authorization header)
+ * Uses the shared api instance (httpOnly auth cookie via withCredentials)
  */
 import api from "../api/api";
 

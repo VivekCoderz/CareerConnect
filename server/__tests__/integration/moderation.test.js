@@ -6,7 +6,7 @@ const Internship = require("../../models/Internship");
 const Job = require("../../models/Job");
 const { createEmployerWithToken, createUserWithToken, createEmployerProfile } = require("../helpers/createTestUser");
 
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 const jobPayload = (overrides = {}) => ({
   title: "Moderated Backend Developer",

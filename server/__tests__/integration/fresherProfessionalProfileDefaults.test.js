@@ -22,7 +22,7 @@ const {
 } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 // Values that only ever came from the old sample data or invented schema defaults.
 const INVENTED = new RegExp([

@@ -23,6 +23,8 @@ const withEnv = async (vars, fn) => {
 
 const setCookies = (res) => [].concat(res.headers["set-cookie"] || []);
 const cookieNamed = (res, name) => setCookies(res).find((c) => c.startsWith(`${name}=`));
+// The JWT is only in the httpOnly cookie (H07), never in the login JSON.
+const tokenOf = (res) => cookieNamed(res, "token").split(";")[0].slice("token=".length);
 
 describe("admin JWT and cookies (S09)", () => {
   let admin;
@@ -35,7 +37,7 @@ describe("admin JWT and cookies (S09)", () => {
 
   const login = (user) =>
     request(app).post("/api/admin/login").send({ email: user.email, password: PASSWORD });
-  const me = (token) => request(app).get("/api/admin/me").set("Authorization", `Bearer ${token}`);
+  const me = (token) => request(app).get("/api/admin/me").set("Cookie", `token=${token}`);
   const meWithCookie = (token) => request(app).get("/api/admin/me").set("Cookie", `token=${token}`);
 
   const resetPassword = async (user) => {
@@ -55,14 +57,15 @@ describe("admin JWT and cookies (S09)", () => {
 
     const res = await login(admin);
     expect(res.status).toBe(200);
-    const decoded = jwt.verify(res.body.token, process.env.JWT_SECRET);
+    expect(res.body.token).toBeUndefined();
+    const decoded = jwt.verify(tokenOf(res), process.env.JWT_SECRET);
     expect(decoded.av).toBe(3);
     expect(String(decoded.id)).toBe(String(admin._id));
-    expect(jwt.verify(cookieNamed(res, "token").split(";")[0].slice(6), process.env.JWT_SECRET).av).toBe(3);
+    expect(cookieNamed(res, "token")).toMatch(/HttpOnly/i);
   });
 
   it("revokes the old admin token after a password reset, and a new login works", async () => {
-    const { token } = (await login(admin)).body;
+    const token = tokenOf(await login(admin));
     expect((await me(token)).status).toBe(200);
 
     await resetPassword(admin);
@@ -74,11 +77,11 @@ describe("admin JWT and cookies (S09)", () => {
       .post("/api/admin/login")
       .send({ email: admin.email, password: "NewPassword@456" });
     expect(relogin.status).toBe(200);
-    expect((await me(relogin.body.token)).status).toBe(200);
+    expect((await meWithCookie(tokenOf(relogin))).status).toBe(200);
   });
 
   it("keeps an admin logged in when another admin resets their password", async () => {
-    const { token } = (await login(admin)).body;
+    const token = tokenOf(await login(admin));
 
     await resetPassword(otherAdmin);
 
@@ -86,11 +89,11 @@ describe("admin JWT and cookies (S09)", () => {
   });
 
   describe("cookie options", () => {
-    it("uses SameSite=None, Secure and HttpOnly in production", async () => {
+    it("uses SameSite=Lax, Secure and HttpOnly in production (H08: client and API share e2job.com)", async () => {
       await expect(withEnv({ NODE_ENV: "production" }, () => authCookieOptions(1000))).resolves.toMatchObject({
         httpOnly: true,
         secure: true,
-        sameSite: "none",
+        sameSite: "lax",
         path: "/",
       });
 
@@ -100,9 +103,27 @@ describe("admin JWT and cookies (S09)", () => {
         const cookie = cookieNamed(res, name);
         expect(cookie).toMatch(/HttpOnly/i);
         expect(cookie).toMatch(/Secure/i);
-        expect(cookie).toMatch(/SameSite=None/i);
+        expect(cookie).toMatch(/SameSite=Lax/i);
         expect(cookie).toMatch(/Path=\//);
       }
+    });
+
+    it("switches back to SameSite=None + Secure with AUTH_COOKIE_SAMESITE=none", async () => {
+      await expect(
+        withEnv({ NODE_ENV: "production", AUTH_COOKIE_SAMESITE: "none" }, () => authCookieBaseOptions())
+      ).resolves.toEqual({ httpOnly: true, secure: true, sameSite: "none", path: "/" });
+
+      // None without Secure is dropped by browsers, so it is Secure even outside production.
+      await expect(withEnv({ AUTH_COOKIE_SAMESITE: "none" }, () => authCookieBaseOptions())).resolves.toMatchObject({
+        secure: true,
+        sameSite: "none",
+      });
+    });
+
+    it("ignores an unknown AUTH_COOKIE_SAMESITE value", async () => {
+      await expect(
+        withEnv({ NODE_ENV: "production", AUTH_COOKIE_SAMESITE: "sometimes" }, () => authCookieBaseOptions())
+      ).resolves.toMatchObject({ sameSite: "lax" });
     });
 
     it("uses SameSite=Lax without Secure in development", async () => {
@@ -124,14 +145,14 @@ describe("admin JWT and cookies (S09)", () => {
         expect(cookie).toBeDefined();
         expect(cookie).toMatch(/Expires=Thu, 01 Jan 1970/);
         expect(cookie).toMatch(/Path=\//);
-        expect(cookie).toMatch(/SameSite=None/i);
+        expect(cookie).toMatch(/SameSite=Lax/i);
         expect(cookie).toMatch(/Secure/i);
         expect(cookie).toMatch(/HttpOnly/i);
       }
       await expect(withEnv({ NODE_ENV: "production" }, () => authCookieBaseOptions())).resolves.toEqual({
         httpOnly: true,
         secure: true,
-        sameSite: "none",
+        sameSite: "lax",
         path: "/",
       });
     });

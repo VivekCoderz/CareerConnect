@@ -500,13 +500,11 @@ const EmployerRegister = () => {
       const {
         user,
         requiresPasswordSetup,
-        token,
       } = response.data;
 
       dispatch(
         loginSuccess({
           user,
-          token,
         })
       );
 
@@ -614,7 +612,6 @@ const EmployerRegister = () => {
       dispatch(
         signupSuccess({
           user: res.data.user,
-          token: res.data.token,
         })
       );
 

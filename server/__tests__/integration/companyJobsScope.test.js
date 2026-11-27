@@ -8,7 +8,7 @@ const EmployerProfile = require("../../models/EmployerProfile");
 const { createEmployerWithToken, createEmployerProfile } = require("../helpers/createTestUser");
 const { createTestJob } = require("../helpers/createTestJob");
 
-const as = (token, path) => request(app).get(path).set("Authorization", `Bearer ${token}`);
+const as = (token, path) => request(app).get(path).set("Cookie", `token=${token}`);
 
 let seq = 0;
 const uniq = (label) => `${label}-${Date.now()}-${++seq}`;

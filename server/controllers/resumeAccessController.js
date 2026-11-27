@@ -45,6 +45,12 @@ const getResumeDownload = async (req, res, next) => {
       attachment: false,
     });
     res.set("Cache-Control", "private, no-store");
+    // ?format=json: the client asks with its cookie, then fetches the signed URL itself
+    // without credentials (Cloudinary rejects credentialed requests), so no Bearer
+    // token is needed (hardening: auth by httpOnly cookie only).
+    if (req.query.format === "json") {
+      return res.json({ success: true, url: signedUrl, expiresIn: 60 });
+    }
     return res.redirect(302, signedUrl);
   } catch (error) {
     next(error);

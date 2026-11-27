@@ -38,7 +38,6 @@ const AccountSettings = () => {
       await api.delete("/auth/account", {
         data: needsPassword ? { password } : { confirm: "DELETE" },
       });
-      localStorage.removeItem("careerconnect_token");
       localStorage.removeItem("careerconnect_user");
       if (auth) await signOut(auth).catch(() => {});
       setDeleted(true);

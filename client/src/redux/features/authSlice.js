@@ -1,5 +1,13 @@
 import { createSlice } from "@reduxjs/toolkit";
 
+// The JWT lives only in the httpOnly auth cookie. Older builds also kept a copy in
+// localStorage, where any injected script could read it, so remove it once on load.
+try {
+  localStorage.removeItem("careerconnect_token");
+} catch {
+  // Storage is blocked (e.g. private mode), so nothing was stored.
+}
+
 const getStoredUser = () => {
   try {
     const raw = localStorage.getItem("careerconnect_user");
@@ -35,7 +43,6 @@ const authSlice = createSlice({
         localStorage.setItem("careerconnect_user", JSON.stringify(action.payload));
       } else {
         localStorage.removeItem("careerconnect_user");
-        localStorage.removeItem("careerconnect_token");
       }
     },
 
@@ -81,9 +88,6 @@ const authSlice = createSlice({
       if (action.payload.user) {
         localStorage.setItem("careerconnect_user", JSON.stringify(action.payload.user));
       }
-      if (action.payload.token) {
-        localStorage.setItem("careerconnect_token", action.payload.token);
-      }
     },
 
     loginFailure: (state, action) => {
@@ -109,9 +113,6 @@ const authSlice = createSlice({
       if (action.payload.user) {
         localStorage.setItem("careerconnect_user", JSON.stringify(action.payload.user));
       }
-      if (action.payload.token) {
-        localStorage.setItem("careerconnect_token", action.payload.token);
-      }
     },
 
     signupFailure: (state, action) => {
@@ -136,7 +137,6 @@ const authSlice = createSlice({
       state.error = null;
       state.success = null;
       localStorage.removeItem("careerconnect_user");
-      localStorage.removeItem("careerconnect_token");
       // Do not clear sessionExpired here — Login page reads it to show the message
     },
   },

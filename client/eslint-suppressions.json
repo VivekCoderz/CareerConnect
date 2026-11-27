@@ -1006,9 +1006,6 @@
   "src/pages/fresher/FresherProfile.jsx": {
     "max-lines": {
       "count": 1
-    },
-    "no-unused-vars": {
-      "count": 1
     }
   },
   "src/pages/internships/InternshipDiscoveryPage.jsx": {
@@ -1128,11 +1125,6 @@
   "src/pages/student/StudentProfile.jsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
-    }
-  },
-  "src/services/notificationService.js": {
-    "no-unused-vars": {
-      "count": 4
     }
   },
   "src/utils/latexResumeGenerator.js": {

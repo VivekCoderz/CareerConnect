@@ -7,7 +7,7 @@ const { createUserWithToken, createEmployerWithToken, createEmployerProfile } = 
 
 // Bug 8: the application tracking page shows an interview round as "Scheduled" with its
 // date, so GET /applications/:id must include the application's interviews.
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 describe("GET /api/applications/:id interviews (bug 8)", () => {
   let candidate;

@@ -119,8 +119,8 @@ const Login = () => {
         captchaToken: finalCaptchaToken,
       });
 
-      const { user, token } = response.data;
-      dispatch(loginSuccess({ user, token }));
+      const { user } = response.data;
+      dispatch(loginSuccess({ user }));
 
       if (redirectTo) {
         navigate(redirectTo, { replace: true });
@@ -162,8 +162,8 @@ const Login = () => {
         role: loginType === "employer" ? "employer" : "user",
       });
 
-      const { user, requiresPasswordSetup, token } = response.data;
-      dispatch(loginSuccess({ user, token }));
+      const { user, requiresPasswordSetup } = response.data;
+      dispatch(loginSuccess({ user }));
 
       // Step 3: Route based on account status
       if (requiresPasswordSetup || user.hasPassword === false) {

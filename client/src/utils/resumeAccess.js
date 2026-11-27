@@ -34,6 +34,7 @@ const NOT_A_PDF = "NOT_A_PDF";
 const errorMessage = async (err) => {
   if (err.message === NOT_A_PDF) return "This resume file is not a valid PDF.";
   const data = err.response?.data;
+  if (data?.message && !(data instanceof Blob)) return data.message;
   if (data instanceof Blob) {
     try {
       const parsed = JSON.parse(await data.text());
@@ -47,24 +48,36 @@ const errorMessage = async (err) => {
   return "The resume could not be opened. Please try again.";
 };
 
-// Fetches a protected resume through the api client, which sends the Bearer token, so
-// this works when third-party cookies are blocked (a plain link to /resume/download
-// would arrive without credentials). The API redirects to a short-lived signed
-// Cloudinary URL. Cloudinary allows any origin but not credentials, so this request
-// must not send cookies.
+// Fetches a protected resume in two steps, so no Bearer token is needed:
+// 1. Ask the API (with the httpOnly auth cookie) for a short-lived signed Cloudinary URL.
+//    The API checks the owner, or the employer attached to the application.
+// 2. Fetch that URL without credentials: Cloudinary allows any origin but rejects
+//    credentialed requests.
 const fetchResumePdf = async (url) => {
-  const res = await api.get("/resume/download", {
-    params: { url },
-    responseType: "blob",
-    withCredentials: false,
+  const { data } = await api.get("/resume/download", {
+    params: { url, format: "json" },
     timeout: 30_000,
   });
+  if (typeof data?.url !== "string" || !data.url.startsWith("https://")) {
+    throw new Error("The resume link from the server was not valid.");
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  let blob;
+  try {
+    const file = await fetch(data.url, { credentials: "omit", signal: controller.signal });
+    if (!file.ok) throw new Error(`Resume download failed (${file.status})`);
+    blob = await file.blob();
+  } finally {
+    clearTimeout(timer);
+  }
   // Uploads are PDF only (G10). Browsers save any blob not typed application/pdf
   // instead of showing it, so check the file signature and type it ourselves rather
   // than trusting the response Content-Type.
-  const signature = await res.data.slice(0, 5).text();
+  const signature = await blob.slice(0, 5).text();
   if (signature !== "%PDF-") throw new Error(NOT_A_PDF);
-  return new Blob([res.data], { type: "application/pdf" });
+  return new Blob([blob], { type: "application/pdf" });
 };
 
 /**

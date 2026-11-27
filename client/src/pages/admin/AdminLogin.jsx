@@ -49,9 +49,6 @@ const AdminLogin = () => {
       });
 
       if (res?.success && res?.user) {
-        if (res.token) {
-          localStorage.setItem("careerconnect_token", res.token);
-        }
         dispatch(setUser(res.user));
         let redirectPath = location.state?.from?.pathname || "/admin/dashboard";
         const isSuperAdmin = res.user.role === "SUPER_ADMIN" || (res.user.role === "admin" && !res.user.companyId);

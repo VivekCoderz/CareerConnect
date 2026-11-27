@@ -5,7 +5,7 @@ const app = require("../../app");
 const { scrubEvent } = require("../../instrument");
 const { createUserWithToken } = require("../helpers/createTestUser");
 
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 const sentryTest = (identity) => {
   const req = request(app).post("/api/admin/debug/sentry-test");
   return identity ? req.set(auth(identity)) : req;

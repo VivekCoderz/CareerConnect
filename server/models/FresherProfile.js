@@ -32,6 +32,11 @@ const educationSchema = new mongoose.Schema(
       trim: true,
       maxlength: [150, "University or board name cannot exceed 150 characters"],
     },
+    startYear: {
+      type: Number,
+      min: [1970, "Invalid start year"],
+      max: [2035, "Invalid start year"],
+    },
     graduationYear: {
       type: Number,
       min: [1970, "Invalid graduation year"],

@@ -7,7 +7,7 @@ const { createUserWithToken, createEmployerProfile } = require("../helpers/creat
 
 // G05: new accounts must agree to the Terms and Privacy Policy, and the server stores it.
 const CONSENT = { acceptedTerms: true, termsVersion: "2026-10-01" };
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 
 let seq = 0;
 const verifiedEmail = async (prefix) => {
@@ -169,5 +169,9 @@ describe("signup consent (G05)", () => {
     const res = await request(app).post("/api/auth/login").send({ emailOrUsername: "before-consent@example.com", password: "Password@123" });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+    // H07: the JWT is only in the httpOnly cookie, and the cookie alone signs the user in.
+    expect(res.body.token).toBeUndefined();
+    const me = await request(app).get("/api/auth/me").set("Cookie", res.headers["set-cookie"]);
+    expect(me.status).toBe(200);
   });
 });

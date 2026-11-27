@@ -9,7 +9,7 @@ const { createTestJob } = require("../helpers/createTestJob");
 const { migrateFresherPreferences } = require("../../scripts/migrate-fresher-preferences");
 const { interestsToPreferences, profileStrength } = require("../../utils/fresherPreferences");
 
-const auth = (identity) => ({ Authorization: `Bearer ${identity.token}` });
+const auth = (identity) => ({ Cookie: `token=${identity.token}` });
 const createFresher = (overrides = {}) =>
   createUserWithToken({ userType: "fresher", fullName: "Asha Verma", firstName: "", ...overrides });
 const summary = (fresher) => request(app).get("/api/dashboard/summary").set(auth(fresher));

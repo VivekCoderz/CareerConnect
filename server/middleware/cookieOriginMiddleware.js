@@ -1,6 +1,6 @@
 const cookieOriginMiddleware = (allowedOrigins, enabled) => (req, res, next) => {
   if (!enabled || ["GET", "HEAD", "OPTIONS"].includes(req.method) ||
-      (!req.cookies?.token && !req.cookies?.sid)) return next();
+      !req.cookies?.token) return next();
   let origin = req.get("Origin");
   if (!origin && req.get("Referer")) {
     try { origin = new URL(req.get("Referer")).origin; } catch (_) { /* reject below */ }

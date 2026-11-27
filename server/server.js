@@ -24,21 +24,6 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
-// Startup validation for SESSION_SECRET
-let SESSION_SECRET = process.env.SESSION_SECRET;
-if (!SESSION_SECRET) {
-  if (isProduction) {
-    console.error("FATAL: SESSION_SECRET environment variable is not set. A secure secret is required for sessions.");
-    process.exit(1);
-  } else {
-    SESSION_SECRET = "dev_session_secret_key_career_connect_local_32chars_long";
-    process.env.SESSION_SECRET = SESSION_SECRET;
-  }
-} else if (isProduction && SESSION_SECRET.length < 32) {
-  console.error("FATAL: SESSION_SECRET must be set and at least 32 characters long in production.");
-  process.exit(1);
-}
-
 // Warn (once, without values) if the fallback email provider is only partly configured.
 require("./utils/sendEmail").warnOnFallbackEmailConfig();
 
@@ -49,6 +34,14 @@ const { closeExpiredListings } = require("./utils/listingExpiry");
 const { clearSearchCache } = require("./services/jobScraperService");
 
 const PORT = process.env.PORT || 5000;
+
+// Staging must use its own database and production must never use it (H02, docs/staging.md).
+try {
+  require("./config/environment").assertDatabaseMatchesEnvironment(process.env.MONGODB_URI);
+} catch (error) {
+  console.error(`❌ ${error.message}`);
+  process.exit(1);
+}
 
 // Connect Database
 connectDB();

@@ -19,7 +19,7 @@ const createOrgRequest = (overrides = {}) =>
   });
 
 const approve = (token, id) =>
-  request(app).patch(`/api/admin/organization-requests/${id}/approve`).set("Authorization", `Bearer ${token}`);
+  request(app).patch(`/api/admin/organization-requests/${id}/approve`).set("Cookie", `token=${token}`);
 
 describe("organization approval (ADM-01, ADM-02, ADM-13, ADM-14)", () => {
   it("creates a new Company Admin with an activation link for a new email", async () => {
