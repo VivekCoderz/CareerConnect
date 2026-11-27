@@ -34,7 +34,7 @@ Each seeker type has its own profile and dashboard (`/student/*`, `/fresher/*`, 
   * Shareable live resume link (`/live-resume/:id`)
 * **Skills** — skill catalogue and trending skills (`/api/skills`, `/api/skills/trending`)
 * **Market insights** for professionals — market analytics and company details
-* **Notifications** — in-app (live via Socket.IO / server-sent events) and email, with read tracking and email digests
+* **Notifications** — in-app (live over Socket.IO) and email, with read tracking and email digests
 * **Support** — raise support tickets, report a job or internship listing
 
 ### Employers
