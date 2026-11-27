@@ -8,4 +8,10 @@ export const getProgram = async (slug) => {
   return response.data.program;
 };
 
-export default { getProgram };
+/** Sends an enquiry (C10); resolves with { reference }. Not an enrolment: nothing to pay. */
+export const submitProgramEnquiry = async (slug, enquiry) => {
+  const response = await api.post(`/programs/${encodeURIComponent(slug)}/enquiry`, enquiry);
+  return response.data;
+};
+
+export default { getProgram, submitProgramEnquiry };
