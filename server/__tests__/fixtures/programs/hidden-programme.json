@@ -1,6 +1,10 @@
 {
   "track": "software",
-  "level": null,
+  "levels": [
+    "foundation",
+    "professional",
+    "advanced"
+  ],
   "duration": "4 weeks",
   "tools": [],
   "summary": "",
@@ -9,6 +13,7 @@
   "mentorship": "",
   "internship": "",
   "certificate": "",
+  "certificateImage": "",
   "faq": [],
   "slug": "hidden-programme",
   "title": "Hidden Programme",

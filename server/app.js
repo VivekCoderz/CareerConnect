@@ -169,7 +169,8 @@ if (flag("ENABLE_COURSES")) app.use("/api/courses", courseRoutes);
 if (flag("ENABLE_COURSES")) app.use("/api/courses", courseContentRoutes);
 if (flag("ENABLE_COURSES")) app.use("/api/course-content", courseContentRoutes);
 if (flag("ENABLE_PAYMENTS")) app.use("/api/payment", paymentRoutes);
-app.use("/api/programs", programRoutes);
+// C09: off until ENABLE_PROGRAMS=true (same switch as the client's VITE_ENABLE_PROGRAMS)
+if (flag("ENABLE_PROGRAMS")) app.use("/api/programs", programRoutes);
 
 // Marketplace & Discovery Routes
 app.use("/api/jobs", jobRoutes);

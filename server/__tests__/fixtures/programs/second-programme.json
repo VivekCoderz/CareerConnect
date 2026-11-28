@@ -1,6 +1,8 @@
 {
   "track": "software",
-  "level": null,
+  "levels": [
+    "professional"
+  ],
   "duration": "4 weeks",
   "tools": [],
   "summary": "",
@@ -9,6 +11,7 @@
   "mentorship": "",
   "internship": "",
   "certificate": "",
+  "certificateImage": "",
   "faq": [],
   "slug": "second-programme",
   "title": "Second Programme",

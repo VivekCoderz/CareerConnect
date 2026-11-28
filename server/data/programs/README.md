@@ -14,7 +14,7 @@ cards open the right pages.
 | `published`   | boolean                           | `false` hides it from the list and makes the detail URL a 404 |
 | `order`       | number                            | Position on the list page (lowest first)           |
 | `track`       | `data-ai` \| `software` \| `cloud-security` |                                          |
-| `level`       | `foundation` \| `professional` \| `advanced` \| `null` | `null` until decided          |
+| `levels`      | list of `foundation`, `professional`, `advanced` | Levels offered, at least one, no repeats; e.g. `["foundation", "professional", "advanced"]` |
 | `duration`    | string                            | e.g. `"8–12 weeks"`                                |
 | `tools`       | string[]                          | Key tools                                          |
 | `summary`     | string                            | Shown on the card and the page                     |
@@ -23,6 +23,7 @@ cards open the right pages.
 | `mentorship`  | string                            |                                                    |
 | `internship`  | string                            |                                                    |
 | `certificate` | string                            | C02: final wording comes from Ram Mohan sir        |
+| `certificateImage` | string                          | C02 sample certificate: `""` until it exists, then `"/programs/certificates/<slug>.webp"` (file in `client/public`) or an `https://` URL |
 | `faq`         | `{ question, answer }[]`          |                                                    |
 
 Leave a section empty (`""` or `[]`) until the real content is agreed; the page hides

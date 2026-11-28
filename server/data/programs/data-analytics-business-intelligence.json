@@ -4,7 +4,11 @@
   "published": true,
   "order": 2,
   "track": "data-ai",
-  "level": null,
+  "levels": [
+    "foundation",
+    "professional",
+    "advanced"
+  ],
   "duration": "10–12 weeks",
   "tools": [
     "Python",
@@ -84,6 +88,7 @@
   "mentorship": "Every student gets a personal mentor from the industry for the whole programme. Your mentor reviews your projects, helps when you are stuck, and guides you one to one on your portfolio, GitHub and LinkedIn profile, resume and interview preparation.",
   "internship": "Students who complete the projects and the final evaluation are considered for internship opportunities through E2Job, and everyone gets practical industry exposure through real-world projects and expert sessions. Internships depend on your performance and on availability; they are not guaranteed.",
   "certificate": "Complete the live sessions, at least two hands-on industry projects and the final evaluation to receive an E2Job Certificate of Completion. It shows the programme, your level and the duration, and carries a unique certificate ID.",
+  "certificateImage": "",
   "faq": [
     {
       "question": "Who is this programme for?",
